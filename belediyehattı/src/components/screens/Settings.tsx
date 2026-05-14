@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { ChevronLeft, Globe, Moon, Sun, Monitor, Bell, Info, Shield, Check } from 'lucide-react';
+import { ChevronLeft, Globe, Moon, Sun, Monitor, Bell, Info, Shield, Check, Building2 } from 'lucide-react';
 import { Lang, LANGUAGES, t } from '../../i18n';
 
 interface SettingsProps {
@@ -8,9 +8,10 @@ interface SettingsProps {
   onLangChange: (lang: Lang) => void;
   onThemeChange: (theme: 'light' | 'dark' | 'system') => void;
   onBack: () => void;
+  onChangeMunicipality?: () => void;
 }
 
-export default function Settings({ lang, theme, onLangChange, onThemeChange, onBack }: SettingsProps) {
+export default function Settings({ lang, theme, onLangChange, onThemeChange, onBack, onChangeMunicipality }: SettingsProps) {
   const themeOptions = [
     { value: 'light' as const, icon: <Sun className="w-5 h-5" />, label: t('settings.theme.light', lang) },
     { value: 'dark' as const, icon: <Moon className="w-5 h-5" />, label: t('settings.theme.dark', lang) },
@@ -32,6 +33,22 @@ export default function Settings({ lang, theme, onLangChange, onThemeChange, onB
       </div>
 
       <div className="p-5 space-y-6">
+        {onChangeMunicipality ? (
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Building2 className="w-4 h-4 text-primary" />
+              <h3 className="font-semibold text-sm text-slate-700 dark:text-slate-200">{t('settings.municipality', lang)}</h3>
+            </div>
+            <button
+              type="button"
+              onClick={onChangeMunicipality}
+              className="w-full p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-left text-sm font-medium text-slate-800 dark:text-slate-100 hover:border-primary/40"
+            >
+              {t('settings.changeMunicipality', lang)}
+            </button>
+          </div>
+        ) : null}
+
         {/* Language */}
         <div>
           <div className="flex items-center gap-2 mb-3">

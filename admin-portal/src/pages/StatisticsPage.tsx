@@ -3,10 +3,10 @@ import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer,
 import api, { type ReportListItem, type SpringPage, type Stats } from '../api';
 
 const STATUS_COLORS: Record<string, string> = {
-  PENDING: '#f59e0b',
-  PROCESSING: '#6366f1',
-  RESOLVED: '#10b981',
-  REJECTED: '#ef4444',
+  PENDING: '#d97706',
+  PROCESSING: '#0ea5e9',
+  RESOLVED: '#059669',
+  REJECTED: '#dc2626',
 };
 
 export default function StatisticsPage() {
@@ -66,8 +66,9 @@ export default function StatisticsPage() {
   return (
     <div className="space-y-8 p-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">İstatistikler</h2>
-        <p className="text-slate-500 dark:text-slate-400">KentGözü v3 — özet KPI ve son raporlardan kategori dağılımı.</p>
+        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Analitik</p>
+        <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">İstatistikler</h2>
+        <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">Özet KPI ve kategori dağılımı.</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -77,16 +78,16 @@ export default function StatisticsPage() {
           { label: 'Departman', value: stats.totalDepartments },
           { label: 'Kategori', value: stats.totalCategories },
         ].map((c) => (
-          <div key={c.label} className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{c.label}</p>
-            <p className="mt-2 text-3xl font-black text-primary">{c.value}</p>
+          <div key={c.label} className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{c.label}</p>
+            <p className="mt-2 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-white">{c.value}</p>
           </div>
         ))}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <h3 className="mb-4 text-lg font-bold">Durum dağılımı</h3>
+        <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <h3 className="mb-4 border-b border-slate-100 pb-3 text-base font-bold text-slate-900 dark:border-slate-800 dark:text-white">Durum dağılımı</h3>
           <div className="h-[280px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -101,8 +102,8 @@ export default function StatisticsPage() {
           </div>
         </div>
 
-        <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <h3 className="mb-4 text-lg font-bold">Kategori (son 500 rapor)</h3>
+        <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <h3 className="mb-4 border-b border-slate-100 pb-3 text-base font-bold text-slate-900 dark:border-slate-800 dark:text-white">Kategori (son 500 rapor)</h3>
           <div className="h-[280px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={categoryRows} layout="vertical" margin={{ left: 8, right: 16 }}>
@@ -110,7 +111,7 @@ export default function StatisticsPage() {
                 <XAxis type="number" />
                 <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11 }} />
                 <Tooltip formatter={(value) => [`${value ?? 0}`, 'Rapor']} />
-                <Bar dataKey="value" fill="#004d99" radius={[0, 8, 8, 0]} />
+                <Bar dataKey="value" fill="#0b4f9c" radius={[0, 6, 6, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

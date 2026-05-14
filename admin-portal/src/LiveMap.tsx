@@ -53,7 +53,7 @@ function HeatLayer({ points }: { points: [number, number, number][] }) {
       blur: 22,
       maxZoom: 16,
       max: 0.85,
-      gradient: { 0.4: '#00b1ff', 0.65: '#004d99', 0.9: '#ffcc00', 1: '#dc2626' },
+      gradient: { 0.4: '#0ea5e9', 0.65: '#0b4f9c', 0.9: '#e6b422', 1: '#dc2626' },
     });
     map.addLayer(layer);
     return () => {
@@ -70,7 +70,7 @@ const statusBadge = (status: string) => {
     case 'PENDING':
       return 'bg-amber-100 text-amber-800';
     case 'PROCESSING':
-      return 'bg-indigo-100 text-indigo-800';
+      return 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200';
     case 'RESOLVED':
       return 'bg-emerald-100 text-emerald-800';
     case 'REJECTED':
@@ -80,7 +80,7 @@ const statusBadge = (status: string) => {
   }
 };
 
-const LiveMap = () => {
+const LiveMap = ({ centerLat, centerLng, zoom }: { centerLat?: number, centerLng?: number, zoom?: number }) => {
   const [reports, setReports] = useState<Report[]>([]);
   const [newReport, setNewReport] = useState<Report | null>(null);
   const [layerMode, setLayerMode] = useState<MapLayerMode>('both');
@@ -162,7 +162,7 @@ const LiveMap = () => {
   const showHeat = layerMode === 'heat' || layerMode === 'both';
 
   return (
-    <div className="relative h-[600px] rounded-3xl overflow-hidden shadow-2xl border-4 border-white dark:border-slate-800">
+    <div className="relative h-[600px] overflow-hidden rounded-2xl border border-slate-200/90 shadow-sm dark:border-slate-700 dark:shadow-none">
       <div className="absolute top-3 left-3 z-[500] flex flex-wrap gap-2">
         {(
           [
@@ -175,10 +175,10 @@ const LiveMap = () => {
             key={id}
             type="button"
             onClick={() => setLayerMode(id)}
-            className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold shadow-md backdrop-blur-md transition-colors ${
+            className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold shadow-sm backdrop-blur-md transition-colors ${
               layerMode === id
-                ? 'bg-primary text-white'
-                : 'bg-white/90 text-slate-700 dark:bg-slate-900/90 dark:text-slate-200'
+                ? 'border-primary/30 bg-primary text-white'
+                : 'border-slate-200/90 bg-white/95 text-slate-700 dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-200'
             }`}
           >
             <Icon size={14} />
@@ -187,7 +187,7 @@ const LiveMap = () => {
         ))}
       </div>
 
-      <div className="absolute top-3 right-3 z-[500] flex items-center gap-2 rounded-xl bg-white/90 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 shadow-md backdrop-blur-md dark:bg-slate-900/90 dark:text-slate-300">
+      <div className="absolute top-3 right-3 z-[500] flex items-center gap-2 rounded-lg border border-slate-200/90 bg-white/95 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 shadow-sm backdrop-blur-md dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-300">
         <span className={`h-2 w-2 rounded-full ${wsConnected ? 'animate-pulse bg-emerald-500' : 'bg-amber-500'}`} />
         {wsConnected ? 'Canlı' : 'WS kapalı'}
       </div>
@@ -198,7 +198,7 @@ const LiveMap = () => {
         </div>
       )}
 
-      <MapContainer center={[41.0082, 28.9784]} zoom={11} className="h-full w-full">
+      <MapContainer center={[centerLat || 41.0082, centerLng || 28.9784]} zoom={zoom || 11} className="h-full w-full">
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -227,17 +227,18 @@ const LiveMap = () => {
       <AnimatePresence>
         {newReport && (
           <motion.div
-            initial={{ x: 300, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: 300, opacity: 0 }}
-            className="absolute top-14 right-3 z-[1000] w-72 rounded-2xl border-l-4 border-primary bg-white/90 p-4 shadow-2xl backdrop-blur-md dark:bg-slate-900/95"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
+            transition={{ duration: 0.18 }}
+            className="absolute top-14 right-3 z-[1000] w-72 rounded-xl border border-slate-200/90 bg-white/95 p-4 shadow-lg backdrop-blur-md dark:border-slate-600 dark:bg-slate-900/95"
           >
             <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <AlertCircle size={20} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold uppercase text-primary">Yeni ihbar (v3)</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-primary">Yeni ihbar</p>
                 <p className="truncate text-sm font-bold text-slate-900 dark:text-white">{newReport.title}</p>
                 <p className="text-xs text-slate-500">{newReport.district}</p>
               </div>

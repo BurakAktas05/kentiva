@@ -36,6 +36,10 @@ build/
 .env
 .env.*
 !.env.example
+RAILWAY_ENV_VARS.txt
+
+### Yerel Spring dev profili (DB şifresi vb.) ###
+**/application-dev.properties
 
 ### Frontend ###
 node_modules/
@@ -43,3 +47,10 @@ dist/
 .vercel/
 .output/
 *.log
+
+### Logs & Temp ###
+boot.log
+boot-error.log
+ngrok.log
+uploads/
+HELP.md

@@ -71,12 +71,16 @@ public class AuthController {
                 .map(r -> r.getName())
                 .collect(java.util.stream.Collectors.toSet());
 
+        var municipality = com.burak.belediyeapp.dto.response.municipality.MunicipalityDto.fromEntity(
+                currentUser.getMunicipality());
+
         AuthMeResponse response = new AuthMeResponse(
                 currentUser.getId(),
                 currentUser.getEmail(),
                 currentUser.getFullName(),
                 roles,
-                currentUser.getDistrict()
+                currentUser.getDistrict(),
+                municipality
         );
         return ResponseEntity.ok(ApiResponse.success(response));
     }
@@ -86,6 +90,7 @@ public class AuthController {
             String email,
             String fullName,
             java.util.Set<String> roles,
-            String district
+            String district,
+            com.burak.belediyeapp.dto.response.municipality.MunicipalityDto municipality
     ) {}
 }

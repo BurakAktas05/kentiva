@@ -60,8 +60,12 @@ public class UserController {
     @PatchMapping("/fcm-token")
     @Operation(summary = "FCM Token güncelle")
     public ResponseEntity<ApiResponse<Void>> updateFcmToken(
-            @RequestParam String token,
+            @RequestBody java.util.Map<String, String> body,
             @AuthenticationPrincipal AppUser currentUser) {
+        String token = body.getOrDefault("fcmToken", body.get("token"));
+        if (token == null || token.isBlank()) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("FCM token gerekli", "MISSING_TOKEN"));
+        }
         userService.updateFcmToken(currentUser.getId(), token);
         return ResponseEntity.ok(ApiResponse.success("FCM Token güncellendi", null));
     }
@@ -71,38 +75,46 @@ public class UserController {
     // =====================================================
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN','ROLE_SUPER_ADMIN','ROLE_DEPT_MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN','ROLE_DEPT_MANAGER')")
     @Operation(summary = "Tüm kullanıcıları listele (Admin/Yönetici)")
-    public ResponseEntity<ApiResponse<List<UserResponse>>> getAllUsers() {
-        return ResponseEntity.ok(ApiResponse.success(userService.getAllUsers()));
+    public ResponseEntity<ApiResponse<List<UserResponse>>> getAllUsers(
+            @AuthenticationPrincipal AppUser currentUser,
+            @RequestParam(required = false) String role) {
+        if (role != null && !role.isBlank()) {
+            return ResponseEntity.ok(ApiResponse.success(userService.getUsersByRole(role, currentUser)));
+        }
+        return ResponseEntity.ok(ApiResponse.success(userService.getAllUsers(currentUser)));
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     @Operation(summary = "Yeni personel oluştur (Admin)")
     public ResponseEntity<ApiResponse<UserResponse>> createStaff(
-            @Valid @RequestBody CreateStaffRequest request) {
-        UserResponse response = userService.createStaff(request);
+            @Valid @RequestBody CreateStaffRequest request,
+            @AuthenticationPrincipal AppUser currentUser) {
+        UserResponse response = userService.createStaff(request, currentUser);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Personel oluşturuldu", response));
     }
 
     @PatchMapping("/{userId}/roles")
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     @Operation(summary = "Kullanıcı rollerini güncelle (Admin)")
     public ResponseEntity<ApiResponse<UserResponse>> updateUserRoles(
             @PathVariable String userId,
-            @Valid @RequestBody UpdateUserRolesRequest request) {
-        UserResponse response = userService.updateUserRoles(userId, request);
+            @Valid @RequestBody UpdateUserRolesRequest request,
+            @AuthenticationPrincipal AppUser currentUser) {
+        UserResponse response = userService.updateUserRoles(userId, request, currentUser);
         return ResponseEntity.ok(ApiResponse.success("Roller güncellendi", response));
     }
 
     @PatchMapping("/{userId}/toggle-enabled")
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     @Operation(summary = "Kullanıcı hesabını aktif/pasif yap (Admin)")
     public ResponseEntity<ApiResponse<UserResponse>> toggleUserEnabled(
-            @PathVariable String userId) {
-        UserResponse response = userService.toggleUserEnabled(userId);
+            @PathVariable String userId,
+            @AuthenticationPrincipal AppUser currentUser) {
+        UserResponse response = userService.toggleUserEnabled(userId, currentUser);
         return ResponseEntity.ok(ApiResponse.success("Kullanıcı durumu güncellendi", response));
     }
 }

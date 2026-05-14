@@ -1,5 +1,6 @@
 package com.burak.belediyeapp.config;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,8 +14,13 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 import java.time.Duration;
 
+/**
+ * Redis yapılandırması — yalnızca app.cache.type=redis ise aktif.
+ * Railway gibi ortamlarda Redis yoksa uygulama basit in-memory cache ile çalışır.
+ */
 @Configuration
 @EnableCaching
+@ConditionalOnProperty(name = "app.cache.type", havingValue = "redis")
 public class RedisConfig {
 
     @Bean

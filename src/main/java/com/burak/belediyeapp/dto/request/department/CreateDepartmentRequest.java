@@ -9,5 +9,10 @@ public record CreateDepartmentRequest(
         String name,
 
         @Size(max = 255)
-        String description
+        String description,
+
+        /**
+         * Süper admin: departmanın bağlanacağı belediye (kendi hesabında belediye yokken zorunlu).
+         */
+        String municipalityId
 ) {}

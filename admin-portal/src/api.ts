@@ -56,6 +56,9 @@ export interface Report {
   aiPriority?: string | null;
   aiSummary?: string | null;
   aiSuggestedCategory?: string | null;
+  aiSlaRisk?: string | null;
+  aiReplyDraft?: string | null;
+  aiDuplicateHint?: string | null;
 }
 
 export interface ReportTimelineEntry {
@@ -83,4 +86,12 @@ export interface SpringPage<T> {
   totalPages: number;
   size: number;
   number: number;
+}
+
+export interface User {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  roles: string[];
 }

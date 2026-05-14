@@ -37,10 +37,19 @@ public class NotificationService {
             default -> "güncellendi";
         };
 
+        // En son eklenen tarihçe kaydındaki notu alalım (personel notu)
+        String note = report.getHistoryList().isEmpty() ? "" : 
+                     report.getHistoryList().get(report.getHistoryList().size() - 1).getNote();
+        
+        String bodyText = String.format("'%s' başlıklı raporunuz %s.", report.getTitle(), statusText);
+        if (note != null && !note.isBlank()) {
+            bodyText += " Not: " + note;
+        }
+
         Notification notification = Notification.builder()
                 .user(report.getReporter())
                 .title("Raporunuz " + statusText + "!")
-                .body(String.format("'%s' başlıklı raporunuz %s.", report.getTitle(), statusText))
+                .body(bodyText)
                 .type("REPORT_STATUS_CHANGED")
                 .reportId(report.getId())
                 .build();

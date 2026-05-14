@@ -18,6 +18,7 @@ import com.burak.belediyeapp.service.geo.DistrictResolutionService;
 import com.burak.belediyeapp.service.notification.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -42,16 +43,17 @@ public class ReportService {
     private final IReportHistoryRepository historyRepository;
     private final IReportMapper reportMapper;
     private final NotificationService notificationService;
-    private final org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
     private final com.burak.belediyeapp.service.ai.GeminiService geminiService;
     private final DistrictResolutionService districtResolutionService;
+    private final com.burak.belediyeapp.repository.IMunicipalityRepository municipalityRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     // ===================================================
     // VATANDAŞ: Rapor Oluşturma
     // ===================================================
 
     @Transactional
-    @PreAuthorize("hasRole('ROLE_CITIZEN')")
+    @PreAuthorize("hasAuthority('ROLE_CITIZEN')")
     @com.burak.belediyeapp.audit.AuditAction(action = "REPORT_CREATE", description = "Yeni bir vatandaş raporu oluşturuldu")
     public ReportResponse createReport(CreateReportRequest request, AppUser reporter) {
         ReportCategory category = categoryRepository.findById(request.categoryId())
@@ -62,18 +64,37 @@ public class ReportService {
         report.setCategory(category);
         report.setReporter(reporter);
 
-        Optional<String> spatialDistrict = districtResolutionService.resolveDistrict(
+        Optional<String> spatialMunicipalityId = districtResolutionService.resolveDistrict(
                 request.latitude(), request.longitude());
-        String fromClient = request.district();
-        String district = spatialDistrict.orElse(null);
-        if (district != null) {
-            if (fromClient != null && !fromClient.isBlank() && !fromClient.equalsIgnoreCase(district)) {
-                log.info("İlçe PostGIS tespiti istemciden farklı: client={}, server={}", fromClient, district);
-            }
+
+        if (reporter.getMunicipality() != null) {
+            // Beyaz etiket / personel hesabı: hesaba bağlı belediye kullanılır.
+            report.setMunicipality(reporter.getMunicipality());
+            report.setDistrict(reporter.getMunicipality().getName());
         } else {
-            district = (fromClient != null && !fromClient.isBlank()) ? fromClient : "Belirlenemedi";
+            // Kentiva: hesapta belediye yoksa seçilen hedef belediye + GPS eşleşmesi zorunlu.
+            String targetId = request.targetMunicipalityId();
+            if (targetId == null || targetId.isBlank()) {
+                throw new BusinessException(
+                        "Lütfen uygulamada bir belediye seçin veya konum iznini açın.",
+                        "TARGET_MUNICIPALITY_REQUIRED");
+            }
+            if (spatialMunicipalityId.isEmpty() || !spatialMunicipalityId.get().equals(targetId)) {
+                throw new BusinessException(
+                        "Konum, seçtiğiniz belediye sınırlarıyla eşleşmiyor. Konumu yenileyin veya belediyeyi değiştirin.",
+                        "LOCATION_MUNICIPALITY_MISMATCH");
+            }
+            Municipality target = municipalityRepository.findById(targetId)
+                    .orElseThrow(() -> new BusinessException("Geçersiz belediye seçimi.", "MUNICIPALITY_NOT_FOUND"));
+            if (!target.isActive() || !target.isOnboarded()) {
+                throw new BusinessException("Seçilen belediye bu platformda aktif değil.", "MUNICIPALITY_NOT_AVAILABLE");
+            }
+            report.setMunicipality(target);
+            String districtLabel = target.getDisplayName() != null && !target.getDisplayName().isBlank()
+                    ? target.getDisplayName()
+                    : target.getName();
+            report.setDistrict(districtLabel);
         }
-        report.setDistrict(district);
 
         Report saved = reportRepository.save(report);
 
@@ -93,14 +114,12 @@ public class ReportService {
                 .oldStatus(null)
                 .newStatus(ReportStatus.PENDING)
                 .changedBy(reporter)
-                .note("İhbar oluşturuldu · ilçe: " + district)
+                .note("İhbar oluşturuldu · ilçe: " + report.getDistrict())
                 .build());
 
-        messagingTemplate.convertAndSend("/topic/reports", reportMapper.toResponse(saved));
+        eventPublisher.publishEvent(new ReportCreatedEvent(saved.getId()));
 
-        performAiAnalysis(saved.getId());
-
-        log.info("Yeni rapor oluşturuldu: {} — {} — ilçe={}", saved.getId(), reporter.getEmail(), district);
+        log.info("Yeni rapor oluşturuldu: {} — {} — ilçe={}", saved.getId(), reporter.getEmail(), report.getDistrict());
 
         return reportMapper.toResponse(findReportOrThrow(saved.getId()));
     }
@@ -110,7 +129,7 @@ public class ReportService {
     // ===================================================
 
     @Transactional(readOnly = true)
-    @PreAuthorize("hasRole('ROLE_CITIZEN')")
+    @PreAuthorize("hasAuthority('ROLE_CITIZEN')")
     public Page<ReportListResponse> getMyReports(AppUser user, Pageable pageable) {
         return reportRepository.findByReporterId(user.getId(), pageable)
                 .map(reportMapper::toListResponse);
@@ -121,30 +140,44 @@ public class ReportService {
     // ===================================================
 
     @Transactional(readOnly = true)
-    @PreAuthorize("hasAnyRole('ROLE_FIELD_OFFICER','ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_FIELD_OFFICER','ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     public Page<ReportListResponse> getAllReports(AppUser user, Pageable pageable) {
-        if (user.getDistrict() != null && !user.hasRole("ROLE_SUPER_ADMIN")) {
-            return reportRepository.findByDistrict(user.getDistrict(), pageable)
+        if (isSuperAdmin(user)) {
+            return reportRepository.findAll(pageable)
                     .map(reportMapper::toListResponse);
         }
-        return reportRepository.findAll(pageable)
-                .map(reportMapper::toListResponse);
+        if (user.getMunicipality() != null) {
+            return reportRepository.findByMunicipalityId(user.getMunicipality().getId(), pageable)
+                    .map(reportMapper::toListResponse);
+        }
+        return Page.empty(pageable);
     }
 
     @Transactional(readOnly = true)
-    @PreAuthorize("hasAnyRole('ROLE_FIELD_OFFICER','ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_FIELD_OFFICER','ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     public Page<ReportListResponse> getReportsByStatus(ReportStatus status, AppUser user, Pageable pageable) {
-        if (user.getDistrict() != null && !user.hasRole("ROLE_SUPER_ADMIN")) {
-            return reportRepository.findByDistrictAndReportStatus(user.getDistrict(), status, pageable)
+        if (isSuperAdmin(user)) {
+            return reportRepository.findByReportStatus(status, pageable)
                     .map(reportMapper::toListResponse);
         }
-        return reportRepository.findByReportStatus(status, pageable)
-                .map(reportMapper::toListResponse);
+        if (user.getMunicipality() != null) {
+            return reportRepository.findByMunicipalityIdAndReportStatus(user.getMunicipality().getId(), status, pageable)
+                    .map(reportMapper::toListResponse);
+        }
+        return Page.empty(pageable);
     }
 
     @Transactional(readOnly = true)
-    @PreAuthorize("hasAnyRole('ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
-    public Page<ReportListResponse> getReportsByDepartment(String departmentId, Pageable pageable) {
+    @PreAuthorize("hasAnyAuthority('ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    public Page<ReportListResponse> getReportsByDepartment(String departmentId, AppUser user, Pageable pageable) {
+        if (!isSuperAdmin(user) && user.getMunicipality() != null) {
+            return reportRepository.findByCategoryDepartmentIdAndMunicipalityId(
+                            departmentId, user.getMunicipality().getId(), pageable)
+                    .map(reportMapper::toListResponse);
+        }
+        if (!isSuperAdmin(user)) {
+            return Page.empty(pageable);
+        }
         return reportRepository.findByCategoryDepartmentId(departmentId, pageable)
                 .map(reportMapper::toListResponse);
     }
@@ -177,8 +210,12 @@ public class ReportService {
     }
 
     @Transactional(readOnly = true)
-    @PreAuthorize("hasRole('ROLE_FIELD_OFFICER')")
+    @PreAuthorize("hasAuthority('ROLE_FIELD_OFFICER')")
     public Page<ReportListResponse> getMyAssignments(AppUser user, Pageable pageable) {
+        if (user.getMunicipality() != null) {
+            return reportRepository.findByAssigneeIdAndMunicipalityId(user.getId(), user.getMunicipality().getId(), pageable)
+                    .map(reportMapper::toListResponse);
+        }
         return reportRepository.findByAssigneeId(user.getId(), pageable)
                 .map(reportMapper::toListResponse);
     }
@@ -188,10 +225,11 @@ public class ReportService {
     // ===================================================
 
     @Transactional
-    @PreAuthorize("hasAnyRole('ROLE_FIELD_OFFICER', 'ROLE_DEPT_MANAGER', 'ROLE_ADMIN', 'ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_FIELD_OFFICER', 'ROLE_DEPT_MANAGER', 'ROLE_ADMIN', 'ROLE_SUPER_ADMIN')")
     @com.burak.belediyeapp.audit.AuditAction(action = "REPORT_STATUS_UPDATE", description = "Rapor durumu güncellendi")
     public ReportResponse updateReportStatus(String reportId, UpdateReportStatusRequest request, AppUser currentUser) {
         Report report = findReportOrThrow(reportId);
+        ensureCanViewReport(report, currentUser);
 
         // İş kuralı: RESOLVED ve REJECTED raporlar tekrar güncellenemez
         if (report.getReportStatus() == ReportStatus.RESOLVED
@@ -228,12 +266,14 @@ public class ReportService {
     // ===================================================
 
     @Transactional
-    @PreAuthorize("hasAnyRole('ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     public ReportResponse assignReport(String reportId, AssignReportRequest request, AppUser assignedBy) {
         Report report = findReportOrThrow(reportId);
+        ensureCanViewReport(report, assignedBy);
 
         AppUser assignee = userRepository.findById(request.assigneeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı", "id", request.assigneeId()));
+        ensureSameMunicipality(report, assignee);
 
         // İş kuralı: sadece saha görevlisi atanabilir
         if (!assignee.hasRole("ROLE_FIELD_OFFICER")) {
@@ -272,9 +312,19 @@ public class ReportService {
     // ===================================================
 
     @Transactional(readOnly = true)
-    @PreAuthorize("hasAnyRole('ROLE_FIELD_OFFICER','ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
-    public List<ReportListResponse> getNearbyReports(double latitude, double longitude, double radiusMeters) {
-        return reportRepository.findNearbyReports(latitude, longitude, radiusMeters)
+    @PreAuthorize("hasAnyAuthority('ROLE_FIELD_OFFICER','ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    public List<ReportListResponse> getNearbyReports(double latitude, double longitude, double radiusMeters, AppUser currentUser) {
+        List<Report> reports;
+        if (isSuperAdmin(currentUser)) {
+            reports = reportRepository.findNearbyReports(latitude, longitude, radiusMeters);
+        } else if (currentUser.getMunicipality() != null) {
+            reports = reportRepository.findNearbyReportsByMunicipality(
+                    latitude, longitude, radiusMeters, currentUser.getMunicipality().getId());
+        } else {
+            throw new BusinessException("Bu işlem için belediye kapsamı gerekli", "MUNICIPALITY_REQUIRED");
+        }
+
+        return reports
                 .stream()
                 .map(reportMapper::toListResponse)
                 .toList();
@@ -291,13 +341,55 @@ public class ReportService {
 
         if (result != null) {
             report.setAiPriority(result.priority());
-            report.setAiSummary(result.summary());
+            report.setAiSummary(composeSummaryWithRationale(result.summary(), result.priorityRationale()));
+            report.setAiSlaRisk(blankToNull(truncate(result.slaRisk(), 20)));
+            report.setAiReplyDraft(blankToNull(result.replyDraft()));
+            report.setAiDuplicateHint(blankToNull(truncate(result.duplicateHint(), 500)));
+
+            // Başlık önerisi varsa güncelle
+            if (result.suggestedTitle() != null && !result.suggestedTitle().isBlank()) {
+                report.setTitle(result.suggestedTitle());
+            }
+
+            // Kategori önerisi varsa ve mevcut kategori "Diğer" ise veya AI kesin ise güncelle
             if (result.suggestedCategoryName() != null && !result.suggestedCategoryName().isBlank()) {
                 report.setAiSuggestedCategory(result.suggestedCategoryName());
+                
+                // Eğer mevcut kategori "Diğer" ise veya AI kategorinin yanlış olduğunu söylüyorsa otomatik düzelt
+                if (!result.isCategoryCorrect() || report.getCategory().getName().equals("Diğer")) {
+                    categoryRepository.findByName(result.suggestedCategoryName())
+                            .ifPresent(newCat -> {
+                                report.setCategory(newCat);
+                                log.info("AI otomatik kategori düzeltti: {} -> {}", reportId, newCat.getName());
+                            });
+                }
             }
+
             reportRepository.save(report);
-            log.info("AI analizi tamamlandı: rapor={}, öncelik={}", reportId, result.priority());
+            log.info("AI analizi tamamlandı: rapor={}, öncelik={}, başlık={}", 
+                    reportId, result.priority(), report.getTitle());
         }
+    }
+
+    private static String composeSummaryWithRationale(String summary, String rationale) {
+        if (rationale == null || rationale.isBlank()) {
+            return summary;
+        }
+        if (summary == null || summary.isBlank()) {
+            return rationale;
+        }
+        return summary + " — " + rationale;
+    }
+
+    private static String blankToNull(String s) {
+        return s == null || s.isBlank() ? null : s;
+    }
+
+    private static String truncate(String s, int max) {
+        if (s == null) {
+            return null;
+        }
+        return s.length() <= max ? s : s.substring(0, max);
     }
 
     private Report findReportOrThrow(String reportId) {
@@ -306,18 +398,45 @@ public class ReportService {
     }
 
     /**
-     * Vatandaş yalnızca kendi raporunu görebilir.
-     * Belediye personeli tüm raporları görebilir.
+     * Object-level authorization merkezi burada tutulur.
+     * URL güvenliği rolü doğrular; bu kontrol ise kullanıcının doğru belediye verisine eriştiğini garanti eder.
      */
     private void ensureCanViewReport(Report report, AppUser user) {
-        boolean isCitizenOnly = user.hasRole("ROLE_CITIZEN")
+        if (isSuperAdmin(user)) {
+            return;
+        }
+
+        if (isCitizenOnly(user)) {
+            if (report.getReporter() != null && report.getReporter().getId().equals(user.getId())) {
+                return;
+            }
+            throw new BusinessException("Bu rapora erişim yetkiniz yok", "ACCESS_DENIED");
+        }
+
+        if (user.getMunicipality() == null
+                || report.getMunicipality() == null
+                || !report.getMunicipality().getId().equals(user.getMunicipality().getId())) {
+            throw new BusinessException("Bu rapora erişim yetkiniz yok", "CROSS_MUNICIPALITY_ACCESS");
+        }
+    }
+
+    private void ensureSameMunicipality(Report report, AppUser assignee) {
+        if (report.getMunicipality() == null
+                || assignee.getMunicipality() == null
+                || !report.getMunicipality().getId().equals(assignee.getMunicipality().getId())) {
+            throw new BusinessException("Rapor yalnızca aynı belediyedeki saha görevlisine atanabilir", "CROSS_MUNICIPALITY_ASSIGNMENT");
+        }
+    }
+
+    private boolean isSuperAdmin(AppUser user) {
+        return user.hasRole("ROLE_SUPER_ADMIN");
+    }
+
+    private boolean isCitizenOnly(AppUser user) {
+        return user.hasRole("ROLE_CITIZEN")
                 && !user.hasRole("ROLE_FIELD_OFFICER")
                 && !user.hasRole("ROLE_DEPT_MANAGER")
                 && !user.hasRole("ROLE_ADMIN")
                 && !user.hasRole("ROLE_SUPER_ADMIN");
-
-        if (isCitizenOnly && !report.getReporter().getId().equals(user.getId())) {
-            throw new BusinessException("Bu rapora erişim yetkiniz yok", "ACCESS_DENIED");
-        }
     }
 }

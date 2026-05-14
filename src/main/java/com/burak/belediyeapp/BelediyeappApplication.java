@@ -2,14 +2,19 @@ package com.burak.belediyeapp;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
+import org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration;
 import org.springframework.scheduling.annotation.EnableAsync;
 
 /**
- * İBB Vatandaş Şikayet ve Takip Platformu
+ * Kentiva — Çok Kiracılı Belediye Vatandaş Bildirim ve Takip Platformu
  *
  * @EnableAsync: NotificationService'in async metodları için gerekli
  */
-@SpringBootApplication
+@SpringBootApplication(exclude = {
+        RedisAutoConfiguration.class,
+        RedisRepositoriesAutoConfiguration.class
+})
 @EnableAsync
 @org.springframework.cache.annotation.EnableCaching
 @org.springframework.scheduling.annotation.EnableScheduling

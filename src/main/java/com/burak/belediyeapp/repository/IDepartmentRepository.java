@@ -15,4 +15,14 @@ public interface IDepartmentRepository extends JpaRepository<Department, String>
     List<Department> findAllByActiveTrue();
 
     boolean existsByName(String name);
+
+    boolean existsByNameAndMunicipalityId(String name, String municipalityId);
+
+    List<Department> findByMunicipalityId(String municipalityId);
+
+    Optional<Department> findByIdAndMunicipalityId(String id, String municipalityId);
+    
+    List<Department> findAllByActiveTrueAndMunicipalityId(String municipalityId);
+    
+    long countByMunicipalityId(String municipalityId);
 }

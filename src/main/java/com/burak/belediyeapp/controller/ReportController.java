@@ -122,9 +122,10 @@ public class ReportController {
     public ResponseEntity<ApiResponse<List<ReportListResponse>>> getNearbyReports(
             @RequestParam double latitude,
             @RequestParam double longitude,
-            @RequestParam(defaultValue = "1000") @Min(100) @Max(50000) double radiusMeters) {
+            @RequestParam(defaultValue = "1000") @Min(100) @Max(50000) double radiusMeters,
+            @AuthenticationPrincipal AppUser currentUser) {
 
-        List<ReportListResponse> result = reportService.getNearbyReports(latitude, longitude, radiusMeters);
+        List<ReportListResponse> result = reportService.getNearbyReports(latitude, longitude, radiusMeters, currentUser);
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 

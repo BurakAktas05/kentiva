@@ -43,10 +43,31 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public List<UserResponse> getAllUsers() {
-        return userRepository.findAll().stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+    public List<UserResponse> getAllUsers(AppUser currentUser) {
+        if (currentUser.hasRole("ROLE_SUPER_ADMIN")) {
+            return userRepository.findAll().stream()
+                    .map(this::mapToResponse)
+                    .collect(Collectors.toList());
+        } else if (currentUser.getMunicipality() != null) {
+            return userRepository.findByMunicipalityId(currentUser.getMunicipality().getId()).stream()
+                    .map(this::mapToResponse)
+                    .collect(Collectors.toList());
+        }
+        return List.of();
+    }
+    
+    @Transactional(readOnly = true)
+    public List<UserResponse> getUsersByRole(String roleName, AppUser currentUser) {
+        if (currentUser.hasRole("ROLE_SUPER_ADMIN")) {
+            return userRepository.findByRoles_Name(roleName).stream()
+                    .map(this::mapToResponse)
+                    .collect(Collectors.toList());
+        } else if (currentUser.getMunicipality() != null) {
+            return userRepository.findByRoles_NameAndMunicipalityId(roleName, currentUser.getMunicipality().getId()).stream()
+                    .map(this::mapToResponse)
+                    .collect(Collectors.toList());
+        }
+        return List.of();
     }
 
     /**
@@ -55,7 +76,7 @@ public class UserService {
      */
     @Transactional
     @AuditAction(action = "STAFF_CREATE", description = "Yeni personel oluşturuldu")
-    public UserResponse createStaff(CreateStaffRequest request) {
+    public UserResponse createStaff(CreateStaffRequest request, AppUser currentUser) {
         if (userRepository.existsByEmail(request.email())) {
             throw new BusinessException("Bu email adresi zaten kullanımda: " + request.email(), "EMAIL_ALREADY_EXISTS");
         }
@@ -69,6 +90,7 @@ public class UserService {
 
         // Rolleri ata
         if (request.roleNames() != null && !request.roleNames().isEmpty()) {
+            ensureCanAssignRoles(request.roleNames(), currentUser);
             Set<Role> roles = new HashSet<>();
             for (String roleName : request.roleNames()) {
                 Role role = roleRepository.findByName(roleName)
@@ -86,11 +108,26 @@ public class UserService {
         if (request.departmentId() != null && !request.departmentId().isBlank()) {
             Department dept = departmentRepository.findById(request.departmentId())
                     .orElseThrow(() -> new ResourceNotFoundException("Departman", "id", request.departmentId()));
+            ensureDepartmentInScope(dept, currentUser);
             user.setDepartment(dept);
+            if (currentUser.hasRole("ROLE_SUPER_ADMIN") && dept.getMunicipality() != null) {
+                user.setMunicipality(dept.getMunicipality());
+                if (request.district() == null || request.district().isBlank()) {
+                    user.setDistrict(dept.getMunicipality().getName());
+                }
+            }
         }
 
         // İlçe ata
         user.setDistrict(request.district());
+        
+        // Belediye ata
+        if (currentUser.getMunicipality() != null && !currentUser.hasRole("ROLE_SUPER_ADMIN")) {
+            user.setMunicipality(currentUser.getMunicipality());
+            if (request.district() == null || request.district().isBlank()) {
+                user.setDistrict(currentUser.getMunicipality().getName());
+            }
+        }
 
         AppUser saved = userRepository.save(user);
         log.info("Yeni personel oluşturuldu: {} ({})", saved.getFullName(), saved.getEmail());
@@ -102,9 +139,13 @@ public class UserService {
      */
     @Transactional
     @AuditAction(action = "USER_ROLE_UPDATE", description = "Kullanıcı rolleri güncellendi")
-    public UserResponse updateUserRoles(String userId, UpdateUserRolesRequest request) {
-        AppUser user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı", "id", userId));
+    public UserResponse updateUserRoles(String userId, UpdateUserRolesRequest request, AppUser currentUser) {
+        if (currentUser.getId().equals(userId)) {
+            throw new BusinessException("Kendi rollerinizi güncelleyemezsiniz", "SELF_ROLE_UPDATE_NOT_ALLOWED");
+        }
+
+        AppUser user = findManageableUser(userId, currentUser);
+        ensureCanAssignRoles(request.roleNames(), currentUser);
 
         Set<Role> roles = new HashSet<>();
         for (String roleName : request.roleNames()) {
@@ -124,9 +165,15 @@ public class UserService {
      */
     @Transactional
     @AuditAction(action = "USER_TOGGLE_STATUS", description = "Kullanıcı durumu değiştirildi")
-    public UserResponse toggleUserEnabled(String userId) {
-        AppUser user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı", "id", userId));
+    public UserResponse toggleUserEnabled(String userId, AppUser currentUser) {
+        if (currentUser.getId().equals(userId)) {
+            throw new BusinessException("Kendi hesabınızı pasifleştiremezsiniz", "SELF_DISABLE_NOT_ALLOWED");
+        }
+
+        AppUser user = findManageableUser(userId, currentUser);
+        if (user.hasRole("ROLE_SUPER_ADMIN") && !currentUser.hasRole("ROLE_SUPER_ADMIN")) {
+            throw new BusinessException("Super admin hesabı yalnızca super admin tarafından yönetilebilir", "ROLE_ESCALATION_NOT_ALLOWED");
+        }
 
         user.setEnabled(!user.isEnabled());
         AppUser saved = userRepository.save(user);
@@ -200,7 +247,39 @@ public class UserService {
         log.info("Şifre değiştirildi ve tüm refresh tokenlar iptal edildi: {}", user.getEmail());
     }
 
+    private AppUser findManageableUser(String userId, AppUser currentUser) {
+        if (currentUser.hasRole("ROLE_SUPER_ADMIN")) {
+            return userRepository.findById(userId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı", "id", userId));
+        }
+        if (currentUser.getMunicipality() == null) {
+            throw new BusinessException("Bu işlem için belediye kapsamı gerekli", "MUNICIPALITY_REQUIRED");
+        }
+        return userRepository.findByIdAndMunicipalityId(userId, currentUser.getMunicipality().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı", "id", userId));
+    }
+
+    private void ensureDepartmentInScope(Department department, AppUser currentUser) {
+        if (currentUser.hasRole("ROLE_SUPER_ADMIN")) {
+            return;
+        }
+        if (currentUser.getMunicipality() == null
+                || department.getMunicipality() == null
+                || !department.getMunicipality().getId().equals(currentUser.getMunicipality().getId())) {
+            throw new BusinessException("Başka belediyeye ait departman seçilemez", "CROSS_MUNICIPALITY_ACCESS");
+        }
+    }
+
+    private void ensureCanAssignRoles(Set<String> roleNames, AppUser currentUser) {
+        if (!currentUser.hasRole("ROLE_SUPER_ADMIN") && roleNames.contains("ROLE_SUPER_ADMIN")) {
+            throw new BusinessException("Super admin rolü atanamaz", "ROLE_ESCALATION_NOT_ALLOWED");
+        }
+    }
+
     private UserResponse mapToResponse(AppUser user) {
+        com.burak.belediyeapp.dto.response.municipality.MunicipalityDto municipalityDto =
+                com.burak.belediyeapp.dto.response.municipality.MunicipalityDto.fromEntity(user.getMunicipality());
+
         return new UserResponse(
                 user.getId(),
                 user.getFirstName(),
@@ -208,7 +287,8 @@ public class UserService {
                 user.getEmail(),
                 user.getPhoneNumber(),
                 user.getRoles().stream().map(Role::getName).collect(Collectors.toList()),
-                user.getDistrict()
+                user.getDistrict(),
+                municipalityDto
         );
     }
 }

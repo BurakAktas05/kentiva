@@ -22,21 +22,21 @@ public class DashboardService {
 
     @Transactional(readOnly = true)
     public DashboardStatsResponse getStats(com.burak.belediyeapp.entity.AppUser user) {
-        String district = user.getDistrict();
+        String municipalityId = user.getMunicipality() != null ? user.getMunicipality().getId() : null;
         boolean isSuperAdmin = user.hasRole("ROLE_SUPER_ADMIN");
 
-        if (district != null && !isSuperAdmin) {
+        if (municipalityId != null && !isSuperAdmin) {
             return new DashboardStatsResponse(
-                    reportRepository.countByDistrictAndReportStatus(district, ReportStatus.PENDING) +
-                    reportRepository.countByDistrictAndReportStatus(district, ReportStatus.PROCESSING) +
-                    reportRepository.countByDistrictAndReportStatus(district, ReportStatus.RESOLVED) +
-                    reportRepository.countByDistrictAndReportStatus(district, ReportStatus.REJECTED),
-                    reportRepository.countByDistrictAndReportStatus(district, ReportStatus.PENDING),
-                    reportRepository.countByDistrictAndReportStatus(district, ReportStatus.PROCESSING),
-                    reportRepository.countByDistrictAndReportStatus(district, ReportStatus.RESOLVED),
-                    reportRepository.countByDistrictAndReportStatus(district, ReportStatus.REJECTED),
-                    userRepository.count(), // Bu kısım hala genel kalabilir veya ilçeye göre filtrelenebilir
-                    departmentRepository.count(),
+                    reportRepository.countByMunicipalityIdAndReportStatus(municipalityId, ReportStatus.PENDING) +
+                    reportRepository.countByMunicipalityIdAndReportStatus(municipalityId, ReportStatus.PROCESSING) +
+                    reportRepository.countByMunicipalityIdAndReportStatus(municipalityId, ReportStatus.RESOLVED) +
+                    reportRepository.countByMunicipalityIdAndReportStatus(municipalityId, ReportStatus.REJECTED),
+                    reportRepository.countByMunicipalityIdAndReportStatus(municipalityId, ReportStatus.PENDING),
+                    reportRepository.countByMunicipalityIdAndReportStatus(municipalityId, ReportStatus.PROCESSING),
+                    reportRepository.countByMunicipalityIdAndReportStatus(municipalityId, ReportStatus.RESOLVED),
+                    reportRepository.countByMunicipalityIdAndReportStatus(municipalityId, ReportStatus.REJECTED),
+                    userRepository.countByMunicipalityId(municipalityId),
+                    departmentRepository.countByMunicipalityId(municipalityId),
                     categoryRepository.count()
             );
         }

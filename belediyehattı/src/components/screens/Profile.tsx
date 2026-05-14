@@ -75,22 +75,20 @@ export default function Profile({ onLogout, onSettings, lang, isDark }: ProfileP
       className="pb-6"
     >
       {/* Header */}
-      <div className={`${isDark ? 'bg-slate-800' : 'bg-slate-900'} pt-8 pb-16 px-6 text-white rounded-b-3xl shadow-md`}>
+      <div className="rounded-b-3xl bg-gradient-to-br from-primary via-primary to-primary-dark px-6 pb-16 pt-8 text-white shadow-lg shadow-primary/20">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 bg-gradient-to-tr from-amber-400 to-orange-500 rounded-full flex items-center justify-center border-2 border-white/20 shadow-inner">
-            <span className="text-2xl font-bold text-white">
-              {profile ? profile.firstName.charAt(0) : '?'}
-            </span>
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-white/25 bg-white/15 text-2xl font-extrabold shadow-inner backdrop-blur-sm">
+            <span>{profile ? profile.firstName.charAt(0) : '?'}</span>
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="text-xl font-bold truncate">{profile ? `${profile.firstName} ${profile.lastName}` : '—'}</h2>
-            <p className="text-slate-300 flex items-center gap-1.5 text-sm mt-0.5">
-              <Award className="w-4 h-4" /> {level}
+            <h2 className="truncate text-xl font-extrabold tracking-tight">{profile ? `${profile.firstName} ${profile.lastName}` : '—'}</h2>
+            <p className="mt-0.5 flex items-center gap-1.5 text-sm font-medium text-white/85">
+              <Award className="h-4 w-4 shrink-0" /> {level}
             </p>
           </div>
           <button 
             onClick={onSettings}
-            className="p-2.5 bg-white/10 rounded-xl hover:bg-white/20 transition-colors"
+            className="rounded-xl border border-white/20 bg-white/10 p-2.5 transition-colors hover:bg-white/20"
           >
             <SettingsIcon className="w-5 h-5" />
           </button>
@@ -99,41 +97,45 @@ export default function Profile({ onLogout, onSettings, lang, isDark }: ProfileP
 
       {/* Stats */}
       <div className="px-5 -mt-8 relative z-10">
-        <div className={`rounded-2xl p-5 shadow-lg shadow-slate-200/50 dark:shadow-none border flex items-center justify-between ${
-          isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
-        }`}>
-          <div className={`flex-1 text-center border-r ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">{t('profile.points', lang)}</p>
-            <p className="text-2xl font-black text-amber-500 flex items-center justify-center gap-1">
-              {points} <Star className="w-5 h-5 fill-amber-400 text-amber-400" />
+        <div
+          className={`relative z-10 flex items-center justify-between rounded-2xl border p-5 shadow-lg ${
+            isDark ? 'border-slate-700 bg-slate-800 shadow-none' : 'border-slate-200/90 bg-white shadow-slate-200/40'
+          }`}
+        >
+          <div className={`flex-1 border-r text-center ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{t('profile.points', lang)}</p>
+            <p className="flex items-center justify-center gap-1 text-2xl font-extrabold text-primary dark:text-sky-300">
+              {points} <Star className="h-5 w-5 fill-primary/25 text-primary dark:fill-sky-400/20 dark:text-sky-300" />
             </p>
           </div>
-          <div className={`flex-1 text-center border-r ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">{t('profile.reports', lang)}</p>
-            <p className={`text-2xl font-black ${isDark ? 'text-white' : 'text-slate-800'}`}>{reports.length}</p>
+          <div className={`flex-1 border-r text-center ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{t('profile.reports', lang)}</p>
+            <p className={`text-2xl font-extrabold tabular-nums ${isDark ? 'text-white' : 'text-slate-900'}`}>{reports.length}</p>
           </div>
           <div className="flex-1 text-center">
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">{t('profile.resolved', lang)}</p>
-            <p className="text-2xl font-black text-emerald-500">{resolvedCount}</p>
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{t('profile.resolved', lang)}</p>
+            <p className="text-2xl font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400">{resolvedCount}</p>
           </div>
         </div>
       </div>
 
       {/* Level Callout */}
       <div className="px-5 mt-6">
-        <div className={`rounded-2xl p-4 border flex items-center justify-between ${
-          isDark ? 'border-primary/30 bg-primary/10' : 'bg-amber-100/50 border-amber-200'
-        }`}>
+        <div
+          className={`flex items-center justify-between rounded-2xl border p-4 ${
+            isDark ? 'border-primary/25 bg-primary/10' : 'border-primary/15 bg-primary/5'
+          }`}
+        >
           <div>
-            <h4 className={`text-sm font-bold ${isDark ? 'text-secondary' : 'text-amber-900'}`}>
+            <h4 className={`text-sm font-bold ${isDark ? 'text-sky-200' : 'text-primary'}`}>
               {points < 1000 ? t('profile.level.hero', lang) : t('profile.level.hero.done', lang)}
             </h4>
-            <p className={`mt-1 text-xs ${isDark ? 'text-slate-400' : 'text-amber-700'}`}>
+            <p className={`mt-1 text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
               {points < 1000 ? t('profile.level.more', lang, { n: 1000 - points }) : t('profile.level.max', lang)}
             </p>
           </div>
-          <div className={`flex h-12 w-12 items-center justify-center rounded-full ${isDark ? 'bg-primary/25' : 'bg-amber-200'}`}>
-            <Award className={`h-6 w-6 ${isDark ? 'text-secondary' : 'text-amber-600'}`} />
+          <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${isDark ? 'bg-primary/25' : 'bg-primary/15'}`}>
+            <Award className={`h-6 w-6 ${isDark ? 'text-sky-200' : 'text-primary'}`} />
           </div>
         </div>
       </div>

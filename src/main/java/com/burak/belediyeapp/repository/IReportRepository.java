@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface IReportRepository extends JpaRepository<Report, String> {
@@ -19,10 +20,14 @@ public interface IReportRepository extends JpaRepository<Report, String> {
      */
     Page<Report> findByReporterId(String reporterId, Pageable pageable);
 
+    Optional<Report> findByIdAndMunicipalityId(String id, String municipalityId);
+
     /**
      * Belirli bir saha görevlisine atanmış raporları getirir.
      */
     Page<Report> findByAssigneeId(String assigneeId, Pageable pageable);
+
+    Page<Report> findByAssigneeIdAndMunicipalityId(String assigneeId, String municipalityId, Pageable pageable);
 
     /**
      * Duruma göre filtreli rapor listesi (admin paneli için).
@@ -33,6 +38,8 @@ public interface IReportRepository extends JpaRepository<Report, String> {
      * Departmana göre raporları getirir (birim müdürü görünümü).
      */
     Page<Report> findByCategoryDepartmentId(String departmentId, Pageable pageable);
+
+    Page<Report> findByCategoryDepartmentIdAndMunicipalityId(String departmentId, String municipalityId, Pageable pageable);
 
     /**
      * PostGIS ile belirtilen koordinat merkezine belirli bir yarıçap (metre)
@@ -58,6 +65,26 @@ public interface IReportRepository extends JpaRepository<Report, String> {
             @Param("radiusInMeters") double radiusInMeters
     );
 
+    @Query(value = """
+            SELECT r.* FROM reports r
+            WHERE r.municipality_id = :municipalityId
+              AND ST_DWithin(
+                r.location::geography,
+                ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography,
+                :radiusInMeters
+            )
+            ORDER BY ST_Distance(
+                r.location::geography,
+                ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography
+            )
+            """, nativeQuery = true)
+    List<Report> findNearbyReportsByMunicipality(
+            @Param("latitude") double latitude,
+            @Param("longitude") double longitude,
+            @Param("radiusInMeters") double radiusInMeters,
+            @Param("municipalityId") String municipalityId
+    );
+
     /**
      * İlçeye göre raporları getirir.
      */
@@ -77,4 +104,10 @@ public interface IReportRepository extends JpaRepository<Report, String> {
      * İlçe bazlı durum istatistiği.
      */
     long countByDistrictAndReportStatus(String district, ReportStatus status);
+
+    Page<Report> findByMunicipalityId(String municipalityId, Pageable pageable);
+    
+    Page<Report> findByMunicipalityIdAndReportStatus(String municipalityId, ReportStatus status, Pageable pageable);
+    
+    long countByMunicipalityIdAndReportStatus(String municipalityId, ReportStatus status);
 }

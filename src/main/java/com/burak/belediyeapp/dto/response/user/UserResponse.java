@@ -9,5 +9,6 @@ public record UserResponse(
         String email,
         String phoneNumber,
         List<String> roles,
-        String district
+        String district,
+        com.burak.belediyeapp.dto.response.municipality.MunicipalityDto municipality
 ) {}

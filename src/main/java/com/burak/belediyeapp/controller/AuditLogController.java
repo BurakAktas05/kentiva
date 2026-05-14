@@ -23,7 +23,7 @@ public class AuditLogController {
     private final IAuditLogRepository auditLogRepository;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     @Operation(summary = "Tüm denetim kayıtlarını listele (sayfalanmış)")
     public ResponseEntity<ApiResponse<Page<AuditLogResponse>>> getAll(
             @RequestParam(required = false) String username,

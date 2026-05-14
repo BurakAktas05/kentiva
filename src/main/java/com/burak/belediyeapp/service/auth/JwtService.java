@@ -43,6 +43,7 @@ public class JwtService {
                 .subject(user.getEmail())
                 .claim("userId", user.getId())
                 .claim("roles", roles)
+                .claim("municipalityId", user.getMunicipality() != null ? user.getMunicipality().getId() : null)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + accessTokenExpirationMs))
                 .signWith(getSigningKey())

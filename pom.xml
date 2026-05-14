@@ -12,7 +12,7 @@
 	<artifactId>belediyeapp</artifactId>
 	<version>3.0.0-SNAPSHOT</version>
 	<name>BelediyeApp</name>
-	<description>İBB Vatandaş Şikayet ve Takip Platformu</description>
+	<description>Kentiva — Çok Kiracılı Belediye Vatandaş Bildirim ve Takip SaaS Platformu</description>
 	<properties>
 		<java.version>21</java.version>
 		<mapstruct.version>1.5.5.Final</mapstruct.version>
@@ -42,7 +42,12 @@
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-redis</artifactId>
+			<optional>true</optional>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -50,12 +55,17 @@
 		</dependency>
 
 		<!-- ================================ -->
-		<!--  DATABASE                        -->
+		<!--  WEBSOCKET (Opsiyonel)            -->
 		<!-- ================================ -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-websocket</artifactId>
+			<optional>true</optional>
 		</dependency>
+
+		<!-- ================================ -->
+		<!--  DATABASE                        -->
+		<!-- ================================ -->
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>postgresql</artifactId>

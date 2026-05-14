@@ -9,6 +9,8 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.PrecisionModel;
+import org.mapstruct.BeanMapping;
+import org.mapstruct.Builder;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Named;
@@ -16,7 +18,7 @@ import org.mapstruct.Named;
 import java.util.Collections;
 import java.util.List;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", builder = @Builder(disableBuilder = true))
 public interface IReportMapper {
 
     // ==========================================
@@ -54,10 +56,15 @@ public interface IReportMapper {
     @Mapping(target = "category", ignore = true)
     @Mapping(target = "mediaList", ignore = true)
     @Mapping(target = "historyList", ignore = true)
+    @Mapping(target = "municipality", ignore = true)
     @Mapping(target = "fcmToken", ignore = true)
     @Mapping(target = "aiPriority", ignore = true)
     @Mapping(target = "aiSummary", ignore = true)
     @Mapping(target = "aiSuggestedCategory", ignore = true)
+    @Mapping(target = "aiSlaRisk", ignore = true)
+    @Mapping(target = "aiReplyDraft", ignore = true)
+    @Mapping(target = "aiDuplicateHint", ignore = true)
+    @BeanMapping(ignoreUnmappedSourceProperties = {"categoryId", "mediaUrls", "latitude", "longitude", "targetMunicipalityId"})
     @Mapping(target = "location", source = "request", qualifiedByName = "coordinatesToPoint")
     Report toEntity(CreateReportRequest request);
 

@@ -21,7 +21,7 @@ public class DashboardController {
     private final DashboardService dashboardService;
 
     @GetMapping("/stats")
-    @PreAuthorize("hasAnyRole('ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     @Operation(summary = "Dashboard istatistiklerini getir")
     public ResponseEntity<ApiResponse<DashboardStatsResponse>> getStats(
             @org.springframework.security.core.annotation.AuthenticationPrincipal com.burak.belediyeapp.entity.AppUser currentUser) {

@@ -56,10 +56,23 @@ public class SecurityConfig {
             // URL erişim kuralları
             .authorizeHttpRequests(auth -> auth
 
+                // ── Herkese açık (Kentiva kamu API) ───────────
+                .requestMatchers(HttpMethod.GET, "/api/v1/public/**").permitAll()
+
+                // ── Süper admin — belediye SaaS yönetimi ───────
+                .requestMatchers("/api/v1/admin/municipalities/**").hasRole("SUPER_ADMIN")
+
+                // ── Belediye ayarları (tenant) ───────────────
+                .requestMatchers(HttpMethod.GET, "/api/v1/municipalities/me")
+                    .hasAnyRole("ADMIN", "DEPT_MANAGER", "FIELD_OFFICER")
+                .requestMatchers(HttpMethod.PATCH, "/api/v1/municipalities/me/branding").hasRole("ADMIN")
+
                 // ── Herkese açık ──────────────────────────────
                 .requestMatchers("/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/refresh").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/auth/me").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/v1/categories/**").permitAll()
+                .requestMatchers("/uploads/**").permitAll()
 
                 // ── WebSocket bağlantı endpoint'i ─────────────
                 .requestMatchers("/ws-belediye/**").permitAll()
@@ -120,9 +133,15 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/export/**")
                     .hasAnyRole("DEPT_MANAGER", "ADMIN", "SUPER_ADMIN")
 
+                // ── Bildirimler — tüm oturum açmış kullanıcılar ──
+                .requestMatchers("/api/v1/notifications/**").authenticated()
+
                 // ── Denetim günlüğü — yalnızca admin ─────────
                 .requestMatchers("/api/v1/audit-logs/**")
                     .hasAnyRole("ADMIN", "SUPER_ADMIN")
+
+                // ── Actuator health — herkese açık ────────────
+                .requestMatchers("/actuator/health/**").permitAll()
 
                 // Geri kalan her şey kimlik doğrulama gerektirir
                 .anyRequest().authenticated()

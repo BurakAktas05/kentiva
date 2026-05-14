@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Filter, RefreshCw } from 'lucide-react';
 import api, { type ReportListItem, type SpringPage } from '../api';
@@ -16,7 +16,7 @@ const badge = (status: string) => {
     case 'PENDING':
       return 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200';
     case 'PROCESSING':
-      return 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200';
+      return 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200';
     case 'RESOLVED':
       return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200';
     case 'REJECTED':
@@ -34,7 +34,7 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -48,22 +48,24 @@ export default function ReportsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, size, status]);
 
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- load when page/status changes
-  }, [page, status]);
+    queueMicrotask(() => {
+      void load();
+    });
+  }, [load]);
 
   const totalPages = data?.totalPages ?? 0;
   const rows = data?.content ?? [];
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Raporlar</h2>
-          <p className="text-slate-500 dark:text-slate-400">KentGözü v3 — tüm ihbarlar, sayfalama ve filtre.</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">İş listesi</p>
+          <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">Raporlar</h2>
+          <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">Tüm ihbarlar, sayfalama ve filtre.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
@@ -74,7 +76,7 @@ export default function ReportsPage() {
                 setStatus(e.target.value);
                 setPage(0);
               }}
-              className="appearance-none rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-8 text-sm font-medium text-slate-800 shadow-sm focus:ring-2 focus:ring-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              className="appearance-none rounded-xl border border-slate-200/90 bg-white py-2.5 pl-10 pr-8 text-sm font-semibold text-slate-800 shadow-sm focus:ring-2 focus:ring-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             >
               {STATUS_OPTIONS.map((o) => (
                 <option key={o.value || 'all'} value={o.value}>
@@ -86,7 +88,7 @@ export default function ReportsPage() {
           <button
             type="button"
             onClick={() => load()}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Yenile
@@ -94,12 +96,12 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
         {error && <div className="border-b border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">{error}</div>}
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/80 text-xs font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
+              <tr className="border-b border-slate-200/80 bg-slate-50/90 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-400">
                 <th className="px-4 py-4">Başlık</th>
                 <th className="px-4 py-4">Kategori</th>
                 <th className="px-4 py-4">İlçe</th>

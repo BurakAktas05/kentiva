@@ -1,0 +1,25 @@
+# ============================================================
+#  DEV profili — Yerel geliştirme
+#  Bu dosyayı application-dev.properties olarak kopyalayın ve düzenleyin.
+# ============================================================
+
+spring.datasource.url=jdbc:postgresql://localhost:5432/belediyeapp
+spring.datasource.username=postgres
+spring.datasource.password=CHANGE_ME
+
+# Base64; üretimde güçlü bir değer kullanın
+app.security.jwt.secret=CHANGE_ME_BASE64
+
+spring.flyway.validate-on-migrate=false
+spring.flyway.locations=classpath:db/migration,classpath:db/dev-migration
+
+spring.jpa.hibernate.ddl-auto=update
+
+app.storage.type=local
+app.websocket.enabled=true
+
+springdoc.swagger-ui.enabled=true
+springdoc.api-docs.enabled=true
+
+logging.level.com.burak.belediyeapp=DEBUG
+spring.jpa.show-sql=true

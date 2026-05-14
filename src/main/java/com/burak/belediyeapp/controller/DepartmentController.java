@@ -24,37 +24,42 @@ public class DepartmentController {
     private final DepartmentService departmentService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN','ROLE_SUPER_ADMIN','ROLE_DEPT_MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN','ROLE_DEPT_MANAGER')")
     @Operation(summary = "Tüm departmanları listele")
-    public ResponseEntity<ApiResponse<List<DepartmentResponse>>> getAllDepartments() {
-        return ResponseEntity.ok(ApiResponse.success(departmentService.getAllDepartments()));
+    public ResponseEntity<ApiResponse<List<DepartmentResponse>>> getAllDepartments(
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.burak.belediyeapp.entity.AppUser currentUser) {
+        return ResponseEntity.ok(ApiResponse.success(departmentService.getAllDepartments(currentUser)));
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     @Operation(summary = "Yeni departman oluştur (Admin)")
     public ResponseEntity<ApiResponse<DepartmentResponse>> createDepartment(
-            @Valid @RequestBody CreateDepartmentRequest request) {
-        DepartmentResponse response = departmentService.createDepartment(request);
+            @Valid @RequestBody CreateDepartmentRequest request,
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.burak.belediyeapp.entity.AppUser currentUser) {
+        DepartmentResponse response = departmentService.createDepartment(request, currentUser);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Departman oluşturuldu", response));
     }
 
     @PatchMapping("/{departmentId}")
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     @Operation(summary = "Departman güncelle (Admin)")
     public ResponseEntity<ApiResponse<DepartmentResponse>> updateDepartment(
             @PathVariable String departmentId,
-            @Valid @RequestBody com.burak.belediyeapp.dto.request.department.UpdateDepartmentRequest request) {
-        DepartmentResponse response = departmentService.updateDepartment(departmentId, request);
+            @Valid @RequestBody com.burak.belediyeapp.dto.request.department.UpdateDepartmentRequest request,
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.burak.belediyeapp.entity.AppUser currentUser) {
+        DepartmentResponse response = departmentService.updateDepartment(departmentId, request, currentUser);
         return ResponseEntity.ok(ApiResponse.success("Departman güncellendi", response));
     }
 
     @DeleteMapping("/{departmentId}")
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     @Operation(summary = "Departman sil (soft delete) (Admin)")
-    public ResponseEntity<ApiResponse<Void>> deleteDepartment(@PathVariable String departmentId) {
-        departmentService.deleteDepartment(departmentId);
+    public ResponseEntity<ApiResponse<Void>> deleteDepartment(
+            @PathVariable String departmentId,
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.burak.belediyeapp.entity.AppUser currentUser) {
+        departmentService.deleteDepartment(departmentId, currentUser);
         return ResponseEntity.ok(ApiResponse.success("Departman devre dışı bırakıldı", null));
     }
 }

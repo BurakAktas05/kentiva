@@ -2,7 +2,11 @@
 // BelediyeApp API Service — Backend Integration
 // ============================================
 
-const API_BASE = 'http://localhost:8080/api/v1';
+import { normalizeApiBase } from './lib/apiBase';
+
+const API_BASE = normalizeApiBase(
+  typeof import.meta !== 'undefined' ? import.meta.env?.VITE_API_BASE_URL : undefined,
+);
 
 // ── Token Management ───────────────────────
 export function getToken(): string | null {
@@ -44,6 +48,21 @@ export interface AuthUser {
   district: string | null;
 }
 
+export interface PublicTenant {
+  id: string;
+  slug: string;
+  displayName: string;
+  logoUrl: string | null;
+  primaryColor: string | null;
+  secondaryColor: string | null;
+  accentColor: string | null;
+  slogan: string | null;
+  centerLat: number;
+  centerLng: number;
+  active: boolean;
+  onboarded: boolean;
+}
+
 export interface ApiCategory {
   id: string;
   name: string;
@@ -79,6 +98,9 @@ export interface ApiReportDetail {
   aiPriority?: string | null;
   aiSummary?: string | null;
   aiSuggestedCategory?: string | null;
+  aiSlaRisk?: string | null;
+  aiReplyDraft?: string | null;
+  aiDuplicateHint?: string | null;
 }
 
 export interface ReportTimelineEntry {
@@ -112,6 +134,7 @@ export interface ApiUserProfile {
 async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
     ...(opts.headers as Record<string, string> || {}),
   };
   const token = getToken();
@@ -120,23 +143,71 @@ async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, { ...opts, headers });
 
   if (res.status === 401) {
-    // Try refresh
+    console.warn(`401 Unauthorized: ${path}. Attempting refresh...`);
     const refreshed = await tryRefreshToken();
     if (refreshed) {
+      console.log('Token refreshed successfully. Retrying request...');
       headers['Authorization'] = `Bearer ${getToken()}`;
       const retry = await fetch(`${API_BASE}${path}`, { ...opts, headers });
       const retryJson = await retry.json();
-      if (!retry.ok || !retryJson.success) throw new Error(retryJson.message || 'Hata oluştu');
-      return retryJson.data as T;
+      if (retry.ok && retryJson.success) return retryJson.data as T;
     }
+    
+    console.error('Session expired and refresh failed. Clearing tokens and redirecting...');
     clearTokens();
-    window.location.reload();
-    throw new Error('Oturum süresi doldu');
+    // Use a slight delay to ensure localStorage is cleared before reload
+    setTimeout(() => window.location.href = '/', 100);
+    throw new Error('Oturum süresi doldu, lütfen tekrar giriş yapın.');
   }
 
   const json = await res.json();
-  if (!res.ok || !json.success) throw new Error(json.message || 'Hata oluştu');
+  if (!res.ok || !json.success) {
+    console.error(`API Error (${path}):`, json.message);
+    throw new Error(json.message || 'Hata oluştu');
+  }
   return json.data as T;
+}
+
+async function publicFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: { 'ngrok-skip-browser-warning': 'true' },
+  });
+  const json = await res.json();
+  if (!res.ok || !json.success) {
+    throw new Error(json.message || 'Hata oluştu');
+  }
+  return json.data as T;
+}
+
+export async function fetchPublicMunicipalities(): Promise<PublicTenant[]> {
+  return publicFetch<PublicTenant[]>('/public/municipalities');
+}
+
+export type PublicStatsOverview = {
+  totalReports: number;
+  resolvedReports: number;
+  resolutionRatePercent: number;
+  onboardedMunicipalityCount: number;
+};
+
+export type PublicMunicipalityStat = {
+  slug: string;
+  displayName: string;
+  totalReports: number;
+  resolvedReports: number;
+};
+
+/** Kimlik gerektirmez — kurumsal site ile aynı kamu özet verisi */
+export async function fetchPublicStatsOverview(): Promise<PublicStatsOverview> {
+  return publicFetch<PublicStatsOverview>('/public/stats');
+}
+
+export async function fetchPublicMunicipalityStatsList(): Promise<PublicMunicipalityStat[]> {
+  return publicFetch<PublicMunicipalityStat[]>('/public/stats/municipalities');
+}
+
+export async function resolveMunicipalityByGps(lat: number, lng: number): Promise<PublicTenant | null> {
+  return publicFetch<PublicTenant | null>(`/public/municipalities/resolve?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`);
 }
 
 async function tryRefreshToken(): Promise<boolean> {
@@ -145,7 +216,7 @@ async function tryRefreshToken(): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/auth/refresh`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
       body: JSON.stringify({ refreshToken: rt }),
     });
     const json = await res.json();
@@ -190,12 +261,61 @@ export async function getCategories(): Promise<ApiCategory[]> {
   return apiFetch<ApiCategory[]>('/categories');
 }
 
+/** API zorunlu categoryId istediği için; "Diğer" veya ilk kategori. Gönderim anında da kullanılabilir. */
+export async function getDefaultCategoryId(): Promise<string> {
+  const cats = await getCategories();
+  if (cats.length === 0) {
+    throw new Error('Kategori listesi boş');
+  }
+  const fallback = cats.find((c) => c.name.includes('Diğer')) || cats[0];
+  return fallback.id;
+}
+
 // ── Reports ────────────────────────────────
-export async function createReport(title: string, description: string, categoryId: string, latitude: number, longitude: number, district?: string) {
+export async function createReport(
+  title: string,
+  description: string,
+  categoryId: string,
+  latitude: number,
+  longitude: number,
+  district?: string,
+  mediaUrls: string[] = [],
+  targetMunicipalityId?: string | null
+) {
   return apiFetch<ApiReportDetail>('/reports', {
     method: 'POST',
-    body: JSON.stringify({ title, description, categoryId, latitude, longitude, district: district || null }),
+    body: JSON.stringify({
+      title,
+      description,
+      categoryId,
+      latitude,
+      longitude,
+      district: district ?? null,
+      mediaUrls,
+      targetMunicipalityId: targetMunicipalityId ?? null,
+    }),
   });
+}
+
+export async function uploadMedia(file: File): Promise<string[]> {
+  const formData = new FormData();
+  formData.append('files', file);
+
+  const token = getToken();
+  const headers: Record<string, string> = {
+    'ngrok-skip-browser-warning': 'true',
+  };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE}/reports/upload`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.message || 'Resim yüklenemedi');
+  return json.data as string[];
 }
 
 export async function getMyReports(page = 0, size = 20): Promise<{ content: ApiReportList[]; totalElements: number; totalPages: number }> {
@@ -227,3 +347,13 @@ export async function markAllNotificationsRead(): Promise<void> {
 export async function getMyProfile(): Promise<ApiUserProfile> {
   return apiFetch('/users/me');
 }
+
+export async function updateFcmToken(fcmToken: string): Promise<void> {
+  await apiFetch('/users/fcm-token', {
+    method: 'PATCH',
+    body: JSON.stringify({ fcmToken })
+  });
+}
+
+
+

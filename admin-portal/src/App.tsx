@@ -16,15 +16,20 @@ import {
   AlertCircle,
   Moon,
   Sun,
+  Settings as SettingsIcon,
+  MapPinned,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import axios from 'axios';
 import api, { type Stats } from './api';
 import LiveMap from './LiveMap';
 import ReportsPage from './pages/ReportsPage';
 import ReportDetailPage from './pages/ReportDetailPage';
 import StatisticsPage from './pages/StatisticsPage';
 import DepartmentsPage from './pages/DepartmentsPage';
-import PlaceholderPage from './pages/PlaceholderPage';
+import UsersPage from './pages/UsersPage';
+import MunicipalitySettingsPage from './pages/MunicipalitySettingsPage';
+import SuperAdminMunicipalitiesPage from './pages/SuperAdminMunicipalitiesPage';
 
 // --- Types ---
 interface User {
@@ -32,33 +37,50 @@ interface User {
   email: string;
   roles: string[];
   district?: string;
+  municipality?: {
+    id: string;
+    name: string;
+    slug?: string;
+    displayName?: string | null;
+    centerLat: number;
+    centerLng: number;
+    defaultZoom: number;
+  } | null;
 }
 
 // --- Components ---
 const Sidebar = ({ isOpen, setOpen, user }: { isOpen: boolean, setOpen: (o: boolean) => void, user: User }) => {
   const location = useLocation();
-  const menuItems = [
+  const baseItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/' },
     { name: 'Raporlar', icon: FileText, path: '/reports' },
     { name: 'Personeller', icon: Users, path: '/staff' },
     { name: 'Departmanlar', icon: Building2, path: '/departments' },
     { name: 'İstatistikler', icon: PieChart, path: '/stats' },
   ];
+  const extra: { name: string; icon: typeof LayoutDashboard; path: string }[] = [];
+  if (user.roles.includes('ROLE_ADMIN') && user.municipality) {
+    extra.push({ name: 'Belediye ayarları', icon: SettingsIcon, path: '/municipality-settings' });
+  }
+  if (user.roles.includes('ROLE_SUPER_ADMIN')) {
+    extra.push({ name: 'Belediyeler', icon: MapPinned, path: '/admin/municipalities' });
+  }
+  const menuItems = [...baseItems, ...extra];
 
   return (
-    <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-transform duration-300 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
+    <aside className={`fixed inset-y-0 left-0 z-50 w-72 border-r border-slate-200/90 bg-white transition-transform duration-200 dark:border-slate-800 dark:bg-slate-900 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
       <div className="flex flex-col h-full">
-        <div className="p-6 flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white">
-            <Building2 size={24} />
+        <div className="flex items-center gap-3 border-b border-slate-200/80 px-5 py-5 dark:border-slate-800">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary text-white shadow-sm ring-1 ring-slate-900/5 dark:ring-white/10">
+            <Building2 size={20} strokeWidth={2} />
           </div>
-          <div>
-            <h1 className="font-bold text-xl tracking-tight">KentGözü</h1>
-            <p className="text-xs font-medium uppercase tracking-wider text-secondary">v3 · Belediye yönetim</p>
+          <div className="min-w-0">
+            <h1 className="truncate text-base font-bold tracking-tight text-slate-900 dark:text-white">Kentiva</h1>
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Yönetim portalı</p>
           </div>
         </div>
 
-        <nav className="flex-1 px-4 py-4 space-y-1">
+        <nav className="flex-1 space-y-0.5 px-3 py-4">
           {menuItems.map((item) => {
             const isActive =
               item.path === '/'
@@ -69,32 +91,32 @@ const Sidebar = ({ isOpen, setOpen, user }: { isOpen: boolean, setOpen: (o: bool
                 key={item.name}
                 to={item.path}
                 onClick={() => setOpen(false)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-                  isActive 
-                    ? 'bg-primary text-white shadow-lg shadow-primary/20' 
-                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors ${
+                  isActive
+                    ? 'bg-slate-100 text-primary dark:bg-slate-800 dark:text-sky-300'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-slate-100'
                 }`}
               >
-                <item.icon size={20} />
-                <span className="font-medium">{item.name}</span>
+                <item.icon size={18} strokeWidth={isActive ? 2.25 : 2} />
+                <span>{item.name}</span>
               </Link>
             );
           })}
         </nav>
 
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800">
-          <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl flex items-center gap-3">
-            <div className="w-10 h-10 bg-slate-200 dark:bg-slate-700 rounded-full flex items-center justify-center font-bold text-primary">
+        <div className="border-t border-slate-200/80 p-4 dark:border-slate-800">
+          <div className="flex items-center gap-3 rounded-xl border border-slate-200/90 bg-slate-50/80 px-3 py-3 dark:border-slate-700 dark:bg-slate-800/40">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-sm font-bold text-primary shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-700 dark:ring-slate-600 dark:text-sky-200">
               {user.fullName[0]}
             </div>
-            <div className="overflow-hidden">
-              <p className="font-semibold text-sm truncate">{user.fullName}</p>
-              <p className="text-xs text-slate-500 truncate">{user.district || 'Süper Admin'}</p>
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{user.fullName}</p>
+              <p className="truncate text-xs font-medium text-slate-500 dark:text-slate-400">{user.municipality?.name || user.district || 'Süper Admin'}</p>
             </div>
           </div>
           <button 
             onClick={() => { localStorage.clear(); window.location.href = '/login'; }}
-            className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-colors font-medium text-sm"
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-red-50 hover:text-red-700 dark:text-slate-400 dark:hover:bg-red-950/30 dark:hover:text-red-300"
           >
             <LogOut size={18} />
             Çıkış Yap
@@ -115,37 +137,37 @@ const Header = ({
   onToggleDark: () => void;
 }) => {
   return (
-    <header className="sticky top-0 z-40 flex h-20 items-center justify-between border-b border-slate-200 bg-white/80 px-6 backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/80">
-      <button type="button" onClick={() => setSidebarOpen(true)} className="rounded-lg p-2 hover:bg-slate-100 lg:hidden dark:hover:bg-slate-800">
+    <header className="sticky top-0 z-40 flex h-[4.25rem] items-center justify-between border-b border-slate-200/90 bg-white/95 px-4 backdrop-blur-md sm:px-6 dark:border-slate-800 dark:bg-slate-900/95">
+      <button type="button" onClick={() => setSidebarOpen(true)} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden dark:text-slate-300 dark:hover:bg-slate-800">
         <Menu />
       </button>
 
-      <div className="hidden w-96 items-center rounded-full bg-slate-100 px-4 py-2 dark:bg-slate-800 md:flex">
-        <Search size={18} className="text-slate-400" />
+      <div className="hidden w-full max-w-md items-center gap-2 rounded-xl border border-slate-200/90 bg-slate-50/90 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/50 md:flex">
+        <Search size={17} className="shrink-0 text-slate-400" />
         <input
           type="search"
-          placeholder="Rapor ara… (v3)"
-          className="w-full border-none bg-transparent px-3 text-sm focus:ring-0 dark:text-slate-100"
+          placeholder="Rapor ara…"
+          className="w-full border-0 bg-transparent text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:ring-0 dark:text-slate-100"
         />
       </div>
 
-      <div className="flex items-center gap-2 sm:gap-4">
+      <div className="flex items-center gap-1 sm:gap-2">
         <button
           type="button"
           onClick={onToggleDark}
-          className="rounded-full p-2.5 hover:bg-slate-100 dark:hover:bg-slate-800"
+          className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
           title={darkMode ? 'Açık tema' : 'Koyu tema'}
         >
-          {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+          {darkMode ? <Sun size={19} /> : <Moon size={19} />}
         </button>
-        <button type="button" className="relative rounded-full p-2 hover:bg-slate-100 dark:hover:bg-slate-800">
-          <Bell size={20} />
-          <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-900" />
+        <button type="button" className="relative rounded-lg p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
+          <Bell size={19} />
+          <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-900" />
         </button>
-        <div className="mx-1 hidden h-8 w-px bg-slate-200 sm:block dark:bg-slate-800" />
-        <div className="flex items-center gap-2 rounded-full p-1 pr-3 hover:bg-slate-100 dark:hover:bg-slate-800">
-          <div className="h-8 w-8 shrink-0 rounded-full bg-primary" />
-          <span className="hidden text-sm font-medium sm:inline">Yönetici</span>
+        <div className="mx-1 hidden h-7 w-px bg-slate-200 sm:block dark:bg-slate-700" />
+        <div className="hidden items-center gap-2 rounded-lg border border-transparent px-2 py-1 sm:flex dark:hover:border-slate-700">
+          <div className="h-8 w-8 shrink-0 rounded-lg bg-primary/15 ring-1 ring-primary/10 dark:bg-primary/25" />
+          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Yönetici</span>
         </div>
       </div>
     </header>
@@ -154,17 +176,17 @@ const Header = ({
 
 const DashboardSkeleton = () => (
   <div className="space-y-8 p-6">
-    <div className="h-10 w-64 animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
-    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-      {[1, 2, 3, 4].map((i) => (
-        <div key={i} className="h-36 animate-pulse rounded-3xl bg-slate-200 dark:bg-slate-800" />
+    <div className="h-9 w-56 animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <div key={i} className="h-32 animate-pulse rounded-2xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900" />
       ))}
     </div>
-    <div className="h-[420px] animate-pulse rounded-3xl bg-slate-200 dark:bg-slate-800" />
+    <div className="h-[420px] animate-pulse rounded-2xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900" />
   </div>
 );
 
-const Dashboard = () => {
+const Dashboard = ({ user }: { user: User }) => {
   const [stats, setStats] = useState<Stats | null>(null);
   const [statsError, setStatsError] = useState<string | null>(null);
 
@@ -186,72 +208,98 @@ const Dashboard = () => {
   if (!stats) return <DashboardSkeleton />;
 
   const statCards = [
-    { name: 'Toplam Rapor', value: stats.totalReports, color: 'bg-primary', icon: FileText },
-    { name: 'Bekleyen', value: stats.pendingReports, color: 'bg-amber-500', icon: Clock },
-    { name: 'İşleniyor', value: stats.processingReports, color: 'bg-secondary', icon: AlertCircle },
-    { name: 'Çözülen', value: stats.resolvedReports, color: 'bg-emerald-500', icon: CheckCircle2 },
-    { name: 'Reddedilen', value: stats.rejectedReports, color: 'bg-red-500', icon: AlertCircle },
+    {
+      name: 'Toplam Rapor',
+      value: stats.totalReports,
+      icon: FileText,
+      iconWrap: 'bg-primary/10 text-primary ring-1 ring-primary/15',
+    },
+    {
+      name: 'Bekleyen',
+      value: stats.pendingReports,
+      icon: Clock,
+      iconWrap: 'bg-amber-50 text-amber-700 ring-1 ring-amber-600/15 dark:bg-amber-950/30 dark:text-amber-200',
+    },
+    {
+      name: 'İşleniyor',
+      value: stats.processingReports,
+      icon: AlertCircle,
+      iconWrap: 'bg-sky-50 text-sky-700 ring-1 ring-sky-600/15 dark:bg-sky-950/40 dark:text-sky-200',
+    },
+    {
+      name: 'Çözülen',
+      value: stats.resolvedReports,
+      icon: CheckCircle2,
+      iconWrap: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/15 dark:bg-emerald-950/30 dark:text-emerald-200',
+    },
+    {
+      name: 'Reddedilen',
+      value: stats.rejectedReports,
+      icon: AlertCircle,
+      iconWrap: 'bg-red-50 text-red-700 ring-1 ring-red-600/15 dark:bg-red-950/30 dark:text-red-200',
+    },
   ];
 
   return (
     <div className="space-y-8 p-6">
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Hoş geldiniz</h2>
-          <p className="text-slate-500 dark:text-slate-400">KentGözü v3 — özet ve canlı harita.</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Özet</p>
+          <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">Hoş geldiniz</h2>
+          <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">Operasyon özeti ve canlı harita.</p>
         </div>
         <button
           type="button"
-          className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 font-medium shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
         >
-          <Download size={18} />
+          <Download size={17} />
           Dışa aktar
         </button>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        {statCards.map((stat, i) => (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.06 }}
+        {statCards.map((stat) => (
+          <div
             key={stat.name}
-            className="group rounded-3xl border border-slate-100 bg-white p-6 shadow-sm transition-all duration-300 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900"
+            className="group rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm transition-all hover:border-primary/20 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-primary/25"
           >
-            <div className={`${stat.color} mb-4 flex h-12 w-12 items-center justify-center rounded-2xl text-white transition-transform group-hover:scale-105`}>
-              <stat.icon size={24} />
+            <div
+              className={`mb-4 flex h-11 w-11 items-center justify-center rounded-xl ${stat.iconWrap}`}
+            >
+              <stat.icon size={22} strokeWidth={2} />
             </div>
-            <p className="font-medium text-slate-500 dark:text-slate-400">{stat.name}</p>
-            <p className="mt-1 text-3xl font-bold">{stat.value}</p>
-          </motion.div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{stat.name}</p>
+            <p className="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-white">{stat.value}</p>
+          </div>
         ))}
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          <div className="rounded-3xl border border-slate-100 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <div className="mb-8 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-xl font-bold">Canlı harita</h3>
-              <span className="text-xs font-bold uppercase text-slate-500">Isı + işaretçi · REST ön yükleme</span>
+          <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
+            <div className="mb-6 flex flex-wrap items-end justify-between gap-2 border-b border-slate-100 pb-4 dark:border-slate-800">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Canlı harita</h3>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Isı katmanı · işaretçi
+              </span>
             </div>
-            <LiveMap />
+            <LiveMap centerLat={user.municipality?.centerLat} centerLng={user.municipality?.centerLng} zoom={user.municipality?.defaultZoom} />
           </div>
         </div>
 
-        <div className="bg-primary p-8 rounded-3xl text-white shadow-xl shadow-primary/20 relative overflow-hidden">
+        <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-primary via-primary to-primary-dark p-6 text-white shadow-lg shadow-primary/15 sm:p-8">
           <div className="relative z-10">
-            <h3 className="text-xl font-bold mb-2">Hızlı Duyuru</h3>
-            <p className="text-primary-100 text-sm mb-6">Tüm personele anlık bildirim gönderebilirsiniz.</p>
+            <h3 className="text-lg font-bold">Duyuru</h3>
+            <p className="mt-1 text-sm font-medium text-primary-100">Personele metin duyurusu (yakında).</p>
             <textarea 
-              className="w-full bg-white/10 border border-white/20 rounded-2xl p-4 text-white placeholder:text-white/40 focus:ring-2 focus:ring-white/30 resize-none h-32 mb-4"
-              placeholder="Mesajınızı yazın..."
+              className="mb-4 mt-5 h-32 w-full resize-none rounded-xl border border-white/20 bg-white/10 p-3 text-sm font-medium text-white placeholder:text-white/45 focus:outline-none focus:ring-2 focus:ring-white/25"
+              placeholder="Mesajınızı yazın…"
             ></textarea>
-            <button className="w-full bg-white text-primary font-bold py-3 rounded-2xl hover:bg-slate-50 transition-colors">
-              Hemen Yayınla
+            <button type="button" className="w-full rounded-xl bg-white py-2.5 text-sm font-bold text-primary transition-colors hover:bg-slate-50">
+              Yayınla
             </button>
           </div>
-          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
-          <div className="absolute bottom-0 left-0 w-24 h-24 bg-accent/20 rounded-full -ml-12 -mb-12 blur-xl"></div>
+          <div className="pointer-events-none absolute -right-16 top-0 h-40 w-40 rounded-full bg-white/10 blur-3xl" aria-hidden />
         </div>
       </div>
     </div>
@@ -262,20 +310,28 @@ const Dashboard = () => {
 const App = () => {
   const [user, setUser] = useState<User | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('kentgozu_theme') === 'dark');
+  const [loading, setLoading] = useState(() => Boolean(localStorage.getItem('token')));
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('kentiva_theme') === 'dark');
 
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
       api.get('/auth/me').then(res => {
         const d = res.data.data;
-        setUser({ fullName: d.fullName, email: d.email, roles: d.roles ? [...d.roles] : [], district: d.district });
+        const fullName =
+          d.fullName ||
+          [d.firstName, d.lastName].filter(Boolean).join(' ').trim() ||
+          d.email;
+        setUser({
+          fullName,
+          email: d.email,
+          roles: d.roles ? [...d.roles] : [],
+          district: d.district,
+          municipality: d.municipality,
+        });
       }).catch(() => {
         localStorage.clear();
       }).finally(() => setLoading(false));
-    } else {
-      setLoading(false);
     }
   }, []);
 
@@ -283,14 +339,14 @@ const App = () => {
     const root = document.documentElement;
     if (darkMode) {
       root.classList.add('dark');
-      localStorage.setItem('kentgozu_theme', 'dark');
+      localStorage.setItem('kentiva_theme', 'dark');
     } else {
       root.classList.remove('dark');
-      localStorage.setItem('kentgozu_theme', 'light');
+      localStorage.setItem('kentiva_theme', 'light');
     }
   }, [darkMode]);
 
-  if (loading) return <div className="flex h-screen items-center justify-center bg-slate-50 text-slate-600 dark:bg-slate-950 dark:text-slate-300">Yükleniyor…</div>;
+  if (loading) return <div className="flex h-screen items-center justify-center bg-slate-100 text-sm font-medium text-slate-500 dark:bg-slate-950 dark:text-slate-400">Yükleniyor…</div>;
 
   return (
     <Router>
@@ -299,7 +355,7 @@ const App = () => {
         
         <Route path="/*" element={
           !user ? <Navigate to="/login" /> : (
-            <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950">
+            <div className="flex min-h-screen bg-slate-100 dark:bg-slate-950">
               <Sidebar isOpen={sidebarOpen} setOpen={setSidebarOpen} user={user} />
               
               <div className="flex flex-1 flex-col lg:ml-72">
@@ -310,18 +366,17 @@ const App = () => {
                 />
                 <main className="flex-1 overflow-x-hidden">
                   <Routes>
-                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/" element={<Dashboard user={user} />} />
                     <Route path="/reports" element={<ReportsPage />} />
                     <Route path="/reports/:id" element={<ReportDetailPage />} />
                     <Route path="/stats" element={<StatisticsPage />} />
                     <Route
                       path="/staff"
-                      element={
-                        <PlaceholderPage title="Personeller" description="Personel yönetimi ve roller v3 yol haritasında." />
-                      }
+                      element={<UsersPage />}
                     />
                     <Route path="/departments" element={<DepartmentsPage />} />
-                    <Route path="*" element={<Navigate to="/" />} />
+                    <Route path="/municipality-settings" element={<MunicipalitySettingsPage />} />
+                    <Route path="/admin/municipalities" element={<SuperAdminMunicipalitiesPage />} />
                   </Routes>
                 </main>
               </div>
@@ -357,17 +412,21 @@ const Login = ({ onLogin }: { onLogin: (u: User) => void }) => {
       const res = await api.post('/auth/login', { email, password });
       localStorage.setItem('token', res.data.data.accessToken);
       onLogin(res.data.data);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Giriş yapılamadı');
+    } catch (err: unknown) {
+      setError(
+        axios.isAxiosError(err)
+          ? String((err.response?.data as { message?: string } | undefined)?.message ?? 'Giriş yapılamadı')
+          : 'Giriş yapılamadı'
+      );
     }
   };
 
   return (
     <div className="min-h-screen flex">
-      <div className="flex-1 hidden lg:flex bg-primary relative overflow-hidden items-center justify-center text-white">
+      <div className="flex-1 hidden lg:flex bg-gradient-to-br from-primary via-primary to-primary-dark relative overflow-hidden items-center justify-center text-white">
         <div className="relative z-10 p-20 max-w-2xl">
           <h1 className="text-6xl font-black mb-6 leading-tight">Yarınları Birlikte<br/>Yönetiyoruz.</h1>
-          <p className="text-xl text-primary-100">KentGözü Yönetim Portalı ile şehrin nabzını tutun, sorunları anında çözüme kavuşturun.</p>
+          <p className="text-xl text-primary-100">Kentiva Yönetim Portalı ile şehrin nabzını tutun, sorunları anında çözüme kavuşturun.</p>
           
           <div className="mt-12 grid grid-cols-2 gap-8">
             <div className="p-6 bg-white/10 rounded-3xl border border-white/20 backdrop-blur-md">
@@ -387,8 +446,8 @@ const Login = ({ onLogin }: { onLogin: (u: User) => void }) => {
       <div className="w-full lg:w-[500px] bg-white flex items-center justify-center p-8">
         <div className="w-full max-w-sm">
           <div className="mb-12">
-            <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center text-white mb-6 shadow-xl shadow-primary/20">
-              <Building2 size={32} />
+            <div className="w-14 h-14 bg-gradient-to-br from-primary to-primary-dark rounded-2xl flex items-center justify-center text-white mb-6 shadow-xl shadow-primary/30 ring-1 ring-white/15">
+              <Building2 size={30} />
             </div>
             <h2 className="text-3xl font-bold mb-2">Giriş Yapın</h2>
             <p className="text-slate-500">Yönetim yetkilerinizle devam edin.</p>
@@ -424,7 +483,7 @@ const Login = ({ onLogin }: { onLogin: (u: User) => void }) => {
           </form>
 
           <p className="mt-12 text-center text-slate-400 text-sm font-medium">
-            © 2026 İstanbul Büyükşehir Belediyesi
+            © 2026 Kentiva — Belediye Bildirim ve Takip Platformu
           </p>
         </div>
       </div>

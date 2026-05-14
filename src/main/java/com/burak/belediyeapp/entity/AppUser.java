@@ -66,6 +66,10 @@ public class AppUser extends BaseEntity implements UserDetails {
     @Column(length = 100)
     private String district;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "municipality_id")
+    private Municipality municipality;
+
     @Column(length = 255)
     private String fcmToken;
 

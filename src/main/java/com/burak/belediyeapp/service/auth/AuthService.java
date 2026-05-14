@@ -110,6 +110,9 @@ public class AuthService {
         refreshTokenRepository.save(storedToken);
 
         AppUser user = storedToken.getUser();
+        if (!user.isEnabled()) {
+            throw new BusinessException("Kullanıcı hesabı pasif durumda", "USER_DISABLED");
+        }
         return buildAuthResponse(user);
     }
 
@@ -135,6 +138,9 @@ public class AuthService {
                 .map(Role::getName)
                 .collect(Collectors.toSet());
 
+        com.burak.belediyeapp.dto.response.municipality.MunicipalityDto municipalityDto =
+                com.burak.belediyeapp.dto.response.municipality.MunicipalityDto.fromEntity(user.getMunicipality());
+
         return AuthResponse.of(
                 accessToken,
                 refreshTokenValue,
@@ -142,7 +148,8 @@ public class AuthService {
                 user.getEmail(),
                 user.getFullName(),
                 roles,
-                user.getDistrict()
+                user.getDistrict(),
+                municipalityDto
         );
     }
 

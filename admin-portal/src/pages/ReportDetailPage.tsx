@@ -1,23 +1,33 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, MapPin, Sparkles } from 'lucide-react';
-import api, { type Report, type ReportTimelineEntry } from '../api';
+import { ArrowLeft, MapPin, Sparkles, UserPlus, CheckCircle2 } from 'lucide-react';
+import axios from 'axios';
+import api, { type Report, type ReportTimelineEntry, type User } from '../api';
 
 export default function ReportDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [report, setReport] = useState<Report | null>(null);
   const [timeline, setTimeline] = useState<ReportTimelineEntry[]>([]);
+  const [officers, setOfficers] = useState<User[]>([]);
+  const [selectedOfficerId, setSelectedOfficerId] = useState<string>('');
+  const [isAssigning, setIsAssigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
     (async () => {
       try {
-        const [r, tl] = await Promise.all([api.get(`/reports/${id}`), api.get(`/reports/${id}/timeline`)]);
+        const [r, tl, u] = await Promise.all([
+          api.get(`/reports/${id}`), 
+          api.get(`/reports/${id}/timeline`),
+          api.get('/users?role=ROLE_FIELD_OFFICER')
+        ]);
         if (!cancelled) {
           setReport(r.data.data as Report);
           setTimeline(tl.data.data as ReportTimelineEntry[]);
+          setOfficers(u.data.data as User[]);
         }
       } catch {
         if (!cancelled) setError('Rapor bulunamadı veya erişim yok.');
@@ -27,6 +37,28 @@ export default function ReportDetailPage() {
       cancelled = true;
     };
   }, [id]);
+
+  const handleAssign = async () => {
+    if (!selectedOfficerId || !id) return;
+    setIsAssigning(true);
+    setSuccessMsg(null);
+    try {
+      await api.post(`/reports/${id}/assign`, { assigneeId: selectedOfficerId });
+      const [r, tl] = await Promise.all([api.get(`/reports/${id}`), api.get(`/reports/${id}/timeline`)]);
+      setReport(r.data.data as Report);
+      setTimeline(tl.data.data as ReportTimelineEntry[]);
+      setSuccessMsg('Görevli atandı.');
+      setTimeout(() => setSuccessMsg(null), 3000);
+    } catch (err: unknown) {
+      setError(
+        axios.isAxiosError(err)
+          ? String((err.response?.data as { message?: string } | undefined)?.message ?? 'Atama başarısız.')
+          : 'Atama başarısız.'
+      );
+    } finally {
+      setIsAssigning(false);
+    }
+  };
 
   if (error) {
     return (
@@ -51,10 +83,10 @@ export default function ReportDetailPage() {
         Raporlara dön
       </Link>
 
-      <div className="rounded-3xl border border-slate-100 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{report.title}</h1>
+            <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">{report.title}</h1>
             <p className="mt-1 text-sm text-slate-500">
               {report.categoryName} · {report.district}
             </p>
@@ -88,7 +120,34 @@ export default function ReportDetailPage() {
           </div>
           <div>
             <dt className="font-semibold text-slate-500">Atanan</dt>
-            <dd className="text-slate-900 dark:text-white">{report.assigneeFullName ?? '—'}</dd>
+            <dd className="flex flex-col gap-2">
+              <span className="text-slate-900 dark:text-white font-medium">{report.assigneeFullName ?? 'Henüz atanmamış'}</span>
+              
+              <div className="mt-2 flex items-center gap-2">
+                <select 
+                  value={selectedOfficerId}
+                  onChange={(e) => setSelectedOfficerId(e.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                >
+                  <option value="">Saha Görevlisi Seç...</option>
+                  {officers.map(o => (
+                    <option key={o.id} value={o.id}>{o.firstName} {o.lastName}</option>
+                  ))}
+                </select>
+                <button 
+                  onClick={handleAssign}
+                  disabled={!selectedOfficerId || isAssigning}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white transition-all hover:bg-primary-hover disabled:opacity-50"
+                >
+                  {isAssigning ? '...' : <><UserPlus className="h-3 w-3" /> Ata</>}
+                </button>
+              </div>
+              {successMsg && (
+                <p className="flex items-center gap-1 text-[11px] font-bold text-green-600 dark:text-green-400">
+                  <CheckCircle2 className="h-3 w-3" /> {successMsg}
+                </p>
+              )}
+            </dd>
           </div>
           <div>
             <dt className="font-semibold text-slate-500">Oluşturulma</dt>
@@ -106,7 +165,7 @@ export default function ReportDetailPage() {
         </dl>
       </div>
 
-      <div className="rounded-3xl border border-slate-100 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
         <h2 className="mb-6 text-lg font-bold text-slate-900 dark:text-white">Yaşam döngüsü</h2>
         <div className="relative space-y-0 border-l-2 border-primary/30 pl-5">
           {timeline.map((e, i) => (

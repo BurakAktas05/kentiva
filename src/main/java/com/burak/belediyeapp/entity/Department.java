@@ -20,8 +20,12 @@ import java.util.List;
 @Builder
 public class Department extends BaseEntity {
 
-    @Column(nullable = false, unique = true, length = 100)
+    @Column(nullable = false, length = 100)
     private String name;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "municipality_id")
+    private Municipality municipality;
 
     @Column(length = 255)
     private String description;

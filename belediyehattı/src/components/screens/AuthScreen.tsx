@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mail, Lock, User, Phone, ArrowRight } from 'lucide-react';
+import { Mail, Lock, User, Phone, ArrowRight, Building2, Loader2 } from 'lucide-react';
 import { login, register, AuthUser } from '../../api';
 import { Lang, t } from '../../i18n';
 
@@ -19,7 +19,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
@@ -39,15 +39,20 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 font-sans">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-slate-50 via-white to-slate-100 p-6 pt-safe pb-safe font-sans [background-image:radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(14,165,233,0.12),transparent)]">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md"
       >
-        {/* Logo */}
+        {/* Brand */}
         <div className="text-center mb-10">
-          <img src="/ibb-logo.png" alt="İBB" className="w-20 h-20 mx-auto mb-4 rounded-2xl shadow-xl border-4 border-white" />
+          <div
+            className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-2xl border-4 border-white/90 bg-gradient-to-br from-primary to-primary-dark text-white shadow-xl shadow-primary/30 ring-1 ring-slate-900/5"
+            aria-hidden
+          >
+            <Building2 className="h-10 w-10" strokeWidth={1.5} />
+          </div>
           <h1 className="text-2xl font-bold text-slate-800 tracking-tight">{t('app.name', lang)}</h1>
           <p className="text-sm text-slate-500 mt-1 font-medium">{t('app.slogan', lang)}</p>
         </div>
@@ -55,6 +60,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
         {/* Tab Switcher */}
         <div className="flex bg-slate-200/60 rounded-2xl p-1.5 mb-8">
           <button
+            type="button"
             onClick={() => { setIsLogin(true); setError(''); }}
             className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${
               isLogin ? 'bg-white text-primary shadow-md shadow-slate-300/50' : 'text-slate-500'
@@ -63,6 +69,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
             {t('auth.login', lang)}
           </button>
           <button
+            type="button"
             onClick={() => { setIsLogin(false); setError(''); }}
             className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${
               !isLogin ? 'bg-white text-primary shadow-md shadow-slate-300/50' : 'text-slate-500'
@@ -147,6 +154,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
 
           {error && (
             <motion.div
+              role="alert"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               className="bg-red-50 border border-red-100 text-red-600 text-xs font-semibold p-4 rounded-2xl flex items-center gap-2"
@@ -173,24 +181,5 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
         </form>
       </motion.div>
     </div>
-  );
-}
-
-function Loader2(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-    </svg>
   );
 }

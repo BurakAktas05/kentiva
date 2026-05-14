@@ -4,5 +4,7 @@ public record DepartmentResponse(
         String id,
         String name,
         String description,
-        boolean active
+        boolean active,
+        String municipalityId,
+        String municipalityName
 ) {}

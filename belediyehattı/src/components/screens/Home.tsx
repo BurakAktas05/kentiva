@@ -1,8 +1,29 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { MapPin, Clock, AlertCircle, Trash2, HardHat, Lightbulb, TreePine, Construction } from 'lucide-react';
-import { getMyReports, ApiReportList } from '../../api';
+import {
+  MapPin,
+  Clock,
+  AlertCircle,
+  Trash2,
+  HardHat,
+  Lightbulb,
+  TreePine,
+  Construction,
+  Building2,
+  Sparkles,
+} from 'lucide-react';
+import {
+  getMyReports,
+  ApiReportList,
+  fetchPublicStatsOverview,
+  fetchPublicMunicipalityStatsList,
+  type PublicStatsOverview,
+  type PublicMunicipalityStat,
+} from '../../api';
+import { useTenant } from '../../TenantContext';
 import { Lang, t } from '../../i18n';
+
+const MY_REPORTS_PAGE_SIZE = 120;
 
 interface HomeProps {
   onNavigate: (tab: 'report') => void;
@@ -23,95 +44,261 @@ const getStatusBadge = (status: string, lang: Lang) => {
   const label = t(`status.${status}`, lang);
   switch (status) {
     case 'RESOLVED':
-      return <span className="px-2.5 py-1 text-[10px] font-medium tracking-wide uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-full">{label}</span>;
+      return (
+        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+          {label}
+        </span>
+      );
     case 'PROCESSING':
-      return <span className="rounded-full bg-primary/15 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-primary dark:bg-primary/25 dark:text-secondary">{label}</span>;
+      return (
+        <span className="rounded-full bg-sky-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-sky-800 dark:bg-sky-900/35 dark:text-sky-200">
+          {label}
+        </span>
+      );
     case 'REJECTED':
-      return <span className="px-2.5 py-1 text-[10px] font-medium tracking-wide uppercase bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded-full">{label}</span>;
+      return (
+        <span className="rounded-full bg-red-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-red-700 dark:bg-red-900/30 dark:text-red-400">
+          {label}
+        </span>
+      );
     default:
-      return <span className="px-2.5 py-1 text-[10px] font-medium tracking-wide uppercase bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 rounded-full">{label}</span>;
+      return (
+        <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+          {label}
+        </span>
+      );
   }
 };
 
 export default function Home({ onNavigate, onOpenReport, lang, isDark }: HomeProps) {
+  const { tenant } = useTenant();
   const [reports, setReports] = useState<ApiReportList[]>([]);
+  const [totalMyReports, setTotalMyReports] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [publicOverview, setPublicOverview] = useState<PublicStatsOverview | null>(null);
+  const [publicError, setPublicError] = useState(false);
+  const [muniStats, setMuniStats] = useState<PublicMunicipalityStat[]>([]);
 
   useEffect(() => {
-    loadReports();
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setPublicError(false);
+      try {
+        const [rep, overview, munis] = await Promise.all([
+          getMyReports(0, MY_REPORTS_PAGE_SIZE),
+          fetchPublicStatsOverview().catch(() => null),
+          fetchPublicMunicipalityStatsList().catch(() => []),
+        ]);
+        if (cancelled) return;
+        setReports(rep.content || []);
+        setTotalMyReports(rep.totalElements ?? (rep.content || []).length);
+        setPublicOverview(overview);
+        setMuniStats(Array.isArray(munis) ? munis : []);
+      } catch (e) {
+        console.error('Akış yüklenemedi', e);
+        if (!cancelled) {
+          setReports([]);
+          setTotalMyReports(0);
+          setPublicError(true);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const loadReports = async () => {
-    try {
-      const data = await getMyReports(0, 20);
-      setReports(data.content || []);
-    } catch (e) {
-      console.error('Raporlar yüklenemedi', e);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const tenantMuniStat = useMemo(() => {
+    const slug = tenant?.slug?.trim();
+    if (!slug) return null;
+    return muniStats.find((m) => m.slug === slug) ?? null;
+  }, [muniStats, tenant?.slug]);
+
+  const cardBorder = isDark ? 'border-slate-700 bg-slate-800/90' : 'border-slate-200/90 bg-white';
+  const muted = isDark ? 'text-slate-400' : 'text-slate-600';
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="p-4 space-y-6"
-    >
-      {/* Hero Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary to-secondary p-5 text-white shadow-xl shadow-primary/20">
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-5 p-4 pb-8">
+      {/* Hero */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary to-primary-dark p-5 text-white shadow-lg shadow-primary/20 ring-1 ring-white/10">
+        <div
+          className="pointer-events-none absolute -right-8 top-0 h-32 w-32 rounded-full bg-secondary/25 blur-2xl"
+          aria-hidden
+        />
         <div className="relative z-10">
-          <h2 className="text-xl font-bold mb-1">{t('home.hero.title', lang)}</h2>
-          <p className="mb-4 text-sm text-white/85">{t('home.hero.desc', lang)}</p>
-          <button 
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/70">{t('app.name', lang)}</p>
+          <h2 className="mt-1 text-lg font-extrabold tracking-tight">{t('home.hero.title', lang)}</h2>
+          <p className="mt-2 text-sm font-medium leading-relaxed text-white/90">{t('home.hero.desc', lang)}</p>
+          <button
+            type="button"
             onClick={() => onNavigate('report')}
-            className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-slate-900 shadow-md active:scale-95 transition-transform"
+            className="mt-4 rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-slate-900 shadow-md transition-transform active:scale-[0.98]"
           >
             {t('home.hero.btn', lang)}
           </button>
         </div>
-        <div className="absolute -bottom-6 -right-6 opacity-20">
-          <AlertCircle className="w-32 h-32" />
+        <div className="pointer-events-none absolute -bottom-8 -right-4 opacity-[0.12]" aria-hidden>
+          <AlertCircle className="h-28 w-28" />
         </div>
       </div>
 
-      {/* Reports */}
+      {/* Kamu istatistikleri */}
+      <section className={`rounded-2xl border p-4 shadow-sm ${cardBorder}`} aria-label={t('home.public.title', lang)}>
+        <div className="mb-3 flex items-center gap-2">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/15">
+            <Sparkles className="h-4 w-4" strokeWidth={2} />
+          </div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-primary">{t('home.public.eyebrow', lang)}</p>
+            <h3 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{t('home.public.title', lang)}</h3>
+          </div>
+        </div>
+        {publicError || !publicOverview ? (
+          <p className={`text-xs font-medium ${muted}`}>{t('home.public.loadError', lang)}</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className={`rounded-xl border p-3 ${isDark ? 'border-slate-600 bg-slate-900/50' : 'border-slate-100 bg-slate-50'}`}>
+              <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                {t('home.public.total', lang)}
+              </p>
+              <p className={`mt-1 text-lg font-extrabold tabular-nums ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                {publicOverview.totalReports}
+              </p>
+            </div>
+            <div className={`rounded-xl border p-3 ${isDark ? 'border-slate-600 bg-slate-900/50' : 'border-slate-100 bg-slate-50'}`}>
+              <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                {t('home.public.resolved', lang)}
+              </p>
+              <p className={`mt-1 text-lg font-extrabold tabular-nums ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                {publicOverview.resolvedReports}
+              </p>
+            </div>
+            <div className={`rounded-xl border p-3 ${isDark ? 'border-slate-600 bg-slate-900/50' : 'border-slate-100 bg-slate-50'}`}>
+              <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                {t('home.public.rate', lang)}
+              </p>
+              <p className={`mt-1 text-lg font-extrabold tabular-nums text-primary`}>
+                %{publicOverview.resolutionRatePercent}
+              </p>
+            </div>
+            <div className={`rounded-xl border p-3 ${isDark ? 'border-slate-600 bg-slate-900/50' : 'border-slate-100 bg-slate-50'}`}>
+              <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                {t('home.public.municipalities', lang)}
+              </p>
+              <p className={`mt-1 text-lg font-extrabold tabular-nums ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                {publicOverview.onboardedMunicipalityCount}
+              </p>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Belediye kamu özeti */}
+      {tenant && (
+        <section className={`rounded-2xl border p-4 shadow-sm ${cardBorder}`}>
+          <div className="mb-3 flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary/15 text-primary ring-1 ring-secondary/25 dark:text-sky-200">
+              <Building2 className="h-4 w-4" strokeWidth={2} />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-secondary">{t('home.muni.eyebrow', lang)}</p>
+              <h3 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                {tenant.displayName || tenant.slug}
+              </h3>
+            </div>
+          </div>
+          {tenantMuniStat ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div className={`rounded-xl border p-3 ${isDark ? 'border-slate-600 bg-slate-900/50' : 'border-slate-100 bg-slate-50'}`}>
+                <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  {t('home.muni.reports', lang)}
+                </p>
+                <p className={`mt-1 text-lg font-extrabold tabular-nums ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  {tenantMuniStat.totalReports}
+                </p>
+              </div>
+              <div className={`rounded-xl border p-3 ${isDark ? 'border-slate-600 bg-slate-900/50' : 'border-slate-100 bg-slate-50'}`}>
+                <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  {t('home.muni.resolved', lang)}
+                </p>
+                <p className={`mt-1 text-lg font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400`}>
+                  {tenantMuniStat.resolvedReports}
+                </p>
+              </div>
+              <p className={`col-span-2 text-[11px] font-medium leading-relaxed ${muted}`}>{t('home.muni.title', lang)}</p>
+            </div>
+          ) : (
+            <p className={`text-xs font-medium leading-relaxed ${muted}`}>{t('home.muni.empty', lang)}</p>
+          )}
+        </section>
+      )}
+
+      {/* İpuçları */}
+      <section className={`rounded-2xl border p-4 shadow-sm ${cardBorder}`}>
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-primary">{t('home.tips.eyebrow', lang)}</p>
+        <h3 className={`mt-1 text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{t('home.tips.title', lang)}</h3>
+        <ul className={`mt-3 space-y-2 text-xs font-medium leading-relaxed ${muted}`}>
+          <li className="flex gap-2">
+            <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+            {t('home.tips.a', lang)}
+          </li>
+          <li className="flex gap-2">
+            <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-secondary" />
+            {t('home.tips.b', lang)}
+          </li>
+          <li className="flex gap-2">
+            <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
+            {t('home.tips.c', lang)}
+          </li>
+        </ul>
+      </section>
+
+      {/* Bildirimler listesi */}
       <div>
-        <h3 className={`font-bold tracking-tight mb-4 px-1 flex items-center justify-between ${isDark ? 'text-white' : 'text-slate-800'}`}>
-          <span>{t('home.reports.title', lang)}</span>
-          <span className={`text-xs font-normal ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-            {t('home.reports.count', lang, { n: reports.length })}
-          </span>
-        </h3>
-        
+        <div className="mb-3 px-0.5">
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-primary">{t('home.reports.sectionEyebrow', lang)}</p>
+          <h3 className={`mt-1 flex items-center justify-between text-base font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-800'}`}>
+            <span>{t('home.reports.title', lang)}</span>
+            <span className={`text-xs font-semibold ${muted}`}>{t('home.reports.count', lang, { n: totalMyReports })}</span>
+          </h3>
+        </div>
+
         {loading ? (
-          <div className="space-y-4">
-            {[1, 2, 3].map(i => (
-              <div key={i} className={`rounded-2xl p-4 border animate-pulse ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className={`animate-pulse rounded-2xl border p-4 ${isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'}`}
+              >
                 <div className="flex gap-3">
-                  <div className={`w-10 h-10 rounded-xl ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`} />
+                  <div className={`h-10 w-10 rounded-xl ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`} />
                   <div className="flex-1 space-y-2">
-                    <div className={`h-4 rounded w-3/4 ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`} />
-                    <div className={`h-3 rounded w-1/2 ${isDark ? 'bg-slate-700/50' : 'bg-slate-100'}`} />
+                    <div className={`h-4 w-3/4 rounded ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`} />
+                    <div className={`h-3 w-1/2 rounded ${isDark ? 'bg-slate-700/50' : 'bg-slate-100'}`} />
                   </div>
                 </div>
               </div>
             ))}
           </div>
         ) : reports.length === 0 ? (
-          <div className={`text-center py-12 rounded-2xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
-            <HardHat className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-            <p className={`text-sm font-medium ${isDark ? 'text-slate-400' : 'text-slate-400'}`}>{t('home.reports.empty.title', lang)}</p>
-            <p className={`text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-300'}`}>{t('home.reports.empty.desc', lang)}</p>
+          <div
+            className={`rounded-2xl border py-12 text-center ${isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'}`}
+          >
+            <HardHat className="mx-auto mb-3 h-12 w-12 text-slate-300 dark:text-slate-600" />
+            <p className={`text-sm font-semibold ${muted}`}>{t('home.reports.empty.title', lang)}</p>
+            <p className={`mt-1 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{t('home.reports.empty.desc', lang)}</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {reports.map((report, idx) => (
-              <motion.div 
+              <motion.div
                 key={report.id}
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.07 }}
+                transition={{ delay: Math.min(idx * 0.04, 0.35) }}
                 role={onOpenReport ? 'button' : undefined}
                 tabIndex={onOpenReport ? 0 : undefined}
                 onClick={() => onOpenReport?.(report.id)}
@@ -121,32 +308,41 @@ export default function Home({ onNavigate, onOpenReport, lang, isDark }: HomePro
                     onOpenReport(report.id);
                   }
                 }}
-                className={`rounded-2xl p-4 shadow-sm border flex flex-col gap-3 ${onOpenReport ? 'cursor-pointer active:scale-[0.99]' : ''} ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}
+                className={`flex flex-col gap-3 rounded-2xl border p-4 shadow-sm transition-colors ${
+                  onOpenReport ? `cursor-pointer active:scale-[0.99] ${isDark ? 'hover:border-slate-600' : 'hover:border-slate-300'}` : ''
+                } ${isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200/90 bg-white'}`}
               >
-                <div className="flex justify-between items-start">
-                  <div className="flex gap-3">
-                    <div className={`p-2.5 rounded-xl border ${isDark ? 'bg-slate-900 border-slate-700 text-slate-400' : 'bg-slate-50 text-slate-600 border-slate-100'}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex min-w-0 gap-3">
+                    <div
+                      className={`shrink-0 rounded-xl border p-2.5 ${isDark ? 'border-slate-600 bg-slate-900 text-slate-400' : 'border-slate-100 bg-slate-50 text-slate-600'}`}
+                    >
                       {getCategoryIcon(report.categoryName)}
                     </div>
                     <div className="min-w-0">
-                      <h4 className={`font-semibold text-sm truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{report.title}</h4>
-                      <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-1">
-                        <MapPin className="w-3 h-3" />
-                        <span className="truncate">{report.categoryName}</span>
-                      </div>
+                      <h4 className={`truncate text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{report.title}</h4>
+                      <p className={`mt-0.5 truncate text-xs ${muted}`}>{report.categoryName}</p>
                     </div>
                   </div>
                   {getStatusBadge(report.status, lang)}
                 </div>
-                
-                <div className={`flex justify-between items-center pt-2 border-t ${isDark ? 'border-slate-700' : 'border-slate-100'}`}>
-                  <div className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>{new Date(report.createdAt).toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+
+                <div
+                  className={`flex items-center justify-between border-t pt-2 text-xs ${isDark ? 'border-slate-700 text-slate-500' : 'border-slate-100 text-slate-500'}`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      {new Date(report.createdAt).toLocaleDateString(lang === 'tr' ? 'tr-TR' : lang === 'ar' ? 'ar' : 'en-US', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
-                    <MapPin className="w-3.5 h-3.5" />
-                    <span>{report.district || `${report.latitude?.toFixed(4)}, ${report.longitude?.toFixed(4)}`}</span>
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{report.district || `${report.latitude?.toFixed(3)}, ${report.longitude?.toFixed(3)}`}</span>
                   </div>
                 </div>
               </motion.div>

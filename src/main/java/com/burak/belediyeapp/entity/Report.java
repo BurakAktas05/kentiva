@@ -76,6 +76,10 @@ public class Report extends BaseEntity {
     @Column(length = 100)
     private String district;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "municipality_id")
+    private Municipality municipality;
+
     @Column(length = 255)
     private String fcmToken;
 
@@ -87,6 +91,15 @@ public class Report extends BaseEntity {
 
     @Column(length = 200)
     private String aiSuggestedCategory;
+
+    @Column(length = 20)
+    private String aiSlaRisk;
+
+    @Column(columnDefinition = "TEXT")
+    private String aiReplyDraft;
+
+    @Column(length = 500)
+    private String aiDuplicateHint;
 
     /**
      * Durum değişikliği geçmişi — auditability için.

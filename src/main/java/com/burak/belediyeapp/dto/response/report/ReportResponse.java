@@ -19,5 +19,8 @@ public record ReportResponse(
         String district,
         String aiPriority,
         String aiSummary,
-        String aiSuggestedCategory
+        String aiSuggestedCategory,
+        String aiSlaRisk,
+        String aiReplyDraft,
+        String aiDuplicateHint
 ) {}

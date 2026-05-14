@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -30,27 +31,30 @@ public class CategoryController {
     }
 
     @GetMapping("/all")
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     @Operation(summary = "Tüm kategorileri listele (Admin)")
     public ResponseEntity<ApiResponse<List<CategoryResponse>>> getAllCategories() {
         return ResponseEntity.ok(ApiResponse.success(categoryService.getAllCategories()));
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     @Operation(summary = "Yeni kategori oluştur (Admin)")
     public ResponseEntity<ApiResponse<CategoryResponse>> createCategory(
-            @Valid @RequestBody CreateCategoryRequest request) {
-        CategoryResponse response = categoryService.createCategory(request);
+            @Valid @RequestBody CreateCategoryRequest request,
+            @AuthenticationPrincipal com.burak.belediyeapp.entity.AppUser currentUser) {
+        CategoryResponse response = categoryService.createCategory(request, currentUser);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Kategori oluşturuldu", response));
     }
 
     @DeleteMapping("/{categoryId}")
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     @Operation(summary = "Kategori sil (soft delete) (Admin)")
-    public ResponseEntity<ApiResponse<Void>> deleteCategory(@PathVariable String categoryId) {
-        categoryService.deleteCategory(categoryId);
+    public ResponseEntity<ApiResponse<Void>> deleteCategory(
+            @PathVariable String categoryId,
+            @AuthenticationPrincipal com.burak.belediyeapp.entity.AppUser currentUser) {
+        categoryService.deleteCategory(categoryId, currentUser);
         return ResponseEntity.ok(ApiResponse.success("Kategori devre dışı bırakıldı", null));
     }
 }
