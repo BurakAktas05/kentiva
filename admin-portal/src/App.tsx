@@ -18,6 +18,8 @@ import {
   Sun,
   Settings as SettingsIcon,
   MapPinned,
+  ArrowRight,
+  Shield,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -142,14 +144,22 @@ const Header = ({
         <Menu />
       </button>
 
-      <div className="hidden w-full max-w-md items-center gap-2 rounded-xl border border-slate-200/90 bg-slate-50/90 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/50 md:flex">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          const q = (e.currentTarget.elements.namedItem('headerSearch') as HTMLInputElement)?.value?.trim();
+          if (q) window.location.href = `/reports?q=${encodeURIComponent(q)}`;
+        }}
+        className="hidden w-full max-w-md items-center gap-2 rounded-xl border border-slate-200/90 bg-slate-50/90 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/50 md:flex"
+      >
         <Search size={17} className="shrink-0 text-slate-400" />
         <input
           type="search"
+          name="headerSearch"
           placeholder="Rapor ara…"
           className="w-full border-0 bg-transparent text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:ring-0 dark:text-slate-100"
         />
-      </div>
+      </form>
 
       <div className="flex items-center gap-1 sm:gap-2">
         <button
@@ -160,10 +170,10 @@ const Header = ({
         >
           {darkMode ? <Sun size={19} /> : <Moon size={19} />}
         </button>
-        <button type="button" className="relative rounded-lg p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
+        <a href="/reports?status=PENDING" className="relative rounded-lg p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800" title="Bekleyen raporlar">
           <Bell size={19} />
           <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-900" />
-        </button>
+        </a>
         <div className="mx-1 hidden h-7 w-px bg-slate-200 sm:block dark:bg-slate-700" />
         <div className="hidden items-center gap-2 rounded-lg border border-transparent px-2 py-1 sm:flex dark:hover:border-slate-700">
           <div className="h-8 w-8 shrink-0 rounded-lg bg-primary/15 ring-1 ring-primary/10 dark:bg-primary/25" />
@@ -189,13 +199,37 @@ const DashboardSkeleton = () => (
 const Dashboard = ({ user }: { user: User }) => {
   const [stats, setStats] = useState<Stats | null>(null);
   const [statsError, setStatsError] = useState<string | null>(null);
+  const [recentReports, setRecentReports] = useState<{ id: string; title: string; status: string; categoryName: string; createdAt: string; district: string }[]>([]);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     api
       .get('/dashboard/stats')
       .then((res) => setStats(res.data.data))
       .catch(() => setStatsError('İstatistikler alınamadı.'));
+
+    api
+      .get('/reports', { params: { page: 0, size: 5, sort: 'createdAt,desc' } })
+      .then((res) => setRecentReports(res.data.data?.content ?? []))
+      .catch(() => {});
   }, []);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const res = await api.get('/export/reports/excel', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `kentiva-raporlar-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      alert('Dışa aktarma başarısız oldu.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   if (statsError) {
     return (
@@ -240,6 +274,15 @@ const Dashboard = ({ user }: { user: User }) => {
     },
   ];
 
+  const statusBadge = (s: string) => {
+    switch (s) {
+      case 'RESOLVED': return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200';
+      case 'PROCESSING': return 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200';
+      case 'REJECTED': return 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200';
+      default: return 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200';
+    }
+  };
+
   return (
     <div className="space-y-8 p-6">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
@@ -250,10 +293,12 @@ const Dashboard = ({ user }: { user: User }) => {
         </div>
         <button
           type="button"
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+          onClick={handleExport}
+          disabled={exporting}
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
         >
           <Download size={17} />
-          Dışa aktar
+          {exporting ? 'İndiriliyor…' : 'Dışa aktar'}
         </button>
       </div>
 
@@ -287,19 +332,36 @@ const Dashboard = ({ user }: { user: User }) => {
           </div>
         </div>
 
-        <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-primary via-primary to-primary-dark p-6 text-white shadow-lg shadow-primary/15 sm:p-8">
-          <div className="relative z-10">
-            <h3 className="text-lg font-bold">Duyuru</h3>
-            <p className="mt-1 text-sm font-medium text-primary-100">Personele metin duyurusu (yakında).</p>
-            <textarea 
-              className="mb-4 mt-5 h-32 w-full resize-none rounded-xl border border-white/20 bg-white/10 p-3 text-sm font-medium text-white placeholder:text-white/45 focus:outline-none focus:ring-2 focus:ring-white/25"
-              placeholder="Mesajınızı yazın…"
-            ></textarea>
-            <button type="button" className="w-full rounded-xl bg-white py-2.5 text-sm font-bold text-primary transition-colors hover:bg-slate-50">
-              Yayınla
-            </button>
-          </div>
-          <div className="pointer-events-none absolute -right-16 top-0 h-40 w-40 rounded-full bg-white/10 blur-3xl" aria-hidden />
+        {/* Son Raporlar widget */}
+        <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <h3 className="mb-4 text-base font-bold text-slate-900 dark:text-white">Son Bildiriler</h3>
+          {recentReports.length === 0 ? (
+            <p className="text-sm text-slate-500">Henüz bildirim yok.</p>
+          ) : (
+            <div className="space-y-3">
+              {recentReports.map((r) => (
+                <a
+                  key={r.id}
+                  href={`/reports/${r.id}`}
+                  className="flex items-start gap-3 rounded-xl border border-slate-100 p-3 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"
+                >
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary dark:bg-primary/25 dark:text-sky-300">
+                    <FileText size={14} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-slate-900 dark:text-white">{r.title}</p>
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${statusBadge(r.status)}`}>{r.status}</span>
+                      <span className="text-[10px] text-slate-400">{r.createdAt ? new Date(r.createdAt).toLocaleDateString('tr-TR') : ''}</span>
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          )}
+          <a href="/reports" className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline">
+            Tümünü gör <ArrowRight size={12} />
+          </a>
         </div>
       </div>
     </div>
@@ -406,6 +468,14 @@ const Login = ({ onLogin }: { onLogin: (u: User) => void }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
+  // Şifre sıfırlama
+  const [forgotStep, setForgotStep] = useState<'off'|'phone'|'otp'|'newpass'>('off');
+  const [resetPhone, setResetPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [newPass, setNewPass] = useState('');
+  const [resetMsg, setResetMsg] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -418,6 +488,32 @@ const Login = ({ onLogin }: { onLogin: (u: User) => void }) => {
           ? String((err.response?.data as { message?: string } | undefined)?.message ?? 'Giriş yapılamadı')
           : 'Giriş yapılamadı'
       );
+    }
+  };
+
+  const handleReset = async () => {
+    setResetLoading(true);
+    setResetMsg('');
+    try {
+      if (forgotStep === 'phone') {
+        await api.post('/auth/forgot-password', { phoneNumber: resetPhone });
+        setForgotStep('otp');
+        setResetMsg('Doğrulama kodu gönderildi.');
+      } else if (forgotStep === 'otp') {
+        setForgotStep('newpass');
+      } else if (forgotStep === 'newpass') {
+        await api.post('/auth/reset-password', { phoneNumber: resetPhone, otpCode: otp, newPassword: newPass });
+        setResetMsg('Şifre başarıyla sıfırlandı!');
+        setTimeout(() => { setForgotStep('off'); setResetMsg(''); }, 2000);
+      }
+    } catch (err: unknown) {
+      setResetMsg(
+        axios.isAxiosError(err)
+          ? String((err.response?.data as { message?: string } | undefined)?.message ?? 'Hata')
+          : 'Hata'
+      );
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -453,34 +549,111 @@ const Login = ({ onLogin }: { onLogin: (u: User) => void }) => {
             <p className="text-slate-500">Yönetim yetkilerinizle devam edin.</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700">E-posta</label>
-              <input 
-                type="email" 
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-slate-50 border-slate-200 rounded-2xl py-3 px-4 focus:ring-2 focus:ring-primary focus:bg-white transition-all outline-none"
-                placeholder="admin@ibb.gov.tr"
-                required
-              />
+          {forgotStep === 'off' ? (
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">E-posta</label>
+                <input 
+                  type="email" 
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-slate-50 border-slate-200 rounded-2xl py-3 px-4 focus:ring-2 focus:ring-primary focus:bg-white transition-all outline-none"
+                  placeholder="admin@belediye.gov.tr"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">Şifre</label>
+                <input 
+                  type="password" 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-slate-50 border-slate-200 rounded-2xl py-3 px-4 focus:ring-2 focus:ring-primary focus:bg-white transition-all outline-none"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+              {error && <p className="text-red-500 text-sm font-medium">{error}</p>}
+              <button className="w-full bg-primary text-white font-bold py-4 rounded-2xl hover:bg-primary-hover shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5 active:translate-y-0">
+                Devam Et
+              </button>
+              <button
+                type="button"
+                onClick={() => setForgotStep('phone')}
+                className="w-full text-center text-sm font-semibold text-primary hover:underline mt-2"
+              >
+                Şifremi unuttum
+              </button>
+            </form>
+          ) : (
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 text-primary">
+                <Shield size={20} />
+                <h3 className="text-lg font-bold">Şifre Sıfırlama</h3>
+              </div>
+              {forgotStep === 'phone' && (
+                <div className="space-y-3">
+                  <p className="text-sm text-slate-500">Hesabınıza kayıtlı telefon numarasını girin.</p>
+                  <input
+                    type="tel"
+                    value={resetPhone}
+                    onChange={(e) => setResetPhone(e.target.value)}
+                    className="w-full bg-slate-50 border-slate-200 rounded-2xl py-3 px-4 focus:ring-2 focus:ring-primary outline-none"
+                    placeholder="05XX XXX XX XX"
+                  />
+                </div>
+              )}
+              {forgotStep === 'otp' && (
+                <div className="space-y-3">
+                  <p className="text-sm text-slate-500">Telefonunuza gelen 6 haneli doğrulama kodunu girin.</p>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                    className="w-full bg-slate-50 border-slate-200 rounded-2xl py-3 px-4 text-center text-2xl tracking-[0.5em] font-bold focus:ring-2 focus:ring-primary outline-none"
+                    placeholder="000000"
+                  />
+                </div>
+              )}
+              {forgotStep === 'newpass' && (
+                <div className="space-y-3">
+                  <p className="text-sm text-slate-500">Yeni şifrenizi belirleyin (en az 8 karakter).</p>
+                  <input
+                    type="password"
+                    value={newPass}
+                    onChange={(e) => setNewPass(e.target.value)}
+                    className="w-full bg-slate-50 border-slate-200 rounded-2xl py-3 px-4 focus:ring-2 focus:ring-primary outline-none"
+                    placeholder="Yeni şifre"
+                    minLength={8}
+                  />
+                </div>
+              )}
+              {resetMsg && (
+                <p className="text-sm font-semibold text-primary bg-primary/5 rounded-xl px-4 py-3">{resetMsg}</p>
+              )}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setForgotStep('off'); setResetMsg(''); }}
+                  className="flex-1 border border-slate-200 rounded-2xl py-3 font-semibold text-slate-600 hover:bg-slate-50 transition-all"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={handleReset}
+                  disabled={resetLoading}
+                  className="flex-1 bg-primary text-white font-semibold rounded-2xl py-3 hover:bg-primary-hover shadow-lg shadow-primary/20 transition-all disabled:opacity-60"
+                >
+                  {resetLoading ? '...' :
+                    forgotStep === 'phone' ? 'Kod Gönder' :
+                    forgotStep === 'otp' ? 'Doğrula' :
+                    'Şifreyi Değiştir'
+                  }
+                </button>
+              </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700">Şifre</label>
-              <input 
-                type="password" 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-slate-50 border-slate-200 rounded-2xl py-3 px-4 focus:ring-2 focus:ring-primary focus:bg-white transition-all outline-none"
-                placeholder="••••••••"
-                required
-              />
-            </div>
-            {error && <p className="text-red-500 text-sm font-medium">{error}</p>}
-            <button className="w-full bg-primary text-white font-bold py-4 rounded-2xl hover:bg-primary-hover shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5 active:translate-y-0">
-              Devam Et
-            </button>
-          </form>
+          )}
 
           <p className="mt-12 text-center text-slate-400 text-sm font-medium">
             © 2026 Kentiva — Belediye Bildirim ve Takip Platformu

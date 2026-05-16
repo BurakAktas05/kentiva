@@ -8,6 +8,10 @@ const API_BASE = normalizeApiBase(
   typeof import.meta !== 'undefined' ? import.meta.env?.VITE_API_BASE_URL : undefined,
 );
 
+export function apiBase(): string {
+  return API_BASE;
+}
+
 // ── Token Management ───────────────────────
 export function getToken(): string | null {
   return localStorage.getItem('belediye_token');
@@ -354,6 +358,7 @@ export async function updateFcmToken(fcmToken: string): Promise<void> {
     body: JSON.stringify({ fcmToken })
   });
 }
+
 
 
 

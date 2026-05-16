@@ -22,4 +22,6 @@ public interface IAppUserRepository extends JpaRepository<AppUser, String> {
     java.util.List<AppUser> findByRoles_NameAndMunicipalityId(String roleName, String municipalityId);
     
     long countByMunicipalityId(String municipalityId);
+
+    Optional<AppUser> findByPhoneNumber(String phoneNumber);
 }

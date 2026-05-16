@@ -85,6 +85,38 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
+    @PostMapping("/forgot-password")
+    @Operation(summary = "Şifre sıfırlama — telefon numarasına OTP gönder")
+    public ResponseEntity<ApiResponse<Void>> forgotPassword(
+            @RequestBody java.util.Map<String, String> body) {
+        String phone = body.get("phoneNumber");
+        if (phone == null || phone.isBlank()) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("Telefon numarası gereklidir.", "MISSING_PHONE"));
+        }
+        authService.sendPasswordResetOtp(phone);
+        return ResponseEntity.ok(ApiResponse.success("Doğrulama kodu gönderildi.", null));
+    }
+
+    @PostMapping("/reset-password")
+    @Operation(summary = "Şifre sıfırlama — OTP ile yeni şifre belirle")
+    public ResponseEntity<ApiResponse<Void>> resetPassword(
+            @RequestBody java.util.Map<String, String> body) {
+        String phone = body.get("phoneNumber");
+        String otp = body.get("otpCode");
+        String newPassword = body.get("newPassword");
+        if (phone == null || otp == null || newPassword == null) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("Telefon, doğrulama kodu ve yeni şifre gereklidir.", "MISSING_FIELDS"));
+        }
+        if (newPassword.length() < 8) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("Şifre en az 8 karakter olmalıdır.", "WEAK_PASSWORD"));
+        }
+        authService.resetPasswordWithOtp(phone, otp, newPassword);
+        return ResponseEntity.ok(ApiResponse.success("Şifreniz başarıyla sıfırlandı.", null));
+    }
+
     public record AuthMeResponse(
             String userId,
             String email,

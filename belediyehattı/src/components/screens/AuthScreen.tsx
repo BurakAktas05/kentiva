@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mail, Lock, User, Phone, ArrowRight, Building2, Loader2 } from 'lucide-react';
-import { login, register, AuthUser } from '../../api';
+import { Mail, Lock, User, Phone, ArrowRight, Building2, Loader2, KeyRound, ShieldCheck } from 'lucide-react';
+import { login, register, AuthUser, apiBase } from '../../api';
 import { Lang, t } from '../../i18n';
 
 interface AuthScreenProps {
@@ -19,6 +19,13 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Şifre sıfırlama
+  const [forgotMode, setForgotMode] = useState<'off' | 'phone' | 'otp' | 'newpass'>('off');
+  const [resetPhone, setResetPhone] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [resetMsg, setResetMsg] = useState('');
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
@@ -32,7 +39,46 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
       }
       onAuth(user);
     } catch (err: any) {
-      setError(err.message || 'Bir hata oluştu');
+      setError(err.message || t('auth.error', lang));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    setLoading(true);
+    setResetMsg('');
+    try {
+      if (forgotMode === 'phone') {
+        await fetch(`${apiBase()}/auth/forgot-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phoneNumber: resetPhone }),
+        }).then(async r => {
+          const data = await r.json();
+          if (!r.ok) throw new Error(data.message || 'Hata');
+        });
+        setForgotMode('otp');
+        setResetMsg(t('auth.otpSent', lang));
+      } else if (forgotMode === 'otp') {
+        setForgotMode('newpass');
+      } else if (forgotMode === 'newpass') {
+        await fetch(`${apiBase()}/auth/reset-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phoneNumber: resetPhone, otpCode, newPassword }),
+        }).then(async r => {
+          const data = await r.json();
+          if (!r.ok) throw new Error(data.message || 'Hata');
+        });
+        setResetMsg(t('auth.passwordReset', lang));
+        setTimeout(() => {
+          setForgotMode('off');
+          setResetMsg('');
+        }, 2000);
+      }
+    } catch (err: any) {
+      setResetMsg(err.message || 'Hata oluştu');
     } finally {
       setLoading(false);
     }
@@ -113,16 +159,17 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
                     />
                   </div>
                 </div>
-                <div className="relative">
-                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder={t('auth.phone', lang)}
-                    className="w-full bg-white border border-slate-200 rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm"
-                  />
-                </div>
+                  <div className="relative">
+                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder={t('auth.phone', lang)}
+                      required={!isLogin}
+                      className="w-full bg-white border border-slate-200 rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm"
+                    />
+                  </div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -178,7 +225,111 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
               </>
             )}
           </button>
+
+          {isLogin && forgotMode === 'off' && (
+            <button
+              type="button"
+              onClick={() => setForgotMode('phone')}
+              className="w-full text-center text-xs font-semibold text-primary mt-2 py-2"
+            >
+              {t('auth.forgotPassword', lang)}
+            </button>
+          )}
         </form>
+
+        {/* Şifre Sıfırlama Modal */}
+        <AnimatePresence>
+          {forgotMode !== 'off' && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-md space-y-4"
+            >
+              <div className="flex items-center gap-2 text-primary">
+                <ShieldCheck className="w-5 h-5" />
+                <h3 className="text-sm font-bold">{t('auth.resetTitle', lang)}</h3>
+              </div>
+
+              {forgotMode === 'phone' && (
+                <div className="space-y-3">
+                  <p className="text-xs text-slate-500">{t('auth.resetPhoneDesc', lang)}</p>
+                  <div className="relative">
+                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                      type="tel"
+                      value={resetPhone}
+                      onChange={(e) => setResetPhone(e.target.value)}
+                      placeholder="05XX XXX XX XX"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {forgotMode === 'otp' && (
+                <div className="space-y-3">
+                  <p className="text-xs text-slate-500">{t('auth.otpDesc', lang)}</p>
+                  <div className="relative">
+                    <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                      placeholder="6 haneli kod"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-11 pr-4 py-3.5 text-sm tracking-[0.3em] text-center font-bold focus:ring-2 focus:ring-primary outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {forgotMode === 'newpass' && (
+                <div className="space-y-3">
+                  <p className="text-xs text-slate-500">{t('auth.newPassDesc', lang)}</p>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder={t('auth.newPassword', lang)}
+                      minLength={8}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {resetMsg && (
+                <p className="text-xs font-semibold text-primary bg-primary/5 rounded-xl px-3 py-2">{resetMsg}</p>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setForgotMode('off'); setResetMsg(''); }}
+                  className="flex-1 rounded-xl border border-slate-200 py-3 text-xs font-bold text-slate-600"
+                >
+                  {t('auth.cancel', lang)}
+                </button>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={handleForgotPassword}
+                  className="flex-1 rounded-xl bg-primary py-3 text-xs font-bold text-white shadow-sm disabled:opacity-60"
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> :
+                    forgotMode === 'phone' ? t('auth.sendOtp', lang) :
+                    forgotMode === 'otp' ? t('auth.verifyOtp', lang) :
+                    t('auth.setNewPassword', lang)
+                  }
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </div>
   );

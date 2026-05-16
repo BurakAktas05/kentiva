@@ -113,7 +113,24 @@ export default function ReportDetailPage() {
           </div>
         )}
 
-        <dl className="grid gap-4 text-sm sm:grid-cols-2">
+          {report.mediaUrls && report.mediaUrls.length > 0 && (
+            <div className="mb-6">
+              <p className="mb-2 text-sm font-semibold text-slate-500">Fotoğraflar</p>
+              <div className="flex flex-wrap gap-3">
+                {report.mediaUrls.map((url, i) => (
+                  <a key={i} href={url} target="_blank" rel="noreferrer" className="group">
+                    <img
+                      src={url}
+                      alt={`Rapor fotoğrafı ${i + 1}`}
+                      className="h-28 w-28 rounded-xl border border-slate-200 object-cover shadow-sm transition-transform group-hover:scale-105 dark:border-slate-700"
+                    />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <dl className="grid gap-4 text-sm sm:grid-cols-2">
           <div>
             <dt className="font-semibold text-slate-500">Vatandaş</dt>
             <dd className="text-slate-900 dark:text-white">{report.reporterFullName ?? '—'}</dd>
@@ -165,22 +182,78 @@ export default function ReportDetailPage() {
         </dl>
       </div>
 
-      <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
-        <h2 className="mb-6 text-lg font-bold text-slate-900 dark:text-white">Yaşam döngüsü</h2>
-        <div className="relative space-y-0 border-l-2 border-primary/30 pl-5">
-          {timeline.map((e, i) => (
-            <div key={i} className="relative pb-8 last:pb-0">
-              <span className="absolute -left-[26px] top-1 h-2.5 w-2.5 rounded-full bg-primary ring-4 ring-white dark:ring-slate-900" />
-              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                {e.at ? new Date(e.at).toLocaleString('tr-TR') : ''}
-              </p>
-              <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                {e.oldStatus ?? '—'} → {e.newStatus ?? '—'}
-              </p>
-              <p className="text-xs text-slate-500">{e.actorName}</p>
-              {e.note && <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{e.note}</p>}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
+          <h2 className="mb-6 text-lg font-bold text-slate-900 dark:text-white">Durum Güncelle</h2>
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-300">Yeni Durum</label>
+              <select
+                id="statusSelect"
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              >
+                <option value="PROCESSING">İşlemde</option>
+                <option value="RESOLVED">Çözüldü</option>
+                <option value="REJECTED">Reddedildi</option>
+              </select>
             </div>
-          ))}
+            <div>
+              <div className="mb-1 flex items-center justify-between">
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Vatandaşa Not</label>
+                {report.aiReplyDraft && (
+                  <button
+                    onClick={() => {
+                      const noteEl = document.getElementById('statusNote') as HTMLTextAreaElement;
+                      if (noteEl) noteEl.value = report.aiReplyDraft!;
+                    }}
+                    className="flex items-center gap-1.5 rounded-lg bg-secondary/10 px-2 py-1 text-xs font-bold text-secondary transition-colors hover:bg-secondary/20"
+                  >
+                    <Sparkles className="h-3 w-3" /> AI Yanıtı Kullan
+                  </button>
+                )}
+              </div>
+              <textarea
+                id="statusNote"
+                rows={3}
+                placeholder="Vatandaşa iletilecek not (opsiyonel)..."
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              ></textarea>
+            </div>
+            <button
+              onClick={async () => {
+                const newStatus = (document.getElementById('statusSelect') as HTMLSelectElement).value;
+                const note = (document.getElementById('statusNote') as HTMLTextAreaElement).value;
+                try {
+                  await api.patch(`/reports/${id}/status`, { newStatus, note });
+                  window.location.reload();
+                } catch (e) {
+                  alert('Durum güncellenemedi');
+                }
+              }}
+              className="w-full rounded-xl bg-primary py-3 text-sm font-bold text-white transition-colors hover:bg-primary-hover"
+            >
+              Durumu Kaydet
+            </button>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
+          <h2 className="mb-6 text-lg font-bold text-slate-900 dark:text-white">Yaşam döngüsü</h2>
+          <div className="relative space-y-0 border-l-2 border-primary/30 pl-5">
+            {timeline.map((e, i) => (
+              <div key={i} className="relative pb-8 last:pb-0">
+                <span className="absolute -left-[26px] top-1 h-2.5 w-2.5 rounded-full bg-primary ring-4 ring-white dark:ring-slate-900" />
+                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                  {e.at ? new Date(e.at).toLocaleString('tr-TR') : ''}
+                </p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                  {e.oldStatus ?? '—'} → {e.newStatus ?? '—'}
+                </p>
+                <p className="text-xs text-slate-500">{e.actorName}</p>
+                {e.note && <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{e.note}</p>}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { ChevronLeft, Globe, Moon, Sun, Monitor, Bell, Info, Shield, Check, Building2 } from 'lucide-react';
+import { ChevronLeft, Globe, Moon, Sun, Monitor, Info, Check, Building2 } from 'lucide-react';
 import { Lang, LANGUAGES, t } from '../../i18n';
 
 interface SettingsProps {
@@ -113,20 +113,6 @@ export default function Settings({ lang, theme, onLangChange, onThemeChange, onB
           </div>
         </div>
 
-        {/* Notifications */}
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <Bell className="w-4 h-4 text-primary" />
-            <h3 className="font-semibold text-sm text-slate-700 dark:text-slate-200">{t('settings.notifications', lang)}</h3>
-          </div>
-          <div className="flex items-center justify-between p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{t('settings.notifications.push', lang)}</span>
-            <div className="w-10 h-6 bg-primary rounded-full relative cursor-pointer">
-              <div className="absolute right-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow-sm" />
-            </div>
-          </div>
-        </div>
-
         {/* About */}
         <div>
           <div className="flex items-center gap-2 mb-3">
@@ -138,12 +124,6 @@ export default function Settings({ lang, theme, onLangChange, onThemeChange, onB
               <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{t('settings.version', lang)}</span>
               <span className="text-sm text-slate-400">1.0.0</span>
             </div>
-            <button className="w-full flex items-center justify-between p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 active:scale-95 transition-transform">
-              <div className="flex items-center gap-3">
-                <Shield className="w-5 h-5 text-slate-500 dark:text-slate-400" />
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{t('settings.privacy', lang)}</span>
-              </div>
-            </button>
           </div>
         </div>
       </div>

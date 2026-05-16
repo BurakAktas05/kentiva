@@ -106,6 +106,12 @@ export default function App() {
               >
                 Kullanım kılavuzu
               </a>
+              <a
+                href="#fiyatlandirma"
+                className="text-sm font-semibold text-slate-600 transition-colors hover:text-primary"
+              >
+                Fiyatlandırma
+              </a>
             </div>
             <div className="flex shrink-0 items-center gap-2 sm:gap-3">
               <a
@@ -117,10 +123,10 @@ export default function App() {
                 Yönetim girişi
               </a>
               <a
-                href="mailto:demo@kentiva.app"
+                href="mailto:demo@kentiva.app?subject=Kentiva%20Demo%20Talebi"
                 className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-bold text-slate-800 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:px-4"
               >
-                İletişim
+                Demo Talep Et
               </a>
             </div>
           </div>
@@ -418,6 +424,85 @@ export default function App() {
           </div>
         </section>
 
+        {/* Fiyatlandırma */}
+        <section
+          id="fiyatlandirma"
+          className="border-b border-slate-200/90 bg-white py-16 sm:py-20"
+          aria-labelledby="pricing-heading"
+        >
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+            <div className="text-center max-w-2xl mx-auto">
+              <h2
+                id="pricing-heading"
+                className="font-sans text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl"
+              >
+                Tek plan, tüm özellikler
+              </h2>
+              <p className="mt-3 text-base font-medium text-slate-600">
+                Gizli maliyet yok. Tüm modüller, sınırsız kullanım, AI analizi dahil. Belediyenizin büyüklüğü fark etmez.
+              </p>
+            </div>
+
+            <div className="mt-10 mx-auto max-w-lg">
+              <div className="relative flex flex-col rounded-2xl border border-primary/30 bg-primary/[0.02] p-8 shadow-lg ring-2 ring-primary/20">
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-4 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm">
+                  Her şey dahil
+                </span>
+                <h3 className="text-center font-sans text-xl font-bold text-slate-900">Kentiva Platform</h3>
+                <div className="mt-4 flex items-baseline justify-center gap-1">
+                  <span className="text-4xl font-extrabold tracking-tight text-slate-900">₺9.999</span>
+                  <span className="text-sm font-medium text-slate-500">/ay</span>
+                </div>
+                <p className="mt-2 text-center text-sm text-slate-500">İlk 30 gün ücretsiz deneme</p>
+                <ul className="mt-8 flex-1 space-y-3 border-t border-slate-100 pt-6">
+                  {[
+                    'Sınırsız rapor & bildirim',
+                    'Sınırsız personel hesabı',
+                    'Sınırsız departman',
+                    'AI önceliklendirme & analiz',
+                    'Selfie/sahte fotoğraf tespiti',
+                    'Beyaz etiket (logo + renkler)',
+                    'Vatandaş mobil uygulaması',
+                    'Yönetim paneli',
+                    'Canlı harita & PostGIS',
+                    'Excel/PDF dışa aktarma',
+                    'Push bildirimler',
+                    'Teknik destek',
+                  ].map((f) => (
+                    <li key={f} className="flex items-start gap-2.5 text-sm font-medium text-slate-700">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <a
+                  href="mailto:demo@kentiva.app?subject=Kentiva%20Demo%20Talebi"
+                  className="mt-8 block rounded-xl bg-primary py-3.5 text-center text-sm font-bold text-white shadow-md shadow-primary/20 transition-all hover:bg-primary-hover active:scale-[0.98]"
+                >
+                  Ücretsiz Demo Talep Et
+                </a>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* SSS */}
+        <section className="border-b border-slate-200/90 bg-slate-50 py-16 sm:py-20" aria-labelledby="faq-heading">
+          <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+            <h2 id="faq-heading" className="font-sans text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl text-center">
+              Sıkça Sorulan Sorular
+            </h2>
+            <dl className="mt-10 space-y-4">
+              <FaqItem q="Belediyemiz nasıl üye olabilir?" a="Demo talep formunu doldurmanız yeterlidir. Ekibimiz sizinle iletişime geçerek kurulumu başlatır. İlk 30 gün ücretsiz deneme süreci sunulur." />
+              <FaqItem q="Vatandaş verileri güvende mi?" a="Tüm veriler KVKK uyumlu şekilde işlenir. Her belediye yalnızca kendi ilçe sınırları içindeki bildirimleri görür. Veriler şifreli bağlantılarla taşınır." />
+              <FaqItem q="Departmanları biz mi ekliyoruz?" a="Evet. Her belediye kendi departman yapısını oluşturur. Küçük bir belediyede 2 departman, büyük bir belediyede 10+ departman olabilir." />
+              <FaqItem q="AI analizi nasıl çalışıyor?" a="Her bildirim otomatik olarak AI tarafından analiz edilir: öncelik, kategori önerisi, özet ve cevap taslağı üretilir. Selfie/sahte fotoğraflar otomatik tespit edilir." />
+              <FaqItem q="Mobil uygulama hangi platformlarda çalışıyor?" a="Şu an Android için APK olarak sunulmaktadır. iOS desteği yakında eklenecektir." />
+            </dl>
+          </div>
+        </section>
+
+        {/* CTA */}
         <section
           className="relative overflow-hidden bg-gradient-to-br from-primary via-primary to-primary-dark py-16 sm:py-20"
           aria-labelledby="cta-heading"
@@ -429,18 +514,17 @@ export default function App() {
               id="cta-heading"
               className="font-sans text-2xl font-extrabold tracking-tight text-white sm:text-3xl"
             >
-              Kurumunuz için bilgilendirme
+              Belediyeniz için hemen başlayın
             </h2>
             <p className="mt-4 text-base font-medium text-primary-100">
-              Teknik gereksinimler, veri işleme ve devreye alma adımları hakkında yazılı bilgi
-              talep edebilirsiniz.
+              30 gün ücretsiz deneme ile platformu risk almadan test edin. Kurulum desteği tarafımızdandır.
             </p>
             <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
               <a
-                href="mailto:demo@kentiva.app"
+                href="mailto:demo@kentiva.app?subject=Kentiva%20Demo%20Talebi"
                 className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-primary shadow-lg transition-all hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white active:scale-[0.98]"
               >
-                İletişime geçin
+                Demo talep edin
                 <ArrowRight className="h-4 w-4" aria-hidden />
               </a>
               <a
@@ -482,6 +566,9 @@ export default function App() {
               </a>
               <a href="#kilavuz" className="text-slate-400 transition-colors hover:text-white">
                 Kullanım kılavuzu
+              </a>
+              <a href="#fiyatlandirma" className="text-slate-400 transition-colors hover:text-white">
+                Fiyatlandırma
               </a>
               <a
                 href={ADMIN_PORTAL_URL}
@@ -586,5 +673,71 @@ function FeatureCard({ icon, title, desc }: { icon: ReactNode; title: string; de
       <h3 className="mt-5 font-sans text-lg font-bold tracking-tight text-slate-900">{title}</h3>
       <p className="mt-2 flex-1 text-sm font-medium leading-relaxed text-slate-600">{desc}</p>
     </article>
+  );
+}
+
+function PricingCard({
+  name,
+  price,
+  period,
+  features,
+  cta,
+  href,
+  highlighted,
+}: {
+  name: string;
+  price: string;
+  period: string;
+  features: string[];
+  cta: string;
+  href: string;
+  highlighted: boolean;
+}) {
+  return (
+    <div
+      className={`relative flex flex-col rounded-2xl border p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg ${
+        highlighted
+          ? 'border-primary/30 bg-primary/[0.02] ring-2 ring-primary/20 hover:shadow-primary/10'
+          : 'border-slate-200/90 bg-white hover:border-primary/20'
+      }`}
+    >
+      {highlighted && (
+        <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm">
+          Popüler
+        </span>
+      )}
+      <h3 className="font-sans text-lg font-bold text-slate-900">{name}</h3>
+      <div className="mt-4 flex items-baseline gap-1">
+        <span className="text-3xl font-extrabold tracking-tight text-slate-900">{price}</span>
+        <span className="text-sm font-medium text-slate-500">{period}</span>
+      </div>
+      <ul className="mt-6 flex-1 space-y-3 border-t border-slate-100 pt-6">
+        {features.map((f) => (
+          <li key={f} className="flex items-start gap-2.5 text-sm font-medium text-slate-700">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            {f}
+          </li>
+        ))}
+      </ul>
+      <a
+        href={href}
+        className={`mt-6 block rounded-xl py-3 text-center text-sm font-bold transition-all ${
+          highlighted
+            ? 'bg-primary text-white shadow-md shadow-primary/20 hover:bg-primary-hover'
+            : 'border border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50'
+        }`}
+      >
+        {cta}
+      </a>
+    </div>
+  );
+}
+
+function FaqItem({ q, a }: { q: string; a: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm">
+      <dt className="font-sans text-sm font-bold text-slate-900">{q}</dt>
+      <dd className="mt-2 text-sm font-medium leading-relaxed text-slate-600">{a}</dd>
+    </div>
   );
 }

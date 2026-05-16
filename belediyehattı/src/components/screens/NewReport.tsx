@@ -27,14 +27,27 @@ export default function NewReport({ onSubmit, onCancel, lang, isDark }: NewRepor
   const [locating, setLocating] = useState(false);
 
   const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      setError(lang === 'tr' ? 'Cihazınız konum desteklemiyor.' : 'Geolocation not supported.');
+      return;
+    }
     setLocating(true);
-    setTimeout(() => {
-      setLatitude(41.25);
-      setLongitude(32.68);
-      setLocationText(`41.25000, 32.68000 (Safranbolu)`);
-      setLocating(false);
-      setError('');
-    }, 500);
+    setError('');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setLatitude(lat);
+        setLongitude(lng);
+        setLocationText(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+        setLocating(false);
+      },
+      () => {
+        setLocating(false);
+        setError(lang === 'tr' ? 'Konum alınamadı. Lütfen konum iznini kontrol edin.' : 'Could not get location. Check permissions.');
+      },
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
   };
 
   const handleNext = () => {
@@ -78,26 +91,18 @@ export default function NewReport({ onSubmit, onCancel, lang, isDark }: NewRepor
     }
   };
 
-  /** Dilekçe önizlemesinde kategori gösterilmez; kesin sınıflandırma sunucu/Gemini tarafında. */
-  const generatePetitionText = () => {
+  /** Basit önizleme — resmi dilekçe yerine özet kart gösterilir. */
+  const generatePreviewText = () => {
     const today = new Date().toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US');
-    const districtName = district ? `${district} ${lang === 'tr' ? 'Belediyesi' : 'Municipality'}` : 'İLGİLİ';
-    const subjectLine = lang === 'tr' ? 'Kent hizmetleri başvurusu' : 'Municipal service request';
+    const belediye = district || tenant?.displayName || '';
 
-    return `T.C. ${districtName.toUpperCase()} BAŞKANLIĞINA,
+    return `📍 ${t('report.location', lang)}: ${locationText || 'GPS'}
+🏛️ ${lang === 'tr' ? 'Belediye' : 'Municipality'}: ${belediye}
+📅 ${lang === 'tr' ? 'Tarih' : 'Date'}: ${today}
+${mediaUrl ? '📸 ' + (lang === 'tr' ? 'Fotoğraf eklendi' : 'Photo attached') : ''}
 
-Tarih: ${today}
-Konu: ${subjectLine}
-
-Aşağıda belirtmiş olduğum konumda (${locationText || 'GPS'}) tespit ettiğim durumu bildiriyorum.
-
-Detaylı açıklama:
-"${description}"
-
-Gerekli incelemelerin yapılarak mağduriyetin giderilmesi hususunda gereğini arz ederim.
-
-Saygılarımla,
-[Kentiva Kullanıcısı]`;
+📝 ${t('report.description', lang)}:
+${description}`;
   };
 
   return (
@@ -182,6 +187,7 @@ Saygılarımla,
                 <input 
                   type="file" 
                   accept="image/*" 
+                  capture="environment"
                   className="hidden" 
                   onChange={async (e) => {
                     if (e.target.files && e.target.files[0]) {
@@ -240,12 +246,12 @@ Saygılarımla,
             className="space-y-6"
           >
             <div
-              className={`border rounded-xl p-4 text-sm ${isDark ? 'bg-amber-900/20 border-amber-800 text-amber-500' : 'bg-amber-50 border-amber-200 text-amber-800'}`}
+              className={`border rounded-xl p-4 text-sm ${isDark ? 'bg-primary/15 border-primary/30 text-secondary' : 'bg-primary/5 border-primary/20 text-primary'}`}
             >
               <p className="font-semibold mb-1 flex items-center gap-2">
-                <FileText className="w-4 h-4" /> {t('report.petition.title', lang)}
+                <FileText className="w-4 h-4" /> {lang === 'tr' ? 'Bildirim Özeti' : 'Report Summary'}
               </p>
-              <p className="opacity-80">{t('report.petition.desc', lang)}</p>
+              <p className="opacity-80">{lang === 'tr' ? 'Lütfen bilgilerinizi kontrol edin ve gönderin.' : 'Please review and submit.'}</p>
             </div>
 
             <div
@@ -253,10 +259,7 @@ Saygılarımla,
                 isDark ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
               }`}
             >
-              {generatePetitionText()}
-              <div className="absolute top-4 right-4 opacity-10">
-                <FileText className="w-12 h-12" />
-              </div>
+              {generatePreviewText()}
             </div>
 
             {error && (

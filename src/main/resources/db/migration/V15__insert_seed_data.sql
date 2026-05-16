@@ -24,7 +24,7 @@ ON CONFLICT DO NOTHING;
 -- 3. Süper Admin Kullanıcısı
 -- Şifre "admin123" olarak bcrypt ile şifrelenmiştir. İlk girişte değiştirilmesi gerekir.
 INSERT INTO app_users (id, email, password, first_name, last_name, phone_number, enabled, created_at, updated_at) VALUES
-    ('uuid-admin-user', 'admin@ibb.gov.tr', '$2b$10$NACDoaUtprwogWQaETQjreC4xcrfUh7RhZ9ZcOlgzXOAVVEE1uNfS', 'Super', 'Admin', '05555555555', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    ('uuid-admin-user', 'admin@kentiva.app', '$2b$10$NACDoaUtprwogWQaETQjreC4xcrfUh7RhZ9ZcOlgzXOAVVEE1uNfS', 'Super', 'Admin', '05555555555', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 ON CONFLICT (email) DO NOTHING;
 
 -- Admibe Süper Admin rolünü atama

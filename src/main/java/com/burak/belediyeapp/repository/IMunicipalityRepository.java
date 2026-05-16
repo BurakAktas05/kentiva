@@ -23,4 +23,17 @@ public interface IMunicipalityRepository extends JpaRepository<Municipality, Str
             ORDER BY COALESCE(NULLIF(TRIM(m.displayName), ''), m.name)
             """)
     List<Municipality> findActiveByTypeOrderByDisplay(@Param("type") MunicipalityType type);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query(value = "UPDATE municipalities SET boundaries = ST_SetSRID(ST_GeomFromGeoJSON(:geoJson), 4326) WHERE id = :id", nativeQuery = true)
+    void updateBoundariesFromGeoJson(@Param("id") String id, @Param("geoJson") String geoJson);
+
+    @Query(value = """
+            SELECT m.* FROM municipalities m
+            WHERE m.active = true 
+              AND m.boundaries IS NOT NULL
+              AND ST_Contains(m.boundaries, ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326))
+            LIMIT 1
+            """, nativeQuery = true)
+    Optional<Municipality> findMunicipalityByCoordinate(@Param("latitude") double latitude, @Param("longitude") double longitude);
 }

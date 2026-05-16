@@ -84,6 +84,21 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
                   </div>
                 </div>
               )}
+              {detail.mediaUrls && detail.mediaUrls.length > 0 && (
+                <div className="mt-4">
+                  <p className={`mb-2 text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{lang === 'tr' ? 'Fotoğraflar' : 'Photos'}</p>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {detail.mediaUrls.map((url, i) => (
+                      <img
+                        key={i}
+                        src={url}
+                        alt={`${i + 1}`}
+                        className="h-24 w-24 shrink-0 rounded-xl border border-slate-200 object-cover dark:border-slate-700"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>

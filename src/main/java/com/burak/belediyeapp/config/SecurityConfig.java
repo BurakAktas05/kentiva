@@ -69,6 +69,7 @@ public class SecurityConfig {
 
                 // ── Herkese açık ──────────────────────────────
                 .requestMatchers("/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/refresh").permitAll()
+                .requestMatchers("/api/v1/auth/forgot-password", "/api/v1/auth/reset-password").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/auth/me").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/v1/categories/**").permitAll()

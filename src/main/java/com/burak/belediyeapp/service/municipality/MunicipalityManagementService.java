@@ -131,6 +131,15 @@ public class MunicipalityManagementService {
         }
     }
 
+    @Transactional
+    public void updateBoundaries(String municipalityId, String geoJson) {
+        if (!municipalityRepository.existsById(municipalityId)) {
+            throw new ResourceNotFoundException("Belediye", "id", municipalityId);
+        }
+        municipalityRepository.updateBoundariesFromGeoJson(municipalityId, geoJson);
+        log.info("Belediye sınırları güncellendi: {}", municipalityId);
+    }
+
     private String resolveUniqueSlug(String requestedSlug, String name) {
         String base = requestedSlug != null && !requestedSlug.isBlank()
                 ? requestedSlug.trim().toLowerCase()

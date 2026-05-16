@@ -1,129 +1,61 @@
-# Kentiva
+# Kentiva - Smart City and Municipality Management Platform
 
-Çok kiracılı (multi-tenant) mimariyle belediyelerin vatandaş bildirimlerini toplaması, işlemesi ve raporlaması için uçtan uca platform: mobil vatandaş uygulaması, yönetim paneli, kamuya açık istatistik arayüzü ve Spring Boot API.
+Kentiva is a B2B SaaS platform designed to modernize municipal operations, streamline citizen reporting, and provide advanced geographical and analytical insights for city administrators. It operates on a multi-tenant architecture, allowing multiple municipalities to use the platform in complete isolation while sharing a single infrastructure.
 
-**Kaynak kod:** [github.com/BurakAktas05/kentiva](https://github.com/BurakAktas05/kentiva)
+## Platform Components
 
-```bash
-git clone https://github.com/BurakAktas05/kentiva.git
-cd kentiva
-```
+1.  **Backend API (Spring Boot)**
+    *   Java 21, Spring Boot 3
+    *   PostgreSQL & PostGIS (Spatial queries, ST_Contains)
+    *   Stateless architecture with JWT authentication
+    *   Bucket4j Rate Limiting, Brute-force protection
+    *   Integration with NetGSM/Twilio for SMS OTP
+    *   AWS S3 / Cloudflare R2 object storage for media
 
----
+2.  **Citizen Application (Mobile & Web)**
+    *   React / Ionic for cross-platform availability
+    *   Location-based reporting (requires GPS verification)
+    *   Live camera photo requirement (MediaGuard integration) to prevent fake reports
+    *   Push notifications (Firebase)
 
-## Mimari
+3.  **Admin Portal (Web)**
+    *   React, Vite, TailwindCSS
+    *   Executive Dashboard for KPI tracking
+    *   Live Heatmap and Geographic reporting
+    *   Role-Based Access Control (Admin, Dept Manager, Field Officer)
+    *   AI-assisted report summarization and auto-reply drafts
 
-| Bileşen | Konum | Teknoloji |
-|--------|--------|-----------|
-| API | `src/` | Spring Boot 3.4, Java 21, JWT, Flyway, PostGIS |
-| Yönetim paneli | `admin-portal/` | React 19, TypeScript, Vite, Tailwind CSS |
-| Vatandaş uygulaması | `belediyehattı/` | React, Capacitor (Android) |
-| Kamu sitesi | `public-site/` | React, Vite (belediye özetleri / istatistik) |
-| Medya doğrulama | `services/media-guard/` | Python |
-| SQL yardımcıları | `scripts/` | Örnek kullanıcı / seed notları |
+## Key Features
 
----
+*   **Multi-Tenancy:** Single codebase handles unlimited municipalities. Each tenant is isolated at the database level using `municipality_id`.
+*   **Custom Branding:** Municipalities can configure their primary color, logo, and slogan from the admin portal without code deployment.
+*   **Geographic Boundaries:** Supports GeoJSON uploads. The system automatically rejects reports that fall outside the municipal borders using PostGIS spatial algorithms.
+*   **Enterprise Security:** Hardened against DDoS, brute-force, and SQL injection. Swagger is disabled in production environments.
 
-## Özellikler (özet)
+## Deployment Instructions (Railway / Cloud)
 
-- Kiracı bazlı belediye (`municipality` / slug), marka ve ayarlar
-- Vatandaş raporu: konum, kategori, medya; durum akışı ve zaman çizelgesi
-- Yönetim tarafında departmanlar, kullanıcılar, harita ve dışa aktarım
-- Kamu API: belediye listesi / özet istatistikler (`publicapi`)
-- İsteğe bağlı: Redis önbellek, WebSocket, Gemini ile kategori önerisi, Firebase bildirimleri, S3 uyumlu nesne depolama (ör. Cloudflare R2)
+This application is containerized and ready for PaaS providers like Railway, Render, or AWS AppRunner.
 
----
+1.  Provision a PostgreSQL database with the `PostGIS` extension enabled.
+2.  Set up an S3-compatible storage bucket for media uploads.
+3.  Configure the environment variables based on `.env.example`.
+4.  Deploy using the provided `Dockerfile`.
+5.  Generate a secure JWT secret: `openssl rand -base64 64`
 
-## Gereksinimler
+### Required Environment Variables
+*   `DATABASE_URL` or `BELEDIYE_DB_URL`
+*   `DB_USERNAME` and `DB_PASSWORD`
+*   `JWT_SECRET`
+*   `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`
+*   `APP_PUBLIC_URL`
 
-- Java 21+, Maven 3.9+
-- PostgreSQL 15+ ve **PostGIS** + `uuid-ossp`
-- Node.js 18+ (frontend paketleri için)
+## Development Setup
 
----
+1.  Clone the repository.
+2.  Ensure Docker is running for local PostgreSQL (optional, can use local install).
+3.  Run `mvn spring-boot:run -Dspring-boot.run.profiles=dev`.
+4.  The default super-admin credentials (if using the seed data) are `admin@kentiva.app` / `admin123`.
 
-## Veritabanı
+## License
 
-```sql
-CREATE DATABASE belediyeapp;
-\c belediyeapp
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS postgis;
-```
-
-Kök dizinde `.env.example` dosyasını `.env` olarak kopyalayıp değişkenleri doldurun.  
-Yerel **dev** profili için `src/main/resources/application-dev.properties.example` dosyasını `application-dev.properties` olarak kopyalayıp kendi DB kullanıcı/şifrenizi yazın (gerçek `application-dev.properties` repoda takip edilmez).
-
----
-
-## Backend
-
-```bash
-./mvnw -DskipTests spring-boot:run
-```
-
-Varsayılan adres: `http://localhost:8080`  
-Swagger UI: `http://localhost:8080/swagger-ui.html`
-
-Aktif profil örneği (dev Flyway konumları ve örnek veriler için):
-
-```bash
-./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
-```
-
----
-
-## Frontendlar
-
-**Admin panel**
-
-```bash
-cd admin-portal
-npm install
-npm run dev
-```
-
-**Vatandaş (web / Capacitor için derleme öncesi)**
-
-```bash
-cd belediyehattı
-npm install
-npm run dev
-```
-
-**Kamu sitesi**
-
-```bash
-cd public-site
-npm install
-npm run dev
-```
-
-Her pakette `.env.example` varsa API tabanı için kopyalayın (`VITE_*`).
-
----
-
-## Demo hesapları (Flyway seed)
-
-| Rol | E-posta | Şifre (örnek seed) |
-|-----|---------|---------------------|
-| Süper / platform admin | `admin@ibb.gov.tr` | `admin123` |
-| Safranbolu belediye admin | `admin@safranbolu.bel.tr` | `admin123` |
-| Safranbolu vatandaş | `safranbolu@test.local` | `password123` |
-
-Ek yerel test kullanıcıları için `scripts/seed-demo-users.sql` dosyasına bakın. **Üretimde** bu hesapları devre dışı bırakın veya şifreleri zorunlu olarak sıfırlayın.
-
----
-
-## Dağıtım
-
-Docker: kökteki `Dockerfile`.  
-Railway örneği: `railway.json` ve ortam değişkenleri için `.env.example` içindeki açıklamalar.
-
-Tipik üretim değişkenleri: `DATABASE_URL` veya JDBC eşleniği, güçlü `JWT_SECRET`, `SPRING_PROFILES_ACTIVE=prod`, CORS kökenleri, depolama (`APP_STORAGE_TYPE`, S3/R2), isteğe bağlı `GEMINI_API_KEY`, `FIREBASE_CONFIG_BASE64`, `MEDIA_GUARD_URL`.
-
----
-
-## Lisans
-
-Bu depo özel bir projedir; izin olmadan çoğaltma ve dağıtım yapılmamalıdır.
+This is a proprietary B2B platform. All rights reserved.

@@ -20,43 +20,24 @@ public class DistrictResolutionService {
     private final JdbcTemplate jdbcTemplate;
 
     /**
-     * GPS noktasının düştüğü ilçe belediyesi id'sini döner.
-     * Önce sınır poligonu ({@code boundaries}) ile eşleşme; yoksa merkez noktaya 25 km içi (elle
-     * oluşturulan belediyelerde poligon olmayabilir).
+     * GPS noktasının düştüğü belediye id'sini döner.
+     * Yalnızca {@code boundaries} poligonu ile ST_Contains kontrolü yapılır.
+     * Poligonu tanımlanmamış belediyeler eşleşmez — sınır verisi zorunludur.
      */
     public Optional<String> resolveDistrict(double latitude, double longitude) {
         String sql = """
                 SELECT id FROM municipalities m
-                WHERE m.type = 'DISTRICT'
+                WHERE m.type IN ('DISTRICT', 'METROPOLITAN')
                   AND m.active = true
                   AND COALESCE(m.onboarded, true) = true
-                  AND (
-                    (m.boundaries IS NOT NULL
-                        AND ST_Contains(m.boundaries, ST_SetSRID(ST_MakePoint(?, ?), 4326)))
-                    OR
-                    (m.boundaries IS NULL
-                        AND ST_DWithin(
-                            ST_SetSRID(ST_MakePoint(m.center_lng, m.center_lat), 4326)::geography,
-                            ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography,
-                            25000
-                        ))
-                  )
-                ORDER BY
-                    CASE WHEN m.boundaries IS NOT NULL THEN 0 ELSE 1 END,
-                    ST_Distance(
-                        ST_SetSRID(ST_MakePoint(m.center_lng, m.center_lat), 4326)::geography,
-                        ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography
-                    )
+                  AND m.boundaries IS NOT NULL
+                  AND ST_Contains(m.boundaries, ST_SetSRID(ST_MakePoint(?, ?), 4326))
                 LIMIT 1
                 """;
         try {
             List<String> ids = jdbcTemplate.query(
                     sql,
                     (rs, row) -> rs.getString(1),
-                    longitude,
-                    latitude,
-                    longitude,
-                    latitude,
                     longitude,
                     latitude);
             return ids.stream().findFirst();

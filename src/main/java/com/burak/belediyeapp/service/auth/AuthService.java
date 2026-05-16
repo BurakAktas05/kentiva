@@ -25,6 +25,8 @@ import java.time.LocalDateTime;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import com.burak.belediyeapp.security.LoginAttemptService;
+import com.burak.belediyeapp.service.sms.SmsOtpService;
 
 /**
  * Kayıt, giriş, token yenileme ve çıkış işlemlerini yönetir.
@@ -40,6 +42,8 @@ public class AuthService {
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
+    private final LoginAttemptService loginAttemptService;
+    private final SmsOtpService smsOtpService;
 
     @Value("${app.security.jwt.refresh-token-expiration-days}")
     private long refreshTokenExpirationDays;
@@ -80,10 +84,26 @@ public class AuthService {
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        // Spring Security kendi BadCredentialsException'ını fırlatır — GlobalExceptionHandler yakalar
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.email(), request.password())
-        );
+        String key = request.email().toLowerCase();
+
+        // Brute-force koruması
+        if (loginAttemptService.isBlocked(key)) {
+            long remaining = loginAttemptService.getRemainingLockSeconds(key);
+            throw new BusinessException(
+                    "Çok fazla başarısız deneme. " + (remaining / 60) + " dakika sonra tekrar deneyin.",
+                    "ACCOUNT_LOCKED");
+        }
+
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.email(), request.password())
+            );
+        } catch (Exception e) {
+            loginAttemptService.loginFailed(key);
+            throw e;
+        }
+
+        loginAttemptService.loginSucceeded(key);
 
         AppUser user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı", "email", request.email()));
@@ -124,6 +144,51 @@ public class AuthService {
     public void logout(String userId) {
         refreshTokenRepository.revokeAllByUserId(userId);
         log.info("Kullanıcı çıkış yaptı: {}", userId);
+    }
+
+    // ===================================================
+    // Şifre Sıfırlama — OTP ile
+    // ===================================================
+
+    /**
+     * Telefon numarasına OTP gönder.
+     */
+    public void sendPasswordResetOtp(String phoneNumber) {
+        AppUser user = userRepository.findByPhoneNumber(phoneNumber)
+                .orElseThrow(() -> new BusinessException(
+                        "Bu telefon numarasına kayıtlı hesap bulunamadı.",
+                        "PHONE_NOT_FOUND"));
+
+        boolean sent = smsOtpService.sendOtp(phoneNumber);
+        if (!sent) {
+            throw new BusinessException("SMS gönderilemedi. Lütfen daha sonra tekrar deneyin.",
+                    "SMS_SEND_FAILED");
+        }
+        log.info("Şifre sıfırlama OTP gönderildi: {}", phoneNumber);
+    }
+
+    /**
+     * OTP doğrula ve yeni şifre ata.
+     */
+    @Transactional
+    public void resetPasswordWithOtp(String phoneNumber, String otpCode, String newPassword) {
+        if (!smsOtpService.verifyOtp(phoneNumber, otpCode)) {
+            throw new BusinessException("Doğrulama kodu geçersiz veya süresi dolmuş.",
+                    "INVALID_OTP");
+        }
+
+        AppUser user = userRepository.findByPhoneNumber(phoneNumber)
+                .orElseThrow(() -> new BusinessException(
+                        "Bu telefon numarasına kayıtlı hesap bulunamadı.",
+                        "PHONE_NOT_FOUND"));
+
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+
+        // Tüm mevcut oturumları kapat
+        refreshTokenRepository.revokeAllByUserId(user.getId());
+
+        log.info("Şifre sıfırlandı: {} ({})", user.getEmail(), phoneNumber);
     }
 
     // ===================================================

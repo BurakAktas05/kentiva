@@ -37,4 +37,14 @@ public class MunicipalitySettingsController {
             @Valid @RequestBody MunicipalityPatchRequest request) {
         return ResponseEntity.ok(ApiResponse.success(municipalityManagementService.patchOwnTenant(user, request)));
     }
+
+    @PostMapping("/me/boundaries")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Belediye sınırlarını GeoJSON ile güncelle")
+    public ResponseEntity<ApiResponse<Void>> uploadBoundaries(
+            @AuthenticationPrincipal AppUser user,
+            @RequestBody String geoJson) {
+        municipalityManagementService.updateBoundaries(user.getMunicipality().getId(), geoJson);
+        return ResponseEntity.ok(ApiResponse.success("Belediye sınırları başarıyla güncellendi.", null));
+    }
 }
