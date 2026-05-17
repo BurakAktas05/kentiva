@@ -16,8 +16,15 @@ import lombok.*;
 @Builder
 public class ReportCategory extends BaseEntity {
 
-    @Column(nullable = false, unique = true, length = 100)
+    @Column(nullable = false, length = 100)
     private String name;
+
+    /**
+     * NULL = platform geneli kategori; dolu = yalnızca ilgili belediye.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "municipality_id")
+    private Municipality municipality;
 
     @Column(length = 255)
     private String description;

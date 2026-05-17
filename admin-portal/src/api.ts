@@ -1,5 +1,9 @@
-import axios from 'axios';
+import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { getApiBase } from './lib/env';
+
+const REFRESH_KEY = 'refresh_token';
+const TOKEN_KEY = 'token';
+const THEME_KEY = 'kentiva_theme';
 
 const api = axios.create({
   baseURL: getApiBase(),
@@ -8,8 +12,38 @@ const api = axios.create({
   },
 });
 
+let refreshPromise: Promise<boolean> | null = null;
+
+async function refreshAccessToken(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = (async () => {
+    const refresh = localStorage.getItem(REFRESH_KEY);
+    if (!refresh) return false;
+    try {
+      const res = await axios.post(`${getApiBase()}/auth/refresh`, { refreshToken: refresh });
+      const data = res.data?.data;
+      if (!data?.accessToken) return false;
+      localStorage.setItem(TOKEN_KEY, data.accessToken);
+      if (data.refreshToken) {
+        localStorage.setItem(REFRESH_KEY, data.refreshToken);
+      }
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+  return refreshPromise;
+}
+
+function clearAuthStorage() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+}
+
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem(TOKEN_KEY);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -18,15 +52,34 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401 && !error.config?.url?.includes('/auth/login')) {
-      localStorage.clear();
-      window.location.href = '/login';
+  async (error: AxiosError) => {
+    const config = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+    const url = config?.url ?? '';
+    if (error.response?.status !== 401 || url.includes('/auth/login')) {
+      return Promise.reject(error);
     }
-    return Promise.reject(error);
-  }
+    if (config._retry) {
+      clearAuthStorage();
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login';
+      }
+      return Promise.reject(error);
+    }
+    const ok = await refreshAccessToken();
+    if (!ok) {
+      clearAuthStorage();
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login';
+      }
+      return Promise.reject(error);
+    }
+    config._retry = true;
+    config.headers.Authorization = `Bearer ${localStorage.getItem(TOKEN_KEY)}`;
+    return api.request(config);
+  },
 );
 
+export { REFRESH_KEY, TOKEN_KEY, THEME_KEY, clearAuthStorage };
 export default api;
 
 export interface Stats {
@@ -94,4 +147,83 @@ export interface User {
   lastName: string;
   email: string;
   roles: string[];
+}
+
+export type ExportFormat = 'EXCEL' | 'PDF';
+export type ExportFrequency = 'DAILY' | 'WEEKLY';
+export type ExportRunStatus = 'SUCCESS' | 'FAILED';
+
+export interface ExportSchedule {
+  id: string;
+  format: ExportFormat;
+  frequency: ExportFrequency;
+  hourOfDay: number;
+  enabled: boolean;
+  lastRunAt: string | null;
+  createdAt: string;
+}
+
+export interface CreateExportScheduleRequest {
+  format: ExportFormat;
+  frequency: ExportFrequency;
+  hourOfDay: number;
+}
+
+export interface ExportRun {
+  id: string;
+  scheduleId: string | null;
+  fileName: string;
+  byteSize: number;
+  status: ExportRunStatus;
+  createdAt: string;
+}
+
+export type PredictiveRiskLevel = 'HIGH' | 'MEDIUM' | 'LOW';
+
+export interface PredictiveInsight {
+  categoryName: string;
+  district: string;
+  recentCount: number;
+  previousCount: number;
+  openCount: number;
+  trendRatio: number;
+  riskLevel: PredictiveRiskLevel;
+  recommendation: string;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  username: string;
+  userId: string | null;
+  action: string;
+  description: string | null;
+  methodName: string | null;
+  ipAddress: string | null;
+  municipalityId: string | null;
+  entityId: string | null;
+  resultSummary: string | null;
+  createdAt: string;
+}
+
+export interface AuditLogQueryParams {
+  page?: number;
+  size?: number;
+  sort?: string;
+  username?: string;
+  action?: string;
+  entityId?: string;
+  from?: string;
+  to?: string;
+  municipalityId?: string;
+}
+
+export interface BulkReportFailure {
+  reportId: string;
+  message: string;
+}
+
+export interface BulkReportOperationResult {
+  successCount: number;
+  failureCount: number;
+  failures: BulkReportFailure[];
 }

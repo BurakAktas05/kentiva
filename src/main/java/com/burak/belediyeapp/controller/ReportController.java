@@ -1,8 +1,11 @@
 package com.burak.belediyeapp.controller;
 
 import com.burak.belediyeapp.dto.request.report.AssignReportRequest;
+import com.burak.belediyeapp.dto.request.report.BulkAssignReportsRequest;
+import com.burak.belediyeapp.dto.request.report.BulkUpdateReportStatusRequest;
 import com.burak.belediyeapp.dto.request.report.CreateReportRequest;
 import com.burak.belediyeapp.dto.request.report.UpdateReportStatusRequest;
+import com.burak.belediyeapp.dto.response.report.BulkReportOperationResult;
 import com.burak.belediyeapp.dto.response.common.ApiResponse;
 import com.burak.belediyeapp.dto.response.report.ReportListResponse;
 import com.burak.belediyeapp.dto.response.report.ReportResponse;
@@ -169,5 +172,31 @@ public class ReportController {
 
         ReportResponse response = reportService.assignReport(reportId, request, currentUser);
         return ResponseEntity.ok(ApiResponse.success("Rapor atandı", response));
+    }
+
+    @PostMapping("/batch/assign")
+    @Operation(summary = "Seçili raporları toplu ata (Birim Müdürü ve üzeri)")
+    public ResponseEntity<ApiResponse<BulkReportOperationResult>> bulkAssignReports(
+            @Valid @RequestBody BulkAssignReportsRequest request,
+            @AuthenticationPrincipal AppUser currentUser) {
+
+        BulkReportOperationResult result = reportService.bulkAssignReports(request, currentUser);
+        String message = result.failureCount() == 0
+                ? result.successCount() + " rapor atandı"
+                : result.successCount() + " atandı, " + result.failureCount() + " başarısız";
+        return ResponseEntity.ok(ApiResponse.success(message, result));
+    }
+
+    @PatchMapping("/batch/status")
+    @Operation(summary = "Seçili raporların durumunu toplu güncelle (Saha Ekibi ve üzeri)")
+    public ResponseEntity<ApiResponse<BulkReportOperationResult>> bulkUpdateStatus(
+            @Valid @RequestBody BulkUpdateReportStatusRequest request,
+            @AuthenticationPrincipal AppUser currentUser) {
+
+        BulkReportOperationResult result = reportService.bulkUpdateReportStatus(request, currentUser);
+        String message = result.failureCount() == 0
+                ? result.successCount() + " rapor güncellendi"
+                : result.successCount() + " güncellendi, " + result.failureCount() + " başarısız";
+        return ResponseEntity.ok(ApiResponse.success(message, result));
     }
 }

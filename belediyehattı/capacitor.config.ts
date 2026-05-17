@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 /**
  * Canlı yenileme: CAPACITOR_DEV_SERVER_URL=http://192.168.x.x:3000
- * Üretim APK: bu değişkeni vermeyin; paketlenmiş `dist` kullanılır, cleartext kapalıdır.
+ * Üretim APK/IPA: bu değişkeni vermeyin; paketlenmiş `dist` kullanılır.
  */
 const devServerUrl = process.env.CAPACITOR_DEV_SERVER_URL?.trim();
 
@@ -21,6 +21,27 @@ const config: CapacitorConfig = {
     : {}),
   android: {
     allowMixedContent: Boolean(devServerUrl),
+  },
+  ios: {
+    contentInset: 'automatic',
+    scrollEnabled: true,
+    limitsNavigationsToAppBoundDomains: false,
+  },
+  plugins: {
+    SplashScreen: {
+      launchAutoHide: true,
+      launchShowDuration: 0,
+      backgroundColor: '#0b4f9c',
+      androidSplashResourceName: 'splash',
+      showSpinner: false,
+    },
+    StatusBar: {
+      style: 'LIGHT',
+      backgroundColor: '#0b4f9c',
+    },
+    Keyboard: {
+      resizeOnFullScreen: true,
+    },
   },
 };
 

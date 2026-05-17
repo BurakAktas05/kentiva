@@ -1,5 +1,7 @@
 package com.burak.belediyeapp.service.storage;
 
+import com.burak.belediyeapp.service.media.MediaSignedUrlService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,16 +24,16 @@ import java.util.UUID;
  */
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class StorageService {
+
+    private final MediaSignedUrlService mediaSignedUrlService;
 
     @Autowired(required = false)
     private S3Client s3Client;
 
     @Value("${app.storage.s3.bucket-name:belediye-reports}")
     private String bucketName;
-
-    @Value("${app.storage.s3.public-url:http://localhost:8080/uploads}")
-    private String publicUrl;
 
     @Value("${app.storage.type:s3}")
     private String storageType;
@@ -40,13 +42,7 @@ public class StorageService {
     private String localUploadDir;
 
     /**
-     * Yerel depoda dönen göreli /uploads/... yolunu, ngrok vb. için tam URL'ye çevirir (boşsa göreli kalır).
-     */
-    @Value("${app.public-base-url:}")
-    private String publicBaseUrl;
-
-    /**
-     * Dosyayı depolamaya yükler ve erişim URL'ini döner.
+     * Dosyayı depolamaya yükler ve imzalı erişim URL'ini döner.
      */
     public String uploadFile(MultipartFile file, String folder) {
         if ("local".equals(storageType) || s3Client == null) {
@@ -71,7 +67,7 @@ public class StorageService {
             return;
         }
         try {
-            String key = fileUrl.replace(publicUrl + "/", "");
+            String key = mediaSignedUrlService.persistableStoragePath(fileUrl);
             s3Client.deleteObject(builder -> builder.bucket(bucketName).key(key));
             log.info("Dosya silindi: {}", key);
         } catch (Exception e) {
@@ -94,7 +90,7 @@ public class StorageService {
                     .build();
             s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
             log.info("Dosya S3'e yüklendi: {}", fileName);
-            return publicUrl + "/" + fileName;
+            return mediaSignedUrlService.signForClient(fileName);
         } catch (IOException e) {
             log.error("S3 dosya yükleme hatası: {}", fileName, e);
             throw new RuntimeException("Dosya yüklenemedi", e);
@@ -110,7 +106,7 @@ public class StorageService {
                     .build();
             s3Client.putObject(putObjectRequest, RequestBody.fromBytes(data));
             log.info("Dosya S3'e yüklendi (bytes): {}", fileName);
-            return publicUrl + "/" + fileName;
+            return mediaSignedUrlService.signForClient(fileName);
         } catch (Exception e) {
             log.error("S3 dosya yükleme hatası: {}", fileName, e);
             throw new RuntimeException("Dosya yüklenemedi", e);
@@ -129,7 +125,7 @@ public class StorageService {
             Files.createDirectories(path.getParent());
             Files.write(path, file.getBytes());
             log.info("Dosya yerel diske kaydedildi: {}", path);
-            return absolutizeLocalPublicUrl("/uploads/" + fileName);
+            return mediaSignedUrlService.signForClient(fileName);
         } catch (IOException e) {
             log.error("Yerel dosya yükleme hatası: {}", fileName, e);
             throw new RuntimeException("Dosya yüklenemedi", e);
@@ -142,18 +138,10 @@ public class StorageService {
             Files.createDirectories(path.getParent());
             Files.write(path, data);
             log.info("Dosya yerel diske kaydedildi (bytes): {}", path);
-            return absolutizeLocalPublicUrl("/uploads/" + fileName);
+            return mediaSignedUrlService.signForClient(fileName);
         } catch (IOException e) {
             log.error("Yerel dosya yükleme hatası: {}", fileName, e);
             throw new RuntimeException("Dosya yüklenemedi", e);
         }
-    }
-
-    private String absolutizeLocalPublicUrl(String relativePath) {
-        if (publicBaseUrl == null || publicBaseUrl.isBlank()) {
-            return relativePath;
-        }
-        String base = publicBaseUrl.trim().replaceAll("/+$", "");
-        return base + relativePath;
     }
 }

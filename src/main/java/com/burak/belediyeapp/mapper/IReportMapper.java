@@ -42,6 +42,7 @@ public interface IReportMapper {
     @Mapping(target = "latitude", source = "location.y")
     @Mapping(target = "longitude", source = "location.x")
     @Mapping(target = "status", source = "reportStatus")
+    @Mapping(target = "aiPriority", source = "aiPriority")
     ReportListResponse toListResponse(Report report);
 
     // ==========================================
@@ -82,9 +83,6 @@ public interface IReportMapper {
         return geometryFactory.createPoint(new Coordinate(request.longitude(), request.latitude()));
     }
 
-    // ==========================================
-    // 5. Custom: ReportMedia listesi → URL listesi
-    // ==========================================
     @Named("mediaListToUrls")
     default List<String> mapMediaListToUrls(List<ReportMedia> mediaList) {
         if (mediaList == null || mediaList.isEmpty()) {

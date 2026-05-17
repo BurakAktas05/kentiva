@@ -2,6 +2,8 @@ package com.burak.belediyeapp.repository;
 
 import com.burak.belediyeapp.entity.AppUser;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -10,6 +12,9 @@ import java.util.Optional;
 public interface IAppUserRepository extends JpaRepository<AppUser, String> {
 
     Optional<AppUser> findByEmail(String email);
+
+    @Query("SELECT u FROM AppUser u LEFT JOIN FETCH u.municipality WHERE u.email = :email")
+    Optional<AppUser> findByEmailWithMunicipality(@Param("email") String email);
 
     boolean existsByEmail(String email);
 
@@ -24,4 +29,6 @@ public interface IAppUserRepository extends JpaRepository<AppUser, String> {
     long countByMunicipalityId(String municipalityId);
 
     Optional<AppUser> findByPhoneNumber(String phoneNumber);
+
+    long countByRoles_Name(String roleName);
 }

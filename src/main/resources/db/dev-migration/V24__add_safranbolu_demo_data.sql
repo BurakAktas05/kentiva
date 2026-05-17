@@ -1,5 +1,5 @@
 -- ============================================================
--- Safranbolu Belediyesi Demo Verisi
+-- Safranbolu Belediyesi Demo Verisi (yalnızca dev profili)
 -- ============================================================
 
 -- 1. Safranbolu Belediyesi'ni Ekle
@@ -23,7 +23,7 @@ VALUES (
     NOW()
 ) ON CONFLICT (email) DO NOTHING;
 
--- 3. Müşteriye Vatandaş Rolü Ata (kullanıcı satırı e-posta ile eşleşir; V19 vb. ile farklı id olsa da çalışır)
+-- 3. Müşteriye Vatandaş Rolü Ata
 INSERT INTO user_roles (user_id, role_id)
 SELECT u.id, r.id
 FROM app_users u
@@ -31,9 +31,7 @@ CROSS JOIN roles r
 WHERE u.email = 'safranbolu@test.local' AND r.name = 'ROLE_CITIZEN'
 ON CONFLICT DO NOTHING;
 
--- 4. Admin Portal Girişi için Bir Admin veya Departman Yöneticisi Lazım!
--- Safranbolu için yetkili hesabı açalım
--- Şifre: admin123 (bcrypt hash'i: $2b$10$NACDoaUtprwogWQaETQjreC4xcrfUh7RhZ9ZcOlgzXOAVVEE1uNfS)
+-- 4. Safranbolu admin (şifre: admin123)
 INSERT INTO app_users (id, email, password, first_name, last_name, phone_number, enabled, municipality_id, created_at, updated_at) 
 VALUES (
     'safranbolu-admin-id', 

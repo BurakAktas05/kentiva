@@ -9,7 +9,10 @@ import com.burak.belediyeapp.exception.BusinessException;
 import com.burak.belediyeapp.exception.ResourceNotFoundException;
 import com.burak.belediyeapp.repository.IDepartmentRepository;
 import com.burak.belediyeapp.repository.IReportCategoryRepository;
+import com.burak.belediyeapp.config.CacheNames;
+import com.burak.belediyeapp.tenant.TenantAccessService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,11 +24,20 @@ public class CategoryService {
 
     private final IReportCategoryRepository categoryRepository;
     private final IDepartmentRepository departmentRepository;
+    private final TenantAccessService tenantAccess;
 
     @Transactional(readOnly = true)
-    @org.springframework.cache.annotation.Cacheable(value = "categories", key = "'active'")
+    @Cacheable(value = CacheNames.CATEGORIES, key = "'active-global'")
     public List<CategoryResponse> getActiveCategories() {
-        return categoryRepository.findAllByActiveTrue().stream()
+        return categoryRepository.findAllByActiveTrueAndMunicipalityIsNull().stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.CATEGORIES, key = "'muni:' + #municipalityId")
+    public List<CategoryResponse> getActiveCategoriesForMunicipality(String municipalityId) {
+        return categoryRepository.findAllByActiveTrueAndMunicipalityIsNullOrMunicipality_Id(municipalityId).stream()
                 .map(this::mapToResponse)
                 .toList();
     }
@@ -38,12 +50,8 @@ public class CategoryService {
     }
 
     @Transactional
-    @org.springframework.cache.annotation.CacheEvict(value = "categories", allEntries = true)
+    @org.springframework.cache.annotation.CacheEvict(value = CacheNames.CATEGORIES, allEntries = true)
     public CategoryResponse createCategory(CreateCategoryRequest request, AppUser currentUser) {
-        if (categoryRepository.existsByName(request.name())) {
-            throw new BusinessException("Bu kategori adı zaten mevcut: " + request.name(), "CATEGORY_ALREADY_EXISTS");
-        }
-
         ReportCategory category = ReportCategory.builder()
                 .name(request.name())
                 .description(request.description())
@@ -53,38 +61,35 @@ public class CategoryService {
         if (request.departmentId() != null && !request.departmentId().isBlank()) {
             Department dept = departmentRepository.findById(request.departmentId())
                     .orElseThrow(() -> new ResourceNotFoundException("Departman", "id", request.departmentId()));
-            ensureDepartmentInScope(dept, currentUser);
+            tenantAccess.ensureDepartmentInScope(dept, currentUser);
             category.setDepartment(dept);
-        } else if (!currentUser.hasRole("ROLE_SUPER_ADMIN")) {
-            throw new BusinessException("Belediye adminleri kategori oluştururken kendi departmanını seçmelidir", "DEPARTMENT_REQUIRED");
+            category.setMunicipality(dept.getMunicipality());
+            if (categoryRepository.existsByMunicipalityIdAndName(dept.getMunicipality().getId(), request.name())) {
+                throw new BusinessException("Bu kategori adı zaten mevcut: " + request.name(), "CATEGORY_ALREADY_EXISTS");
+            }
+        } else if (tenantAccess.isSuperAdmin(currentUser)) {
+            if (categoryRepository.existsByNameAndMunicipalityIsNull(request.name())) {
+                throw new BusinessException("Bu global kategori adı zaten mevcut: " + request.name(), "CATEGORY_ALREADY_EXISTS");
+            }
+        } else {
+            throw new BusinessException("Belediye adminleri kategori oluştururken departman seçmelidir", "DEPARTMENT_REQUIRED");
         }
 
         return mapToResponse(categoryRepository.save(category));
     }
 
     @Transactional
-    @org.springframework.cache.annotation.CacheEvict(value = "categories", allEntries = true)
+    @org.springframework.cache.annotation.CacheEvict(value = CacheNames.CATEGORIES, allEntries = true)
     public void deleteCategory(String categoryId, AppUser currentUser) {
         ReportCategory category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Kategori", "id", categoryId));
-        if (category.getDepartment() != null) {
-            ensureDepartmentInScope(category.getDepartment(), currentUser);
-        } else if (!currentUser.hasRole("ROLE_SUPER_ADMIN")) {
+        if (category.getMunicipality() != null) {
+            tenantAccess.ensureSameMunicipality(currentUser, category.getMunicipality());
+        } else if (!tenantAccess.isSuperAdmin(currentUser)) {
             throw new BusinessException("Global kategorileri yalnızca super admin yönetebilir", "GLOBAL_CATEGORY_RESTRICTED");
         }
         category.setActive(false);
         categoryRepository.save(category);
-    }
-
-    private void ensureDepartmentInScope(Department department, AppUser currentUser) {
-        if (currentUser.hasRole("ROLE_SUPER_ADMIN")) {
-            return;
-        }
-        if (currentUser.getMunicipality() == null
-                || department.getMunicipality() == null
-                || !department.getMunicipality().getId().equals(currentUser.getMunicipality().getId())) {
-            throw new BusinessException("Başka belediyeye ait departman seçilemez", "CROSS_MUNICIPALITY_ACCESS");
-        }
     }
 
     private CategoryResponse mapToResponse(ReportCategory category) {

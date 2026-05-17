@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -42,9 +43,8 @@ public class GlobalExceptionHandler {
 
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach(error -> {
-            String fieldName = ((FieldError) error).getField();
-            String errorMessage = error.getDefaultMessage();
-            errors.put(fieldName, errorMessage);
+            String key = error instanceof FieldError fe ? fe.getField() : error.getObjectName();
+            errors.put(key, error.getDefaultMessage() != null ? error.getDefaultMessage() : "Geçersiz değer");
         });
 
         return ResponseEntity
@@ -105,9 +105,23 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException ex) {
         log.warn("İş kuralı ihlali [{}]: {}", ex.getErrorCode(), ex.getMessage());
+        HttpStatus status = isForbiddenBusinessCode(ex.getErrorCode())
+                ? HttpStatus.FORBIDDEN
+                : HttpStatus.BAD_REQUEST;
         return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
+                .status(status)
                 .body(ApiResponse.error(ex.getMessage(), ex.getErrorCode()));
+    }
+
+    private static boolean isForbiddenBusinessCode(String code) {
+        if (code == null) {
+            return false;
+        }
+        return switch (code) {
+            case "ACCESS_DENIED", "CROSS_MUNICIPALITY_ACCESS", "CROSS_MUNICIPALITY_ASSIGNMENT",
+                 "GLOBAL_CATEGORY_RESTRICTED", "INVALID_PATH" -> true;
+            default -> false;
+        };
     }
 
     /**
@@ -118,6 +132,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
                 .body(ApiResponse.error("Email veya şifre hatalı", "INVALID_CREDENTIALS"));
+    }
+
+    @ExceptionHandler(DisabledException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDisabledException(DisabledException ex) {
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error("Hesabınız pasif durumda", "USER_DISABLED"));
     }
 
     /**

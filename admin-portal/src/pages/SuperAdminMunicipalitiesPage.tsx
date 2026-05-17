@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowLeft, Sparkles } from 'lucide-react';
 import api from '../api';
 
 type MunicipalityDto = {
@@ -9,6 +11,10 @@ type MunicipalityDto = {
   active: boolean | null;
   onboarded: boolean | null;
   publicStatsEnabled: boolean | null;
+  subscriptionPlan?: string;
+  subscriptionEndsAt?: string | null;
+  daysRemaining?: number | null;
+  membershipStatus?: string;
 };
 
 export default function SuperAdminMunicipalitiesPage() {
@@ -75,11 +81,21 @@ export default function SuperAdminMunicipalitiesPage() {
   };
 
   return (
-    <div className="p-6 space-y-8 max-w-4xl">
+    <div className="p-6 space-y-8 max-w-6xl">
       <div>
+        <Link to="/" className="mb-3 inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline">
+          <ArrowLeft size={14} /> Platform dashboard
+        </Link>
         <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Süper admin</p>
         <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">Belediyeler</h2>
         <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">Onboarding ve çok kiracılı yönetim.</p>
+        <Link
+          to="/admin/onboarding"
+          className="mt-4 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm"
+        >
+          <Sparkles size={16} />
+          Kurulum sihirbazını aç
+        </Link>
       </div>
 
       <form onSubmit={create} className="space-y-3 rounded-2xl border border-slate-200/90 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
@@ -145,9 +161,12 @@ export default function SuperAdminMunicipalitiesPage() {
               <tr>
                 <th className="p-3">Ad</th>
                 <th className="p-3">Slug</th>
+                <th className="p-3">Üyelik</th>
+                <th className="p-3">Plan</th>
+                <th className="p-3">Kalan gün</th>
+                <th className="p-3">Bitiş</th>
                 <th className="p-3">Aktif</th>
                 <th className="p-3">Onboarding</th>
-                <th className="p-3">Public stats</th>
               </tr>
             </thead>
             <tbody>
@@ -155,9 +174,14 @@ export default function SuperAdminMunicipalitiesPage() {
                 <tr key={r.id} className="border-t border-slate-100 dark:border-slate-800">
                   <td className="p-3 font-medium">{r.displayName || r.name}</td>
                   <td className="p-3 text-slate-500">{r.slug}</td>
+                  <td className="p-3 text-xs font-semibold uppercase">{r.membershipStatus ?? '—'}</td>
+                  <td className="p-3">{r.subscriptionPlan ?? '—'}</td>
+                  <td className="p-3 tabular-nums">{r.daysRemaining ?? '—'}</td>
+                  <td className="p-3 text-slate-500">
+                    {r.subscriptionEndsAt ? new Date(r.subscriptionEndsAt).toLocaleDateString('tr-TR') : '—'}
+                  </td>
                   <td className="p-3">{r.active ? 'Evet' : 'Hayır'}</td>
                   <td className="p-3">{r.onboarded ? 'Evet' : 'Hayır'}</td>
-                  <td className="p-3">{r.publicStatsEnabled ? 'Evet' : 'Hayır'}</td>
                 </tr>
               ))}
             </tbody>

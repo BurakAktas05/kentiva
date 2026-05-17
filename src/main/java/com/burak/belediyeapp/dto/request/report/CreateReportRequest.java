@@ -36,8 +36,7 @@ public record CreateReportRequest(
         List<@NotBlank(message = "Medya URL boş olamaz") @Size(max = 2048, message = "Medya URL çok uzun") String> mediaUrls,
 
         /**
-         * Kentiva: vatandaşın seçtiği ilçe belediyesi. Kullanıcı hesabında belediye yoksa zorunludur;
-         * konum bu belediye sınırlarıyla eşleşmelidir.
+         * İsteğe bağlı ipucu; sunucu GPS ile çözümlenen belediye ile eşleşmelidir.
          */
         String targetMunicipalityId
 ) {}

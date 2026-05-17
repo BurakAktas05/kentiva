@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import {
   MapPin,
@@ -9,19 +9,16 @@ import {
   Lightbulb,
   TreePine,
   Construction,
-  Building2,
   Sparkles,
 } from 'lucide-react';
 import {
   getMyReports,
   ApiReportList,
   fetchPublicStatsOverview,
-  fetchPublicMunicipalityStatsList,
   type PublicStatsOverview,
-  type PublicMunicipalityStat,
 } from '../../api';
-import { useTenant } from '../../TenantContext';
 import { Lang, t } from '../../i18n';
+import AiPriorityBadge from '../AiPriorityBadge';
 
 const MY_REPORTS_PAGE_SIZE = 120;
 
@@ -33,10 +30,10 @@ interface HomeProps {
 }
 
 const getCategoryIcon = (category: string) => {
-  if (category.includes('Çukur') || category.includes('Yol')) return <Construction className="w-5 h-5" />;
-  if (category.includes('Çöp') || category.includes('Temiz')) return <Trash2 className="w-5 h-5" />;
-  if (category.includes('Park') || category.includes('Bahçe')) return <TreePine className="w-5 h-5" />;
-  if (category.includes('Aydınlatma') || category.includes('Işık')) return <Lightbulb className="w-5 h-5" />;
+  if (category.includes('Ã‡ukur') || category.includes('Yol')) return <Construction className="w-5 h-5" />;
+  if (category.includes('Ã‡Ã¶p') || category.includes('Temiz')) return <Trash2 className="w-5 h-5" />;
+  if (category.includes('Park') || category.includes('BahÃ§e')) return <TreePine className="w-5 h-5" />;
+  if (category.includes('AydÄ±nlatma') || category.includes('IÅŸÄ±k')) return <Lightbulb className="w-5 h-5" />;
   return <AlertCircle className="w-5 h-5" />;
 };
 
@@ -71,32 +68,27 @@ const getStatusBadge = (status: string, lang: Lang) => {
 };
 
 export default function Home({ onNavigate, onOpenReport, lang, isDark }: HomeProps) {
-  const { tenant } = useTenant();
   const [reports, setReports] = useState<ApiReportList[]>([]);
   const [totalMyReports, setTotalMyReports] = useState(0);
   const [loading, setLoading] = useState(true);
   const [publicOverview, setPublicOverview] = useState<PublicStatsOverview | null>(null);
   const [publicError, setPublicError] = useState(false);
-  const [muniStats, setMuniStats] = useState<PublicMunicipalityStat[]>([]);
-
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
       setPublicError(false);
       try {
-        const [rep, overview, munis] = await Promise.all([
+        const [rep, overview] = await Promise.all([
           getMyReports(0, MY_REPORTS_PAGE_SIZE),
           fetchPublicStatsOverview().catch(() => null),
-          fetchPublicMunicipalityStatsList().catch(() => []),
         ]);
         if (cancelled) return;
         setReports(rep.content || []);
         setTotalMyReports(rep.totalElements ?? (rep.content || []).length);
         setPublicOverview(overview);
-        setMuniStats(Array.isArray(munis) ? munis : []);
       } catch (e) {
-        console.error('Akış yüklenemedi', e);
+        console.error('AkÄ±ÅŸ yÃ¼klenemedi', e);
         if (!cancelled) {
           setReports([]);
           setTotalMyReports(0);
@@ -110,12 +102,6 @@ export default function Home({ onNavigate, onOpenReport, lang, isDark }: HomePro
       cancelled = true;
     };
   }, []);
-
-  const tenantMuniStat = useMemo(() => {
-    const slug = tenant?.slug?.trim();
-    if (!slug) return null;
-    return muniStats.find((m) => m.slug === slug) ?? null;
-  }, [muniStats, tenant?.slug]);
 
   const cardBorder = isDark ? 'border-slate-700 bg-slate-800/90' : 'border-slate-200/90 bg-white';
   const muted = isDark ? 'text-slate-400' : 'text-slate-600';
@@ -196,47 +182,7 @@ export default function Home({ onNavigate, onOpenReport, lang, isDark }: HomePro
         )}
       </section>
 
-      {/* Belediye kamu özeti */}
-      {tenant && (
-        <section className={`rounded-2xl border p-4 shadow-sm ${cardBorder}`}>
-          <div className="mb-3 flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary/15 text-primary ring-1 ring-secondary/25 dark:text-sky-200">
-              <Building2 className="h-4 w-4" strokeWidth={2} />
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-secondary">{t('home.muni.eyebrow', lang)}</p>
-              <h3 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                {tenant.displayName || tenant.slug}
-              </h3>
-            </div>
-          </div>
-          {tenantMuniStat ? (
-            <div className="grid grid-cols-2 gap-3">
-              <div className={`rounded-xl border p-3 ${isDark ? 'border-slate-600 bg-slate-900/50' : 'border-slate-100 bg-slate-50'}`}>
-                <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  {t('home.muni.reports', lang)}
-                </p>
-                <p className={`mt-1 text-lg font-extrabold tabular-nums ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                  {tenantMuniStat.totalReports}
-                </p>
-              </div>
-              <div className={`rounded-xl border p-3 ${isDark ? 'border-slate-600 bg-slate-900/50' : 'border-slate-100 bg-slate-50'}`}>
-                <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  {t('home.muni.resolved', lang)}
-                </p>
-                <p className={`mt-1 text-lg font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400`}>
-                  {tenantMuniStat.resolvedReports}
-                </p>
-              </div>
-              <p className={`col-span-2 text-[11px] font-medium leading-relaxed ${muted}`}>{t('home.muni.title', lang)}</p>
-            </div>
-          ) : (
-            <p className={`text-xs font-medium leading-relaxed ${muted}`}>{t('home.muni.empty', lang)}</p>
-          )}
-        </section>
-      )}
-
-      {/* İpuçları */}
+      {/* Ä°puÃ§larÄ± */}
       <section className={`rounded-2xl border p-4 shadow-sm ${cardBorder}`}>
         <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-primary">{t('home.tips.eyebrow', lang)}</p>
         <h3 className={`mt-1 text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{t('home.tips.title', lang)}</h3>
@@ -324,7 +270,10 @@ export default function Home({ onNavigate, onOpenReport, lang, isDark }: HomePro
                       <p className={`mt-0.5 truncate text-xs ${muted}`}>{report.categoryName}</p>
                     </div>
                   </div>
-                  {getStatusBadge(report.status, lang)}
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    {report.aiPriority && <AiPriorityBadge priority={report.aiPriority} lang={lang} />}
+                    {getStatusBadge(report.status, lang)}
+                  </div>
                 </div>
 
                 <div

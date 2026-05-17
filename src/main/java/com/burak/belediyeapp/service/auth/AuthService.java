@@ -154,17 +154,15 @@ public class AuthService {
      * Telefon numarasına OTP gönder.
      */
     public void sendPasswordResetOtp(String phoneNumber) {
-        AppUser user = userRepository.findByPhoneNumber(phoneNumber)
-                .orElseThrow(() -> new BusinessException(
-                        "Bu telefon numarasına kayıtlı hesap bulunamadı.",
-                        "PHONE_NOT_FOUND"));
-
-        boolean sent = smsOtpService.sendOtp(phoneNumber);
-        if (!sent) {
-            throw new BusinessException("SMS gönderilemedi. Lütfen daha sonra tekrar deneyin.",
-                    "SMS_SEND_FAILED");
-        }
-        log.info("Şifre sıfırlama OTP gönderildi: {}", phoneNumber);
+        userRepository.findByPhoneNumber(phoneNumber).ifPresent(user -> {
+            boolean sent = smsOtpService.sendOtp(phoneNumber);
+            if (!sent) {
+                log.warn("Şifre sıfırlama SMS gönderilemedi: {}", phoneNumber);
+            } else {
+                log.info("Şifre sıfırlama OTP gönderildi: {}", phoneNumber);
+            }
+        });
+        // Hesap var/yok ayrımı yapılmaz (enumeration önleme)
     }
 
     /**

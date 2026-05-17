@@ -19,11 +19,23 @@
 
 @layer utilities {
   .pb-safe {
-    padding-bottom: env(safe-area-inset-bottom, 16px);
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 12px);
   }
   .pt-safe {
-    padding-top: env(safe-area-inset-top, 16px);
+    padding-top: max(env(safe-area-inset-top, 0px), 0px);
   }
+  .min-h-app {
+    min-height: 100dvh;
+  }
+  .h-app {
+    height: 100dvh;
+  }
+}
+
+/* Capacitor: status bar does not overlay WebView */
+html.native-app {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 @layer base {
@@ -33,6 +45,11 @@
   }
   body {
     @apply bg-slate-100 text-slate-900 antialiased font-sans;
+    overscroll-behavior-y: none;
+  }
+  html.native-app body {
+    padding-top: 0;
+    padding-bottom: 0;
   }
   .dark body {
     @apply bg-slate-950 text-slate-100;

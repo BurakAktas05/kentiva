@@ -1,7 +1,10 @@
 package com.burak.belediyeapp.controller;
 
 import com.burak.belediyeapp.repository.IAppUserRepository;
+import com.burak.belediyeapp.security.ApiKeyAuthFilter;
+import com.burak.belediyeapp.security.JwtAuthenticationSupport;
 import com.burak.belediyeapp.service.media.MediaGuardClient;
+import com.burak.belediyeapp.service.media.MediaSignedUrlService;
 import com.burak.belediyeapp.service.report.ReportService;
 import com.burak.belediyeapp.service.auth.JwtService;
 import com.burak.belediyeapp.service.storage.StorageService;
@@ -30,19 +33,22 @@ class ReportControllerUploadWebMvcTest {
     @MockitoBean ReportService reportService;
     @MockitoBean StorageService storageService;
     @MockitoBean MediaGuardClient mediaGuardClient;
+    @MockitoBean MediaSignedUrlService mediaSignedUrlService;
     @MockitoBean JwtService jwtService;
+    @MockitoBean JwtAuthenticationSupport jwtAuthenticationSupport;
     @MockitoBean IAppUserRepository userRepository;
+    @MockitoBean ApiKeyAuthFilter apiKeyAuthFilter;
 
     @Test
     void imageUploadValidatesMediaAndReturnsStoredUrl() throws Exception {
         MockMultipartFile file = new MockMultipartFile("files", "photo.jpg", "image/jpeg", new byte[] {1, 2, 3});
         when(storageService.uploadBytes(any(), eq("image/jpeg"), eq("reports"), eq("photo.jpg")))
-                .thenReturn("https://cdn.example.com/photo.jpg");
+                .thenReturn("/api/v1/media/access?token=signed");
 
         mockMvc.perform(multipart("/api/v1/reports/upload").file(file))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data[0]").value("https://cdn.example.com/photo.jpg"));
+                .andExpect(jsonPath("$.data[0]").value("/api/v1/media/access?token=signed"));
 
         verify(mediaGuardClient).validateImageOrThrow(any(), eq("image/jpeg"));
     }

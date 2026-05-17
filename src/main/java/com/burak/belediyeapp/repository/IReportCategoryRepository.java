@@ -14,5 +14,21 @@ public interface IReportCategoryRepository extends JpaRepository<ReportCategory,
 
     boolean existsByName(String name);
 
+    boolean existsByMunicipalityIdAndName(String municipalityId, String name);
+
+    boolean existsByNameAndMunicipalityIsNull(String name);
+
     Optional<ReportCategory> findByName(String name);
+
+    List<ReportCategory> findAllByActiveTrueAndMunicipalityIsNull();
+
+    List<ReportCategory> findAllByActiveTrueAndMunicipality_Id(String municipalityId);
+
+    List<ReportCategory> findAllByActiveTrueAndMunicipalityIsNullOrMunicipality_Id(String municipalityId);
+
+    long countByDepartment_Municipality_Id(String municipalityId);
+
+    long countByMunicipality_Id(String municipalityId);
+
+    long countByMunicipalityIsNull();
 }

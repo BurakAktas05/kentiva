@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Clock, MapPin, Sparkles } from 'lucide-react';
-import { getReportDetail, getReportTimeline, type ApiReportDetail, type ReportTimelineEntry } from '../../api';
+import { getReportDetail, getReportTimeline, resolveMediaUrl, type ApiReportDetail, type ReportTimelineEntry } from '../../api';
 import { Lang, t } from '../../i18n';
+import AiPriorityBadge from '../AiPriorityBadge';
 
 interface ReportDetailScreenProps {
   reportId: string;
@@ -36,7 +37,7 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
   return (
     <div className={`absolute inset-0 z-30 flex flex-col ${isDark ? 'bg-slate-900' : 'bg-slate-50'}`}>
       <div
-        className={`flex shrink-0 items-center gap-3 border-b px-4 py-3 ${isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white'}`}
+        className={`flex shrink-0 items-center gap-3 border-b px-4 py-3 pt-safe ${isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white'}`}
       >
         <button
           type="button"
@@ -58,6 +59,7 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
               <p className={`mt-2 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{detail.description}</p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
                 <span className="rounded-lg bg-primary/10 px-2 py-1 font-semibold text-primary">{detail.categoryName}</span>
+                {detail.aiPriority && <AiPriorityBadge priority={detail.aiPriority} lang={lang} />}
                 {detail.district && (
                   <span className="flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-1 dark:bg-slate-700">
                     <MapPin className="h-3 w-3" />
@@ -91,7 +93,7 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
                     {detail.mediaUrls.map((url, i) => (
                       <img
                         key={i}
-                        src={url}
+                        src={resolveMediaUrl(url)}
                         alt={`${i + 1}`}
                         className="h-24 w-24 shrink-0 rounded-xl border border-slate-200 object-cover dark:border-slate-700"
                       />

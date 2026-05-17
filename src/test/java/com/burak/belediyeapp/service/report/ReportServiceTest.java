@@ -1,34 +1,37 @@
 package com.burak.belediyeapp.service.report;
 
+import com.burak.belediyeapp.dto.request.report.BulkAssignReportsRequest;
+import com.burak.belediyeapp.dto.request.report.CreateReportRequest;
 import com.burak.belediyeapp.dto.request.report.UpdateReportStatusRequest;
+import com.burak.belediyeapp.dto.response.report.BulkReportOperationResult;
 import com.burak.belediyeapp.dto.response.report.ReportResponse;
-import com.burak.belediyeapp.entity.AppUser;
-import com.burak.belediyeapp.entity.Municipality;
-import com.burak.belediyeapp.entity.Report;
-import com.burak.belediyeapp.entity.ReportStatus;
-import com.burak.belediyeapp.entity.Role;
+import com.burak.belediyeapp.entity.*;
 import com.burak.belediyeapp.exception.BusinessException;
 import com.burak.belediyeapp.mapper.IReportMapper;
-import com.burak.belediyeapp.repository.IAppUserRepository;
-import com.burak.belediyeapp.repository.IMunicipalityRepository;
-import com.burak.belediyeapp.repository.IReportCategoryRepository;
-import com.burak.belediyeapp.repository.IReportHistoryRepository;
-import com.burak.belediyeapp.repository.IReportRepository;
+import com.burak.belediyeapp.repository.*;
 import com.burak.belediyeapp.service.ai.GeminiService;
+import com.burak.belediyeapp.service.ai.HeuristicReportAnalyzer;
 import com.burak.belediyeapp.service.geo.DistrictResolutionService;
+import com.burak.belediyeapp.service.integration.WebhookDispatchService;
+import com.burak.belediyeapp.service.media.MediaSignedUrlService;
 import com.burak.belediyeapp.service.notification.NotificationService;
+import com.burak.belediyeapp.tenant.TenantAccessService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.context.ApplicationEventPublisher;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -42,11 +45,151 @@ class ReportServiceTest {
     @Mock IReportMapper reportMapper;
     @Mock NotificationService notificationService;
     @Mock GeminiService geminiService;
+    @Mock HeuristicReportAnalyzer heuristicReportAnalyzer;
     @Mock DistrictResolutionService districtResolutionService;
     @Mock IMunicipalityRepository municipalityRepository;
     @Mock ApplicationEventPublisher eventPublisher;
+    @Mock WebhookDispatchService webhookDispatchService;
+    @Mock MediaSignedUrlService mediaSignedUrlService;
 
-    @InjectMocks ReportService reportService;
+    private TenantAccessService tenantAccess;
+    private ReportSupport reportSupport;
+    private ReportCreationService creationService;
+    private ReportQueryService queryService;
+    private ReportCommandService commandService;
+
+    @BeforeEach
+    void wireServices() {
+        tenantAccess = new TenantAccessService();
+        reportSupport = new ReportSupport(
+                reportRepository, municipalityRepository, districtResolutionService, mediaSignedUrlService);
+        creationService = new ReportCreationService(
+                reportRepository,
+                categoryRepository,
+                historyRepository,
+                reportMapper,
+                reportSupport,
+                tenantAccess,
+                mediaSignedUrlService,
+                eventPublisher);
+
+        queryService = new ReportQueryService(
+                reportRepository, historyRepository, reportMapper, reportSupport, tenantAccess);
+
+        commandService = new ReportCommandService(
+                reportRepository,
+                categoryRepository,
+                userRepository,
+                historyRepository,
+                reportMapper,
+                reportSupport,
+                tenantAccess,
+                notificationService,
+                geminiService,
+                heuristicReportAnalyzer,
+                webhookDispatchService);
+    }
+
+    @Test
+    void citizenCreateReportAssignsMunicipalityFromGpsNotAccount() {
+        AppUser citizen = user("citizen-1", "ROLE_CITIZEN", null);
+
+        ReportCategory category = ReportCategory.builder().name("Yol").active(true).build();
+        category.setId("cat-1");
+        Municipality resolved = municipality("municipality-gps", "Safranbolu Belediyesi", true, true);
+
+        CreateReportRequest request = new CreateReportRequest(
+                "Başlık yeterince uzun",
+                "Açıklama en az yirmi karakter olmalıdır burada.",
+                "cat-1",
+                41.25,
+                32.69,
+                null,
+                List.of(),
+                null);
+
+        Report mapped = new Report();
+        mapped.setTitle(request.title());
+
+        when(categoryRepository.findById("cat-1")).thenReturn(Optional.of(category));
+        when(districtResolutionService.resolveDistrict(41.25, 32.69)).thenReturn(Optional.of("municipality-gps"));
+        when(municipalityRepository.findById("municipality-gps")).thenReturn(Optional.of(resolved));
+        when(reportMapper.toEntity(request)).thenReturn(mapped);
+        when(reportRepository.save(any())).thenAnswer(inv -> {
+            Report r = inv.getArgument(0);
+            r.setId("report-new");
+            r.setMunicipality(resolved);
+            return r;
+        });
+        when(reportRepository.findById("report-new")).thenAnswer(inv -> {
+            Report r = new Report();
+            r.setId("report-new");
+            r.setMunicipality(resolved);
+            return Optional.of(r);
+        });
+        when(reportMapper.toResponse(any())).thenReturn(new ReportResponse(
+                "report-new", request.title(), request.description(), "PENDING", "Yol", "Vatandaş", null,
+                41.25, 32.69, null, null, List.of(), "Safranbolu Belediyesi",
+                null, null, null, null, null, null));
+
+        creationService.createReport(request, citizen);
+
+        verify(municipalityRepository).findById("municipality-gps");
+        verify(reportRepository).save(any());
+    }
+
+    @Test
+    void citizenCreateReportRejectsLocationOutsideMunicipalities() {
+        AppUser citizen = user("citizen-2", "ROLE_CITIZEN", null);
+        ReportCategory category = ReportCategory.builder().name("Yol").active(true).build();
+        category.setId("cat-1");
+        CreateReportRequest request = new CreateReportRequest(
+                "Başlık yeterince uzun",
+                "Açıklama en az yirmi karakter olmalıdır burada.",
+                "cat-1",
+                0.0,
+                0.0,
+                null,
+                List.of(),
+                null);
+
+        when(categoryRepository.findById("cat-1")).thenReturn(Optional.of(category));
+        when(reportMapper.toEntity(request)).thenReturn(new Report());
+        when(districtResolutionService.resolveDistrict(0.0, 0.0)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> creationService.createReport(request, citizen))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("belediye sınırı");
+
+        verify(reportRepository, never()).save(any());
+    }
+
+    @Test
+    void citizenCreateReportRejectsMismatchedTargetHint() {
+        AppUser citizen = user("citizen-3", "ROLE_CITIZEN", null);
+        ReportCategory category = ReportCategory.builder().name("Yol").active(true).build();
+        category.setId("cat-1");
+        CreateReportRequest request = new CreateReportRequest(
+                "Başlık yeterince uzun",
+                "Açıklama en az yirmi karakter olmalıdır burada.",
+                "cat-1",
+                41.25,
+                32.69,
+                null,
+                List.of(),
+                "wrong-municipality");
+
+        when(categoryRepository.findById("cat-1")).thenReturn(Optional.of(category));
+        when(reportMapper.toEntity(request)).thenReturn(new Report());
+        when(districtResolutionService.resolveDistrict(41.25, 32.69)).thenReturn(Optional.of("municipality-gps"));
+
+        assertThatThrownBy(() -> creationService.createReport(request, citizen))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("eşleşmiyor");
+
+        verify(municipalityRepository, never()).findById(eq("wrong-municipality"));
+        verify(reportRepository, never()).save(any());
+    }
 
     @Test
     void staffCannotReadReportFromAnotherMunicipality() {
@@ -54,7 +197,7 @@ class ReportServiceTest {
         AppUser admin = user("admin-1", "ROLE_ADMIN", "municipality-b");
         when(reportRepository.findById("report-1")).thenReturn(Optional.of(report));
 
-        assertThatThrownBy(() -> reportService.getReportById("report-1", admin))
+        assertThatThrownBy(() -> queryService.getReportById("report-1", admin))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("Bu rapora erişim yetkiniz yok");
     }
@@ -66,25 +209,46 @@ class ReportServiceTest {
         UpdateReportStatusRequest request = new UpdateReportStatusRequest(ReportStatus.PROCESSING, "Saha ekibine alındı");
         ReportResponse response = new ReportResponse(
                 "report-1", "Başlık", "Açıklama", "PROCESSING", "Kategori", "Muhabir", null,
-                41.0, 29.0, null, null, java.util.List.of(), "İlçe",
-                null, null, null, null, null, null
-        );
+                41.0, 29.0, null, null, List.of(), "İlçe",
+                null, null, null, null, null, null);
 
         when(reportRepository.findById("report-1")).thenReturn(Optional.of(report));
         when(reportRepository.save(report)).thenReturn(report);
         when(reportMapper.toResponse(report)).thenReturn(response);
 
-        reportService.updateReportStatus("report-1", request, admin);
+        commandService.updateReportStatus("report-1", request, admin);
 
         verify(historyRepository).save(any());
         verify(notificationService).notifyReportStatusChanged(report);
         verify(reportRepository).save(report);
     }
 
-    private Report report(String id, String municipalityId, ReportStatus status) {
-        Municipality municipality = new Municipality();
-        municipality.setId(municipalityId);
+    @Test
+    void bulkAssignSkipsCrossMunicipalityReports() {
+        Report inScope = report("r1", "municipality-a", ReportStatus.PENDING);
+        Report outScope = report("r2", "municipality-b", ReportStatus.PENDING);
+        AppUser manager = user("mgr-1", "ROLE_DEPT_MANAGER", "municipality-a");
+        AppUser officer = user("officer-1", "ROLE_FIELD_OFFICER", "municipality-a");
 
+        when(reportRepository.findById("r1")).thenReturn(Optional.of(inScope));
+        when(reportRepository.findById("r2")).thenReturn(Optional.of(outScope));
+        when(userRepository.findByIdAndMunicipalityId("officer-1", "municipality-a"))
+                .thenReturn(Optional.of(officer));
+        when(reportRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(reportMapper.toResponse(any())).thenReturn(new ReportResponse(
+                "r1", "Başlık", "Açıklama", "PROCESSING", "Kategori", "Muhabir", "Görevli",
+                41.0, 29.0, null, null, List.of(), "İlçe",
+                null, null, null, null, null, null));
+
+        BulkReportOperationResult result = commandService.bulkAssignReports(
+                new BulkAssignReportsRequest(List.of("r1", "r2"), "officer-1"), manager);
+
+        assertThat(result.successCount()).isEqualTo(1);
+        assertThat(result.failureCount()).isEqualTo(1);
+    }
+
+    private Report report(String id, String municipalityId, ReportStatus status) {
+        Municipality municipality = municipality(municipalityId, municipalityId, true, true);
         AppUser reporter = user("citizen-1", "ROLE_CITIZEN", municipalityId);
 
         Report report = new Report();
@@ -96,17 +260,26 @@ class ReportServiceTest {
     }
 
     private AppUser user(String id, String roleName, String municipalityId) {
-        Municipality municipality = new Municipality();
-        municipality.setId(municipalityId);
-
         Role role = new Role();
         role.setName(roleName);
 
         AppUser user = new AppUser();
         user.setId(id);
         user.setEmail(id + "@example.com");
-        user.setMunicipality(municipality);
+        if (municipalityId != null) {
+            user.setMunicipality(municipality(municipalityId, municipalityId, true, true));
+        }
         user.setRoles(Set.of(role));
         return user;
+    }
+
+    private static Municipality municipality(String id, String displayName, boolean active, boolean onboarded) {
+        Municipality municipality = new Municipality();
+        municipality.setId(id);
+        municipality.setName(displayName);
+        municipality.setDisplayName(displayName);
+        municipality.setActive(active);
+        municipality.setOnboarded(onboarded);
+        return municipality;
     }
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -11,6 +11,7 @@ import {
   Building2,
   PieChart,
   Download,
+  CalendarClock,
   CheckCircle2,
   Clock,
   AlertCircle,
@@ -20,18 +21,55 @@ import {
   MapPinned,
   ArrowRight,
   Shield,
+  Sparkles,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import api, { type Stats } from './api';
-import LiveMap from './LiveMap';
-import ReportsPage from './pages/ReportsPage';
-import ReportDetailPage from './pages/ReportDetailPage';
-import StatisticsPage from './pages/StatisticsPage';
-import DepartmentsPage from './pages/DepartmentsPage';
-import UsersPage from './pages/UsersPage';
-import MunicipalitySettingsPage from './pages/MunicipalitySettingsPage';
-import SuperAdminMunicipalitiesPage from './pages/SuperAdminMunicipalitiesPage';
+import api, { clearAuthStorage, REFRESH_KEY, TOKEN_KEY, type Stats } from './api';
+
+const LiveMap = lazy(() => import('./LiveMap'));
+const ReportsPage = lazy(() => import('./pages/ReportsPage'));
+const ReportDetailPage = lazy(() => import('./pages/ReportDetailPage'));
+const StatisticsPage = lazy(() => import('./pages/StatisticsPage'));
+const ScheduledExportsPage = lazy(() => import('./pages/ScheduledExportsPage'));
+const DepartmentsPage = lazy(() => import('./pages/DepartmentsPage'));
+const UsersPage = lazy(() => import('./pages/UsersPage'));
+const MunicipalitySettingsPage = lazy(() => import('./pages/MunicipalitySettingsPage'));
+const SuperAdminMunicipalitiesPage = lazy(() => import('./pages/SuperAdminMunicipalitiesPage'));
+const MunicipalityOnboardingPage = lazy(() => import('./pages/MunicipalityOnboardingPage'));
+const AuditLogsPage = lazy(() => import('./pages/AuditLogsPage'));
+const SetupPage = lazy(() => import('./pages/SetupPage'));
+const SuperAdminHomePage = lazy(() => import('./pages/SuperAdminHomePage'));
+
+const PageFallback = () => (
+  <motion.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    className="flex min-h-[40vh] items-center justify-center p-6"
+  >
+    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Sayfa yükleniyor…</p>
+  </motion.div>
+);
+
+const MapFallback = () => (
+  <motion.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    className="flex h-[420px] items-center justify-center rounded-xl bg-slate-50 dark:bg-slate-800/50"
+  >
+    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Harita yükleniyor…</p>
+  </motion.div>
+);
+
+const ProtectedRoute = ({
+  user,
+  allow,
+  children,
+}: {
+  user: User;
+  allow: (u: User) => boolean;
+  children: React.ReactNode;
+}) => (allow(user) ? <>{children}</> : <Navigate to="/" replace />);
 
 // --- Types ---
 interface User {
@@ -53,21 +91,42 @@ interface User {
 // --- Components ---
 const Sidebar = ({ isOpen, setOpen, user }: { isOpen: boolean, setOpen: (o: boolean) => void, user: User }) => {
   const location = useLocation();
-  const baseItems = [
-    { name: 'Dashboard', icon: LayoutDashboard, path: '/' },
-    { name: 'Raporlar', icon: FileText, path: '/reports' },
-    { name: 'Personeller', icon: Users, path: '/staff' },
-    { name: 'Departmanlar', icon: Building2, path: '/departments' },
-    { name: 'İstatistikler', icon: PieChart, path: '/stats' },
-  ];
-  const extra: { name: string; icon: typeof LayoutDashboard; path: string }[] = [];
-  if (user.roles.includes('ROLE_ADMIN') && user.municipality) {
-    extra.push({ name: 'Belediye ayarları', icon: SettingsIcon, path: '/municipality-settings' });
-  }
-  if (user.roles.includes('ROLE_SUPER_ADMIN')) {
-    extra.push({ name: 'Belediyeler', icon: MapPinned, path: '/admin/municipalities' });
-  }
-  const menuItems = [...baseItems, ...extra];
+  const isPlatformSuperAdmin =
+    user.roles.includes('ROLE_SUPER_ADMIN') && !user.municipality;
+
+  type MenuItem = { name: string; icon: typeof LayoutDashboard; path: string };
+
+  const menuItems: MenuItem[] = isPlatformSuperAdmin
+    ? [
+        { name: 'Platform', icon: LayoutDashboard, path: '/' },
+        { name: 'Kurulum sihirbazı', icon: Sparkles, path: '/admin/onboarding' },
+        { name: 'Belediyeler', icon: MapPinned, path: '/admin/municipalities' },
+        { name: 'Denetim raporu', icon: Shield, path: '/audit-logs' },
+      ]
+    : (() => {
+        const baseItems: MenuItem[] = [
+          { name: 'Dashboard', icon: LayoutDashboard, path: '/' },
+          { name: 'Raporlar', icon: FileText, path: '/reports' },
+          { name: 'Personeller', icon: Users, path: '/staff' },
+          { name: 'Departmanlar', icon: Building2, path: '/departments' },
+          { name: 'İstatistikler', icon: PieChart, path: '/stats' },
+        ];
+        const extra: MenuItem[] = [];
+        if (user.roles.some((r) => ['ROLE_ADMIN', 'ROLE_SUPER_ADMIN'].includes(r))) {
+          extra.push({ name: 'Denetim raporu', icon: Shield, path: '/audit-logs' });
+        }
+        if (user.roles.some((r) => ['ROLE_ADMIN', 'ROLE_DEPT_MANAGER', 'ROLE_SUPER_ADMIN'].includes(r))) {
+          extra.push({ name: 'Planlı dışa aktarma', icon: CalendarClock, path: '/scheduled-exports' });
+        }
+        if (user.roles.includes('ROLE_ADMIN') && user.municipality) {
+          extra.push({ name: 'Belediye ayarları', icon: SettingsIcon, path: '/municipality-settings' });
+        }
+        if (user.roles.includes('ROLE_SUPER_ADMIN')) {
+          extra.push({ name: 'Belediyeler', icon: MapPinned, path: '/admin/municipalities' });
+          extra.push({ name: 'Kurulum sihirbazı', icon: Sparkles, path: '/admin/onboarding' });
+        }
+        return [...baseItems, ...extra];
+      })();
 
   return (
     <aside className={`fixed inset-y-0 left-0 z-50 w-72 border-r border-slate-200/90 bg-white transition-transform duration-200 dark:border-slate-800 dark:bg-slate-900 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
@@ -117,7 +176,11 @@ const Sidebar = ({ isOpen, setOpen, user }: { isOpen: boolean, setOpen: (o: bool
             </div>
           </div>
           <button 
-            onClick={() => { localStorage.clear(); window.location.href = '/login'; }}
+            onClick={async () => {
+              try { await api.post('/auth/logout'); } catch { /* ignore */ }
+              clearAuthStorage();
+              window.location.href = '/login';
+            }}
             className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-red-50 hover:text-red-700 dark:text-slate-400 dark:hover:bg-red-950/30 dark:hover:text-red-300"
           >
             <LogOut size={18} />
@@ -196,11 +259,17 @@ const DashboardSkeleton = () => (
   </div>
 );
 
+const isSuperAdminOnly = (user: User) =>
+  user.roles.includes('ROLE_SUPER_ADMIN') && !user.municipality;
+
 const Dashboard = ({ user }: { user: User }) => {
+  if (isSuperAdminOnly(user)) {
+    return <SuperAdminHomePage />;
+  }
   const [stats, setStats] = useState<Stats | null>(null);
   const [statsError, setStatsError] = useState<string | null>(null);
   const [recentReports, setRecentReports] = useState<{ id: string; title: string; status: string; categoryName: string; createdAt: string; district: string }[]>([]);
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting] = useState<'excel' | 'pdf' | null>(null);
 
   useEffect(() => {
     api
@@ -214,20 +283,21 @@ const Dashboard = ({ user }: { user: User }) => {
       .catch(() => {});
   }, []);
 
-  const handleExport = async () => {
-    setExporting(true);
+  const handleExport = async (format: 'excel' | 'pdf') => {
+    setExporting(format);
     try {
-      const res = await api.get('/export/reports/excel', { responseType: 'blob' });
+      const path = format === 'excel' ? '/export/reports/excel' : '/export/reports/pdf';
+      const res = await api.get(path, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement('a');
       a.href = url;
-      a.download = `kentiva-raporlar-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      a.download = `kentiva-raporlar-${new Date().toISOString().slice(0, 10)}.${format === 'excel' ? 'xlsx' : 'pdf'}`;
       a.click();
       window.URL.revokeObjectURL(url);
     } catch {
       alert('Dışa aktarma başarısız oldu.');
     } finally {
-      setExporting(false);
+      setExporting(null);
     }
   };
 
@@ -291,15 +361,26 @@ const Dashboard = ({ user }: { user: User }) => {
           <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">Hoş geldiniz</h2>
           <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">Operasyon özeti ve canlı harita.</p>
         </div>
-        <button
-          type="button"
-          onClick={handleExport}
-          disabled={exporting}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
-        >
-          <Download size={17} />
-          {exporting ? 'İndiriliyor…' : 'Dışa aktar'}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => handleExport('excel')}
+            disabled={exporting !== null}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+          >
+            <Download size={17} />
+            {exporting === 'excel' ? 'İndiriliyor…' : 'Excel'}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleExport('pdf')}
+            disabled={exporting !== null}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+          >
+            <Download size={17} />
+            {exporting === 'pdf' ? 'İndiriliyor…' : 'PDF'}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -328,7 +409,14 @@ const Dashboard = ({ user }: { user: User }) => {
                 Isı katmanı · işaretçi
               </span>
             </div>
-            <LiveMap centerLat={user.municipality?.centerLat} centerLng={user.municipality?.centerLng} zoom={user.municipality?.defaultZoom} />
+            <Suspense fallback={<MapFallback />}>
+              <LiveMap
+                centerLat={user.municipality?.centerLat}
+                centerLng={user.municipality?.centerLng}
+                zoom={user.municipality?.defaultZoom}
+                municipalityId={user.municipality?.id}
+              />
+            </Suspense>
           </div>
         </div>
 
@@ -392,7 +480,7 @@ const App = () => {
           municipality: d.municipality,
         });
       }).catch(() => {
-        localStorage.clear();
+        clearAuthStorage();
       }).finally(() => setLoading(false));
     }
   }, []);
@@ -413,6 +501,14 @@ const App = () => {
   return (
     <Router>
       <Routes>
+        <Route
+          path="/setup"
+          element={
+            <Suspense fallback={<PageFallback />}>
+              <SetupPage />
+            </Suspense>
+          }
+        />
         <Route path="/login" element={user ? <Navigate to="/" /> : <Login onLogin={setUser} />} />
         
         <Route path="/*" element={
@@ -427,19 +523,71 @@ const App = () => {
                   onToggleDark={() => setDarkMode((d) => !d)}
                 />
                 <main className="flex-1 overflow-x-hidden">
+                  <Suspense fallback={<PageFallback />}>
                   <Routes>
                     <Route path="/" element={<Dashboard user={user} />} />
                     <Route path="/reports" element={<ReportsPage />} />
                     <Route path="/reports/:id" element={<ReportDetailPage />} />
                     <Route path="/stats" element={<StatisticsPage />} />
                     <Route
+                      path="/audit-logs"
+                      element={
+                        <ProtectedRoute
+                          user={user}
+                          allow={(u) =>
+                            u.roles.some((r) => ['ROLE_ADMIN', 'ROLE_SUPER_ADMIN'].includes(r))
+                          }
+                        >
+                          <AuditLogsPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/scheduled-exports"
+                      element={
+                        <ProtectedRoute
+                          user={user}
+                          allow={(u) =>
+                            u.roles.some((r) =>
+                              ['ROLE_ADMIN', 'ROLE_DEPT_MANAGER', 'ROLE_SUPER_ADMIN'].includes(r),
+                            )
+                          }
+                        >
+                          <ScheduledExportsPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
                       path="/staff"
                       element={<UsersPage />}
                     />
                     <Route path="/departments" element={<DepartmentsPage />} />
-                    <Route path="/municipality-settings" element={<MunicipalitySettingsPage />} />
-                    <Route path="/admin/municipalities" element={<SuperAdminMunicipalitiesPage />} />
+                    <Route
+                      path="/municipality-settings"
+                      element={
+                        <ProtectedRoute user={user} allow={(u) => u.roles.includes('ROLE_ADMIN') && Boolean(u.municipality)}>
+                          <MunicipalitySettingsPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/admin/municipalities"
+                      element={
+                        <ProtectedRoute user={user} allow={(u) => u.roles.includes('ROLE_SUPER_ADMIN')}>
+                          <SuperAdminMunicipalitiesPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/admin/onboarding"
+                      element={
+                        <ProtectedRoute user={user} allow={(u) => u.roles.includes('ROLE_SUPER_ADMIN')}>
+                          <MunicipalityOnboardingPage />
+                        </ProtectedRoute>
+                      }
+                    />
                   </Routes>
+                  </Suspense>
                 </main>
               </div>
 
@@ -467,6 +615,16 @@ const Login = ({ onLogin }: { onLogin: (u: User) => void }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  useEffect(() => {
+    api
+      .get('/setup/status')
+      .then((res) => {
+        if (res.data.data?.needsBootstrap) {
+          window.location.href = '/setup';
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Şifre sıfırlama
   const [forgotStep, setForgotStep] = useState<'off'|'phone'|'otp'|'newpass'>('off');
@@ -480,8 +638,22 @@ const Login = ({ onLogin }: { onLogin: (u: User) => void }) => {
     e.preventDefault();
     try {
       const res = await api.post('/auth/login', { email, password });
-      localStorage.setItem('token', res.data.data.accessToken);
-      onLogin(res.data.data);
+      const data = res.data.data;
+      localStorage.setItem(TOKEN_KEY, data.accessToken);
+      if (data.refreshToken) {
+        localStorage.setItem(REFRESH_KEY, data.refreshToken);
+      }
+      const fullName =
+        data.fullName ||
+        [data.firstName, data.lastName].filter(Boolean).join(' ').trim() ||
+        data.email;
+      onLogin({
+        fullName,
+        email: data.email,
+        roles: data.roles ? [...data.roles] : [],
+        district: data.district,
+        municipality: data.municipality,
+      });
     } catch (err: unknown) {
       setError(
         axios.isAxiosError(err)
@@ -655,6 +827,12 @@ const Login = ({ onLogin }: { onLogin: (u: User) => void }) => {
             </div>
           )}
 
+          <p className="mt-8 text-center text-sm text-slate-500">
+            İlk kurulum mu?{' '}
+            <Link to="/setup" className="font-semibold text-primary hover:underline">
+              Süper admin oluştur
+            </Link>
+          </p>
           <p className="mt-12 text-center text-slate-400 text-sm font-medium">
             © 2026 Kentiva — Belediye Bildirim ve Takip Platformu
           </p>

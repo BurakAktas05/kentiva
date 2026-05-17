@@ -36,6 +36,7 @@ build/
 .env
 .env.*
 !.env.example
+railway.env
 RAILWAY_ENV_VARS.txt
 
 ### Yerel Spring dev profili (DB şifresi vb.) ###

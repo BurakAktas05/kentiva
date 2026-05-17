@@ -1,0 +1,178 @@
+import { useCallback, useEffect, useState } from 'react';
+import api from '../api';
+
+type ReportTemplate = {
+  id: string;
+  templateKey: string;
+  title: string;
+  descriptionTemplate: string;
+  categoryId: string;
+  categoryName: string;
+  iconCode: string | null;
+  sortOrder: number;
+  global: boolean;
+};
+
+type Category = { id: string; name: string };
+
+export default function ReportTemplatesPanel() {
+  const [templates, setTemplates] = useState<ReportTemplate[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [msg, setMsg] = useState('');
+  const [form, setForm] = useState({
+    templateKey: '',
+    title: '',
+    descriptionTemplate: '',
+    categoryId: '',
+    iconCode: '',
+    sortOrder: '0',
+  });
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [tplRes, catRes] = await Promise.all([
+        api.get('/report-templates'),
+        api.get('/categories'),
+      ]);
+      setTemplates((tplRes.data.data as ReportTemplate[]) || []);
+      const cats = (catRes.data.data as { id: string; name: string }[]) || [];
+      setCategories(cats);
+      setForm((f) => (f.categoryId ? f : { ...f, categoryId: cats[0]?.id || '' }));
+    } catch {
+      setMsg('Şablonlar yüklenemedi.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const create = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMsg('');
+    try {
+      await api.post('/report-templates', {
+        templateKey: form.templateKey.trim(),
+        title: form.title.trim(),
+        descriptionTemplate: form.descriptionTemplate.trim(),
+        categoryId: form.categoryId,
+        iconCode: form.iconCode.trim() || null,
+        sortOrder: Number(form.sortOrder) || 0,
+        global: false,
+      });
+      setForm({
+        templateKey: '',
+        title: '',
+        descriptionTemplate: '',
+        categoryId: categories[0]?.id || '',
+        iconCode: '',
+        sortOrder: '0',
+      });
+      setMsg('Şablon eklendi.');
+      await load();
+    } catch (err: unknown) {
+      const m = err as { response?: { data?: { message?: string } } };
+      setMsg(m.response?.data?.message || 'Kayıt başarısız.');
+    }
+  };
+
+  const remove = async (id: string) => {
+    if (!confirm('Bu şablonu devre dışı bırakmak istiyor musunuz?')) return;
+    setMsg('');
+    try {
+      await api.delete(`/report-templates/${id}`);
+      setMsg('Şablon devre dışı.');
+      await load();
+    } catch {
+      setMsg('Silme başarısız.');
+    }
+  };
+
+  if (loading) {
+    return <p className="text-sm text-slate-500">Şablonlar yükleniyor…</p>;
+  }
+
+  return (
+    <div className="rounded-2xl border border-slate-200/90 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/40">
+      <p className="text-sm font-bold text-slate-800 dark:text-slate-100">Bildirim şablonları</p>
+      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        Vatandaş uygulamasında hızlı seçim kartları. Aynı anahtarla global şablonu belediye özelinde geçersiz kılarsınız.
+      </p>
+
+      {templates.length > 0 ? (
+        <ul className="mt-4 space-y-2">
+          {templates.map((t) => (
+            <li
+              key={t.id}
+              className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900"
+            >
+              <div>
+                <span className="font-semibold text-slate-800 dark:text-slate-100">{t.title}</span>
+                <span className="ml-2 text-[10px] uppercase text-slate-400">{t.templateKey}</span>
+                <p className="text-xs text-slate-500 line-clamp-2">{t.descriptionTemplate}</p>
+                <p className="text-[10px] text-slate-400 mt-1">{t.categoryName}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => remove(t.id)}
+                className="shrink-0 text-xs text-red-600 hover:underline"
+              >
+                Kaldır
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-3 text-xs text-slate-500">Henüz belediye özel şablon yok; vatandaşlar sistem varsayılanlarını görür.</p>
+      )}
+
+      <form onSubmit={create} className="mt-4 space-y-2 border-t border-slate-200 pt-4 dark:border-slate-600">
+        <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Yeni belediye şablonu</p>
+        <input
+          className="w-full rounded-lg border px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-900"
+          placeholder="Anahtar (ör. pothole)"
+          value={form.templateKey}
+          onChange={(e) => setForm((f) => ({ ...f, templateKey: e.target.value }))}
+          required
+        />
+        <input
+          className="w-full rounded-lg border px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-900"
+          placeholder="Başlık (kart üzerinde)"
+          value={form.title}
+          onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+          required
+        />
+        <textarea
+          className="w-full rounded-lg border px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-900"
+          rows={3}
+          placeholder="Örnek açıklama metni"
+          value={form.descriptionTemplate}
+          onChange={(e) => setForm((f) => ({ ...f, descriptionTemplate: e.target.value }))}
+          required
+        />
+        <select
+          className="w-full rounded-lg border px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-900"
+          value={form.categoryId}
+          onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}
+        >
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <button
+          type="submit"
+          className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover"
+        >
+          Ekle
+        </button>
+      </form>
+      {msg ? <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">{msg}</p> : null}
+    </div>
+  );
+}

@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.locationtech.jts.geom.Polygon;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -76,6 +77,20 @@ public class Municipality extends BaseEntity {
     @Column(length = 255)
     private String slogan;
 
+    /** Çözülen ihbar SMS şablonu — {belediye}, {baslik}, {not}, {slogan} */
+    @Column(name = "sms_resolved_template", columnDefinition = "TEXT")
+    private String smsResolvedTemplate;
+
+    @Column(name = "push_rejected_title_template", length = 200)
+    private String pushRejectedTitleTemplate;
+
+    @Column(name = "push_rejected_body_template", columnDefinition = "TEXT")
+    private String pushRejectedBodyTemplate;
+
+    /** NetGSM gönderici adı (belediye markası) */
+    @Column(name = "sms_sender_header", length = 11)
+    private String smsSenderHeader;
+
     @Column(name = "contact_email", length = 255)
     private String contactEmail;
 
@@ -100,10 +115,30 @@ public class Municipality extends BaseEntity {
     @Builder.Default
     private boolean onboarded = true;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "subscription_plan", nullable = false, length = 32)
+    @Builder.Default
+    private SubscriptionPlan subscriptionPlan = SubscriptionPlan.TRIAL;
+
+    @Column(name = "subscription_ends_at")
+    private LocalDateTime subscriptionEndsAt;
+
     /**
      * Belediyenin sınırları (opsiyonel).
      * WGS84 (SRID 4326) formatında.
      */
     @Column(columnDefinition = "geometry(Polygon,4326)")
     private Polygon boundaries;
+
+    /** ERP/CRM giden webhook hedef URL (https) */
+    @Column(name = "webhook_url", length = 512)
+    private String webhookUrl;
+
+    @Column(name = "webhook_enabled", nullable = false)
+    @Builder.Default
+    private boolean webhookEnabled = false;
+
+    /** HMAC imza için paylaşılan sır (X-BelediyeApp-Signature) */
+    @Column(name = "webhook_secret", length = 64)
+    private String webhookSecret;
 }

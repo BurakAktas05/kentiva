@@ -5,14 +5,17 @@ import com.burak.belediyeapp.dto.request.municipality.MunicipalityPatchRequest;
 import com.burak.belediyeapp.dto.response.municipality.MunicipalityDto;
 import com.burak.belediyeapp.entity.AppUser;
 import com.burak.belediyeapp.entity.Municipality;
+import com.burak.belediyeapp.entity.SubscriptionPlan;
 import com.burak.belediyeapp.exception.BusinessException;
 import com.burak.belediyeapp.exception.ResourceNotFoundException;
+import com.burak.belediyeapp.config.EvictMunicipalityCaches;
 import com.burak.belediyeapp.repository.IMunicipalityRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -39,6 +42,7 @@ public class MunicipalityManagementService {
     }
 
     @Transactional
+    @EvictMunicipalityCaches
     public MunicipalityDto create(CreateMunicipalityRequest req) {
         String slug = resolveUniqueSlug(req.slug(), req.name());
         Municipality.MunicipalityBuilder b = Municipality.builder()
@@ -49,9 +53,12 @@ public class MunicipalityManagementService {
                 .centerLat(req.centerLat() != null ? req.centerLat() : 41.0082)
                 .centerLng(req.centerLng() != null ? req.centerLng() : 28.9784)
                 .defaultZoom(req.defaultZoom() != null ? req.defaultZoom() : 12)
+                .slogan(req.slogan() != null && !req.slogan().isBlank() ? req.slogan().trim() : null)
                 .active(true)
                 .onboarded(true)
-                .publicStatsEnabled(false);
+                .publicStatsEnabled(false)
+                .subscriptionPlan(SubscriptionPlan.TRIAL)
+                .subscriptionEndsAt(LocalDateTime.now().plusDays(30));
         Municipality entity = b.build();
         if (req.parentMunicipalityId() != null && !req.parentMunicipalityId().isBlank()) {
             Municipality parent = municipalityRepository.findById(req.parentMunicipalityId())
@@ -64,6 +71,7 @@ public class MunicipalityManagementService {
     }
 
     @Transactional
+    @EvictMunicipalityCaches
     public MunicipalityDto patchBySuperAdmin(String municipalityId, MunicipalityPatchRequest patch) {
         Municipality m = municipalityRepository.findById(municipalityId)
                 .orElseThrow(() -> new ResourceNotFoundException("Belediye", "id", municipalityId));
@@ -72,6 +80,7 @@ public class MunicipalityManagementService {
     }
 
     @Transactional
+    @EvictMunicipalityCaches
     public MunicipalityDto patchOwnTenant(AppUser admin, MunicipalityPatchRequest patch) {
         if (admin.getMunicipality() == null) {
             throw new BusinessException("Bu hesap bir belediyeye bağlı değil", "MUNICIPALITY_NOT_ASSIGNED");
@@ -110,6 +119,18 @@ public class MunicipalityManagementService {
         if (p.websiteUrl() != null) {
             m.setWebsiteUrl(p.websiteUrl().isBlank() ? null : p.websiteUrl());
         }
+        if (p.smsResolvedTemplate() != null) {
+            m.setSmsResolvedTemplate(p.smsResolvedTemplate().isBlank() ? null : p.smsResolvedTemplate());
+        }
+        if (p.pushRejectedTitleTemplate() != null) {
+            m.setPushRejectedTitleTemplate(p.pushRejectedTitleTemplate().isBlank() ? null : p.pushRejectedTitleTemplate());
+        }
+        if (p.pushRejectedBodyTemplate() != null) {
+            m.setPushRejectedBodyTemplate(p.pushRejectedBodyTemplate().isBlank() ? null : p.pushRejectedBodyTemplate());
+        }
+        if (p.smsSenderHeader() != null) {
+            m.setSmsSenderHeader(p.smsSenderHeader().isBlank() ? null : p.smsSenderHeader().trim());
+        }
         if (p.publicStatsEnabled() != null) {
             m.setPublicStatsEnabled(p.publicStatsEnabled());
         }
@@ -119,6 +140,12 @@ public class MunicipalityManagementService {
             }
             if (p.onboarded() != null) {
                 m.setOnboarded(p.onboarded());
+            }
+            if (p.subscriptionPlan() != null && !p.subscriptionPlan().isBlank()) {
+                m.setSubscriptionPlan(SubscriptionPlan.valueOf(p.subscriptionPlan().trim().toUpperCase()));
+            }
+            if (p.subscriptionEndsAt() != null) {
+                m.setSubscriptionEndsAt(p.subscriptionEndsAt());
             }
             if (p.slug() != null && !p.slug().isBlank()) {
                 String ns = p.slug().trim();
@@ -132,6 +159,7 @@ public class MunicipalityManagementService {
     }
 
     @Transactional
+    @EvictMunicipalityCaches
     public void updateBoundaries(String municipalityId, String geoJson) {
         if (!municipalityRepository.existsById(municipalityId)) {
             throw new ResourceNotFoundException("Belediye", "id", municipalityId);

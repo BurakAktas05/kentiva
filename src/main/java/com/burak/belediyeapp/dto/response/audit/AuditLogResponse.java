@@ -13,5 +13,8 @@ public record AuditLogResponse(
         String description,
         String methodName,
         String ipAddress,
+        String municipalityId,
+        String entityId,
+        String resultSummary,
         LocalDateTime createdAt
 ) {}

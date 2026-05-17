@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { resolveMediaUrl } from '../lib/env';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, MapPin, Sparkles, UserPlus, CheckCircle2 } from 'lucide-react';
 import axios from 'axios';
@@ -118,9 +119,9 @@ export default function ReportDetailPage() {
               <p className="mb-2 text-sm font-semibold text-slate-500">Fotoğraflar</p>
               <div className="flex flex-wrap gap-3">
                 {report.mediaUrls.map((url, i) => (
-                  <a key={i} href={url} target="_blank" rel="noreferrer" className="group">
+                  <a key={i} href={resolveMediaUrl(url)} target="_blank" rel="noreferrer" className="group">
                     <img
-                      src={url}
+                      src={resolveMediaUrl(url)}
                       alt={`Rapor fotoğrafı ${i + 1}`}
                       className="h-28 w-28 rounded-xl border border-slate-200 object-cover shadow-sm transition-transform group-hover:scale-105 dark:border-slate-700"
                     />

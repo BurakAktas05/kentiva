@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -7,7 +8,7 @@ import SockJS from 'sockjs-client';
 import Stomp from 'stompjs';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertCircle, Flame, MapPin, Layers } from 'lucide-react';
-import api, { type Report, type ReportListItem } from './api';
+import api, { TOKEN_KEY, type Report, type ReportListItem } from './api';
 import { getSockJsUrl } from './lib/env';
 
 // Leaflet default icon paths (bundler)
@@ -80,7 +81,25 @@ const statusBadge = (status: string) => {
   }
 };
 
-const LiveMap = ({ centerLat, centerLng, zoom }: { centerLat?: number, centerLng?: number, zoom?: number }) => {
+const LiveMap = ({
+  centerLat,
+  centerLng,
+  zoom,
+  municipalityId,
+}: {
+  centerLat?: number;
+  centerLng?: number;
+  zoom?: number;
+  municipalityId?: string;
+}) => {
+  const navigate = useNavigate();
+  const openReportDetail = useCallback(
+    (reportId: string) => {
+      navigate(`/reports/${reportId}`);
+    },
+    [navigate],
+  );
+
   const [reports, setReports] = useState<Report[]>([]);
   const [newReport, setNewReport] = useState<Report | null>(null);
   const [layerMode, setLayerMode] = useState<MapLayerMode>('both');
@@ -116,15 +135,27 @@ const LiveMap = ({ centerLat, centerLng, zoom }: { centerLat?: number, centerLng
   }, []);
 
   useEffect(() => {
-    const socket = new SockJS(getSockJsUrl());
+    if (!municipalityId) {
+      setWsConnected(false);
+      return;
+    }
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) {
+      setWsConnected(false);
+      return;
+    }
+    const wsUrl = `${getSockJsUrl()}?token=${encodeURIComponent(token)}`;
+    const socket = new SockJS(wsUrl);
     const stompClient = Stomp.over(socket);
     stompClient.debug = () => {};
+    const topic = `/topic/municipality/${municipalityId}/reports`;
+    const connectHeaders = { Authorization: `Bearer ${token}` };
 
     stompClient.connect(
-      {},
+      connectHeaders,
       () => {
         setWsConnected(true);
-        stompClient.subscribe('/topic/reports', (msg) => {
+        stompClient.subscribe(topic, (msg) => {
           const report = JSON.parse(msg.body) as Report;
           if (Number.isFinite(report.latitude) && Number.isFinite(report.longitude)) {
             mergeReport(report);
@@ -133,7 +164,7 @@ const LiveMap = ({ centerLat, centerLng, zoom }: { centerLat?: number, centerLng
           }
         });
       },
-      () => setWsConnected(false)
+      () => setWsConnected(false),
     );
 
     return () => {
@@ -144,7 +175,7 @@ const LiveMap = ({ centerLat, centerLng, zoom }: { centerLat?: number, centerLng
       }
       setWsConnected(false);
     };
-  }, [mergeReport]);
+  }, [mergeReport, municipalityId]);
 
   const heatPoints = useMemo(() => {
     const weight: Record<string, number> = {
@@ -207,9 +238,15 @@ const LiveMap = ({ centerLat, centerLng, zoom }: { centerLat?: number, centerLng
         {showHeat && heatPoints.length > 0 && <HeatLayer points={heatPoints} />}
         {showMarkers &&
           reports.map((report) => (
-            <Marker key={report.id} position={[report.latitude, report.longitude]}>
+            <Marker
+              key={report.id}
+              position={[report.latitude, report.longitude]}
+              eventHandlers={{
+                click: () => openReportDetail(report.id),
+              }}
+            >
               <Popup>
-                <div className="p-2">
+                <div className="min-w-[160px] p-2">
                   <h4 className="font-bold text-primary">{report.title}</h4>
                   <p className="mb-2 text-xs text-slate-500">
                     {report.categoryName} • {report.district}
@@ -217,6 +254,13 @@ const LiveMap = ({ centerLat, centerLng, zoom }: { centerLat?: number, centerLng
                   <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${statusBadge(report.status)}`}>
                     {report.status}
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => openReportDetail(report.id)}
+                    className="mt-3 w-full rounded-lg bg-primary px-2 py-1.5 text-xs font-bold text-white hover:bg-primary/90"
+                  >
+                    Detay
+                  </button>
                 </div>
               </Popup>
             </Marker>

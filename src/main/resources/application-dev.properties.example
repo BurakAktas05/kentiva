@@ -1,14 +1,18 @@
 # ============================================================
 #  DEV profili — Yerel geliştirme
-#  Bu dosyayı application-dev.properties olarak kopyalayın ve düzenleyin.
+#  Seçenek A: cp application-dev.properties.example application-dev.properties
+#  Seçenek B: cp .env.example .env (proje kökü — Spring otomatik okur)
 # ============================================================
 
 spring.datasource.url=jdbc:postgresql://localhost:5432/belediyeapp
 spring.datasource.username=postgres
 spring.datasource.password=CHANGE_ME
 
-# Base64; üretimde güçlü bir değer kullanın
+# Base64; üretmek için: openssl rand -base64 64
 app.security.jwt.secret=CHANGE_ME_BASE64
+
+# İlk kurulum sayfası (/setup) — yerel test
+app.setup.token=dev-local-setup-key
 
 spring.flyway.validate-on-migrate=false
 spring.flyway.locations=classpath:db/migration,classpath:db/dev-migration
@@ -16,6 +20,7 @@ spring.flyway.locations=classpath:db/migration,classpath:db/dev-migration
 spring.jpa.hibernate.ddl-auto=update
 
 app.storage.type=local
+app.storage.local.upload-dir=uploads
 app.websocket.enabled=true
 
 springdoc.swagger-ui.enabled=true
@@ -23,3 +28,8 @@ springdoc.api-docs.enabled=true
 
 logging.level.com.burak.belediyeapp=DEBUG
 spring.jpa.show-sql=true
+
+# Opsiyonel — AI / SMS / Firebase (.env ile de verilebilir)
+# app.ai.gemini.api-key=
+# app.sms.provider=none
+# app.firebase.config-base64=

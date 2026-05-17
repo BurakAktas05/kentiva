@@ -21,10 +21,35 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
 
     private Bucket createNewBucket() {
-        // Her IP için dakikada 60 istek hakkı
+        return createNewBucket(60);
+    }
+
+    private Bucket createNewBucket(int perMinute) {
         return Bucket4j.builder()
-                .addLimit(Bandwidth.classic(60, Refill.intervally(60, Duration.ofMinutes(1))))
+                .addLimit(Bandwidth.classic(perMinute, Refill.intervally(perMinute, Duration.ofMinutes(1))))
                 .build();
+    }
+
+    private String resolveRateLimitKey(HttpServletRequest request) {
+        String apiKey = request.getHeader("X-Api-Key");
+        if (apiKey != null && !apiKey.isBlank()) {
+            return "apikey:" + apiKey.substring(0, Math.min(12, apiKey.length()));
+        }
+        String auth = request.getHeader("Authorization");
+        if (auth != null && auth.regionMatches(true, 0, "ApiKey ", 0, 7)) {
+            String key = auth.substring(7).trim();
+            return "apikey:" + key.substring(0, Math.min(12, key.length()));
+        }
+        if (request.getRequestURI().startsWith("/api/v1/integration/")) {
+            return "integration:" + request.getRemoteAddr();
+        }
+        String ip = request.getHeader("X-Forwarded-For");
+        if (ip == null || ip.isBlank()) {
+            ip = request.getRemoteAddr();
+        } else {
+            ip = ip.split(",")[0].trim();
+        }
+        return "ip:" + ip;
     }
 
     @Override
@@ -34,14 +59,10 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isBlank()) {
-            ip = request.getRemoteAddr();
-        } else {
-            ip = ip.split(",")[0].trim();
-        }
+        String rateKey = resolveRateLimitKey(request);
 
-        Bucket bucket = buckets.computeIfAbsent(ip, k -> createNewBucket());
+        int perMinute = rateKey.startsWith("apikey:") ? 120 : 60;
+        Bucket bucket = buckets.computeIfAbsent(rateKey, k -> createNewBucket(perMinute));
 
         if (bucket.tryConsume(1)) {
             return true;

@@ -18,4 +18,6 @@ public interface IReportHistoryRepository extends JpaRepository<ReportHistory, S
             ORDER BY h.createdAt ASC
             """)
     List<ReportHistory> findTimelineByReportId(@Param("reportId") String reportId);
+
+    java.util.Optional<ReportHistory> findFirstByReport_IdOrderByCreatedAtDesc(String reportId);
 }

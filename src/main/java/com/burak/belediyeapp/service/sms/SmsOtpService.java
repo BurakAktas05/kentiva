@@ -49,12 +49,36 @@ public class SmsOtpService {
         otpStore.put(normalizePhone(phoneNumber), new OtpEntry(code, expiresAt));
 
         String message = "Kentiva doğrulama kodunuz: " + code + " (5 dk geçerli)";
+        return sendNotification(phoneNumber, message);
+    }
 
+    /**
+     * Bilgilendirme SMS'i (ihbar çözüldü vb.) — OTP değil.
+     */
+    public boolean sendNotification(String phoneNumber, String message) {
+        return sendNotification(phoneNumber, message, null);
+    }
+
+    /**
+     * @param msgHeaderOverride NetGSM gönderici adı (belediye markası); null ise global başlık
+     */
+    public boolean sendNotification(String phoneNumber, String message, String msgHeaderOverride) {
+        if (phoneNumber == null || phoneNumber.isBlank()) {
+            log.debug("SMS atlandı: telefon numarası yok");
+            return false;
+        }
+        if (message == null || message.isBlank()) {
+            return false;
+        }
+        String formatted = formatPhoneForSms(phoneNumber);
+        String header = (msgHeaderOverride != null && !msgHeaderOverride.isBlank())
+                ? msgHeaderOverride.trim()
+                : netgsmHeader;
         return switch (provider.toLowerCase()) {
-            case "netgsm" -> sendViaNetgsm(phoneNumber, message);
-            case "twilio" -> sendViaTwilio(phoneNumber, message);
+            case "netgsm" -> sendViaNetgsm(formatted, message, header);
+            case "twilio" -> sendViaTwilio(formatted, message);
             default -> {
-                log.info("SMS (dev modu): {} → {}", phoneNumber, code);
+                log.info("SMS (dev modu) [{}]: {} → {}", header, formatted, truncateForLog(message));
                 yield true;
             }
         };
@@ -81,9 +105,31 @@ public class SmsOtpService {
         return phone.replaceAll("[^0-9+]", "");
     }
 
+    /** NetGSM için 90XXXXXXXXXX formatı */
+    String formatPhoneForSms(String phone) {
+        String digits = normalizePhone(phone).replace("+", "");
+        if (digits.startsWith("00")) {
+            digits = digits.substring(2);
+        }
+        if (digits.startsWith("0") && digits.length() == 11) {
+            digits = "9" + digits;
+        }
+        if (!digits.startsWith("90") && digits.length() == 10) {
+            digits = "90" + digits;
+        }
+        return digits;
+    }
+
+    private static String truncateForLog(String message) {
+        return message.length() <= 80 ? message : message.substring(0, 80) + "…";
+    }
+
     private boolean sendViaNetgsm(String phone, String message) {
+        return sendViaNetgsm(phone, message, netgsmHeader);
+    }
+
+    private boolean sendViaNetgsm(String phone, String message, String msgHeader) {
         try {
-            // NetGSM XML API
             String xml = """
                 <?xml version="1.0" encoding="UTF-8"?>
                 <mainbody>
@@ -99,7 +145,7 @@ public class SmsOtpService {
                     <no>%s</no>
                   </body>
                 </mainbody>
-                """.formatted(netgsmUsercode, netgsmPassword, netgsmHeader, message, phone);
+                """.formatted(netgsmUsercode, netgsmPassword, msgHeader, message, phone);
 
             HttpClient client = HttpClient.newHttpClient();
             HttpRequest request = HttpRequest.newBuilder()

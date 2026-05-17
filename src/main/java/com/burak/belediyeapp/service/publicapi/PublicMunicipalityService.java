@@ -7,7 +7,9 @@ import com.burak.belediyeapp.entity.MunicipalityType;
 import com.burak.belediyeapp.exception.ResourceNotFoundException;
 import com.burak.belediyeapp.repository.IMunicipalityRepository;
 import com.burak.belediyeapp.service.geo.DistrictResolutionService;
+import com.burak.belediyeapp.config.CacheNames;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +24,7 @@ public class PublicMunicipalityService {
     private final DistrictResolutionService districtResolutionService;
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.PUBLIC_MUNICIPALITIES, key = "'list-district'")
     public List<PublicMunicipalitySummaryDto> listDistrictMunicipalities() {
         return municipalityRepository.findActiveByTypeOrderByDisplay(MunicipalityType.DISTRICT).stream()
                 .map(this::toSummary)
@@ -29,6 +32,7 @@ public class PublicMunicipalityService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.PUBLIC_MUNICIPALITIES, key = "'slug:' + #slug.toLowerCase()")
     public PublicMunicipalityDetailDto getBySlug(String slug) {
         Municipality m = municipalityRepository.findBySlugIgnoreCaseAndActiveTrue(slug)
                 .orElseThrow(() -> new ResourceNotFoundException("Belediye", "slug", slug));

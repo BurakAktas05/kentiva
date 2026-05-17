@@ -2,6 +2,8 @@ package com.burak.belediyeapp.controller;
 
 import com.burak.belediyeapp.dto.response.auth.AuthResponse;
 import com.burak.belediyeapp.repository.IAppUserRepository;
+import com.burak.belediyeapp.security.ApiKeyAuthFilter;
+import com.burak.belediyeapp.security.JwtAuthenticationSupport;
 import com.burak.belediyeapp.service.auth.AuthService;
 import com.burak.belediyeapp.service.auth.JwtService;
 import org.junit.jupiter.api.Test;
@@ -28,7 +30,9 @@ class AuthControllerWebMvcTest {
 
     @MockitoBean AuthService authService;
     @MockitoBean JwtService jwtService;
+    @MockitoBean JwtAuthenticationSupport jwtAuthenticationSupport;
     @MockitoBean IAppUserRepository userRepository;
+    @MockitoBean ApiKeyAuthFilter apiKeyAuthFilter;
 
     @Test
     void loginReturnsAuthResponseForValidRequest() throws Exception {

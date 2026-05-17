@@ -1,14 +1,22 @@
 package com.burak.belediyeapp.config;
 
+import com.burak.belediyeapp.security.JwtWebSocketHandshakeInterceptor;
+import com.burak.belediyeapp.security.StompAuthenticationChannelInterceptor;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
+import org.springframework.web.socket.server.support.DefaultHandshakeHandler;
 
+import java.security.Principal;
 import java.util.Arrays;
+import java.util.Map;
 
 /**
  * WebSocket yapılandırması — yalnızca app.websocket.enabled=true ise aktif.
@@ -18,24 +26,45 @@ import java.util.Arrays;
 @Configuration
 @ConditionalOnProperty(name = "app.websocket.enabled", havingValue = "true")
 @EnableWebSocketMessageBroker
+@RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+
+    private final JwtWebSocketHandshakeInterceptor handshakeInterceptor;
+    private final StompAuthenticationChannelInterceptor stompAuthenticationChannelInterceptor;
 
     @Value("${app.websocket.allowed-origins:*}")
     private String allowedOrigins;
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
-        // Mesajların dağıtılacağı prefixler
         config.enableSimpleBroker("/topic");
-        // Client'tan server'a gönderilecek mesajların prefix'i
         config.setApplicationDestinationPrefixes("/app");
     }
 
     @Override
+    public void configureClientInboundChannel(ChannelRegistration registration) {
+        registration.interceptors(stompAuthenticationChannelInterceptor);
+    }
+
+    @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // Bağlantı endpoint'i
         registry.addEndpoint("/ws-belediye")
                 .setAllowedOrigins(parseCsv(allowedOrigins))
+                .addInterceptors(handshakeInterceptor)
+                .setHandshakeHandler(new DefaultHandshakeHandler() {
+                    @Override
+                    protected Principal determineUser(
+                            org.springframework.http.server.ServerHttpRequest request,
+                            org.springframework.web.socket.WebSocketHandler wsHandler,
+                            Map<String, Object> attributes
+                    ) {
+                        Object auth = attributes.get(JwtWebSocketHandshakeInterceptor.AUTH_ATTRIBUTE);
+                        if (auth instanceof UsernamePasswordAuthenticationToken token) {
+                            return token;
+                        }
+                        return null;
+                    }
+                })
                 .withSockJS();
     }
 

@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,6 +22,18 @@ public interface IReportRepository extends JpaRepository<Report, String> {
     Page<Report> findByReporterId(String reporterId, Pageable pageable);
 
     Optional<Report> findByIdAndMunicipalityId(String id, String municipalityId);
+
+    @Query("SELECT r FROM Report r LEFT JOIN FETCH r.municipality WHERE r.id = :id")
+    Optional<Report> findByIdWithMunicipality(@Param("id") String id);
+
+    @Query("""
+            SELECT r FROM Report r
+            LEFT JOIN FETCH r.municipality
+            LEFT JOIN FETCH r.category
+            LEFT JOIN FETCH r.reporter
+            WHERE r.id = :id
+            """)
+    Optional<Report> findByIdForRealtimePush(@Param("id") String id);
 
     /**
      * Belirli bir saha görevlisine atanmış raporları getirir.
@@ -110,4 +123,55 @@ public interface IReportRepository extends JpaRepository<Report, String> {
     Page<Report> findByMunicipalityIdAndReportStatus(String municipalityId, ReportStatus status, Pageable pageable);
     
     long countByMunicipalityIdAndReportStatus(String municipalityId, ReportStatus status);
+
+    long countByMunicipalityId(String municipalityId);
+
+    @Query("""
+            SELECT r FROM Report r
+            LEFT JOIN FETCH r.category
+            LEFT JOIN FETCH r.reporter
+            LEFT JOIN FETCH r.assignee
+            WHERE (:municipalityId IS NULL OR r.municipality.id = :municipalityId)
+              AND (:status IS NULL OR r.reportStatus = :status)
+              AND (:from IS NULL OR r.createdAt >= :from)
+              AND (:to IS NULL OR r.createdAt <= :to)
+            ORDER BY r.createdAt DESC
+            """)
+    List<Report> findForExport(
+            @Param("municipalityId") String municipalityId,
+            @Param("status") ReportStatus status,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to,
+            Pageable pageable);
+
+    @Query("""
+            SELECT r FROM Report r
+            LEFT JOIN FETCH r.category
+            LEFT JOIN FETCH r.reporter
+            LEFT JOIN FETCH r.assignee
+            WHERE r.id IN :reportIds
+              AND (:municipalityId IS NULL OR r.municipality.id = :municipalityId)
+            ORDER BY r.createdAt DESC
+            """)
+    List<Report> findForExportByIds(
+            @Param("reportIds") List<String> reportIds,
+            @Param("municipalityId") String municipalityId);
+
+    @Query(value = """
+            SELECT
+                COALESCE(c.name, 'Diğer') AS category_name,
+                COALESCE(r.district, 'Genel') AS district,
+                COUNT(*) FILTER (WHERE r.created_at >= NOW() - INTERVAL '30 days') AS recent_cnt,
+                COUNT(*) FILTER (WHERE r.created_at >= NOW() - INTERVAL '60 days'
+                    AND r.created_at < NOW() - INTERVAL '30 days') AS prev_cnt,
+                COUNT(*) FILTER (WHERE r.report_status IN ('PENDING', 'PROCESSING')) AS open_cnt
+            FROM reports r
+            LEFT JOIN report_categories c ON c.id = r.category_id
+            WHERE r.municipality_id = :municipalityId
+            GROUP BY c.name, r.district
+            HAVING COUNT(*) FILTER (WHERE r.created_at >= NOW() - INTERVAL '30 days') >= 2
+            ORDER BY recent_cnt DESC
+            LIMIT 15
+            """, nativeQuery = true)
+    List<Object[]> findPredictiveHotspots(@Param("municipalityId") String municipalityId);
 }

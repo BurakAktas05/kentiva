@@ -10,5 +10,6 @@ public record ReportListResponse(
         Double latitude,
         Double longitude,
         LocalDateTime createdAt,
-        String district
+        String district,
+        String aiPriority
 ) {}

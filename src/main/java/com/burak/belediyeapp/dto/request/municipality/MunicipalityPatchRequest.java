@@ -16,5 +16,11 @@ public record MunicipalityPatchRequest(
         Boolean publicStatsEnabled,
         Boolean active,
         Boolean onboarded,
-        String slug
+        String subscriptionPlan,
+        java.time.LocalDateTime subscriptionEndsAt,
+        String slug,
+        String smsResolvedTemplate,
+        String pushRejectedTitleTemplate,
+        String pushRejectedBodyTemplate,
+        String smsSenderHeader
 ) {}

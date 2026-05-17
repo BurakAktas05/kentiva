@@ -25,8 +25,13 @@ public class CategoryController {
     private final CategoryService categoryService;
 
     @GetMapping
-    @Operation(summary = "Aktif kategorileri listele (Tüm Kullanıcılar)")
-    public ResponseEntity<ApiResponse<List<CategoryResponse>>> getActiveCategories() {
+    @Operation(summary = "Aktif kategorileri listele (global veya belediye kapsamlı)")
+    public ResponseEntity<ApiResponse<List<CategoryResponse>>> getActiveCategories(
+            @RequestParam(required = false) String municipalityId) {
+        if (municipalityId != null && !municipalityId.isBlank()) {
+            return ResponseEntity.ok(
+                    ApiResponse.success(categoryService.getActiveCategoriesForMunicipality(municipalityId.trim())));
+        }
         return ResponseEntity.ok(ApiResponse.success(categoryService.getActiveCategories()));
     }
 

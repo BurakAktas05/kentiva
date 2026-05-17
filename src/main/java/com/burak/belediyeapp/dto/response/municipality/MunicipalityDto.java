@@ -1,6 +1,7 @@
 package com.burak.belediyeapp.dto.response.municipality;
 
 import com.burak.belediyeapp.entity.Municipality;
+import com.burak.belediyeapp.service.admin.MembershipStatusResolver;
 
 /**
  * Oturum ve yönetim API'lerinde dönen belediye bilgisi (Kentiva markalama dahil).
@@ -25,7 +26,15 @@ public record MunicipalityDto(
         String websiteUrl,
         Boolean publicStatsEnabled,
         Boolean active,
-        Boolean onboarded
+        Boolean onboarded,
+        String subscriptionPlan,
+        java.time.LocalDateTime subscriptionEndsAt,
+        Long daysRemaining,
+        String membershipStatus,
+        String smsResolvedTemplate,
+        String pushRejectedTitleTemplate,
+        String pushRejectedBodyTemplate,
+        String smsSenderHeader
 ) {
     public static MunicipalityDto fromEntity(Municipality m) {
         if (m == null) {
@@ -54,7 +63,15 @@ public record MunicipalityDto(
                 m.getWebsiteUrl(),
                 m.isPublicStatsEnabled(),
                 m.isActive(),
-                m.isOnboarded()
+                m.isOnboarded(),
+                m.getSubscriptionPlan().name(),
+                m.getSubscriptionEndsAt(),
+                MembershipStatusResolver.daysRemaining(m.getSubscriptionEndsAt()),
+                MembershipStatusResolver.resolve(m).name(),
+                m.getSmsResolvedTemplate(),
+                m.getPushRejectedTitleTemplate(),
+                m.getPushRejectedBodyTemplate(),
+                m.getSmsSenderHeader()
         );
     }
 }

@@ -55,6 +55,14 @@ public class AuditLog {
     @Column(length = 50)
     private String ipAddress;
 
+    /** İşlemin ait olduğu belediye (tenant) */
+    @Column(length = 36)
+    private String municipalityId;
+
+    /** İlişkili varlık kimliği (ör. rapor UUID) */
+    @Column(length = 36)
+    private String entityId;
+
     /** Kayıt zamanı */
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

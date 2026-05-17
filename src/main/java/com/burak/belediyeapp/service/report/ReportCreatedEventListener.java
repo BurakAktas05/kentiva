@@ -37,8 +37,13 @@ public class ReportCreatedEventListener {
         // WebSocket push — opsiyonel
         if (messagingTemplate != null) {
             try {
-                reportRepository.findById(event.reportId()).ifPresent(report ->
-                        messagingTemplate.convertAndSend("/topic/reports", reportMapper.toResponse(report)));
+                reportRepository.findByIdForRealtimePush(event.reportId()).ifPresent(report -> {
+                    if (report.getMunicipality() == null) {
+                        return;
+                    }
+                    String topic = "/topic/municipality/" + report.getMunicipality().getId() + "/reports";
+                    messagingTemplate.convertAndSend(topic, reportMapper.toResponse(report));
+                });
             } catch (Exception e) {
                 log.warn("WebSocket push hatası: {}", e.getMessage());
             }

@@ -1,20 +1,87 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Kentiva — Vatandaş uygulaması (React + Vite + Capacitor)
 
-# Run and deploy your AI Studio app
+Web, Android ve iOS için belediye bildirim uygulaması.
 
-This contains everything you need to run your app locally.
+## Web geliştirme
 
-View your app in AI Studio: https://ai.studio/apps/c7153c3d-f7d7-4526-a371-45fd87316751
+1. `npm install`
+2. `.env` / `.env.local` içinde API adresini ayarlayın (bkz. `.env.example`)
+3. `npm run dev` — http://localhost:3000
 
-## Run Locally
+## Üretim web derlemesi
 
-**Prerequisites:**  Node.js
+```bash
+npm run build
+npm run preview
+```
 
+## Native (Capacitor) — Android & iOS
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+Önkoşullar:
+
+- **Android:** Android Studio, JDK 21, SDK 36
+- **iOS:** macOS, Xcode (simülatör veya cihaz; Windows’ta yalnızca `cap add ios` / sync yapılabilir, derleme Mac gerekir)
+
+### Her native derlemeden önce
+
+```bash
+npm run build          # dist üretir
+npx cap sync           # dist → android/ ve ios/ kopyalar, eklentileri günceller
+```
+
+Kısayol: `npm run build:native` (= build + sync)
+
+### Android emülatör veya cihaz
+
+```bash
+npm run build:native
+npm run cap:android    # Android Studio açar → Run
+# veya tek komut:
+npm run cap:run:android
+```
+
+Debug’da canlı yenileme (aynı Wi‑Fi):
+
+```bash
+npm run dev
+# Başka terminal:
+set CAPACITOR_DEV_SERVER_URL=http://BILGISAYAR_IP:3000
+npx cap sync
+npm run cap:run:android
+```
+
+Üretim APK: `CAPACITOR_DEV_SERVER_URL` **vermeyin**; `release` build’de cleartext kapalıdır.
+
+### iOS simülatör veya cihaz (macOS)
+
+```bash
+npm run build:native
+cd ios/App && pod install && cd ../..
+npm run cap:ios        # Xcode açar → Run (simülatör veya cihaz)
+# veya:
+npm run cap:run:ios
+```
+
+İlk kez iOS yoksa: `npx cap add ios` (bir kez), ardından `npm run build:native`.
+
+### İzinler
+
+- Konum: bildirim konumu, belediye seçimi
+- Kamera / galeri: fotoğraflı bildirim
+- Bildirimler: push (FCM)
+
+Android manifest ve iOS `Info.plist` bu izinler için yapılandırılmıştır.
+
+### Push (FCM) kurulumu
+
+**Backend:** Proje kökünde `FIREBASE_CONFIG_BASE64` — Firebase Console → Proje ayarları → Hizmet hesapları → JSON indir, ardından Base64:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("service-account.json"))
+```
+
+**Android:** `belediyehattı/android/app/google-services.json` dosyasını Firebase Console’dan indirip koyun (yoksa push çalışmaz; Gradle uyarısı loglanır).
+
+**iOS:** Xcode’da hedef → Signing & Capabilities → **Push Notifications** ve **Background Modes → Remote notifications** ekleyin. APNs anahtarı/sertifikası Firebase’e yüklenmelidir.
+
+**Test:** Giriş yaptıktan sonra uygulama `PATCH /api/v1/users/fcm-token` ile token kaydeder. Rapor durumu değişince (REJECTED, PROCESSING vb.) push gelir; bildirime dokununca rapor detayı açılır. Firebase Console → Messaging → tek cihaz token’ı ile de test edebilirsiniz.

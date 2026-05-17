@@ -52,9 +52,20 @@ This application is containerized and ready for PaaS providers like Railway, Ren
 ## Development Setup
 
 1.  Clone the repository.
-2.  Ensure Docker is running for local PostgreSQL (optional, can use local install).
-3.  Run `mvn spring-boot:run -Dspring-boot.run.profiles=dev`.
-4.  The default super-admin credentials (if using the seed data) are `admin@kentiva.app` / `admin123`.
+2.  Copy environment templates (never commit real `.env` files):
+    *   Backend: `cp .env.example .env` and set `DB_PASSWORD`, `JWT_SECRET` (`openssl rand -base64 64`).
+    *   Alternatively: `cp src/main/resources/application-dev.properties.example src/main/resources/application-dev.properties`
+    *   Citizen app: `cp belediyehattı/.env.example belediyehattı/.env`
+    *   Admin portal: `cp admin-portal/.env.example admin-portal/.env`
+    *   Public site: `cp public-site/.env.example public-site/.env`
+3.  Ensure PostgreSQL is running (Docker or local install).
+4.  Run `mvn spring-boot:run -Dspring-boot.run.profiles=dev`.
+5.  Dev profilde süper admin (dev-migration): `admin@kentiva.app` / `admin123` — production'da bu hesap otomatik oluşturulmaz; kurulum sihirbazı kullanın.
+
+### Secrets & deployment
+
+*   All API keys, DB passwords, and JWT secrets live in environment variables only (see `.env.example`, `railway.env.example`).
+*   Do not commit `railway.env` or real keys. If a key was ever committed, rotate it immediately in Google Cloud / Railway.
 
 ## License
 

@@ -19,3 +19,11 @@ export function getBackendOrigin(): string {
 export function getSockJsUrl(): string {
   return `${getBackendOrigin().replace(/\/$/, '')}/ws-belediye`;
 }
+
+/** Göreli imzalı medya yolunu tam URL yapar (img src için). */
+export function resolveMediaUrl(url: string | null | undefined): string {
+  if (!url) return '';
+  if (/^https?:\/\//i.test(url)) return url;
+  const origin = getBackendOrigin();
+  return `${origin}${url.startsWith('/') ? url : `/${url}`}`;
+}
