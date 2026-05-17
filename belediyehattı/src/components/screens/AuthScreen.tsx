@@ -165,8 +165,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
                       type="tel"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      placeholder={t('auth.phone', lang)}
-                      required={!isLogin}
+                      placeholder={t('auth.phone', lang) + ' (' + (lang === 'tr' ? 'isteğe bağlı' : 'optional') + ')'}
                       className="w-full bg-white border border-slate-200 rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm"
                     />
                   </div>
@@ -204,7 +203,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
               role="alert"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-red-50 border border-red-100 text-red-600 text-xs font-semibold p-4 rounded-2xl flex items-center gap-2"
+              className="kentiva-alert-error"
             >
               <div className="w-1.5 h-1.5 bg-red-600 rounded-full" />
               {error}
@@ -214,7 +213,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
           <button
             type="submit"
             disabled={loading}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-sm font-bold text-white shadow-lg shadow-primary/25 transition-all hover:bg-primary-hover active:scale-[0.98] disabled:opacity-60"
+            className="kentiva-btn-primary"
           >
             {loading ? (
               <Loader2 className="w-5 h-5 animate-spin" />
@@ -310,7 +309,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
                 <button
                   type="button"
                   onClick={() => { setForgotMode('off'); setResetMsg(''); }}
-                  className="flex-1 rounded-xl border border-slate-200 py-3 text-xs font-bold text-slate-600"
+                  className="kentiva-btn-secondary"
                 >
                   {t('auth.cancel', lang)}
                 </button>

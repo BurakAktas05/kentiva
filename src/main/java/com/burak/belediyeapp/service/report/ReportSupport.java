@@ -35,26 +35,31 @@ public class ReportSupport {
 
     public Municipality resolveMunicipalityForCoordinates(
             double latitude, double longitude, String targetMunicipalityIdHint) {
+
+        // Kullanici belirli bir belediye sectiyse — sinir eslesme kontrolu YOK.
+        // Belediye siniri icinde olmak zorunda degil; secim yeterli.
+        if (targetMunicipalityIdHint != null && !targetMunicipalityIdHint.isBlank()) {
+            Municipality target = municipalityRepository.findById(targetMunicipalityIdHint.trim())
+                    .orElseThrow(() -> new BusinessException("Secilen belediye bulunamadi.", "MUNICIPALITY_NOT_FOUND"));
+            if (!target.isActive() || !target.isOnboarded()) {
+                throw new BusinessException("Bu belediye platformda aktif degil.", "MUNICIPALITY_NOT_AVAILABLE");
+            }
+            return target;
+        }
+
+        // Belediye secilmemisse koordinatlardan spatial cozumleme yap
         Optional<String> spatialMunicipalityId = districtResolutionService.resolveDistrict(latitude, longitude);
         if (spatialMunicipalityId.isEmpty()) {
             throw new BusinessException(
-                    "Konumunuz platformdaki hiçbir aktif belediye sınırı içinde değil. "
-                            + "Lütfen konumu kontrol edin veya farklı bir noktadan deneyin.",
+                    "Konumunuz platformdaki hicbir aktif belediye siniri icinde degil. "
+                            + "Lutfen belediyenizi listeden secin.",
                     "LOCATION_OUTSIDE_MUNICIPALITY");
         }
 
-        String resolvedId = spatialMunicipalityId.get();
-        if (targetMunicipalityIdHint != null && !targetMunicipalityIdHint.isBlank()
-                && !resolvedId.equals(targetMunicipalityIdHint.trim())) {
-            throw new BusinessException(
-                    "Konum, seçtiğiniz belediye sınırlarıyla eşleşmiyor. Konumu yenileyin.",
-                    "LOCATION_MUNICIPALITY_MISMATCH");
-        }
-
-        Municipality target = municipalityRepository.findById(resolvedId)
-                .orElseThrow(() -> new BusinessException("Belediye bulunamadı.", "MUNICIPALITY_NOT_FOUND"));
+        Municipality target = municipalityRepository.findById(spatialMunicipalityId.get())
+                .orElseThrow(() -> new BusinessException("Belediye bulunamadi.", "MUNICIPALITY_NOT_FOUND"));
         if (!target.isActive() || !target.isOnboarded()) {
-            throw new BusinessException("Bu konumdaki belediye platformda aktif değil.", "MUNICIPALITY_NOT_AVAILABLE");
+            throw new BusinessException("Bu konumdaki belediye platformda aktif degil.", "MUNICIPALITY_NOT_AVAILABLE");
         }
         return target;
     }

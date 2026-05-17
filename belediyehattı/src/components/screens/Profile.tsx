@@ -7,6 +7,7 @@ import { Lang, t } from '../../i18n';
 interface ProfileProps {
   onLogout: () => void;
   onSettings: () => void;
+  onOpenReport?: (reportId: string) => void;
   lang: Lang;
   isDark: boolean;
 }
@@ -21,11 +22,12 @@ const getStatusInfo = (status: string, lang: Lang) => {
   }
 };
 
-export default function Profile({ onLogout, onSettings, lang, isDark }: ProfileProps) {
+export default function Profile({ onLogout, onSettings, onOpenReport, lang, isDark }: ProfileProps) {
   const [profile, setProfile] = useState<ApiUserProfile | null>(null);
   const [reports, setReports] = useState<ApiReportList[]>([]);
   const [showReports, setShowReports] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     loadProfile();
@@ -41,6 +43,7 @@ export default function Profile({ onLogout, onSettings, lang, isDark }: ProfileP
       setReports(r.content || []);
     } catch (e) {
       console.error('Profil yüklenemedi', e);
+      setLoadError(lang === 'tr' ? 'Profil yüklenemedi.' : 'Could not load profile.');
     } finally {
       setLoading(false);
     }
@@ -64,6 +67,25 @@ export default function Profile({ onLogout, onSettings, lang, isDark }: ProfileP
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (loadError && !profile) {
+    return (
+      <div className="p-6 text-center">
+        <p className="text-sm text-red-600 dark:text-red-400">{loadError}</p>
+        <button
+          type="button"
+          onClick={() => {
+            setLoading(true);
+            setLoadError('');
+            void loadProfile();
+          }}
+          className="mt-4 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white"
+        >
+          Tekrar dene
+        </button>
       </div>
     );
   }
@@ -171,9 +193,15 @@ export default function Profile({ onLogout, onSettings, lang, isDark }: ProfileP
               reports.map(r => {
                 const status = getStatusInfo(r.status, lang);
                 return (
-                  <div key={r.id} className={`rounded-xl p-3 border flex items-center justify-between ${
-                    isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-100'
-                  }`}>
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => onOpenReport?.(r.id)}
+                    disabled={!onOpenReport}
+                    className={`w-full rounded-xl p-3 border flex items-center justify-between text-left transition-colors ${
+                      onOpenReport ? 'cursor-pointer hover:border-primary/30 active:scale-[0.99]' : ''
+                    } ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-100'}`}
+                  >
                     <div className="min-w-0 flex-1">
                       <p className={`text-sm font-medium truncate ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{r.title}</p>
                       <p className="text-[10px] text-slate-400 mt-0.5">{r.categoryName} • {new Date(r.createdAt).toLocaleDateString()}</p>
@@ -181,7 +209,7 @@ export default function Profile({ onLogout, onSettings, lang, isDark }: ProfileP
                     <span className={`flex items-center gap-1 text-[10px] font-bold ${status.color} ml-2 flex-shrink-0`}>
                       {status.icon} {status.label}
                     </span>
-                  </div>
+                  </button>
                 );
               })
             )}

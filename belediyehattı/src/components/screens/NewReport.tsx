@@ -1,18 +1,21 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Camera, MapPin, FileText, CheckCircle2, ChevronLeft, ArrowRight, Building2, Navigation, Tag } from 'lucide-react';
+import { Camera, MapPin, FileText, CheckCircle2, ChevronLeft, ArrowRight, Building2, Navigation, Tag, LayoutTemplate } from 'lucide-react';
 import {
   getCategories,
+  getReportTemplates,
   createReport,
   uploadMedia,
   resolveMediaUrl,
   resolveMunicipalityByGps,
   type ApiCategory,
+  type ApiReportTemplate,
   type PublicTenant,
 } from '../../api';
 import { Lang, t } from '../../i18n';
 
 interface NewReportProps {
+  defaultMunicipality?: PublicTenant | null;
   onSubmit: () => void;
   onCancel: () => void;
   lang: Lang;
@@ -24,10 +27,10 @@ function buildReportTitle(description: string, categoryName: string | undefined,
   if (trimmed.length >= 10) return trimmed.slice(0, 80);
   const prefix = categoryName || (lang === 'tr' ? 'Bildirim' : 'Report');
   const combined = `${prefix}: ${trimmed}`.slice(0, 80);
-  return combined.length >= 10 ? combined : `${prefix} â€” ${new Date().toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US')}`;
+  return combined.length >= 10 ? combined : `${prefix} — ${new Date().toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US')}`;
 }
 
-export default function NewReport({ onSubmit, onCancel, lang, isDark }: NewReportProps) {
+export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lang, isDark }: NewReportProps) {
   const [step, setStep] = useState(1);
   const [description, setDescription] = useState('');
   const [categories, setCategories] = useState<ApiCategory[]>([]);
@@ -41,6 +44,42 @@ export default function NewReport({ onSubmit, onCancel, lang, isDark }: NewRepor
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [locating, setLocating] = useState(false);
+  const [templates, setTemplates] = useState<ApiReportTemplate[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [selectedTemplateKey, setSelectedTemplateKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (defaultMunicipality?.onboarded && defaultMunicipality.id && !resolvedMunicipality) {
+      setResolvedMunicipality(defaultMunicipality);
+    }
+  }, [defaultMunicipality, resolvedMunicipality]);
+
+  // Ekran acilir acilmaz GPS al ve belediyeyi otomatik tespit et
+  useEffect(() => {
+    if (navigator.geolocation) {
+      setLocating(true);
+      setError('');
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          setLatitude(lat);
+          setLongitude(lng);
+          setLocationText(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+          const m = await resolveMunicipalityByGps(lat, lng);
+          setResolvedMunicipality(m);
+          if (!m) setError(t('report.municipality.outside', lang));
+          setLocating(false);
+        },
+        () => {
+          setLocating(false);
+          setError(t('report.location.denied', lang));
+        },
+        { enableHighAccuracy: true, timeout: 15000 },
+      );
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!resolvedMunicipality?.id) {
@@ -65,6 +104,40 @@ export default function NewReport({ onSubmit, onCancel, lang, isDark }: NewRepor
       cancelled = true;
     };
   }, [lang, resolvedMunicipality?.id]);
+
+  useEffect(() => {
+    if (!resolvedMunicipality) {
+      setTemplates([]);
+      setSelectedTemplateKey(null);
+      return;
+    }
+    let cancelled = false;
+    setTemplatesLoading(true);
+    const tenant = resolvedMunicipality.slug
+      ? { slug: resolvedMunicipality.slug }
+      : { id: resolvedMunicipality.id };
+    getReportTemplates(tenant)
+      .then((rows) => {
+        if (!cancelled) setTemplates(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setTemplates([]);
+      })
+      .finally(() => {
+        if (!cancelled) setTemplatesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedMunicipality]);
+
+  const applyTemplate = (tpl: ApiReportTemplate) => {
+    setDescription(tpl.descriptionTemplate);
+    setSelectedTemplateKey(tpl.templateKey);
+    if (tpl.categoryId) {
+      setCategoryId(tpl.categoryId);
+    }
+  };
 
   const selectedCategory = categories.find((c) => c.id === categoryId);
 
@@ -134,25 +207,25 @@ export default function NewReport({ onSubmit, onCancel, lang, isDark }: NewRepor
         err instanceof Error
           ? err.message
           : lang === 'tr'
-            ? 'Rapor gÃ¶nderilemedi. Ä°nternet baÄŸlantÄ±nÄ±zÄ± kontrol edin.'
+            ? 'Rapor gönderilemedi. İnternet bağlantınızı kontrol edin.'
             : 'Could not submit. Check your connection.';
       setError(msg);
       setIsSubmitting(false);
     }
   };
 
-  const municipalityLabel = resolvedMunicipality?.displayName ?? 'â€”';
+  const municipalityLabel = resolvedMunicipality?.displayName ?? '—';
 
   const generatePreviewText = () => {
     const today = new Date().toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US');
 
-    return `ğŸ“ ${t('report.location', lang)}: ${locationText || 'GPS'}
-ğŸ›ï¸ ${lang === 'tr' ? 'Belediye' : 'Municipality'}: ${municipalityLabel}
-ğŸ“‚ ${lang === 'tr' ? 'Kategori' : 'Category'}: ${selectedCategory?.name ?? 'â€”'}
-ğŸ“… ${lang === 'tr' ? 'Tarih' : 'Date'}: ${today}
-${mediaUrl ? 'ğŸ“¸ ' + (lang === 'tr' ? 'FotoÄŸraf eklendi' : 'Photo attached') : ''}
+    return `${t('report.location', lang)}: ${locationText || 'GPS'}
+${lang === 'tr' ? 'Belediye' : 'Municipality'}: ${municipalityLabel}
+${lang === 'tr' ? 'Kategori' : 'Category'}: ${selectedCategory?.name ?? '—'}
+${lang === 'tr' ? 'Tarih' : 'Date'}: ${today}
+${mediaUrl ? (lang === 'tr' ? 'Fotoğraf eklendi' : 'Photo attached') : ''}
 
-ğŸ“ ${t('report.description', lang)}:
+${t('report.description', lang)}:
 ${description}`;
   };
 
@@ -186,6 +259,47 @@ ${description}`;
       <div className="p-6 overflow-y-auto flex-1">
         {step === 1 && (
           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-5">
+            {resolvedMunicipality && (templates.length > 0 || templatesLoading) && (
+              <div>
+                <label
+                  className={`mb-2 flex items-center gap-2 text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}
+                >
+                  <LayoutTemplate className="h-4 w-4 text-primary" />
+                  {t('report.templates', lang)}
+                </label>
+                <p className={`mb-2 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{t('report.templates.hint', lang)}</p>
+                {templatesLoading ? (
+                  <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                    {lang === 'tr' ? 'Şablonlar yükleniyor…' : 'Loading templates…'}
+                  </p>
+                ) : (
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {templates.map((tpl) => (
+                      <button
+                        key={tpl.id}
+                        type="button"
+                        onClick={() => applyTemplate(tpl)}
+                        className={`shrink-0 rounded-xl border px-3 py-2 text-left text-xs transition-colors ${
+                          selectedTemplateKey === tpl.templateKey
+                            ? 'border-primary bg-primary text-white'
+                            : isDark
+                              ? 'border-slate-600 bg-slate-800 text-slate-200 hover:border-primary/50'
+                              : 'border-slate-200 bg-white text-slate-700 hover:border-primary/40'
+                        }`}
+                      >
+                        <span className="block font-bold">{tpl.title}</span>
+                        <span
+                          className={`mt-0.5 block text-[10px] opacity-80 ${selectedTemplateKey === tpl.templateKey ? '' : 'text-slate-500'}`}
+                        >
+                          {tpl.categoryName}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div>
               <label
                 className={`block text-sm font-semibold mb-2 flex items-center gap-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}
@@ -194,7 +308,7 @@ ${description}`;
               </label>
               {categories.length === 0 ? (
                 <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                  {lang === 'tr' ? 'Kategoriler yÃ¼kleniyorâ€¦' : 'Loading categoriesâ€¦'}
+                  {lang === 'tr' ? 'Konum alındıktan sonra kategoriler yüklenecek.' : 'Categories load after location is set.'}
                 </p>
               ) : (
                 <div className="flex flex-wrap gap-2">
@@ -244,6 +358,13 @@ ${description}`;
                 </button>
               </div>
 
+              {locating && (
+                <div className={`mt-2 flex items-center gap-2 text-xs px-3 py-2 rounded-lg ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>
+                  <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin shrink-0" />
+                  <span>{lang === 'tr' ? 'Konumunuz tespit ediliyor…' : 'Detecting your location…'}</span>
+                </div>
+              )}
+
               {resolvedMunicipality && (
                 <div
                   className={`mt-2 flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg ${isDark ? 'bg-primary/20 text-secondary' : 'bg-primary/10 text-primary'}`}
@@ -276,7 +397,6 @@ ${description}`;
                 <input
                   type="file"
                   accept="image/*"
-                  capture="environment"
                   className="hidden"
                   onChange={async (e) => {
                     if (e.target.files && e.target.files[0]) {
@@ -285,7 +405,7 @@ ${description}`;
                         const urls = await uploadMedia(e.target.files[0]);
                         if (urls.length > 0) setMediaUrl(urls[0]);
                       } catch (err: unknown) {
-                        setError(err instanceof Error ? err.message : lang === 'tr' ? 'FotoÄŸraf yÃ¼klenemedi' : 'Upload failed');
+                        setError(err instanceof Error ? err.message : lang === 'tr' ? 'Fotoğraf yüklenemedi' : 'Upload failed');
                       } finally {
                         setIsUploading(false);
                       }
@@ -296,7 +416,7 @@ ${description}`;
                 {isUploading ? (
                   <div className="flex flex-col items-center">
                     <motion.div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mb-2"></motion.div>
-                    <span className="text-sm font-medium">YÃ¼kleniyor...</span>
+                    <span className="text-sm font-medium">{t('report.uploading', lang)}</span>
                   </div>
                 ) : mediaUrl ? (
                   <img src={resolveMediaUrl(mediaUrl)} alt="Uploaded" className="w-full h-full object-cover" />
@@ -340,9 +460,9 @@ ${description}`;
               className={`border rounded-xl p-4 text-sm ${isDark ? 'bg-primary/15 border-primary/30 text-secondary' : 'bg-primary/5 border-primary/20 text-primary'}`}
             >
               <p className="font-semibold mb-1 flex items-center gap-2">
-                <FileText className="w-4 h-4" /> {lang === 'tr' ? 'Bildirim Ã–zeti' : 'Report Summary'}
+                <FileText className="w-4 h-4" /> {lang === 'tr' ? 'Bildirim özeti' : 'Report summary'}
               </p>
-              <p className="opacity-80">{lang === 'tr' ? 'LÃ¼tfen bilgilerinizi kontrol edin ve gÃ¶nderin.' : 'Please review and submit.'}</p>
+              <p className="opacity-80">{lang === 'tr' ? 'Lütfen bilgilerinizi kontrol edin ve gönderin.' : 'Please review and submit.'}</p>
             </div>
 
             <motion.div

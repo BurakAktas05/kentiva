@@ -1,8 +1,11 @@
 package com.burak.belediyeapp.service.municipality;
 
 import com.burak.belediyeapp.dto.request.municipality.CreateMunicipalityRequest;
+import com.burak.belediyeapp.dto.request.municipality.GenerateNotificationTemplateRequest;
 import com.burak.belediyeapp.dto.request.municipality.MunicipalityPatchRequest;
 import com.burak.belediyeapp.dto.response.municipality.MunicipalityDto;
+import com.burak.belediyeapp.dto.response.municipality.NotificationTemplateAiResponse;
+import com.burak.belediyeapp.service.ai.GeminiService;
 import com.burak.belediyeapp.entity.AppUser;
 import com.burak.belediyeapp.entity.Municipality;
 import com.burak.belediyeapp.entity.SubscriptionPlan;
@@ -10,10 +13,13 @@ import com.burak.belediyeapp.exception.BusinessException;
 import com.burak.belediyeapp.exception.ResourceNotFoundException;
 import com.burak.belediyeapp.config.EvictMunicipalityCaches;
 import com.burak.belediyeapp.repository.IMunicipalityRepository;
+import com.burak.belediyeapp.service.media.MediaGuardClient;
+import com.burak.belediyeapp.service.storage.StorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -25,12 +31,22 @@ import java.util.UUID;
 public class MunicipalityManagementService {
 
     private final IMunicipalityRepository municipalityRepository;
+    private final StorageService storageService;
+    private final MediaGuardClient mediaGuardClient;
+    private final GeminiService geminiService;
 
     @Transactional(readOnly = true)
     public List<MunicipalityDto> listAll() {
         return municipalityRepository.findAll().stream()
                 .map(MunicipalityDto::fromEntity)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public MunicipalityDto getById(String municipalityId) {
+        Municipality m = municipalityRepository.findById(municipalityId)
+                .orElseThrow(() -> new ResourceNotFoundException("Belediye", "id", municipalityId));
+        return MunicipalityDto.fromEntity(m);
     }
 
     @Transactional(readOnly = true)
@@ -77,6 +93,24 @@ public class MunicipalityManagementService {
                 .orElseThrow(() -> new ResourceNotFoundException("Belediye", "id", municipalityId));
         applyPatch(m, patch, true);
         return MunicipalityDto.fromEntity(municipalityRepository.save(m));
+    }
+
+    @Transactional
+    @EvictMunicipalityCaches
+    public String uploadLogoForTenant(AppUser admin, MultipartFile file) {
+        if (admin.getMunicipality() == null) {
+            throw new BusinessException("Bu hesap bir belediyeye bağlı değil", "MUNICIPALITY_NOT_ASSIGNED");
+        }
+        return uploadLogo(admin.getMunicipality().getId(), file);
+    }
+
+    @Transactional
+    @EvictMunicipalityCaches
+    public String uploadLogoBySuperAdmin(String municipalityId, MultipartFile file) {
+        if (!municipalityRepository.existsById(municipalityId)) {
+            throw new ResourceNotFoundException("Belediye", "id", municipalityId);
+        }
+        return uploadLogo(municipalityId, file);
     }
 
     @Transactional
@@ -131,6 +165,26 @@ public class MunicipalityManagementService {
         if (p.smsSenderHeader() != null) {
             m.setSmsSenderHeader(p.smsSenderHeader().isBlank() ? null : p.smsSenderHeader().trim());
         }
+        if (p.smsProcessingTemplate() != null) {
+            m.setSmsProcessingTemplate(p.smsProcessingTemplate().isBlank() ? null : p.smsProcessingTemplate());
+        }
+        if (p.pushProcessingTitleTemplate() != null) {
+            m.setPushProcessingTitleTemplate(
+                    p.pushProcessingTitleTemplate().isBlank() ? null : p.pushProcessingTitleTemplate());
+        }
+        if (p.pushProcessingBodyTemplate() != null) {
+            m.setPushProcessingBodyTemplate(
+                    p.pushProcessingBodyTemplate().isBlank() ? null : p.pushProcessingBodyTemplate());
+        }
+        if (p.smsAssignedTemplate() != null) {
+            m.setSmsAssignedTemplate(p.smsAssignedTemplate().isBlank() ? null : p.smsAssignedTemplate());
+        }
+        if (p.pushAssignedTitleTemplate() != null) {
+            m.setPushAssignedTitleTemplate(p.pushAssignedTitleTemplate().isBlank() ? null : p.pushAssignedTitleTemplate());
+        }
+        if (p.pushAssignedBodyTemplate() != null) {
+            m.setPushAssignedBodyTemplate(p.pushAssignedBodyTemplate().isBlank() ? null : p.pushAssignedBodyTemplate());
+        }
         if (p.publicStatsEnabled() != null) {
             m.setPublicStatsEnabled(p.publicStatsEnabled());
         }
@@ -166,6 +220,77 @@ public class MunicipalityManagementService {
         }
         municipalityRepository.updateBoundariesFromGeoJson(municipalityId, geoJson);
         log.info("Belediye sınırları güncellendi: {}", municipalityId);
+    }
+
+    /**
+     * OpenStreetMap Nominatim'den alınan GeoJSON ile sınır güncelle.
+     * updateBoundaries ile aynıdır; çağrı kaynakını ayırt etmek için ayrı metot.
+     */
+    @Transactional
+    @EvictMunicipalityCaches
+    public void updateBoundariesFromOsm(String municipalityId, String geoJson) {
+        updateBoundaries(municipalityId, geoJson);
+        log.info("Belediye sınırları OSM'den güncellendi: {}", municipalityId);
+    }
+
+    private String uploadLogo(String municipalityId, MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException("Logo dosyası gerekli", "FILE_REQUIRED");
+        }
+        String ct = file.getContentType();
+        if (ct == null || !ct.startsWith("image/")) {
+            throw new BusinessException("Yalnızca görüntü dosyaları yüklenebilir.", "INVALID_MEDIA_TYPE");
+        }
+        if (file.getSize() > 2 * 1024 * 1024) {
+            throw new BusinessException("Logo en fazla 2 MB olabilir.", "FILE_TOO_LARGE");
+        }
+        byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (Exception e) {
+            throw new BusinessException("Dosya okunamadı.", "FILE_READ_ERROR");
+        }
+        mediaGuardClient.validateImageOrThrow(bytes, ct);
+        String url = storageService.uploadBytes(bytes, ct, "branding/" + municipalityId, file.getOriginalFilename());
+        Municipality m = municipalityRepository.findById(municipalityId)
+                .orElseThrow(() -> new ResourceNotFoundException("Belediye", "id", municipalityId));
+        m.setLogoUrl(url);
+        municipalityRepository.save(m);
+        return url;
+    }
+
+    @Transactional(readOnly = true)
+    public NotificationTemplateAiResponse generateNotificationTemplate(
+            AppUser user,
+            GenerateNotificationTemplateRequest.NotificationTemplateKind kind) {
+        if (user.getMunicipality() == null) {
+            throw new BusinessException("Bu hesap bir belediyeye bağlı değil", "MUNICIPALITY_NOT_ASSIGNED");
+        }
+        return generateForMunicipality(user.getMunicipality(), kind);
+    }
+
+    @Transactional(readOnly = true)
+    public NotificationTemplateAiResponse generateNotificationTemplateForSuperAdmin(
+            String municipalityId,
+            GenerateNotificationTemplateRequest.NotificationTemplateKind kind) {
+        Municipality m = municipalityRepository.findById(municipalityId)
+                .orElseThrow(() -> new ResourceNotFoundException("Belediye", "id", municipalityId));
+        return generateForMunicipality(m, kind);
+    }
+
+    private NotificationTemplateAiResponse generateForMunicipality(
+            Municipality m,
+            GenerateNotificationTemplateRequest.NotificationTemplateKind kind) {
+        String display = m.getDisplayName() != null && !m.getDisplayName().isBlank()
+                ? m.getDisplayName()
+                : m.getName();
+        String text = geminiService.generateNotificationTemplate(display, m.getSlogan(), kind);
+        if (text == null || text.isBlank()) {
+            throw new BusinessException(
+                    "AI şablon üretilemedi. GEMINI_API_KEY ortam değişkenini kontrol edin.",
+                    "AI_TEMPLATE_FAILED");
+        }
+        return new NotificationTemplateAiResponse(text.trim());
     }
 
     private String resolveUniqueSlug(String requestedSlug, String name) {

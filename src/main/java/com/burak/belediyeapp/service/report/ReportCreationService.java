@@ -8,6 +8,7 @@ import com.burak.belediyeapp.mapper.IReportMapper;
 import com.burak.belediyeapp.repository.IReportCategoryRepository;
 import com.burak.belediyeapp.repository.IReportHistoryRepository;
 import com.burak.belediyeapp.repository.IReportRepository;
+import com.burak.belediyeapp.service.integration.WebhookDispatchService;
 import com.burak.belediyeapp.service.media.MediaSignedUrlService;
 import com.burak.belediyeapp.tenant.TenantAccessService;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,7 @@ public class ReportCreationService {
     private final MediaSignedUrlService mediaSignedUrlService;
     private final ApplicationEventPublisher eventPublisher;
     private final ReportDuplicateLinkService duplicateLinkService;
+    private final WebhookDispatchService webhookDispatchService;
 
     @Transactional
     @PreAuthorize("hasAuthority('ROLE_CITIZEN')")
@@ -79,6 +81,10 @@ public class ReportCreationService {
                 .build());
 
         duplicateLinkService.linkNearbyDuplicates(saved);
+
+        if (saved.getMunicipality() != null) {
+            webhookDispatchService.dispatchReportCreated(saved.getMunicipality(), saved);
+        }
 
         eventPublisher.publishEvent(new ReportCreatedEvent(saved.getId()));
 

@@ -1,8 +1,10 @@
 package com.burak.belediyeapp.controller;
 
+import com.burak.belediyeapp.dto.request.municipality.GenerateNotificationTemplateRequest;
 import com.burak.belediyeapp.dto.request.municipality.MunicipalityPatchRequest;
 import com.burak.belediyeapp.dto.response.common.ApiResponse;
 import com.burak.belediyeapp.dto.response.municipality.MunicipalityDto;
+import com.burak.belediyeapp.dto.response.municipality.NotificationTemplateAiResponse;
 import com.burak.belediyeapp.entity.AppUser;
 import com.burak.belediyeapp.service.municipality.MunicipalityManagementService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -13,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/v1/municipalities")
@@ -36,6 +39,26 @@ public class MunicipalitySettingsController {
             @AuthenticationPrincipal AppUser user,
             @Valid @RequestBody MunicipalityPatchRequest request) {
         return ResponseEntity.ok(ApiResponse.success(municipalityManagementService.patchOwnTenant(user, request)));
+    }
+
+    @PostMapping("/me/branding/ai-notification-template")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "AI ile SMS / push şablon metni üret")
+    public ResponseEntity<ApiResponse<NotificationTemplateAiResponse>> aiNotificationTemplate(
+            @AuthenticationPrincipal AppUser user,
+            @Valid @RequestBody GenerateNotificationTemplateRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                municipalityManagementService.generateNotificationTemplate(user, request.kind())));
+    }
+
+    @PostMapping(value = "/me/branding/logo", consumes = "multipart/form-data")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Belediye logosu yükle (max 2 MB)")
+    public ResponseEntity<ApiResponse<String>> uploadLogo(
+            @AuthenticationPrincipal AppUser user,
+            @RequestParam("file") MultipartFile file) {
+        String url = municipalityManagementService.uploadLogoForTenant(user, file);
+        return ResponseEntity.ok(ApiResponse.success("Logo yüklendi", url));
     }
 
     @PostMapping("/me/boundaries")

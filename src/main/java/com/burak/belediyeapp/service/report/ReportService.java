@@ -86,4 +86,12 @@ public class ReportService {
     public void performAiAnalysis(String reportId) {
         commandService.performAiAnalysis(reportId);
     }
+
+    /**
+     * Sistem tarafından otomatik red — media-guard async pipeline için.
+     * Human admin yetkisi gerektirmez; internal kullanım içindir.
+     */
+    public void systemRejectReport(String reportId, String reason) {
+        commandService.systemRejectReport(reportId, reason);
+    }
 }

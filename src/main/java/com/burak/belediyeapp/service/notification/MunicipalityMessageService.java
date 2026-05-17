@@ -20,9 +20,59 @@ public class MunicipalityMessageService {
     private static final String DEFAULT_PUSH_REJECTED_BODY =
             "\"{baslik}\" başlıklı bildiriminiz değerlendirilmiş ve reddedilmiştir.{not}";
 
+    private static final String DEFAULT_SMS_PROCESSING =
+            "{belediye}: \"{baslik}\" başlıklı bildiriminiz incelemeye alınmıştır.{not}{slogan}";
+
+    private static final String DEFAULT_PUSH_PROCESSING_TITLE = "{belediye} — Raporunuz incelemeye alındı";
+    private static final String DEFAULT_PUSH_PROCESSING_BODY =
+            "\"{baslik}\" başlıklı raporunuz incelemeye alındı.{not}";
+
+    private static final String DEFAULT_SMS_ASSIGNED =
+            "{belediye}: Size \"{baslik}\" başlıklı yeni bir saha görevi atandı.{not}";
+
+    private static final String DEFAULT_PUSH_ASSIGNED_TITLE = "{belediye} — Yeni görev";
+    private static final String DEFAULT_PUSH_ASSIGNED_BODY =
+            "\"{baslik}\" başlıklı rapor size atandı.{not}";
+
     public String buildResolvedSms(Municipality municipality, String reportTitle, String staffNote) {
         String template = pickTemplate(municipality != null ? municipality.getSmsResolvedTemplate() : null, DEFAULT_SMS_RESOLVED);
         return render(template, municipality, reportTitle, staffNote);
+    }
+
+    public String buildProcessingSms(Municipality municipality, String reportTitle, String staffNote) {
+        String template = pickTemplate(
+                municipality != null ? municipality.getSmsProcessingTemplate() : null, DEFAULT_SMS_PROCESSING);
+        return render(template, municipality, reportTitle, staffNote);
+    }
+
+    public PushMessage buildProcessingPush(Municipality municipality, String reportTitle, String staffNote) {
+        String titleTpl = pickTemplate(
+                municipality != null ? municipality.getPushProcessingTitleTemplate() : null,
+                DEFAULT_PUSH_PROCESSING_TITLE);
+        String bodyTpl = pickTemplate(
+                municipality != null ? municipality.getPushProcessingBodyTemplate() : null,
+                DEFAULT_PUSH_PROCESSING_BODY);
+        return new PushMessage(
+                render(titleTpl, municipality, reportTitle, staffNote),
+                render(bodyTpl, municipality, reportTitle, staffNote));
+    }
+
+    public String buildAssignedSms(Municipality municipality, String reportTitle, String staffNote) {
+        String template = pickTemplate(
+                municipality != null ? municipality.getSmsAssignedTemplate() : null, DEFAULT_SMS_ASSIGNED);
+        return render(template, municipality, reportTitle, staffNote);
+    }
+
+    public PushMessage buildAssignedPush(Municipality municipality, String reportTitle, String staffNote) {
+        String titleTpl = pickTemplate(
+                municipality != null ? municipality.getPushAssignedTitleTemplate() : null,
+                DEFAULT_PUSH_ASSIGNED_TITLE);
+        String bodyTpl = pickTemplate(
+                municipality != null ? municipality.getPushAssignedBodyTemplate() : null,
+                DEFAULT_PUSH_ASSIGNED_BODY);
+        return new PushMessage(
+                render(titleTpl, municipality, reportTitle, staffNote),
+                render(bodyTpl, municipality, reportTitle, staffNote));
     }
 
     public PushMessage buildRejectedPush(Municipality municipality, String reportTitle, String staffNote) {

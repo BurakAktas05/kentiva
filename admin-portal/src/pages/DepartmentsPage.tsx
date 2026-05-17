@@ -138,7 +138,7 @@ export default function DepartmentsPage() {
     <div className="p-6">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Yapı</p>
+          <p className="kentiva-eyebrow">Yapı</p>
           <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">Departmanlar</h2>
           <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">
             Belediye müdürlüklerini ve saha ekiplerinin bağlı olduğu departmanları yönetin.

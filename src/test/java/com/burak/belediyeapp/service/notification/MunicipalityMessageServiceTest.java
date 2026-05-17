@@ -31,6 +31,30 @@ class MunicipalityMessageServiceTest {
         assertThat(push.body()).contains("Park sorunu");
     }
 
+    @Test
+    void buildProcessingPush_usesCustomTemplate() {
+        Municipality m = municipality("Test Belediyesi", null);
+        m.setPushProcessingTitleTemplate("{belediye} — işlemde");
+        m.setPushProcessingBodyTemplate("Rapor: {baslik}");
+
+        var push = service.buildProcessingPush(m, "Su baskını", "Ekip yolda");
+
+        assertThat(push.title()).contains("Test Belediyesi");
+        assertThat(push.body()).contains("Su baskını");
+    }
+
+    @Test
+    void buildAssignedPush_usesCustomTemplate() {
+        Municipality m = municipality("Test Belediyesi", null);
+        m.setPushAssignedTitleTemplate("Görev: {baslik}");
+        m.setPushAssignedBodyTemplate("{belediye} saha görevi");
+
+        var push = service.buildAssignedPush(m, "Çöp konteyneri", null);
+
+        assertThat(push.title()).contains("Çöp konteyneri");
+        assertThat(push.body()).contains("Test Belediyesi");
+    }
+
     private static Municipality municipality(String displayName, String slogan) {
         Municipality m = new Municipality();
         m.setName("test");

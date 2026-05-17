@@ -59,6 +59,14 @@ public class ReportCommandService {
                     "REPORT_ALREADY_CLOSED");
         }
 
+        // Sadece SUPER_ADMIN rapor reddedebilir; belediye adminleri reddedemez
+        if (request.status() == ReportStatus.REJECTED
+                && !currentUser.hasRole("ROLE_SUPER_ADMIN")) {
+            throw new BusinessException(
+                    "Rapor reddi yalnızca platform yöneticisi tarafından yapılabilir.",
+                    "REJECT_FORBIDDEN");
+        }
+
         ReportStatus oldStatus = report.getReportStatus();
         report.setReportStatus(request.status());
 
@@ -80,6 +88,39 @@ public class ReportCommandService {
 
         log.info("Rapor durumu güncellendi: {} — {} → {}", reportId, oldStatus, request.status());
         return reportSupport.finalizeResponse(saved, reportMapper.toResponse(saved));
+    }
+
+    /**
+     * Sistem tarafından otomatik red — YALNIZCA media-guard async pipeline çağırır.
+     * Human kullanıcıların erişemeyeceği internal metot; @PreAuthorize YOK.
+     * Rapor zaten PENDING/PROCESSING değilse sessizce atlanır.
+     */
+    @Transactional
+    public void systemRejectReport(String reportId, String reason) {
+        reportRepository.findById(reportId).ifPresent(report -> {
+            if (report.getReportStatus() == ReportStatus.RESOLVED
+                    || report.getReportStatus() == ReportStatus.REJECTED) {
+                log.info("Sistem reddi atlandı — rapor zaten kapalı: {}", reportId);
+                return;
+            }
+            ReportStatus oldStatus = report.getReportStatus();
+            report.setReportStatus(ReportStatus.REJECTED);
+            historyRepository.save(ReportHistory.builder()
+                    .report(report)
+                    .oldStatus(oldStatus)
+                    .newStatus(ReportStatus.REJECTED)
+                    .changedBy(null)   // sistem eylemi
+                    .note("[SİSTEM] Otomatik red — " + reason)
+                    .build());
+            reportRepository.save(report);
+            // Vatandaşı bilgilendirme: REJECTED notification gönder
+            try {
+                notificationService.notifyReportStatusChanged(report);
+            } catch (Exception ex) {
+                log.warn("Sistem reddi bildirimi gönderilemedi: {}", ex.getMessage());
+            }
+            log.warn("Rapor sistem tarafından reddedildi: {} — sebep: {}", reportId, reason);
+        });
     }
 
     @Transactional
@@ -118,6 +159,11 @@ public class ReportCommandService {
 
         Report saved = reportRepository.save(report);
         notificationService.notifyReportAssigned(saved, assignee);
+
+        if (saved.getMunicipality() != null) {
+            webhookDispatchService.dispatchReportAssigned(
+                    saved.getMunicipality(), saved, assignee.getId());
+        }
 
         if (saved.getReportStatus() == ReportStatus.PROCESSING) {
             notificationService.notifyReportStatusChanged(saved);

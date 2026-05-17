@@ -1,5 +1,6 @@
 package com.burak.belediyeapp.service.ai;
 
+import com.burak.belediyeapp.dto.request.municipality.GenerateNotificationTemplateRequest.NotificationTemplateKind;
 import com.burak.belediyeapp.entity.Report;
 import com.burak.belediyeapp.repository.IReportCategoryRepository;
 import lombok.RequiredArgsConstructor;
@@ -83,6 +84,83 @@ public class GeminiService {
             }
         }
         return null;
+    }
+
+    /**
+     * Belediye SMS / push şablonu metni üretir (Türkçe, yer tutucularla).
+     */
+    public String generateNotificationTemplate(
+            String municipalityDisplayName,
+            String slogan,
+            NotificationTemplateKind kind) {
+        if (apiKey == null || apiKey.isBlank() || apiKey.equals("your-gemini-api-key")) {
+            log.warn("Gemini API Key eksik. Şablon AI atlanıyor.");
+            return null;
+        }
+        String belediye = municipalityDisplayName != null && !municipalityDisplayName.isBlank()
+                ? municipalityDisplayName : "Belediyemiz";
+        String prompt = buildNotificationTemplatePrompt(kind, belediye, slogan);
+
+        String requestBody = new JSONObject()
+                .put("contents", new JSONArray().put(
+                        new JSONObject().put("parts", new JSONArray().put(
+                                new JSONObject().put("text", prompt)
+                        ))
+                ))
+                .toString();
+
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            try {
+                String response = restClient.post()
+                        .uri(GEMINI_API_URL + "?key=" + apiKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(requestBody)
+                        .retrieve()
+                        .body(String.class);
+                return extractPlainText(response);
+            } catch (Exception e) {
+                log.warn("Şablon AI hatası (deneme {}): {}", attempt, e.getMessage());
+            }
+        }
+        return null;
+    }
+
+    private static String buildNotificationTemplatePrompt(
+            NotificationTemplateKind kind,
+            String belediye,
+            String slogan) {
+        String placeholders = "Kullanılabilir yer tutucular: {belediye}, {baslik}, {not}, {slogan}";
+        String base = "Sen Türkiye'deki bir belediyenin vatandaş bildirim platformu metin yazarısın. "
+                + "Yalnızca istenen metni yaz; açıklama veya tırnak ekleme. " + placeholders + ". ";
+        return switch (kind) {
+            case SMS_RESOLVED -> base + "Çözülen ihbar için kısa, resmi bir SMS (en fazla 155 karakter). Belediye: "
+                    + belediye + (slogan != null && !slogan.isBlank() ? ", slogan: " + slogan : "") + ".";
+            case SMS_PROCESSING -> base + "İhbar işleme alındı SMS (en fazla 155 karakter). Belediye: " + belediye + ".";
+            case SMS_ASSIGNED -> base + "Saha görevlisine atanan ihbar için SMS (en fazla 155 karakter). Belediye: "
+                    + belediye + ".";
+            case PUSH_REJECTED_TITLE -> base + "Reddedilen ihbar için mobil push başlığı (en fazla 50 karakter).";
+            case PUSH_REJECTED_BODY -> base + "Reddedilen ihbar push mesajı (en fazla 120 karakter).";
+            case PUSH_PROCESSING_TITLE -> base + "İşlemde ihbar push başlığı (en fazla 50 karakter).";
+            case PUSH_PROCESSING_BODY -> base + "İşlemde ihbar push mesajı (en fazla 120 karakter).";
+            case PUSH_ASSIGNED_TITLE -> base + "Atanan ihbar push başlığı (en fazla 50 karakter).";
+            case PUSH_ASSIGNED_BODY -> base + "Atanan ihbar push mesajı (en fazla 120 karakter).";
+        };
+    }
+
+    private String extractPlainText(String response) {
+        try {
+            JSONObject json = new JSONObject(response);
+            return json.getJSONArray("candidates")
+                    .getJSONObject(0)
+                    .getJSONObject("content")
+                    .getJSONArray("parts")
+                    .getJSONObject(0)
+                    .getString("text")
+                    .trim();
+        } catch (Exception e) {
+            log.error("Şablon AI yanıt ayrıştırma hatası: ", e);
+            return null;
+        }
     }
 
     private AIAnalysisResult parseResponse(String response) {

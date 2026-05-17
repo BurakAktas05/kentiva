@@ -33,6 +33,28 @@ public class WebhookDispatchService {
             ReportStatus newStatus,
             String note
     ) {
+        dispatch(municipality, report, "report.status_changed", oldStatus, newStatus, note);
+    }
+
+    @Async
+    public void dispatchReportCreated(Municipality municipality, Report report) {
+        dispatch(municipality, report, "report.created", null, ReportStatus.PENDING, null);
+    }
+
+    @Async
+    public void dispatchReportAssigned(Municipality municipality, Report report, String assigneeId) {
+        dispatch(municipality, report, "report.assigned", report.getReportStatus(), report.getReportStatus(),
+                assigneeId != null ? "assigneeId=" + assigneeId : null);
+    }
+
+    private void dispatch(
+            Municipality municipality,
+            Report report,
+            String event,
+            ReportStatus oldStatus,
+            ReportStatus newStatus,
+            String note
+    ) {
         if (municipality == null || !municipality.isWebhookEnabled()) {
             return;
         }
@@ -42,7 +64,7 @@ public class WebhookDispatchService {
         }
 
         ReportStatusWebhookPayload payload = new ReportStatusWebhookPayload(
-                "report.status_changed",
+                event,
                 LocalDateTime.now(),
                 municipality.getId(),
                 report.getId(),
@@ -70,10 +92,10 @@ public class WebhookDispatchService {
             }
 
             spec.retrieve().toBodilessEntity();
-            log.info("Webhook gönderildi: belediye={}, rapor={}", municipality.getId(), report.getId());
+            log.info("Webhook gönderildi: event={}, belediye={}, rapor={}", event, municipality.getId(), report.getId());
         } catch (Exception e) {
-            log.warn("Webhook gönderilemedi: belediye={}, rapor={}, hata={}",
-                    municipality.getId(), report.getId(), e.getMessage());
+            log.warn("Webhook gönderilemedi: event={}, belediye={}, rapor={}, hata={}",
+                    event, municipality.getId(), report.getId(), e.getMessage());
         }
     }
 

@@ -19,6 +19,7 @@ import {
 } from '../../api';
 import { Lang, t } from '../../i18n';
 import AiPriorityBadge from '../AiPriorityBadge';
+import { reportStatusBadgeClass } from '../../lib/ui';
 
 const MY_REPORTS_PAGE_SIZE = 120;
 
@@ -30,42 +31,17 @@ interface HomeProps {
 }
 
 const getCategoryIcon = (category: string) => {
-  if (category.includes('Ã‡ukur') || category.includes('Yol')) return <Construction className="w-5 h-5" />;
-  if (category.includes('Ã‡Ã¶p') || category.includes('Temiz')) return <Trash2 className="w-5 h-5" />;
-  if (category.includes('Park') || category.includes('BahÃ§e')) return <TreePine className="w-5 h-5" />;
-  if (category.includes('AydÄ±nlatma') || category.includes('IÅŸÄ±k')) return <Lightbulb className="w-5 h-5" />;
+  const c = category.toLowerCase();
+  if (c.includes('çukur') || c.includes('yol') || c.includes('pothole')) return <Construction className="w-5 h-5" />;
+  if (c.includes('çöp') || c.includes('temiz') || c.includes('waste') || c.includes('trash')) return <Trash2 className="w-5 h-5" />;
+  if (c.includes('park') || c.includes('bahçe') || c.includes('garden')) return <TreePine className="w-5 h-5" />;
+  if (c.includes('aydınlatma') || c.includes('ışık') || c.includes('light')) return <Lightbulb className="w-5 h-5" />;
   return <AlertCircle className="w-5 h-5" />;
 };
 
-const getStatusBadge = (status: string, lang: Lang) => {
-  const label = t(`status.${status}`, lang);
-  switch (status) {
-    case 'RESOLVED':
-      return (
-        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-          {label}
-        </span>
-      );
-    case 'PROCESSING':
-      return (
-        <span className="rounded-full bg-sky-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-sky-800 dark:bg-sky-900/35 dark:text-sky-200">
-          {label}
-        </span>
-      );
-    case 'REJECTED':
-      return (
-        <span className="rounded-full bg-red-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-red-700 dark:bg-red-900/30 dark:text-red-400">
-          {label}
-        </span>
-      );
-    default:
-      return (
-        <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-          {label}
-        </span>
-      );
-  }
-};
+const StatusBadge = ({ status, lang }: { status: string; lang: Lang }) => (
+  <span className={reportStatusBadgeClass(status)}>{t(`status.${status}`, lang)}</span>
+);
 
 export default function Home({ onNavigate, onOpenReport, lang, isDark }: HomeProps) {
   const [reports, setReports] = useState<ApiReportList[]>([]);
@@ -88,7 +64,7 @@ export default function Home({ onNavigate, onOpenReport, lang, isDark }: HomePro
         setTotalMyReports(rep.totalElements ?? (rep.content || []).length);
         setPublicOverview(overview);
       } catch (e) {
-        console.error('AkÄ±ÅŸ yÃ¼klenemedi', e);
+        console.error('Akış yüklenemedi', e);
         if (!cancelled) {
           setReports([]);
           setTotalMyReports(0);
@@ -272,7 +248,7 @@ export default function Home({ onNavigate, onOpenReport, lang, isDark }: HomePro
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
                     {report.aiPriority && <AiPriorityBadge priority={report.aiPriority} lang={lang} />}
-                    {getStatusBadge(report.status, lang)}
+                    <StatusBadge status={report.status} lang={lang} />
                   </div>
                 </div>
 

@@ -17,6 +17,8 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 @Slf4j
 public class MediaGuardClient {
 
+    public record ScanResult(boolean rejected, String reason) {}
+
     @Value("${app.media-guard.base-url:}")
     private String baseUrl;
 
@@ -56,6 +58,25 @@ public class MediaGuardClient {
                     throw new BusinessException("Medya doğrulama servisine ulaşılamadı.", "MEDIA_GUARD_UNAVAILABLE");
                 }
             }
+        }
+    }
+
+    public ScanResult scan(byte[] body, String contentType) {
+        if (baseUrl == null || baseUrl.isBlank()) {
+            return new ScanResult(false, "No guard configured");
+        }
+        try {
+            String json = http.post()
+                    .uri(baseUrl.replaceAll("/$", "") + "/scan")
+                    .contentType(MediaType.parseMediaType(contentType != null ? contentType : "application/octet-stream"))
+                    .body(body)
+                    .retrieve()
+                    .body(String.class);
+            JSONObject o = new JSONObject(json != null ? json : "{}");
+            return new ScanResult(o.optBoolean("reject", false), o.optString("reason", ""));
+        } catch (Exception e) {
+            log.error("Async media scan failed: {}", e.getMessage());
+            return new ScanResult(!failOpen, "Service unavailable");
         }
     }
 

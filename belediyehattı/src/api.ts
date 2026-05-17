@@ -2,11 +2,7 @@
 // BelediyeApp API Service — Backend Integration
 // ============================================
 
-import { normalizeApiBase } from './lib/apiBase';
-
-const API_BASE = normalizeApiBase(
-  typeof import.meta !== 'undefined' ? import.meta.env?.VITE_API_BASE_URL : undefined,
-);
+import { resolveApiBase } from './lib/apiBase';
 
 const AUTH_PATHS = [
   '/auth/login',
@@ -19,14 +15,16 @@ const AUTH_PATHS = [
 let refreshInFlight: Promise<boolean> | null = null;
 
 export function apiBase(): string {
-  return API_BASE;
+  return resolveApiBase(
+    typeof import.meta !== 'undefined' ? import.meta.env?.VITE_API_BASE_URL : undefined,
+  );
 }
 
 /** Göreli imzalı medya yolunu tam URL yapar (img src için). */
 export function resolveMediaUrl(url: string | null | undefined): string {
   if (!url) return '';
   if (/^https?:\/\//i.test(url)) return url;
-  const origin = API_BASE.replace(/\/api\/v1\/?$/i, '') || 'http://localhost:8080';
+  const origin = apiBase().replace(/\/api\/v1\/?$/i, '') || 'http://localhost:8080';
   return `${origin}${url.startsWith('/') ? url : `/${url}`}`;
 }
 
@@ -138,6 +136,8 @@ export interface ApiReportDetail {
   aiSlaRisk?: string | null;
   aiReplyDraft?: string | null;
   aiDuplicateHint?: string | null;
+  duplicateGroupId?: string | null;
+  duplicateGroupSize?: number | null;
 }
 
 export interface ReportTimelineEntry {
@@ -192,7 +192,7 @@ async function tryRefreshToken(): Promise<boolean> {
     const refresh = getRefreshToken();
     if (!refresh) return false;
     try {
-      const res = await fetch(`${API_BASE}/auth/refresh`, {
+      const res = await fetch(`${apiBase()}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
         body: JSON.stringify({ refreshToken: refresh }),
@@ -237,7 +237,7 @@ async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const doRequest = async () => {
-    const res = await fetch(`${API_BASE}${path}`, { ...opts, headers });
+    const res = await fetch(`${apiBase()}${path}`, { ...opts, headers });
     const json = await parseJsonBody(res);
 
     if (res.status === 401) {
@@ -265,7 +265,7 @@ async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
 }
 
 async function publicFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${apiBase()}${path}`, {
     headers: { 'ngrok-skip-browser-warning': 'true' },
   });
   const json = await parseJsonBody(res);
@@ -282,7 +282,8 @@ export async function fetchPublicMunicipalities(): Promise<PublicTenant[]> {
 export type PublicStatsOverview = {
   totalReports: number;
   resolvedReports: number;
-  activeMunicipalities: number;
+  resolutionRatePercent: number;
+  onboardedMunicipalityCount: number;
 };
 
 export type PublicMunicipalityStat = {
@@ -313,7 +314,7 @@ export async function resolveMunicipalityByGps(lat: number, lng: number): Promis
 }
 
 export async function login(email: string, password: string): Promise<AuthUser> {
-  const res = await fetch(`${API_BASE}/auth/login`, {
+  const res = await fetch(`${apiBase()}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
     body: JSON.stringify({ email, password }),
@@ -400,7 +401,7 @@ export async function uploadMedia(file: File): Promise<string[]> {
     const headers: Record<string, string> = { 'ngrok-skip-browser-warning': 'true' };
     const token = getToken();
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    return fetch(`${API_BASE}/reports/upload`, { method: 'POST', headers, body: formData });
+    return fetch(`${apiBase()}/reports/upload`, { method: 'POST', headers, body: formData });
   };
 
   let res = await attempt();

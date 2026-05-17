@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   FileText,
@@ -15,6 +15,8 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
+  AlertTriangle,
+  TrendingUp,
   Moon,
   Sun,
   Settings as SettingsIcon,
@@ -25,7 +27,9 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import api, { clearAuthStorage, REFRESH_KEY, TOKEN_KEY, type Stats } from './api';
+import api, { clearAuthStorage, REFRESH_KEY, TOKEN_KEY, type PredictiveInsight, type Stats } from './api';
+import DashboardLoadingSkeleton from './components/DashboardLoadingSkeleton';
+import { reportStatusBadgeClass } from './lib/ui';
 
 const LiveMap = lazy(() => import('./LiveMap'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
@@ -35,7 +39,9 @@ const ScheduledExportsPage = lazy(() => import('./pages/ScheduledExportsPage'));
 const DepartmentsPage = lazy(() => import('./pages/DepartmentsPage'));
 const UsersPage = lazy(() => import('./pages/UsersPage'));
 const MunicipalitySettingsPage = lazy(() => import('./pages/MunicipalitySettingsPage'));
+const MunicipalityNotificationTemplatesPage = lazy(() => import('./pages/MunicipalityNotificationTemplatesPage'));
 const SuperAdminMunicipalitiesPage = lazy(() => import('./pages/SuperAdminMunicipalitiesPage'));
+const SuperAdminMunicipalityBrandingPage = lazy(() => import('./pages/SuperAdminMunicipalityBrandingPage'));
 const MunicipalityOnboardingPage = lazy(() => import('./pages/MunicipalityOnboardingPage'));
 const AuditLogsPage = lazy(() => import('./pages/AuditLogsPage'));
 const SetupPage = lazy(() => import('./pages/SetupPage'));
@@ -201,9 +207,19 @@ const Header = ({
   darkMode: boolean;
   onToggleDark: () => void;
 }) => {
+  const navigate = useNavigate();
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    api
+      .get('/dashboard/stats')
+      .then((res) => setPendingCount(Number(res.data.data?.pendingReports ?? 0)))
+      .catch(() => setPendingCount(0));
+  }, []);
+
   return (
     <header className="sticky top-0 z-40 flex h-[4.25rem] items-center justify-between border-b border-slate-200/90 bg-white/95 px-4 backdrop-blur-md sm:px-6 dark:border-slate-800 dark:bg-slate-900/95">
-      <button type="button" onClick={() => setSidebarOpen(true)} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden dark:text-slate-300 dark:hover:bg-slate-800">
+      <button type="button" onClick={() => setSidebarOpen(true)} className="kentiva-btn-icon lg:hidden" aria-label="Menüyü aç">
         <Menu />
       </button>
 
@@ -211,7 +227,8 @@ const Header = ({
         onSubmit={(e) => {
           e.preventDefault();
           const q = (e.currentTarget.elements.namedItem('headerSearch') as HTMLInputElement)?.value?.trim();
-          if (q) window.location.href = `/reports?q=${encodeURIComponent(q)}`;
+          if (q) navigate(`/reports?q=${encodeURIComponent(q)}`);
+          else navigate('/reports');
         }}
         className="hidden w-full max-w-md items-center gap-2 rounded-xl border border-slate-200/90 bg-slate-50/90 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/50 md:flex"
       >
@@ -228,15 +245,20 @@ const Header = ({
         <button
           type="button"
           onClick={onToggleDark}
-          className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+          className="kentiva-btn-icon"
           title={darkMode ? 'Açık tema' : 'Koyu tema'}
+          aria-label={darkMode ? 'Açık tema' : 'Koyu tema'}
         >
           {darkMode ? <Sun size={19} /> : <Moon size={19} />}
         </button>
-        <a href="/reports?status=PENDING" className="relative rounded-lg p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800" title="Bekleyen raporlar">
+        <Link to="/reports?status=PENDING" className="kentiva-btn-icon relative" title="Bekleyen raporlar" aria-label="Bekleyen raporlar">
           <Bell size={19} />
-          <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-900" />
-        </a>
+          {pendingCount > 0 ? (
+            <span className="absolute right-0.5 top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white ring-2 ring-white dark:ring-slate-900">
+              {pendingCount > 99 ? '99+' : pendingCount}
+            </span>
+          ) : null}
+        </Link>
         <div className="mx-1 hidden h-7 w-px bg-slate-200 sm:block dark:bg-slate-700" />
         <div className="hidden items-center gap-2 rounded-lg border border-transparent px-2 py-1 sm:flex dark:hover:border-slate-700">
           <div className="h-8 w-8 shrink-0 rounded-lg bg-primary/15 ring-1 ring-primary/10 dark:bg-primary/25" />
@@ -246,18 +268,6 @@ const Header = ({
     </header>
   );
 };
-
-const DashboardSkeleton = () => (
-  <div className="space-y-8 p-6">
-    <div className="h-9 w-56 animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-      {[1, 2, 3, 4, 5].map((i) => (
-        <div key={i} className="h-32 animate-pulse rounded-2xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900" />
-      ))}
-    </div>
-    <div className="h-[420px] animate-pulse rounded-2xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900" />
-  </div>
-);
 
 const isSuperAdminOnly = (user: User) =>
   user.roles.includes('ROLE_SUPER_ADMIN') && !user.municipality;
@@ -269,6 +279,7 @@ const Dashboard = ({ user }: { user: User }) => {
   const [stats, setStats] = useState<Stats | null>(null);
   const [statsError, setStatsError] = useState<string | null>(null);
   const [recentReports, setRecentReports] = useState<{ id: string; title: string; status: string; categoryName: string; createdAt: string; district: string }[]>([]);
+  const [insights, setInsights] = useState<PredictiveInsight[]>([]);
   const [exporting, setExporting] = useState<'excel' | 'pdf' | null>(null);
 
   useEffect(() => {
@@ -281,6 +292,11 @@ const Dashboard = ({ user }: { user: User }) => {
       .get('/reports', { params: { page: 0, size: 5, sort: 'createdAt,desc' } })
       .then((res) => setRecentReports(res.data.data?.content ?? []))
       .catch(() => {});
+
+    api
+      .get('/dashboard/predictive-insights')
+      .then((res) => setInsights(((res.data.data as PredictiveInsight[]) ?? []).slice(0, 3)))
+      .catch(() => setInsights([]));
   }, []);
 
   const handleExport = async (format: 'excel' | 'pdf') => {
@@ -304,12 +320,12 @@ const Dashboard = ({ user }: { user: User }) => {
   if (statsError) {
     return (
       <div className="p-6">
-        <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">{statsError}</p>
+        <p className="kentiva-alert-error">{statsError}</p>
       </div>
     );
   }
 
-  if (!stats) return <DashboardSkeleton />;
+  if (!stats) return <DashboardLoadingSkeleton />;
 
   const statCards = [
     {
@@ -344,29 +360,20 @@ const Dashboard = ({ user }: { user: User }) => {
     },
   ];
 
-  const statusBadge = (s: string) => {
-    switch (s) {
-      case 'RESOLVED': return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200';
-      case 'PROCESSING': return 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200';
-      case 'REJECTED': return 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200';
-      default: return 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200';
-    }
-  };
-
   return (
     <div className="space-y-8 p-6">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Özet</p>
-          <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">Hoş geldiniz</h2>
-          <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">Operasyon özeti ve canlı harita.</p>
+          <p className="kentiva-eyebrow">Özet</p>
+          <h2 className="kentiva-page-title">Hoş geldiniz</h2>
+          <p className="kentiva-page-subtitle">Operasyon özeti ve canlı harita.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => handleExport('excel')}
             disabled={exporting !== null}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+            className="kentiva-btn-secondary"
           >
             <Download size={17} />
             {exporting === 'excel' ? 'İndiriliyor…' : 'Excel'}
@@ -375,13 +382,51 @@ const Dashboard = ({ user }: { user: User }) => {
             type="button"
             onClick={() => handleExport('pdf')}
             disabled={exporting !== null}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+            className="kentiva-btn-secondary"
           >
             <Download size={17} />
             {exporting === 'pdf' ? 'İndiriliyor…' : 'PDF'}
           </button>
         </div>
       </div>
+
+      {insights.length > 0 && (
+        <section className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="mb-4 flex items-center gap-2">
+            <TrendingUp size={18} className="text-primary" />
+            <h3 className="text-base font-bold text-slate-900 dark:text-white">Tahminsel uyarılar</h3>
+            <Sparkles size={16} className="text-sky-500" />
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            {insights.map((item, idx) => (
+              <div
+                key={`${item.categoryName}-${item.district}-${idx}`}
+                className={`rounded-xl border p-4 ${
+                  item.riskLevel === 'HIGH'
+                    ? 'border-red-200/80 bg-red-50/80 dark:border-red-900/50 dark:bg-red-950/30'
+                    : item.riskLevel === 'MEDIUM'
+                      ? 'border-amber-200/80 bg-amber-50/80 dark:border-amber-900/50 dark:bg-amber-950/30'
+                      : 'border-slate-200/80 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-800/40'
+                }`}
+              >
+                <p className="font-bold text-slate-900 dark:text-white">{item.categoryName}</p>
+                <p className="text-xs text-slate-500">{item.district || 'Genel'}</p>
+                <p className="mt-2 flex gap-2 text-xs text-slate-600 dark:text-slate-400">
+                  <span>Açık: {item.openCount}</span>
+                  <span>Trend: ×{item.trendRatio}</span>
+                </p>
+                <p className="mt-2 flex gap-2 text-sm text-slate-700 dark:text-slate-300">
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-600" />
+                  <span className="line-clamp-3">{item.recommendation}</span>
+                </p>
+              </div>
+            ))}
+          </div>
+          <Link to="/stats" className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline">
+            Tüm analizler <ArrowRight size={12} />
+          </Link>
+        </section>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {statCards.map((stat) => (
@@ -439,7 +484,7 @@ const Dashboard = ({ user }: { user: User }) => {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-slate-900 dark:text-white">{r.title}</p>
                     <div className="mt-1 flex items-center gap-2">
-                      <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${statusBadge(r.status)}`}>{r.status}</span>
+                      <span className={`kentiva-status-badge ${reportStatusBadgeClass(r.status)}`}>{r.status}</span>
                       <span className="text-[10px] text-slate-400">{r.createdAt ? new Date(r.createdAt).toLocaleDateString('tr-TR') : ''}</span>
                     </div>
                   </div>
@@ -571,10 +616,34 @@ const App = () => {
                       }
                     />
                     <Route
+                      path="/municipality-settings/notifications"
+                      element={
+                        <ProtectedRoute user={user} allow={(u) => u.roles.includes('ROLE_ADMIN') && Boolean(u.municipality)}>
+                          <MunicipalityNotificationTemplatesPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
                       path="/admin/municipalities"
                       element={
                         <ProtectedRoute user={user} allow={(u) => u.roles.includes('ROLE_SUPER_ADMIN')}>
                           <SuperAdminMunicipalitiesPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/admin/municipalities/:municipalityId/branding"
+                      element={
+                        <ProtectedRoute user={user} allow={(u) => u.roles.includes('ROLE_SUPER_ADMIN')}>
+                          <SuperAdminMunicipalityBrandingPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/admin/municipalities/:municipalityId/notifications"
+                      element={
+                        <ProtectedRoute user={user} allow={(u) => u.roles.includes('ROLE_SUPER_ADMIN')}>
+                          <MunicipalityNotificationTemplatesPage />
                         </ProtectedRoute>
                       }
                     />
@@ -711,42 +780,42 @@ const Login = ({ onLogin }: { onLogin: (u: User) => void }) => {
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-secondary/30 rounded-full -ml-48 -mb-48 blur-3xl"></div>
       </div>
 
-      <div className="w-full lg:w-[500px] bg-white flex items-center justify-center p-8">
+      <div className="flex w-full items-center justify-center bg-white p-8 dark:bg-slate-900 lg:w-[500px]">
         <div className="w-full max-w-sm">
           <div className="mb-12">
             <div className="w-14 h-14 bg-gradient-to-br from-primary to-primary-dark rounded-2xl flex items-center justify-center text-white mb-6 shadow-xl shadow-primary/30 ring-1 ring-white/15">
               <Building2 size={30} />
             </div>
-            <h2 className="text-3xl font-bold mb-2">Giriş Yapın</h2>
-            <p className="text-slate-500">Yönetim yetkilerinizle devam edin.</p>
+            <h2 className="mb-2 text-3xl font-bold text-slate-900 dark:text-white">Giriş Yapın</h2>
+            <p className="text-slate-500 dark:text-slate-400">Yönetim yetkilerinizle devam edin.</p>
           </div>
 
           {forgotStep === 'off' ? (
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700">E-posta</label>
+                <label className="kentiva-label dark:text-slate-300">E-posta</label>
                 <input 
                   type="email" 
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-slate-50 border-slate-200 rounded-2xl py-3 px-4 focus:ring-2 focus:ring-primary focus:bg-white transition-all outline-none"
+                  className="kentiva-input !rounded-2xl !py-3 dark:bg-slate-950"
                   placeholder="admin@belediye.gov.tr"
                   required
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700">Şifre</label>
+                <label className="kentiva-label dark:text-slate-300">Şifre</label>
                 <input 
                   type="password" 
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-slate-50 border-slate-200 rounded-2xl py-3 px-4 focus:ring-2 focus:ring-primary focus:bg-white transition-all outline-none"
+                  className="kentiva-input !rounded-2xl !py-3 dark:bg-slate-950"
                   placeholder="••••••••"
                   required
                 />
               </div>
-              {error && <p className="text-red-500 text-sm font-medium">{error}</p>}
-              <button className="w-full bg-primary text-white font-bold py-4 rounded-2xl hover:bg-primary-hover shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5 active:translate-y-0">
+              {error && <p className="kentiva-alert-error !rounded-xl">{error}</p>}
+              <button type="submit" className="kentiva-btn-primary w-full !rounded-2xl !py-4">
                 Devam Et
               </button>
               <button

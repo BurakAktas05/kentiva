@@ -65,6 +65,7 @@ This application is containerized and ready for PaaS providers like Railway, Ren
 ### Secrets & deployment
 
 *   **Yayınlama rehberi (TR):** [`deployment/YAYINLAMA.md`](deployment/YAYINLAMA.md) — Railway, Vercel, APK, süper admin `/setup`.
+*   **Yerel manuel test (ngrok, APK en sonda):** [`scripts/YEREL-MANUEL-TEST.md`](scripts/YEREL-MANUEL-TEST.md) — `start-local.ps1` → doğrula → `build-apk-local.ps1`.
 *   **Tüm anahtarlar (şablon):** [`deployment/ANAHTARLAR.template.env`](deployment/ANAHTARLAR.template.env) → kopyalayın: `deployment/ANAHTARLAR.local.env` (gitignore).
 *   All API keys, DB passwords, and JWT secrets live in environment variables only (see `.env.example`, `railway.env.example`).
 *   Do not commit `railway.env` or real keys. If a key was ever committed, rotate it immediately in Google Cloud / Railway.

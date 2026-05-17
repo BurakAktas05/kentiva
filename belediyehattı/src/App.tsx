@@ -1,9 +1,10 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { initNativeShell, registerNativeBackHandler } from './lib/nativeShell';
 import { Home as HomeIcon, PlusCircle, User, Bell, Building2 } from 'lucide-react';
-import { getSavedUser, clearTokens, getUnreadCount, AuthUser } from './api';
+import { getSavedUser, clearTokens, getUnreadCount, AuthUser, type PublicTenant } from './api';
 import { setupCitizenPush } from './lib/pushNotifications';
 import { Lang, t } from './i18n';
+import { useTenant } from './TenantContext';
 import AuthScreen from './components/screens/AuthScreen';
 import Home from './components/screens/Home';
 import NewReport from './components/screens/NewReport';
@@ -11,10 +12,12 @@ import Profile from './components/screens/Profile';
 import Notifications from './components/screens/Notifications';
 import Settings from './components/screens/Settings';
 import ReportDetailScreen from './components/screens/ReportDetailScreen';
+import MunicipalityPicker from './components/screens/MunicipalityPicker';
 
 export type Tab = 'home' | 'report' | 'profile' | 'notifications' | 'settings';
 
 export default function App() {
+  const { tenant, setTenant } = useTenant();
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [openReportId, setOpenReportId] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(getSavedUser());
@@ -99,7 +102,7 @@ export default function App() {
       return true;
     }
     return false;
-  }, [activeTab, openReportId]);
+  }, [activeTab, openReportId, tenant]);
 
   useEffect(() => registerNativeBackHandler(handleNativeBack), [handleNativeBack]);
 
@@ -111,32 +114,34 @@ export default function App() {
     <div className={`min-h-app flex justify-center font-sans ${isDark ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-900'}`}>
       <div className={`w-full max-w-md flex flex-col h-app relative overflow-hidden sm:border-x sm:shadow-kentiva ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200/80'}`}>
 
-        <header className={`px-4 py-3.5 pt-safe z-10 flex justify-between items-center shrink-0 border-b backdrop-blur-md ${isDark ? 'border-slate-800 bg-slate-900/95' : 'border-slate-200/80 bg-white/90'}`}>
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-primary/15 flex items-center justify-center text-primary">
-              <Building2 className="w-5 h-5" />
+        {!openReportId && (
+          <header className={`px-4 py-3.5 pt-safe z-10 flex justify-between items-center shrink-0 border-b backdrop-blur-md ${isDark ? 'border-slate-800 bg-slate-900/95' : 'border-slate-200/80 bg-white/90'}`}>
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-lg bg-primary/15 flex items-center justify-center text-primary">
+                <Building2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h1 className={`text-base font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-800'}`}>
+                  {t('app.name', lang)}
+                </h1>
+                <p className={`text-[10px] font-medium tracking-wide ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  {t('app.slogan', lang)}
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className={`text-base font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-800'}`}>
-                {t('app.name', lang)}
-              </h1>
-              <p className={`text-[10px] font-medium tracking-wide ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                {t('app.slogan', lang)}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => setActiveTab('notifications')}
-            className={`relative p-2 rounded-xl transition-colors ${isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-100'}`}
-          >
-            <Bell className={`w-5 h-5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`} strokeWidth={activeTab === 'notifications' ? 2.5 : 2} />
-            {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </span>
-            )}
-          </button>
-        </header>
+            <button
+              onClick={() => setActiveTab('notifications')}
+              className={`relative p-2 rounded-xl transition-colors ${isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-100'}`}
+            >
+              <Bell className={`w-5 h-5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`} strokeWidth={activeTab === 'notifications' ? 2.5 : 2} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
+          </header>
+        )}
 
         <main className={`flex-1 overflow-y-auto overflow-x-hidden relative pb-20 ${isDark ? 'bg-slate-900' : 'bg-slate-50'}`}>
           {activeTab === 'home' && (
@@ -160,13 +165,30 @@ export default function App() {
               }}
             />
           )}
-          {activeTab === 'report' && <NewReport onSubmit={handleReportSubmit} onCancel={() => setActiveTab('home')} lang={lang} isDark={isDark} />}
-          {activeTab === 'profile' && <Profile onLogout={handleLogout} onSettings={() => setActiveTab('settings')} lang={lang} isDark={isDark} />}
+          {activeTab === 'report' && (
+            <NewReport
+              defaultMunicipality={tenant}
+              onSubmit={handleReportSubmit}
+              onCancel={() => setActiveTab('home')}
+              lang={lang}
+              isDark={isDark}
+            />
+          )}
+          {activeTab === 'profile' && (
+            <Profile
+              onLogout={handleLogout}
+              onSettings={() => setActiveTab('settings')}
+              onOpenReport={(id) => setOpenReportId(id)}
+              lang={lang}
+              isDark={isDark}
+            />
+          )}
           {activeTab === 'notifications' && <Notifications onBadgeUpdate={setUnreadCount} lang={lang} isDark={isDark} />}
           {activeTab === 'settings' && (
             <Settings
               lang={lang}
               theme={theme}
+              municipalityName={tenant?.displayName}
               onLangChange={setLang}
               onThemeChange={setTheme}
               onBack={() => setActiveTab('profile')}

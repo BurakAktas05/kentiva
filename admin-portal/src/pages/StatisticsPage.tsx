@@ -3,6 +3,7 @@ import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer,
 import { AlertTriangle, Sparkles, TrendingUp } from 'lucide-react';
 import axios from 'axios';
 import api, { type PredictiveInsight, type ReportListItem, type SpringPage, type Stats } from '../api';
+import { REPORT_STATUS_CHART_COLORS, themeHex } from '../lib/ui';
 
 function riskCardClass(risk: PredictiveInsight['riskLevel']) {
   if (risk === 'HIGH') return 'border-red-200/80 bg-red-50/80 dark:border-red-900/50 dark:bg-red-950/30';
@@ -21,13 +22,6 @@ function riskLabel(risk: PredictiveInsight['riskLevel']) {
   if (risk === 'MEDIUM') return 'Orta';
   return 'Düşük';
 }
-
-const STATUS_COLORS: Record<string, string> = {
-  PENDING: '#d97706',
-  PROCESSING: '#0ea5e9',
-  RESOLVED: '#059669',
-  REJECTED: '#dc2626',
-};
 
 export default function StatisticsPage() {
   const [stats, setStats] = useState<Stats | null>(null);
@@ -115,7 +109,7 @@ export default function StatisticsPage() {
   return (
     <div className="space-y-8 p-6">
       <div>
-        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Analitik</p>
+        <p className="kentiva-eyebrow">Analitik</p>
         <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">İstatistikler</h2>
         <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">Özet KPI, tahminsel uyarılar ve kategori dağılımı.</p>
       </div>
@@ -162,7 +156,7 @@ export default function StatisticsPage() {
               <PieChart>
                 <Pie data={statusPie} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
                   {statusPie.map((entry) => (
-                    <Cell key={entry.key} fill={STATUS_COLORS[entry.key] ?? '#94a3b8'} />
+                    <Cell key={entry.key} fill={REPORT_STATUS_CHART_COLORS[entry.key] ?? themeHex.muted} />
                   ))}
                 </Pie>
                 <Tooltip formatter={(value) => [`${value ?? 0}`, 'Adet']} />
@@ -180,7 +174,7 @@ export default function StatisticsPage() {
                 <XAxis type="number" />
                 <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11 }} />
                 <Tooltip formatter={(value) => [`${value ?? 0}`, 'Rapor']} />
-                <Bar dataKey="value" fill="#0b4f9c" radius={[0, 6, 6, 0]} />
+                <Bar dataKey="value" fill={themeHex.primary} radius={[0, 6, 6, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

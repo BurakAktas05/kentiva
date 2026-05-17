@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   CheckCircle2,
   ChevronLeft,
@@ -7,11 +7,13 @@ import {
   Download,
   Filter,
   RefreshCw,
+  Search,
   UserPlus,
   X,
 } from 'lucide-react';
 import axios from 'axios';
 import api, { type BulkReportOperationResult, type ReportListItem, type SpringPage, type User } from '../api';
+import { reportStatusBadgeClass } from '../lib/ui';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Tüm durumlar' },
@@ -30,29 +32,18 @@ const BULK_STATUS_OPTIONS = [
 type BulkModal = 'assign' | 'status' | 'export' | null;
 type Toast = { type: 'success' | 'error'; message: string } | null;
 
-const badge = (status: string) => {
-  switch (status) {
-    case 'PENDING':
-      return 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200';
-    case 'PROCESSING':
-      return 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200';
-    case 'RESOLVED':
-      return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200';
-    case 'REJECTED':
-      return 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200';
-    default:
-      return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200';
-  }
-};
-
 function hasAnyRole(roles: string[], allowed: string[]) {
   return roles.some((r) => allowed.includes(r));
 }
 
 export default function ReportsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialQuery = searchParams.get('q')?.trim() ?? '';
+  const initialStatus = searchParams.get('status')?.trim() ?? '';
   const [page, setPage] = useState(0);
   const [size] = useState(15);
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState(initialStatus);
+  const [searchText, setSearchText] = useState(initialQuery);
   const [data, setData] = useState<SpringPage<ReportListItem> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -121,6 +112,15 @@ export default function ReportsPage() {
 
   const totalPages = data?.totalPages ?? 0;
   const rows = data?.content ?? [];
+  const filteredRows = useMemo(() => {
+    const q = searchText.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) =>
+      [r.title, r.categoryName, r.district, r.id]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q)),
+    );
+  }, [rows, searchText]);
   const selectedCount = selected.size;
 
   const pageIds = useMemo(() => rows.map((r) => r.id), [rows]);
@@ -257,13 +257,31 @@ export default function ReportsPage() {
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">İş listesi</p>
+          <p className="kentiva-eyebrow">İş listesi</p>
           <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">Raporlar</h2>
           <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">
             Tüm ihbarlar, sayfalama, filtre ve toplu işlemler.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="search"
+              value={searchText}
+              onChange={(e) => {
+                const v = e.target.value;
+                setSearchText(v);
+                setPage(0);
+                const next = new URLSearchParams(searchParams);
+                if (v.trim()) next.set('q', v.trim());
+                else next.delete('q');
+                setSearchParams(next, { replace: true });
+              }}
+              placeholder="Başlık, kategori, ilçe…"
+              className="w-full min-w-[200px] rounded-xl border border-slate-200/90 bg-white py-2.5 pl-10 pr-3 text-sm font-medium text-slate-800 shadow-sm focus:ring-2 focus:ring-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:w-56"
+            />
+          </div>
           <div className="relative">
             <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <select
@@ -386,7 +404,7 @@ export default function ReportsPage() {
                   </td>
                 </tr>
               ) : (
-                rows.map((r) => (
+                filteredRows.map((r) => (
                   <tr
                     key={r.id}
                     className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${selected.has(r.id) ? 'bg-primary/5 dark:bg-primary/10' : ''}`}
@@ -417,7 +435,7 @@ export default function ReportsPage() {
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{r.categoryName}</td>
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{r.district ?? '—'}</td>
                     <td className="px-4 py-3">
-                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${badge(r.status)}`}>
+                      <span className={`kentiva-status-badge ${reportStatusBadgeClass(r.status)}`}>
                         {r.status}
                       </span>
                     </td>

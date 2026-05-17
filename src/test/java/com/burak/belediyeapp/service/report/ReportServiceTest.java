@@ -77,7 +77,8 @@ class ReportServiceTest {
                 tenantAccess,
                 mediaSignedUrlService,
                 eventPublisher,
-                duplicateLinkService);
+                duplicateLinkService,
+                webhookDispatchService);
 
         queryService = new ReportQueryService(
                 reportRepository,

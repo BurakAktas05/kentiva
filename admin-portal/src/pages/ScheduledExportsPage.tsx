@@ -344,7 +344,7 @@ function PageHeader({ canManage, onNew }: { canManage: boolean; onNew: () => voi
   return (
     <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
       <div>
-        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Dışa aktarma</p>
+        <p className="kentiva-eyebrow">Dışa aktarma</p>
         <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">Planlı dışa aktarma</h2>
         <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">
           Raporları otomatik Excel veya PDF olarak üretin; geçmiş dosyaları indirin.

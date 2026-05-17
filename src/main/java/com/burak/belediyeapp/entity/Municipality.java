@@ -91,6 +91,24 @@ public class Municipality extends BaseEntity {
     @Column(name = "sms_sender_header", length = 11)
     private String smsSenderHeader;
 
+    @Column(name = "sms_processing_template", columnDefinition = "TEXT")
+    private String smsProcessingTemplate;
+
+    @Column(name = "push_processing_title_template", length = 200)
+    private String pushProcessingTitleTemplate;
+
+    @Column(name = "push_processing_body_template", columnDefinition = "TEXT")
+    private String pushProcessingBodyTemplate;
+
+    @Column(name = "sms_assigned_template", columnDefinition = "TEXT")
+    private String smsAssignedTemplate;
+
+    @Column(name = "push_assigned_title_template", length = 200)
+    private String pushAssignedTitleTemplate;
+
+    @Column(name = "push_assigned_body_template", columnDefinition = "TEXT")
+    private String pushAssignedBodyTemplate;
+
     @Column(name = "contact_email", length = 255)
     private String contactEmail;
 

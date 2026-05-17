@@ -108,7 +108,7 @@ export default function SuperAdminHomePage() {
   }
 
   if (!data) {
-    return <div className="p-6 text-sm text-slate-500">Dashboard yükleniyor…</div>;
+    return <DashboardLoadingSkeleton />;
   }
 
   const { summary, tenants } = data;
@@ -162,7 +162,7 @@ export default function SuperAdminHomePage() {
     <div className="space-y-8 p-6">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+          <p className="kentiva-eyebrow">
             Platform yönetimi
           </p>
           <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
@@ -192,17 +192,14 @@ export default function SuperAdminHomePage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {statCards.map((stat) => (
-          <div
+          <PlatformStatCard
             key={stat.name}
-            className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
-          >
-            <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl ring-1 ${stat.wrap}`}>
-              <stat.icon size={20} />
-            </div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{stat.name}</p>
-            <p className="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-white">{stat.value}</p>
-            <p className="mt-0.5 text-xs text-slate-500">{stat.sub}</p>
-          </div>
+            name={stat.name}
+            value={stat.value}
+            sub={stat.sub}
+            icon={stat.icon}
+            iconWrap={stat.wrap}
+          />
         ))}
       </div>
 

@@ -22,5 +22,11 @@ public record MunicipalityPatchRequest(
         String smsResolvedTemplate,
         String pushRejectedTitleTemplate,
         String pushRejectedBodyTemplate,
-        String smsSenderHeader
+        String smsSenderHeader,
+        String smsProcessingTemplate,
+        String pushProcessingTitleTemplate,
+        String pushProcessingBodyTemplate,
+        String smsAssignedTemplate,
+        String pushAssignedTitleTemplate,
+        String pushAssignedBodyTemplate
 ) {}

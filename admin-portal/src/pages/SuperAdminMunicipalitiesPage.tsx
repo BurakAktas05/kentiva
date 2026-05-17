@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Palette } from 'lucide-react';
 import { ArrowLeft, Sparkles } from 'lucide-react';
 import api from '../api';
-import DashboardLoadingSkeleton from '../components/DashboardLoadingSkeleton';
-
-type MunicipalityDto = {
+type MunicipalityRow = {
   id: string;
   name: string;
   slug: string;
@@ -19,7 +18,7 @@ type MunicipalityDto = {
 };
 
 export default function SuperAdminMunicipalitiesPage() {
-  const [rows, setRows] = useState<MunicipalityDto[]>([]);
+  const [rows, setRows] = useState<MunicipalityRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState('');
   const [name, setName] = useState('');
@@ -33,7 +32,7 @@ export default function SuperAdminMunicipalitiesPage() {
     setLoading(true);
     api
       .get('/admin/municipalities')
-      .then((res) => setRows(res.data.data as MunicipalityDto[]))
+      .then((res) => setRows(res.data.data as MunicipalityRow[]))
       .catch(() => setMsg('Liste yüklenemedi.'))
       .finally(() => setLoading(false));
   }, []);
@@ -87,7 +86,7 @@ export default function SuperAdminMunicipalitiesPage() {
         <Link to="/" className="mb-3 inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline">
           <ArrowLeft size={14} /> Platform dashboard
         </Link>
-        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Süper admin</p>
+        <p className="kentiva-eyebrow">Süper admin</p>
         <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">Belediyeler</h2>
         <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">Onboarding ve çok kiracılı yönetim.</p>
         <Link
@@ -168,6 +167,7 @@ export default function SuperAdminMunicipalitiesPage() {
                 <th className="p-3">Bitiş</th>
                 <th className="p-3">Aktif</th>
                 <th className="p-3">Onboarding</th>
+                <th className="p-3">Marka</th>
               </tr>
             </thead>
             <tbody>
@@ -183,6 +183,15 @@ export default function SuperAdminMunicipalitiesPage() {
                   </td>
                   <td className="p-3">{r.active ? 'Evet' : 'Hayır'}</td>
                   <td className="p-3">{r.onboarded ? 'Evet' : 'Hayır'}</td>
+                  <td className="p-3">
+                    <Link
+                      to={`/admin/municipalities/${r.id}/branding`}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                    >
+                      <Palette size={14} />
+                      Özelleştir
+                    </Link>
+                  </td>
                 </tr>
               ))}
             </tbody>

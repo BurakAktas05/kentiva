@@ -70,6 +70,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/v1/municipalities/me")
                     .hasAnyRole("ADMIN", "DEPT_MANAGER", "FIELD_OFFICER")
                 .requestMatchers(HttpMethod.PATCH, "/api/v1/municipalities/me/branding").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/municipalities/me/branding/logo").hasRole("ADMIN")
 
                 // ── Entegrasyon (API anahtarı / belediye admin) ─
                 .requestMatchers("/api/v1/integration/**").hasRole("API_CLIENT")
@@ -165,8 +166,8 @@ public class SecurityConfig {
 
             // JWT filter — UsernamePasswordAuthenticationFilter'dan önce çalışır
             .authenticationProvider(authenticationProvider())
-            .addFilterBefore(apiKeyAuthFilter, JwtAuthFilter.class)
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(apiKeyAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

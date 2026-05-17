@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AlertCircle, Flame, MapPin, Layers } from 'lucide-react';
 import api, { TOKEN_KEY, type Report, type ReportListItem } from './api';
 import { getSockJsUrl } from './lib/env';
+import { heatMapGradient, reportStatusBadgeClass } from './lib/ui';
 
 // Leaflet default icon paths (bundler)
 delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
@@ -54,7 +55,7 @@ function HeatLayer({ points }: { points: [number, number, number][] }) {
       blur: 22,
       maxZoom: 16,
       max: 0.85,
-      gradient: { 0.4: '#0ea5e9', 0.65: '#0b4f9c', 0.9: '#e6b422', 1: '#dc2626' },
+      gradient: { ...heatMapGradient },
     });
     map.addLayer(layer);
     return () => {
@@ -65,21 +66,6 @@ function HeatLayer({ points }: { points: [number, number, number][] }) {
 }
 
 export type MapLayerMode = 'markers' | 'heat' | 'both';
-
-const statusBadge = (status: string) => {
-  switch (status) {
-    case 'PENDING':
-      return 'bg-amber-100 text-amber-800';
-    case 'PROCESSING':
-      return 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200';
-    case 'RESOLVED':
-      return 'bg-emerald-100 text-emerald-800';
-    case 'REJECTED':
-      return 'bg-red-100 text-red-800';
-    default:
-      return 'bg-slate-100 text-slate-700';
-  }
-};
 
 const LiveMap = ({
   centerLat,
@@ -251,7 +237,7 @@ const LiveMap = ({
                   <p className="mb-2 text-xs text-slate-500">
                     {report.categoryName} • {report.district}
                   </p>
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${statusBadge(report.status)}`}>
+                  <span className={`kentiva-status-badge ${reportStatusBadgeClass(report.status)}`}>
                     {report.status}
                   </span>
                   <button

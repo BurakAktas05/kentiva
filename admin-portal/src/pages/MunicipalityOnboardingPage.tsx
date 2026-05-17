@@ -149,7 +149,7 @@ export default function MunicipalityOnboardingPage() {
     <div className="p-6 max-w-3xl mx-auto space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Süper admin</p>
+          <p className="kentiva-eyebrow">Süper admin</p>
           <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
             <Sparkles size={22} className="text-primary" />
             Belediye kurulum sihirbazı

@@ -1,5 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { MessageSquare } from 'lucide-react';
 import api from '../api';
+import MunicipalityBrandingForm from '../components/MunicipalityBrandingForm';
+import MunicipalityBrandingPreview from '../components/MunicipalityBrandingPreview';
+import MunicipalitySettingsSkeleton from '../components/MunicipalitySettingsSkeleton';
+import BoundaryGeoJsonPanel from '../components/BoundaryGeoJsonPanel';
+import ReportTemplatesPanel from '../components/ReportTemplatesPanel';
+import ToastBanner, { type ToastState } from '../components/ToastBanner';
+import { emptyBrandingForm, type BrandingFormValues } from '../lib/branding';
 
 type ApiKeyListItem = {
   id: string;
@@ -16,8 +25,6 @@ type WebhookSettings = {
   webhookEnabled: boolean;
   webhookSecretConfigured: boolean;
 };
-
-import ReportTemplatesPanel from '../components/ReportTemplatesPanel';
 
 type MunicipalityDto = {
   id: string;
@@ -37,12 +44,47 @@ type MunicipalityDto = {
   pushRejectedTitleTemplate: string | null;
   pushRejectedBodyTemplate: string | null;
   smsSenderHeader: string | null;
+  smsProcessingTemplate: string | null;
+  pushProcessingTitleTemplate: string | null;
+  pushProcessingBodyTemplate: string | null;
+  smsAssignedTemplate: string | null;
+  pushAssignedTitleTemplate: string | null;
+  pushAssignedBodyTemplate: string | null;
+  centerLat?: number | null;
+  centerLng?: number | null;
+  defaultZoom?: number | null;
 };
+
+function dtoToForm(m: MunicipalityDto): BrandingFormValues {
+  return {
+    displayName: m.displayName || m.name || '',
+    logoUrl: m.logoUrl || '',
+    primaryColor: m.primaryColor || '',
+    secondaryColor: m.secondaryColor || '',
+    accentColor: m.accentColor || '',
+    slogan: m.slogan || '',
+    contactEmail: m.contactEmail || '',
+    contactPhone: m.contactPhone || '',
+    websiteUrl: m.websiteUrl || '',
+    publicStatsEnabled: !!m.publicStatsEnabled,
+    smsResolvedTemplate: m.smsResolvedTemplate || '',
+    pushRejectedTitleTemplate: m.pushRejectedTitleTemplate || '',
+    pushRejectedBodyTemplate: m.pushRejectedBodyTemplate || '',
+    smsSenderHeader: m.smsSenderHeader || '',
+    smsProcessingTemplate: m.smsProcessingTemplate || '',
+    pushProcessingTitleTemplate: m.pushProcessingTitleTemplate || '',
+    pushProcessingBodyTemplate: m.pushProcessingBodyTemplate || '',
+    smsAssignedTemplate: m.smsAssignedTemplate || '',
+    pushAssignedTitleTemplate: m.pushAssignedTitleTemplate || '',
+    pushAssignedBodyTemplate: m.pushAssignedBodyTemplate || '',
+  };
+}
 
 export default function MunicipalitySettingsPage() {
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState('');
+  const [municipality, setMunicipality] = useState<MunicipalityDto | null>(null);
+  const [previewForm, setPreviewForm] = useState<BrandingFormValues>(emptyBrandingForm());
+  const [toast, setToast] = useState<ToastState>(null);
   const [apiKeys, setApiKeys] = useState<ApiKeyListItem[]>([]);
   const [newKeyName, setNewKeyName] = useState('');
   const [createdKey, setCreatedKey] = useState<string | null>(null);
@@ -54,22 +96,17 @@ export default function MunicipalitySettingsPage() {
   });
   const [webhookSecret, setWebhookSecret] = useState('');
   const [integrationMsg, setIntegrationMsg] = useState('');
-  const [form, setForm] = useState({
-    displayName: '',
-    logoUrl: '',
-    primaryColor: '',
-    secondaryColor: '',
-    accentColor: '',
-    slogan: '',
-    contactEmail: '',
-    contactPhone: '',
-    websiteUrl: '',
-    publicStatsEnabled: false,
-    smsResolvedTemplate: '',
-    pushRejectedTitleTemplate: '',
-    pushRejectedBodyTemplate: '',
-    smsSenderHeader: '',
-  });
+  const [helpOpen, setHelpOpen] = useState(false);
+
+  const handleFormChange = useCallback((f: BrandingFormValues) => {
+    setPreviewForm(f);
+  }, []);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(null), 5000);
+    return () => window.clearTimeout(t);
+  }, [toast]);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,28 +114,16 @@ export default function MunicipalitySettingsPage() {
       .get('/municipalities/me')
       .then((res) => {
         const m = res.data.data as MunicipalityDto;
-        if (cancelled || !m) return;
-        setForm({
-          displayName: m.displayName || m.name || '',
-          logoUrl: m.logoUrl || '',
-          primaryColor: m.primaryColor || '',
-          secondaryColor: m.secondaryColor || '',
-          accentColor: m.accentColor || '',
-          slogan: m.slogan || '',
-          contactEmail: m.contactEmail || '',
-          contactPhone: m.contactPhone || '',
-          websiteUrl: m.websiteUrl || '',
-          publicStatsEnabled: !!m.publicStatsEnabled,
-          smsResolvedTemplate: m.smsResolvedTemplate || '',
-          pushRejectedTitleTemplate: m.pushRejectedTitleTemplate || '',
-          pushRejectedBodyTemplate: m.pushRejectedBodyTemplate || '',
-          smsSenderHeader: m.smsSenderHeader || '',
-        });
+        if (!cancelled && m) {
+          setMunicipality(m);
+          setPreviewForm(dtoToForm(m));
+        }
       })
-      .catch(() => setMsg('Belediye bilgileri yüklenemedi.'))
+      .catch(() => setToast({ type: 'error', message: 'Belediye bilgileri yüklenemedi.' }))
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
+
     api
       .get('/municipalities/me/api-keys')
       .then((res) => {
@@ -128,38 +153,25 @@ export default function MunicipalitySettingsPage() {
     };
   }, []);
 
-  const save = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    setMsg('');
-    try {
-      await api.patch('/municipalities/me/branding', {
-        displayName: form.displayName || null,
-        logoUrl: form.logoUrl || null,
-        primaryColor: form.primaryColor || null,
-        secondaryColor: form.secondaryColor || null,
-        accentColor: form.accentColor || null,
-        slogan: form.slogan || null,
-        contactEmail: form.contactEmail || null,
-        contactPhone: form.contactPhone || null,
-        websiteUrl: form.websiteUrl || null,
-        publicStatsEnabled: form.publicStatsEnabled,
-        active: null,
-        onboarded: null,
-        slug: null,
-        smsResolvedTemplate: form.smsResolvedTemplate || null,
-        pushRejectedTitleTemplate: form.pushRejectedTitleTemplate || null,
-        pushRejectedBodyTemplate: form.pushRejectedBodyTemplate || null,
-        smsSenderHeader: form.smsSenderHeader || null,
-      });
-      setMsg('Kaydedildi.');
-    } catch (err: unknown) {
-      const m = err as { response?: { data?: { message?: string } } };
-      setMsg(m.response?.data?.message || 'Kayıt başarısız.');
-    } finally {
-      setSaving(false);
-    }
-  };
+  const initialForm = useMemo(
+    () => (municipality ? dtoToForm(municipality) : emptyBrandingForm()),
+    [municipality],
+  );
+
+  const meta = useMemo(
+    () =>
+      municipality
+        ? { legalName: municipality.name, slug: municipality.slug, municipalityId: municipality.id }
+        : { legalName: '', slug: '', municipalityId: '' },
+    [municipality],
+  );
+
+  const reloadMunicipality = useCallback(async () => {
+    const res = await api.get('/municipalities/me');
+    const m = res.data.data as MunicipalityDto;
+    setMunicipality(m);
+    setPreviewForm(dtoToForm(m));
+  }, []);
 
   const createApiKey = async () => {
     if (!newKeyName.trim()) return;
@@ -218,83 +230,70 @@ export default function MunicipalitySettingsPage() {
   };
 
   if (loading) {
-    return <div className="p-6 text-slate-600 dark:text-slate-400">Yükleniyor…</div>;
+    return <MunicipalitySettingsSkeleton />;
+  }
+
+  if (!municipality) {
+    return (
+      <div className="p-6 text-sm text-red-600 dark:text-red-400">
+        Belediye bilgisi yüklenemedi. Oturumunuzun bir belediyeye bağlı olduğundan emin olun.
+      </div>
+    );
   }
 
   return (
-    <div className="p-6 max-w-2xl space-y-6">
-      <div>
-        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Marka</p>
-        <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">Belediye ayarları</h2>
-        <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">Mobil uygulamada görünen kurum bilgileri ve renkler.</p>
+    <div className="p-6">
+      <ToastBanner toast={toast} onDismiss={() => setToast(null)} />
+
+      <div className="mb-6">
+        <p className="kentiva-eyebrow">SaaS marka</p>
+        <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+          Belediye özelleştirme
+        </h2>
+        <p className="mt-1 max-w-2xl text-sm font-medium text-slate-600 dark:text-slate-400">
+          Mobil uygulama, kamu sitesi ve bildirimlerde kurumunuzun kendi markası görünsün.
+        </p>
+        <Link
+          to="/municipality-settings/notifications"
+          className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-violet-700 hover:underline dark:text-violet-300"
+        >
+          <MessageSquare className="h-4 w-4" />
+          SMS ve push şablonları (AI)
+        </Link>
       </div>
-      <form onSubmit={save} className="space-y-4">
-        <Field label="Görünen ad" value={form.displayName} onChange={(v) => setForm((f) => ({ ...f, displayName: v }))} />
-        <Field label="Logo URL" value={form.logoUrl} onChange={(v) => setForm((f) => ({ ...f, logoUrl: v }))} />
-        <Field label="Birincil renk (hex)" value={form.primaryColor} onChange={(v) => setForm((f) => ({ ...f, primaryColor: v }))} />
-        <Field label="İkincil renk (hex)" value={form.secondaryColor} onChange={(v) => setForm((f) => ({ ...f, secondaryColor: v }))} />
-        <Field label="Vurgu rengi (hex)" value={form.accentColor} onChange={(v) => setForm((f) => ({ ...f, accentColor: v }))} />
-        <Field label="Slogan" value={form.slogan} onChange={(v) => setForm((f) => ({ ...f, slogan: v }))} />
 
-        <ReportTemplatesPanel />
-
-        <div className="rounded-2xl border border-slate-200/90 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/40">
-          <p className="text-sm font-bold text-slate-800 dark:text-slate-100">Vatandaş bildirim metinleri</p>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Yer tutucular: {'{belediye}'}, {'{baslik}'}, {'{not}'}, {'{slogan}'}. Çözülen ihbar → SMS; reddedilen → push.
-          </p>
-          <div className="mt-4 space-y-3">
-            <Field
-              label="SMS gönderici adı (NetGSM, max 11 karakter)"
-              value={form.smsSenderHeader}
-              onChange={(v) => setForm((f) => ({ ...f, smsSenderHeader: v }))}
-            />
-            <TextArea
-              label="Çözülen ihbar SMS şablonu"
-              value={form.smsResolvedTemplate}
-              onChange={(v) => setForm((f) => ({ ...f, smsResolvedTemplate: v }))}
-              placeholder="{belediye}: Sayın vatandaşımız, &quot;{baslik}&quot; bildiriminiz çözüme kavuşturulmuştur.{not}{slogan}"
-            />
-            <Field
-              label="Red push başlık şablonu"
-              value={form.pushRejectedTitleTemplate}
-              onChange={(v) => setForm((f) => ({ ...f, pushRejectedTitleTemplate: v }))}
-            />
-            <TextArea
-              label="Red push mesaj şablonu"
-              value={form.pushRejectedBodyTemplate}
-              onChange={(v) => setForm((f) => ({ ...f, pushRejectedBodyTemplate: v }))}
-            />
-          </div>
+      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="min-w-0 space-y-6">
+          <MunicipalityBrandingForm
+            mode="tenant"
+            meta={meta}
+            initial={initialForm}
+            onToast={(t) => {
+              setToast(t);
+              if (t?.type === 'success') void reloadMunicipality();
+            }}
+            onFormChange={handleFormChange}
+          />
+          <ReportTemplatesPanel />
+          <BoundaryGeoJsonPanel
+            centerLat={municipality.centerLat}
+            centerLng={municipality.centerLng}
+            defaultZoom={municipality.defaultZoom}
+          />
         </div>
 
-        <Field label="Kurumsal e-posta" value={form.contactEmail} onChange={(v) => setForm((f) => ({ ...f, contactEmail: v }))} />
-        <Field label="Telefon" value={form.contactPhone} onChange={(v) => setForm((f) => ({ ...f, contactPhone: v }))} />
-        <Field label="Web sitesi" value={form.websiteUrl} onChange={(v) => setForm((f) => ({ ...f, websiteUrl: v }))} />
-        <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-          <input
-            type="checkbox"
-            checked={form.publicStatsEnabled}
-            onChange={(e) => setForm((f) => ({ ...f, publicStatsEnabled: e.target.checked }))}
-          />
-          Kamu istatistik sitesinde anonim özetlere izin ver
-        </label>
-        {msg ? <p className="text-sm text-slate-600 dark:text-slate-400">{msg}</p> : null}
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-60"
-        >
-          {saving ? 'Kaydediliyor…' : 'Kaydet'}
-        </button>
-      </form>
+        <aside className="xl:sticky xl:top-6 xl:self-start">
+          <MunicipalityBrandingPreview form={previewForm} legalName={meta.legalName} slug={meta.slug} />
+        </aside>
+      </div>
 
-      <section className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/50">
-        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Entegrasyon</p>
+      <section className="mt-8 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/50">
+        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+          Entegrasyon
+        </p>
         <h3 className="mt-1 text-lg font-bold text-slate-900 dark:text-white">ERP / CRM API anahtarları</h3>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           Harici sistemler <code className="text-xs">/api/v1/integration/reports</code> uç noktalarına erişir.
-          Başlık: <code className="text-xs">X-Api-Key</code> veya <code className="text-xs">Authorization: ApiKey …</code>
         </p>
 
         {keysLoading ? (
@@ -354,17 +353,41 @@ export default function MunicipalitySettingsPage() {
           </div>
         ) : null}
 
+        <div className="mt-6 border-t border-slate-200 pt-4 dark:border-slate-700">
+          <button
+            type="button"
+            onClick={() => setHelpOpen((o) => !o)}
+            className="text-sm font-bold text-primary hover:underline"
+          >
+            {helpOpen ? 'Entegrasyon yardımını gizle' : 'Entegrasyon yardımını göster'}
+          </button>
+          {helpOpen && (
+            <ul className="mt-3 list-inside list-disc space-y-1 text-xs text-slate-600 dark:text-slate-400">
+              <li>
+                API: <code>GET /api/v1/integration/reports</code> — başlık <code>X-Api-Key</code>
+              </li>
+              <li>
+                Webhook olayları: <code>report.created</code>, <code>report.assigned</code>,{' '}
+                <code>report.status_changed</code>
+              </li>
+              <li>İmza: <code>X-BelediyeApp-Signature: sha256=…</code> (HMAC-SHA256 gövde)</li>
+            </ul>
+          )}
+        </div>
+
         <form onSubmit={saveWebhook} className="mt-6 space-y-3 border-t border-slate-200 pt-4 dark:border-slate-700">
-          <p className="text-sm font-bold text-slate-800 dark:text-slate-100">Giden webhook (rapor durumu)</p>
+          <p className="text-sm font-bold text-slate-800 dark:text-slate-100">Giden webhook</p>
           <p className="text-xs text-slate-500">
-            Rapor durumu değişince POST: event <code>report.status_changed</code>, isteğe bağlı HMAC başlığı{' '}
-            <code>X-BelediyeApp-Signature</code>.
+            Olaylar: <code>report.created</code>, <code>report.assigned</code>, <code>report.status_changed</code>
           </p>
-          <Field
-            label="Webhook URL (https)"
-            value={webhook.webhookUrl || ''}
-            onChange={(v) => setWebhook((w) => ({ ...w, webhookUrl: v }))}
-          />
+          <label className="block">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Webhook URL (https)</span>
+            <input
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+              value={webhook.webhookUrl || ''}
+              onChange={(e) => setWebhook((w) => ({ ...w, webhookUrl: e.target.value }))}
+            />
+          </label>
           <label className="block">
             <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Webhook gizli anahtar (HMAC)</span>
             <input
@@ -394,43 +417,5 @@ export default function MunicipalitySettingsPage() {
         {integrationMsg ? <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">{integrationMsg}</p> : null}
       </section>
     </div>
-  );
-}
-
-function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  return (
-    <label className="block">
-      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{label}</span>
-      <input
-        className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:border-slate-700 dark:bg-slate-900"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    </label>
-  );
-}
-
-function TextArea({
-  label,
-  value,
-  onChange,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-}) {
-  return (
-    <label className="block">
-      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{label}</span>
-      <textarea
-        rows={3}
-        placeholder={placeholder}
-        className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:border-slate-700 dark:bg-slate-900"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    </label>
   );
 }

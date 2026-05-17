@@ -34,7 +34,13 @@ public record MunicipalityDto(
         String smsResolvedTemplate,
         String pushRejectedTitleTemplate,
         String pushRejectedBodyTemplate,
-        String smsSenderHeader
+        String smsSenderHeader,
+        String smsProcessingTemplate,
+        String pushProcessingTitleTemplate,
+        String pushProcessingBodyTemplate,
+        String smsAssignedTemplate,
+        String pushAssignedTitleTemplate,
+        String pushAssignedBodyTemplate
 ) {
     public static MunicipalityDto fromEntity(Municipality m) {
         if (m == null) {
@@ -71,7 +77,13 @@ public record MunicipalityDto(
                 m.getSmsResolvedTemplate(),
                 m.getPushRejectedTitleTemplate(),
                 m.getPushRejectedBodyTemplate(),
-                m.getSmsSenderHeader()
+                m.getSmsSenderHeader(),
+                m.getSmsProcessingTemplate(),
+                m.getPushProcessingTitleTemplate(),
+                m.getPushProcessingBodyTemplate(),
+                m.getSmsAssignedTemplate(),
+                m.getPushAssignedTitleTemplate(),
+                m.getPushAssignedBodyTemplate()
         );
     }
 }

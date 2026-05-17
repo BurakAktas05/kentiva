@@ -78,7 +78,7 @@ public class PublicStatsService {
                 FROM reports r
                 JOIN municipalities m ON r.municipality_id = m.id
                 WHERE m.public_stats_enabled = true
-                GROUP BY m.slug, display_name
+                GROUP BY m.slug, m.display_name, m.name
                 ORDER BY total_reports DESC
                 LIMIT 50
                 """;

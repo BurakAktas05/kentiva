@@ -18,6 +18,7 @@ export default function UsersPage() {
   const [users, setUsers] = useState<UserResponse[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   
   // Modal states
@@ -36,6 +37,7 @@ export default function UsersPage() {
 
   async function fetchData() {
     setLoading(true);
+    setLoadError(null);
     try {
       const [usersRes, deptsRes] = await Promise.all([
         api.get('/users'),
@@ -45,6 +47,7 @@ export default function UsersPage() {
       setDepartments(deptsRes.data.data);
     } catch (err) {
       console.error('Failed to fetch data', err);
+      setLoadError('Personel listesi yüklenemedi.');
     } finally {
       setLoading(false);
     }
@@ -116,6 +119,21 @@ export default function UsersPage() {
     return <div className="p-8 text-center text-slate-500">Yükleniyor...</div>;
   }
 
+  if (loadError) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-sm font-medium text-red-600 dark:text-red-400">{loadError}</p>
+        <button
+          type="button"
+          onClick={() => void fetchData()}
+          className="mt-4 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white"
+        >
+          Tekrar dene
+        </button>
+      </div>
+    );
+  }
+
   const roleLabels: Record<string, string> = {
     'ROLE_SUPER_ADMIN': 'Süper Admin',
     'ROLE_ADMIN': 'Admin',
@@ -128,7 +146,7 @@ export default function UsersPage() {
     <div className="p-6">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Ekip</p>
+          <p className="kentiva-eyebrow">Ekip</p>
           <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">Personeller</h2>
           <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">
             Belediyenizdeki personelleri yönetin ve departmanlara atayın.

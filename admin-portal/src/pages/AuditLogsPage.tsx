@@ -137,7 +137,7 @@ export default function AuditLogsPage() {
     <div className="space-y-6 p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Denetim</p>
+          <p className="kentiva-eyebrow">Denetim</p>
           <h2 className="mt-1 flex items-center gap-2 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
             <ScrollText className="h-7 w-7 text-primary" />
             Denetim raporu

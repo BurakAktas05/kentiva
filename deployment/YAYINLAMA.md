@@ -183,7 +183,28 @@ cd belediyehattı\android
 
 APK: `android/app/build/outputs/apk/debug/app-debug.apk`
 
-Ngrok ile yerel backend testi: [`scripts/ngrok-dev.ps1`](../scripts/ngrok-dev.ps1).
+### Yerel manuel test (Railway yok — **APK en sonda**)
+
+Tam rehber: [`scripts/YEREL-MANUEL-TEST.md`](../scripts/YEREL-MANUEL-TEST.md)
+
+| Adım | Komut / iş |
+|------|------------|
+| 1–5 | `.\scripts\start-local.ps1` — DB, backend, tünel, admin, public (**APK yok**) |
+| 3b | Siz doğrulayın: `https://…/actuator/health` |
+| 6 | `.\scripts\build-apk-local.ps1` — tünel URL: `scripts/tunnel-url.txt` |
+
+Kısa özet: [`scripts/README-local-test.txt`](../scripts/README-local-test.txt).
+
+### Ortam
+
+| Bileşen | Adres |
+|---------|--------|
+| Backend (PC + tünel) | `http://localhost:8080` / `https://XXXX.ngrok-free.app` |
+| Admin + süper admin | `http://localhost:5173` |
+| Kamu sitesi | `http://localhost:5174` |
+| APK API | `https://XXXX.ngrok-free.app/api/v1` |
+
+Tünel sonrası kök `.env`: `APP_PUBLIC_URL=https://XXXX.ngrok-free.app` (medya önizlemesi). `APP_CORS_ALLOWED_ORIGINS` için localhost portları yeterlidir; mobil uygulama tarayıcı CORS’una tabi değildir.
 
 ---
 

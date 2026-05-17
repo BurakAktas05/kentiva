@@ -87,7 +87,13 @@ export default function MunicipalityPicker({ lang, isDark, onSelect }: Props) {
             <button
               key={m.id}
               type="button"
-              onClick={() => onSelect(m)}
+              onClick={() => {
+                if (!m.onboarded) {
+                  setErr(t('tenant.notOnboarded', lang));
+                  return;
+                }
+                onSelect(m);
+              }}
               className={`w-full flex items-center gap-3 rounded-2xl border p-4 text-left transition-colors ${
                 m.onboarded
                   ? isDark

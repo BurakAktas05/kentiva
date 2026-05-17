@@ -15,6 +15,7 @@ export default function ReportDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [duplicateGroup, setDuplicateGroup] = useState<ReportListItem[]>([]);
+  const [bulkBusy, setBulkBusy] = useState<'RESOLVED' | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -41,6 +42,36 @@ export default function ReportDetailPage() {
       cancelled = true;
     };
   }, [id]);
+
+  const bulkCloseDuplicateGroup = async () => {
+    if (!id || !report) return;
+    const ids = [
+      id,
+      ...duplicateGroup.filter((d) => d.status !== 'RESOLVED' && d.status !== 'REJECTED').map((d) => d.id),
+    ];
+    const unique = [...new Set(ids)];
+    if (unique.length < 2) return;
+    if (!window.confirm(`${unique.length} ihbarı toplu "çözüldü" olarak işaretlemek istiyor musunuz?`)) return;
+    setBulkBusy('RESOLVED');
+    setError(null);
+    try {
+      const res = await api.patch('/reports/batch/status', {
+        reportIds: unique,
+        status: 'RESOLVED',
+        note: 'Mükerrer grup — toplu kapatma',
+      });
+      const result = res.data.data as { successCount: number; failureCount: number };
+      if (result.failureCount > 0) {
+        setError(`${result.successCount} güncellendi, ${result.failureCount} başarısız.`);
+      } else {
+        window.location.reload();
+      }
+    } catch {
+      setError('Toplu güncelleme başarısız.');
+    } finally {
+      setBulkBusy(null);
+    }
+  };
 
   const handleAssign = async () => {
     if (!selectedOfficerId || !id) return;
@@ -146,6 +177,16 @@ export default function ReportDetailPage() {
                 </li>
               ))}
             </ul>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={bulkBusy !== null}
+                onClick={() => bulkCloseDuplicateGroup()}
+                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {bulkBusy === 'RESOLVED' ? '…' : 'Grubu çözüldü işaretle'}
+              </button>
+            </div>
           </div>
         ) : null}
 
@@ -230,7 +271,6 @@ export default function ReportDetailPage() {
               >
                 <option value="PROCESSING">İşlemde</option>
                 <option value="RESOLVED">Çözüldü</option>
-                <option value="REJECTED">Reddedildi</option>
               </select>
             </div>
             <div>
@@ -260,7 +300,7 @@ export default function ReportDetailPage() {
                 const newStatus = (document.getElementById('statusSelect') as HTMLSelectElement).value;
                 const note = (document.getElementById('statusNote') as HTMLTextAreaElement).value;
                 try {
-                  await api.patch(`/reports/${id}/status`, { newStatus, note });
+                  await api.patch(`/reports/${id}/status`, { status: newStatus, note });
                   window.location.reload();
                 } catch (e) {
                   alert('Durum güncellenemedi');

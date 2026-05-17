@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Clock, MapPin, Sparkles } from 'lucide-react';
+import { ArrowLeft, Clock, Layers, MapPin, Sparkles } from 'lucide-react';
 import { getReportDetail, getReportTimeline, resolveMediaUrl, type ApiReportDetail, type ReportTimelineEntry } from '../../api';
 import { Lang, t } from '../../i18n';
 import AiPriorityBadge from '../AiPriorityBadge';
@@ -54,6 +54,19 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
         {!err && !detail && <p className="text-center text-slate-500">{t('report.detail.loading', lang)}</p>}
         {detail && (
           <div className="space-y-6">
+            {detail.duplicateGroupSize != null && detail.duplicateGroupSize > 1 && (
+              <div
+                className={`flex items-start gap-3 rounded-2xl border p-4 text-sm ${
+                  isDark ? 'border-violet-900/50 bg-violet-950/40 text-violet-100' : 'border-violet-200 bg-violet-50 text-violet-900'
+                }`}
+              >
+                <Layers className="mt-0.5 h-5 w-5 shrink-0" />
+                <p className="font-medium">
+                  {t('report.detail.duplicate', lang).replace('{n}', String(detail.duplicateGroupSize - 1))}
+                </p>
+              </div>
+            )}
+
             <div className={`rounded-2xl border p-4 ${isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'}`}>
               <h3 className={`text-base font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{detail.title}</h3>
               <p className={`mt-2 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{detail.description}</p>

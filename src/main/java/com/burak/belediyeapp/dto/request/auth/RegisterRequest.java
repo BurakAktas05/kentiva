@@ -5,28 +5,28 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
- * Vatandaş kayıt isteği.
- * Belediye personeli (field officer, manager) admin tarafından sisteme eklenir.
+ * Vatandas kayit istegi.
+ * Belediye personeli (field officer, manager) admin tarafindan sisteme eklenir.
+ * phoneNumber opsiyoneldir — vatandas kaydi icin zorunlu degil.
  */
 public record RegisterRequest(
 
-        @NotBlank(message = "Ad boş bırakılamaz")
+        @NotBlank(message = "Ad bos birakilamaz")
         @Size(min = 2, max = 80)
         String firstName,
 
-        @NotBlank(message = "Soyad boş bırakılamaz")
+        @NotBlank(message = "Soyad bos birakilamaz")
         @Size(min = 2, max = 80)
         String lastName,
 
-        @NotBlank(message = "Email boş bırakılamaz")
-        @Email(message = "Geçerli bir email adresi giriniz")
+        @NotBlank(message = "Email bos birakilamaz")
+        @Email(message = "Gecerli bir email adresi giriniz")
         String email,
 
-        @NotBlank(message = "Şifre boş bırakılamaz")
-        @Size(min = 8, message = "Şifre en az 8 karakter olmalıdır")
+        @NotBlank(message = "Sifre bos birakilamaz")
+        @Size(min = 8, message = "Sifre en az 8 karakter olmalidir")
         String password,
 
-        @NotBlank(message = "Telefon numarası zorunludur")
-        @Size(min = 10, max = 20, message = "Geçerli bir telefon numarası giriniz")
+        @Size(max = 20, message = "Gecerli bir telefon numarasi giriniz")
         String phoneNumber
 ) {}

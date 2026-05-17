@@ -12,6 +12,14 @@
   --color-primary-100: #c8daf3;
   --color-secondary: #0ea5e9;
   --color-accent: #e6b422;
+  --color-success: #059669;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+  --color-muted: #64748b;
+
+  --radius-kentiva-sm: 0.75rem;
+  --radius-kentiva: 1rem;
+  --radius-kentiva-lg: 1.25rem;
 
   --shadow-kentiva: 0 22px 44px -18px rgb(11 79 156 / 0.28);
   --shadow-kentiva-sm: 0 8px 24px -8px rgb(15 23 42 / 0.12);
@@ -62,5 +70,27 @@ html.native-app {
   }
   :where(button, a, input, textarea, select):focus-visible {
     @apply outline-2 outline-offset-2 outline-primary;
+  }
+}
+
+@layer components {
+  .kentiva-input {
+    @apply w-full rounded-2xl border border-slate-200 bg-white py-3.5 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 focus:border-transparent focus:ring-2 focus:ring-primary focus:outline-none disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100;
+  }
+
+  .kentiva-btn-primary {
+    @apply flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-sm font-bold text-white shadow-lg shadow-primary/25 transition-all hover:bg-primary-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .kentiva-btn-secondary {
+    @apply flex min-h-11 flex-1 items-center justify-center rounded-xl border border-slate-200 py-3 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800;
+  }
+
+  .kentiva-alert-error {
+    @apply flex items-center gap-2 rounded-2xl border border-red-100 bg-red-50 p-4 text-xs font-semibold text-red-600 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300;
+  }
+
+  .kentiva-card {
+    @apply rounded-2xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900;
   }
 }

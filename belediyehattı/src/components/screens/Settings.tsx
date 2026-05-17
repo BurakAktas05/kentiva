@@ -1,17 +1,64 @@
+import { useState } from 'react';
 import { motion } from 'motion/react';
-import { ChevronLeft, Globe, Moon, Sun, Monitor, Info, Check, Building2 } from 'lucide-react';
+import { ChevronLeft, Globe, Moon, Sun, Monitor, Info, Check, Building2, Server } from 'lucide-react';
 import { Lang, LANGUAGES, t } from '../../i18n';
+import { apiBase } from '../../api';
+import { getStoredApiBaseOverride, setStoredApiBaseOverride } from '../../lib/apiBase';
 
 interface SettingsProps {
   lang: Lang;
   theme: 'light' | 'dark' | 'system';
+  municipalityName?: string;
   onLangChange: (lang: Lang) => void;
   onThemeChange: (theme: 'light' | 'dark' | 'system') => void;
   onBack: () => void;
   onChangeMunicipality?: () => void;
 }
 
-export default function Settings({ lang, theme, onLangChange, onThemeChange, onBack, onChangeMunicipality }: SettingsProps) {
+export default function Settings({ lang, theme, municipalityName, onLangChange, onThemeChange, onBack, onChangeMunicipality }: SettingsProps) {
+  const [apiInput, setApiInput] = useState(() => {
+    const override = getStoredApiBaseOverride();
+    if (override) return override.replace(/\/api\/v1\/?$/i, '');
+    return '';
+  });
+  const [apiStatus, setApiStatus] = useState<'idle' | 'ok' | 'fail'>('idle');
+  const [apiTesting, setApiTesting] = useState(false);
+
+  const testApi = async (base?: string) => {
+    setApiTesting(true);
+    setApiStatus('idle');
+    try {
+      const root = (base ?? apiInput).trim().replace(/\/+$/, '').replace(/\/api\/v1$/i, '');
+      const healthUrl = `${root}/actuator/health`;
+      const res = await fetch(healthUrl, {
+        headers: { 'ngrok-skip-browser-warning': 'true' },
+      });
+      const json = await res.json();
+      if (res.ok && (json.status === 'UP' || json.status === 'up')) {
+        setApiStatus('ok');
+        return true;
+      }
+      setApiStatus('fail');
+      return false;
+    } catch {
+      setApiStatus('fail');
+      return false;
+    } finally {
+      setApiTesting(false);
+    }
+  };
+
+  const saveApi = async () => {
+    const trimmed = apiInput.trim();
+    if (!trimmed) {
+      setStoredApiBaseOverride(null);
+      setApiStatus('idle');
+      return;
+    }
+    setStoredApiBaseOverride(trimmed);
+    await testApi(trimmed);
+  };
+
   const themeOptions = [
     { value: 'light' as const, icon: <Sun className="w-5 h-5" />, label: t('settings.theme.light', lang) },
     { value: 'dark' as const, icon: <Moon className="w-5 h-5" />, label: t('settings.theme.dark', lang) },
@@ -39,6 +86,9 @@ export default function Settings({ lang, theme, onLangChange, onThemeChange, onB
               <Building2 className="w-4 h-4 text-primary" />
               <h3 className="font-semibold text-sm text-slate-700 dark:text-slate-200">{t('settings.municipality', lang)}</h3>
             </div>
+            {municipalityName ? (
+              <p className="mb-2 text-xs font-medium text-slate-500 dark:text-slate-400">{municipalityName}</p>
+            ) : null}
             <button
               type="button"
               onClick={onChangeMunicipality}
@@ -48,6 +98,45 @@ export default function Settings({ lang, theme, onLangChange, onThemeChange, onB
             </button>
           </div>
         ) : null}
+
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <Server className="w-4 h-4 text-primary" />
+            <h3 className="font-semibold text-sm text-slate-700 dark:text-slate-200">{t('settings.apiServer', lang)}</h3>
+          </div>
+          <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">{t('settings.apiServerHint', lang)}</p>
+          <input
+            type="url"
+            value={apiInput}
+            onChange={(e) => setApiInput(e.target.value)}
+            placeholder="https://xxxx.ngrok-free.app"
+            className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm"
+            autoCapitalize="off"
+            autoCorrect="off"
+          />
+          <p className="mt-2 text-[11px] text-slate-400 break-all">
+            {t('settings.apiServerCurrent', lang)}: {apiBase()}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button type="button" onClick={() => void saveApi()} className="kentiva-btn-primary px-4 py-2 text-xs">
+              {t('settings.apiServerSave', lang)}
+            </button>
+            <button
+              type="button"
+              onClick={() => void testApi()}
+              disabled={apiTesting}
+              className="rounded-xl border border-slate-200 dark:border-slate-600 px-4 py-2 text-xs font-semibold"
+            >
+              {apiTesting ? '…' : t('settings.apiServerTest', lang)}
+            </button>
+          </div>
+          {apiStatus === 'ok' ? (
+            <p className="mt-2 text-xs font-medium text-emerald-600">{t('settings.apiServerOk', lang)}</p>
+          ) : null}
+          {apiStatus === 'fail' ? (
+            <p className="mt-2 text-xs font-medium text-red-600">{t('settings.apiServerFail', lang)}</p>
+          ) : null}
+        </div>
 
         {/* Language */}
         <div>
