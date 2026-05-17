@@ -38,6 +38,7 @@ build/
 !.env.example
 railway.env
 RAILWAY_ENV_VARS.txt
+deployment/ANAHTARLAR.local.env
 
 ### Yerel Spring dev profili (DB şifresi vb.) ###
 **/application-dev.properties

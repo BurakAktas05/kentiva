@@ -33,6 +33,7 @@ public interface IReportMapper {
     @Mapping(target = "longitude", source = "location.x")
     @Mapping(target = "status", source = "reportStatus")
     @Mapping(target = "mediaUrls", source = "mediaList", qualifiedByName = "mediaListToUrls")
+    @Mapping(target = "duplicateGroupSize", ignore = true)
     ReportResponse toResponse(Report report);
 
     // ==========================================
@@ -43,6 +44,7 @@ public interface IReportMapper {
     @Mapping(target = "longitude", source = "location.x")
     @Mapping(target = "status", source = "reportStatus")
     @Mapping(target = "aiPriority", source = "aiPriority")
+    @Mapping(target = "duplicateGroupSize", ignore = true)
     ReportListResponse toListResponse(Report report);
 
     // ==========================================

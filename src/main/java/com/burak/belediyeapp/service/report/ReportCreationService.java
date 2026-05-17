@@ -32,6 +32,7 @@ public class ReportCreationService {
     private final TenantAccessService tenantAccess;
     private final MediaSignedUrlService mediaSignedUrlService;
     private final ApplicationEventPublisher eventPublisher;
+    private final ReportDuplicateLinkService duplicateLinkService;
 
     @Transactional
     @PreAuthorize("hasAuthority('ROLE_CITIZEN')")
@@ -77,10 +78,13 @@ public class ReportCreationService {
                 .note("İhbar oluşturuldu · ilçe: " + report.getDistrict())
                 .build());
 
+        duplicateLinkService.linkNearbyDuplicates(saved);
+
         eventPublisher.publishEvent(new ReportCreatedEvent(saved.getId()));
 
         log.info("Yeni rapor oluşturuldu: {} — {} — ilçe={}", saved.getId(), reporter.getEmail(), report.getDistrict());
 
-        return reportSupport.withSignedMedia(reportMapper.toResponse(reportSupport.findReportOrThrow(saved.getId())));
+        Report refreshed = reportSupport.findReportOrThrow(saved.getId());
+        return reportSupport.finalizeResponse(refreshed, reportMapper.toResponse(refreshed));
     }
 }

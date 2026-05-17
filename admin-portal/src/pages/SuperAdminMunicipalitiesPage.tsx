@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Sparkles } from 'lucide-react';
 import api from '../api';
+import DashboardLoadingSkeleton from '../components/DashboardLoadingSkeleton';
 
 type MunicipalityDto = {
   id: string;
@@ -81,7 +82,7 @@ export default function SuperAdminMunicipalitiesPage() {
   };
 
   return (
-    <div className="p-6 space-y-8 max-w-6xl">
+    <div className="space-y-8 p-6">
       <div>
         <Link to="/" className="mb-3 inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline">
           <ArrowLeft size={14} /> Platform dashboard
@@ -91,14 +92,14 @@ export default function SuperAdminMunicipalitiesPage() {
         <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">Onboarding ve çok kiracılı yönetim.</p>
         <Link
           to="/admin/onboarding"
-          className="mt-4 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm"
+          className="mt-4 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover"
         >
           <Sparkles size={16} />
           Kurulum sihirbazını aç
         </Link>
       </div>
 
-      <form onSubmit={create} className="space-y-3 rounded-2xl border border-slate-200/90 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+      <form onSubmit={create} className="space-y-3 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <h3 className="font-semibold text-slate-800 dark:text-white">Yeni ilçe belediyesi</h3>
         <div className="grid gap-3 sm:grid-cols-2">
           <input
@@ -152,7 +153,7 @@ export default function SuperAdminMunicipalitiesPage() {
 
       {msg ? <p className="text-sm text-slate-600 dark:text-slate-400">{msg}</p> : null}
 
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-white dark:bg-slate-900">
+      <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
         {loading ? (
           <div className="p-6 text-slate-500">Yükleniyor…</div>
         ) : (

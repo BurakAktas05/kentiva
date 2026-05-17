@@ -11,6 +11,7 @@ import com.burak.belediyeapp.mapper.IReportMapper;
 import com.burak.belediyeapp.repository.IReportRepository;
 import com.burak.belediyeapp.security.ApiKeyPrincipal;
 import com.burak.belediyeapp.service.media.MediaSignedUrlService;
+import com.burak.belediyeapp.service.report.ReportSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -24,6 +25,7 @@ public class IntegrationReportService {
     private final IReportRepository reportRepository;
     private final IReportMapper reportMapper;
     private final MediaSignedUrlService mediaSignedUrlService;
+    private final ReportSupport reportSupport;
 
     @Transactional(readOnly = true)
     public Page<ReportListResponse> listReports(ApiKeyPrincipal principal, ReportStatus status, Pageable pageable) {
@@ -46,7 +48,7 @@ public class IntegrationReportService {
                 || !report.getMunicipality().getId().equals(principal.getMunicipalityId())) {
             throw new BusinessException("Bu rapora erişim yetkiniz yok", "CROSS_MUNICIPALITY_ACCESS");
         }
-        return withSignedMedia(reportMapper.toResponse(report));
+        return reportSupport.finalizeResponse(report, reportMapper.toResponse(report));
     }
 
     private static void requireScope(ApiKeyPrincipal principal, String scope) {
@@ -78,7 +80,9 @@ public class IntegrationReportService {
                 response.aiSuggestedCategory(),
                 response.aiSlaRisk(),
                 response.aiReplyDraft(),
-                response.aiDuplicateHint()
+                response.aiDuplicateHint(),
+                response.duplicateGroupId(),
+                response.duplicateGroupSize()
         );
     }
 }

@@ -29,12 +29,17 @@ public class ReportQueryService {
     private final IReportMapper reportMapper;
     private final ReportSupport reportSupport;
     private final TenantAccessService tenantAccess;
+    private final ReportDuplicateLinkService duplicateLinkService;
+
+    private ReportListResponse toListDto(Report report) {
+        return reportSupport.finalizeListResponse(report, reportMapper.toListResponse(report));
+    }
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('ROLE_CITIZEN')")
     public Page<ReportListResponse> getMyReports(AppUser user, Pageable pageable) {
         return reportRepository.findByReporterId(user.getId(), pageable)
-                .map(reportMapper::toListResponse);
+                .map(this::toListDto);
     }
 
     @Transactional(readOnly = true)
@@ -43,7 +48,7 @@ public class ReportQueryService {
         return tenantAccess.staffMunicipalityScope(user)
                 .map(muniId -> reportRepository.findByMunicipalityId(muniId, pageable))
                 .orElseGet(() -> reportRepository.findAll(pageable))
-                .map(reportMapper::toListResponse);
+                .map(this::toListDto);
     }
 
     @Transactional(readOnly = true)
@@ -52,7 +57,7 @@ public class ReportQueryService {
         return tenantAccess.staffMunicipalityScope(user)
                 .map(muniId -> reportRepository.findByMunicipalityIdAndReportStatus(muniId, status, pageable))
                 .orElseGet(() -> reportRepository.findByReportStatus(status, pageable))
-                .map(reportMapper::toListResponse);
+                .map(this::toListDto);
     }
 
     @Transactional(readOnly = true)
@@ -60,18 +65,32 @@ public class ReportQueryService {
     public Page<ReportListResponse> getReportsByDepartment(String departmentId, AppUser user, Pageable pageable) {
         if (tenantAccess.isSuperAdmin(user)) {
             return reportRepository.findByCategoryDepartmentId(departmentId, pageable)
-                    .map(reportMapper::toListResponse);
+                    .map(this::toListDto);
         }
         String muniId = tenantAccess.requireStaffMunicipalityId(user);
         return reportRepository.findByCategoryDepartmentIdAndMunicipalityId(departmentId, muniId, pageable)
-                .map(reportMapper::toListResponse);
+                .map(this::toListDto);
     }
 
     @Transactional(readOnly = true)
     public ReportResponse getReportById(String reportId, AppUser currentUser) {
         Report report = reportSupport.findReportOrThrow(reportId);
         tenantAccess.ensureCanViewReport(report, currentUser);
-        return reportSupport.withSignedMedia(reportMapper.toResponse(report));
+        return reportSupport.finalizeResponse(report, reportMapper.toResponse(report));
+    }
+
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAnyAuthority('ROLE_FIELD_OFFICER','ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    public List<ReportListResponse> getDuplicateGroupMembers(String reportId, AppUser currentUser) {
+        Report report = reportSupport.findReportOrThrow(reportId);
+        tenantAccess.ensureCanViewReport(report, currentUser);
+        String groupId = report.getDuplicateGroupId();
+        if (groupId == null || groupId.isBlank()) {
+            return List.of();
+        }
+        return duplicateLinkService.membersOfGroup(groupId, reportId).stream()
+                .map(this::toListDto)
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -95,7 +114,7 @@ public class ReportQueryService {
     public Page<ReportListResponse> getMyAssignments(AppUser user, Pageable pageable) {
         String muniId = tenantAccess.requireStaffMunicipalityId(user);
         return reportRepository.findByAssigneeIdAndMunicipalityId(user.getId(), muniId, pageable)
-                .map(reportMapper::toListResponse);
+                .map(this::toListDto);
     }
 
     @Transactional(readOnly = true)
@@ -106,6 +125,6 @@ public class ReportQueryService {
                 .map(muniId -> reportRepository.findNearbyReportsByMunicipality(
                         latitude, longitude, radiusMeters, muniId))
                 .orElseGet(() -> reportRepository.findNearbyReports(latitude, longitude, radiusMeters));
-        return reports.stream().map(reportMapper::toListResponse).toList();
+        return reports.stream().map(this::toListDto).toList();
     }
 }

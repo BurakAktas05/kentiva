@@ -112,6 +112,8 @@ export interface Report {
   aiSlaRisk?: string | null;
   aiReplyDraft?: string | null;
   aiDuplicateHint?: string | null;
+  duplicateGroupId?: string | null;
+  duplicateGroupSize?: number | null;
 }
 
 export interface ReportTimelineEntry {
@@ -131,6 +133,8 @@ export interface ReportListItem {
   longitude: number | null;
   createdAt: string;
   district: string;
+  duplicateGroupId?: string | null;
+  duplicateGroupSize?: number | null;
 }
 
 export interface SpringPage<T> {

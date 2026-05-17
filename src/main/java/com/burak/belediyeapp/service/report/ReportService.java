@@ -53,6 +53,10 @@ public class ReportService {
         return queryService.getReportTimeline(reportId, currentUser);
     }
 
+    public List<ReportListResponse> getDuplicateGroupMembers(String reportId, AppUser currentUser) {
+        return queryService.getDuplicateGroupMembers(reportId, currentUser);
+    }
+
     public Page<ReportListResponse> getMyAssignments(AppUser user, Pageable pageable) {
         return queryService.getMyAssignments(user, pageable);
     }

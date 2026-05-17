@@ -401,7 +401,19 @@ export default function ReportsPage() {
                         aria-label={`${r.title} seç`}
                       />
                     </td>
-                    <td className="max-w-[220px] truncate px-4 py-3 font-medium text-slate-900 dark:text-white">{r.title}</td>
+                    <td className="max-w-[260px] px-4 py-3 font-medium text-slate-900 dark:text-white">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="truncate">{r.title}</span>
+                        {r.duplicateGroupSize != null && r.duplicateGroupSize > 1 && (
+                          <span
+                            className="shrink-0 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold uppercase text-violet-800 dark:bg-violet-900/40 dark:text-violet-200"
+                            title="Aynı konumdan gelen ihbarlar tek olay olarak gruplandı"
+                          >
+                            Tek olay · {r.duplicateGroupSize}
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{r.categoryName}</td>
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{r.district ?? '—'}</td>
                     <td className="px-4 py-3">

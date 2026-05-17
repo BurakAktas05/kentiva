@@ -12,6 +12,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import api from '../api';
+import DashboardLoadingSkeleton from '../components/DashboardLoadingSkeleton';
+import PlatformStatCard from '../components/PlatformStatCard';
 
 type MembershipStatus =
   | 'ACTIVE'
@@ -180,7 +182,7 @@ export default function SuperAdminHomePage() {
           </Link>
           <Link
             to="/admin/municipalities"
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
           >
             Belediye yönetimi
             <ArrowRight size={16} />

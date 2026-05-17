@@ -1,0 +1,221 @@
+# Kentiva — Yayınlama, APK ve manuel test rehberi
+
+Bu rehber production ortamını sırayla kurmanız içindir. Tüm anahtarlar için şablon: [`ANAHTARLAR.template.env`](ANAHTARLAR.template.env) → kopyalayıp `ANAHTARLAR.local.env` doldurun.
+
+## Bileşenler
+
+| Bileşen | Nerede host | Giriş |
+|---------|-------------|-------|
+| Backend API | **Railway** (Docker) | — |
+| Admin + süper admin | **Vercel** (`admin-portal`) | `/setup`, `/login` |
+| Kamu sitesi | **Vercel** (`public-site`) | Giriş yok |
+| Vatandaş web (opsiyonel) | **Vercel** (`belediyehattı`) | Kayıt/giriş |
+| Android APK | Yerel derleme | Vatandaş kayıt/giriş |
+
+**Süper admin public site’da değil.** İlk kurulum: `https://<admin-vercel>/setup` → sonra `https://<admin-vercel>/login`.
+
+---
+
+## 1. Railway — Backend
+
+### 1.1 Proje oluşturma
+
+1. [railway.app](https://railway.app) → New Project → Deploy from GitHub repo (`belediyeapp` kökü).
+2. **PostgreSQL** eklentisi ekleyin (Variables’da `DATABASE_URL` otomatik gelir).
+3. Servis ayarları:
+   - Build: Dockerfile ([`Dockerfile`](../Dockerfile), [`railway.json`](../railway.json))
+   - Healthcheck: `/actuator/health`
+
+### 1.2 PostGIS
+
+Flyway `V1__create_extensions.sql` ile `postgis` kurulur. İlk deploy’da extension hatası alırsanız Railway Postgres → **Query** sekmesinde bir kez çalıştırın:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS postgis;
+```
+
+### 1.3 Ortam değişkenleri
+
+[`ANAHTARLAR.template.env`](ANAHTARLAR.template.env) veya [`railway.env.example`](../railway.env.example) içindekileri Railway **Variables**’a yapıştırın.
+
+**Minimum zorunlu:**
+
+| Değişken | Açıklama |
+|----------|----------|
+| `JWT_SECRET` | `openssl rand -base64 64` |
+| `APP_SETUP_TOKEN` | `openssl rand -hex 32` |
+| `APP_PUBLIC_URL` | `https://<servis>.up.railway.app` |
+| `APP_CORS_ALLOWED_ORIGINS` | Vercel URL’leri (virgülle); önce tahmini yazıp Vercel sonrası güncelleyin |
+
+**Önerilen:** `APP_STORAGE_TYPE=s3` + R2/S3 anahtarları, `GEMINI_API_KEY`, `FIREBASE_CONFIG_BASE64`.
+
+### 1.4 Deploy doğrulama
+
+```bash
+curl https://<RAILWAY_HOST>/actuator/health
+```
+
+PowerShell:
+
+```powershell
+.\scripts\check-backend-health.ps1 -BaseUrl "https://<RAILWAY_HOST>"
+```
+
+Beklenen: `{"status":"UP"}` (veya benzeri).
+
+---
+
+## 2. Vercel — Admin portal
+
+1. [vercel.com](https://vercel.com) → Import repo.
+2. **Root Directory:** `admin-portal`
+3. Framework: Vite (otomatik)
+4. Build: `npm run build` — Output: `dist`
+5. Environment:
+
+```
+VITE_API_BASE=https://<RAILWAY_HOST>/api/v1
+```
+
+6. Deploy → URL’yi not edin (`VERCEL_ADMIN_URL`).
+
+`vercel.json` SPA yönlendirmesi için repoda mevcuttur.
+
+---
+
+## 3. CORS güncelleme
+
+Railway’de `APP_CORS_ALLOWED_ORIGINS` değerine ekleyin (virgül, boşluksuz):
+
+```
+https://<VERCEL_ADMIN_URL>,https://<VERCEL_PUBLIC_URL>,https://<VERCEL_CITIZEN_URL>
+```
+
+Yerel geliştirme için `http://localhost:5173,http://localhost:3000,http://localhost:5174` de kalabilir.
+
+Redeploy backend (değişken kaydedince otomatik).
+
+---
+
+## 4. Süper admin kurulumu
+
+1. Railway’de `APP_SETUP_TOKEN` tanımlı olsun.
+2. Tarayıcı: `https://<VERCEL_ADMIN_URL>/setup`
+3. Kurulum token’ı + e-posta/şifre girin → **İlk süper admin** oluşur.
+4. `https://<VERCEL_ADMIN_URL>/login` ile giriş yapın.
+5. Süper admin (belediyeye bağlı olmayan) → platform belediye listesi görünür.
+
+> Production’da `admin@kentiva.app` / `admin123` **yoktur**; yalnızca `dev` profilinde.
+
+Kurulumdan sonra güvenlik için `APP_SETUP_TOKEN` değerini rotate edebilirsiniz (bootstrap bir kez).
+
+---
+
+## 5. Vercel — Public site
+
+1. Yeni Vercel projesi, **Root Directory:** `public-site`
+2. Environment:
+
+```
+VITE_API_BASE=https://<RAILWAY_HOST>/api/v1
+VITE_ADMIN_PORTAL_URL=https://<VERCEL_ADMIN_URL>
+VITE_SITE_URL=https://<VERCEL_PUBLIC_URL>
+VITE_CITIZEN_APP_URL=https://<VERCEL_CITIZEN_URL>
+```
+
+3. Deploy → ana sayfa ve canlı istatistikler API’ye bağlanmalı; “Yönetim paneli” linki admin URL’sine gitmeli.
+
+---
+
+## 6. Vercel — Vatandaş web (opsiyonel)
+
+**Root Directory:** `belediyehattı`
+
+```
+VITE_API_BASE_URL=https://<RAILWAY_HOST>/api/v1
+```
+
+---
+
+## 7. Android APK (Windows)
+
+### Önkoşullar
+
+- Android Studio, JDK 21, Android SDK 36
+- [`belediyehattı/README.md`](../belediyehattı/README.md)
+
+### Production derleme
+
+```powershell
+# Otomatik (.env yazar + build + debug APK):
+.\scripts\build-apk.ps1 -ApiBaseUrl "https://<RAILWAY_HOST>/api/v1"
+
+# Release (imzalı keystore gerekir):
+.\scripts\build-apk.ps1 -ApiBaseUrl "https://<RAILWAY_HOST>/api/v1" -Release
+```
+
+Elle:
+
+```powershell
+cd belediyehattı
+copy .env.example .env
+# .env: VITE_API_BASE_URL=https://<RAILWAY_HOST>/api/v1
+# CAPACITOR_DEV_SERVER_URL TANIMLAMAYIN
+npm install
+npm run build:native
+```
+
+Push için (opsiyonel): `android/app/google-services.json` (Firebase Console).
+
+**Release APK:**
+
+- Android Studio → `npm run cap:android` → **Build → Generate Signed Bundle / APK**
+- veya imzalı keystore ile: `cd android; .\gradlew.bat assembleRelease`
+
+Release build **HTTPS** API zorunludur (HTTP cleartext kapalı).
+
+### Hızlı debug APK
+
+```powershell
+cd belediyehattı\android
+.\gradlew.bat assembleDebug
+```
+
+APK: `android/app/build/outputs/apk/debug/app-debug.apk`
+
+Ngrok ile yerel backend testi: [`scripts/ngrok-dev.ps1`](../scripts/ngrok-dev.ps1).
+
+---
+
+## Manuel test checklist
+
+- [ ] `GET https://<RAILWAY_HOST>/actuator/health` → 200
+- [ ] Admin `/setup` → süper admin oluştur
+- [ ] Admin `/login` → süper admin paneli
+- [ ] Public site açılıyor, istatistik API hatasız
+- [ ] Public site → yönetim paneli linki doğru
+- [ ] Admin’den API isteği → tarayıcıda CORS hatası yok
+- [ ] APK: kayıt/giriş, bildirim oluşturma
+- [ ] APK: foto yükleme (S3 ayarlıysa)
+- [ ] Push (Firebase + `google-services.json` varsa)
+
+---
+
+## Sorun giderme
+
+| Sorun | Çözüm |
+|-------|--------|
+| Flyway / PostGIS hata | DB’de `CREATE EXTENSION postgis;` |
+| CORS hatası | `APP_CORS_ALLOWED_ORIGINS` tam Vercel origin (https, sonunda `/` yok) |
+| Medya yüklenmiyor | `APP_STORAGE_TYPE=s3` ve S3/R2 anahtarları; `APP_PUBLIC_URL` doğru |
+| APK API’ye bağlanmıyor | `VITE_API_BASE_URL` HTTPS; release’de cleartext kapalı |
+| `/setup` token reddediyor | Railway `APP_SETUP_TOKEN` ile formdaki değer aynı mı |
+
+---
+
+## İlgili dosyalar
+
+- [`ANAHTARLAR.template.env`](ANAHTARLAR.template.env) — tüm anahtarlar tek şablonda
+- [`.env.example`](../.env.example) — backend yerel
+- [`railway.env.example`](../railway.env.example) — Railway kısa liste
+- [`belediyehattı/.env.example`](../belediyehattı/.env.example) — mobil/web vatandaş

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { resolveMediaUrl } from '../lib/env';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, MapPin, Sparkles, UserPlus, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Layers, MapPin, Sparkles, UserPlus, CheckCircle2 } from 'lucide-react';
 import axios from 'axios';
-import api, { type Report, type ReportTimelineEntry, type User } from '../api';
+import api, { type Report, type ReportListItem, type ReportTimelineEntry, type User } from '../api';
 
 export default function ReportDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -14,21 +14,24 @@ export default function ReportDetailPage() {
   const [isAssigning, setIsAssigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [duplicateGroup, setDuplicateGroup] = useState<ReportListItem[]>([]);
 
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
     (async () => {
       try {
-        const [r, tl, u] = await Promise.all([
+        const [r, tl, u, dup] = await Promise.all([
           api.get(`/reports/${id}`), 
           api.get(`/reports/${id}/timeline`),
-          api.get('/users?role=ROLE_FIELD_OFFICER')
+          api.get('/users?role=ROLE_FIELD_OFFICER'),
+          api.get(`/reports/${id}/duplicate-group`),
         ]);
         if (!cancelled) {
           setReport(r.data.data as Report);
           setTimeline(tl.data.data as ReportTimelineEntry[]);
           setOfficers(u.data.data as User[]);
+          setDuplicateGroup(dup.data.data as ReportListItem[]);
         }
       } catch {
         if (!cancelled) setError('Rapor bulunamadı veya erişim yok.');
@@ -97,7 +100,7 @@ export default function ReportDetailPage() {
 
         {report.description && <p className="mb-6 whitespace-pre-wrap text-slate-700 dark:text-slate-300">{report.description}</p>}
 
-        {(report.aiSummary || report.aiSuggestedCategory || report.aiPriority) && (
+        {(report.aiSummary || report.aiSuggestedCategory || report.aiPriority || report.aiDuplicateHint) && (
           <div className="mb-6 flex gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-4 dark:border-primary/30 dark:bg-primary/10">
             <Sparkles className="h-5 w-5 shrink-0 text-secondary" />
             <div className="text-sm">
@@ -110,9 +113,41 @@ export default function ReportDetailPage() {
               {report.aiSuggestedCategory && (
                 <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Önerilen kategori: {report.aiSuggestedCategory}</p>
               )}
+              {report.aiDuplicateHint && (
+                <p className="mt-2 text-xs font-medium text-violet-800 dark:text-violet-200">
+                  Mükerrer notu: {report.aiDuplicateHint}
+                </p>
+              )}
             </div>
           </div>
         )}
+
+        {(report.duplicateGroupSize != null && report.duplicateGroupSize > 1) || duplicateGroup.length > 0 ? (
+          <div className="mb-6 rounded-2xl border border-violet-200/90 bg-violet-50/80 p-4 dark:border-violet-900/50 dark:bg-violet-950/30">
+            <div className="mb-3 flex items-center gap-2">
+              <Layers className="h-5 w-5 text-violet-700 dark:text-violet-300" />
+              <p className="text-sm font-bold text-violet-900 dark:text-violet-100">
+                Tek olay — aynı konumdan {report.duplicateGroupSize ?? duplicateGroup.length + 1} ihbar
+              </p>
+            </div>
+            <p className="mb-3 text-xs text-violet-800/90 dark:text-violet-200/90">
+              Yakındaki bekleyen veya işlenen ihbarlar otomatik gruplandı. Çözümü bir kez uygulayıp diğerlerini reddedebilirsiniz.
+            </p>
+            <ul className="space-y-2">
+              {duplicateGroup.map((d) => (
+                <li key={d.id}>
+                  <Link
+                    to={`/reports/${d.id}`}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-violet-200/60 bg-white px-3 py-2 text-sm hover:border-violet-300 dark:border-violet-800 dark:bg-slate-900"
+                  >
+                    <span className="font-medium text-slate-900 dark:text-white">{d.title}</span>
+                    <span className="text-[10px] font-bold uppercase text-slate-500">{d.status}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
           {report.mediaUrls && report.mediaUrls.length > 0 && (
             <div className="mb-6">

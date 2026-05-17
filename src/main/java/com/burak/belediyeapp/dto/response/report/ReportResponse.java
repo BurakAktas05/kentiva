@@ -22,5 +22,7 @@ public record ReportResponse(
         String aiSuggestedCategory,
         String aiSlaRisk,
         String aiReplyDraft,
-        String aiDuplicateHint
+        String aiDuplicateHint,
+        String duplicateGroupId,
+        Integer duplicateGroupSize
 ) {}

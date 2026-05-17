@@ -98,6 +98,30 @@ public interface IReportRepository extends JpaRepository<Report, String> {
             @Param("municipalityId") String municipalityId
     );
 
+    @Query(value = """
+            SELECT r.* FROM reports r
+            WHERE r.municipality_id = :municipalityId
+              AND r.id <> :excludeId
+              AND r.report_status IN ('PENDING', 'PROCESSING')
+              AND ST_DWithin(
+                r.location::geography,
+                ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography,
+                :radiusInMeters
+            )
+            ORDER BY r.created_at ASC
+            """, nativeQuery = true)
+    List<Report> findActiveNearbyInMunicipality(
+            @Param("latitude") double latitude,
+            @Param("longitude") double longitude,
+            @Param("radiusInMeters") double radiusInMeters,
+            @Param("municipalityId") String municipalityId,
+            @Param("excludeId") String excludeId
+    );
+
+    int countByDuplicateGroupId(String duplicateGroupId);
+
+    List<Report> findByDuplicateGroupIdAndIdNot(String duplicateGroupId, String excludeId);
+
     /**
      * İlçeye göre raporları getirir.
      */

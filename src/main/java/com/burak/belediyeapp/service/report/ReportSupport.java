@@ -1,5 +1,6 @@
 package com.burak.belediyeapp.service.report;
 
+import com.burak.belediyeapp.dto.response.report.ReportListResponse;
 import com.burak.belediyeapp.dto.response.report.ReportResponse;
 import com.burak.belediyeapp.entity.Municipality;
 import com.burak.belediyeapp.entity.Report;
@@ -25,6 +26,7 @@ public class ReportSupport {
     private final IMunicipalityRepository municipalityRepository;
     private final DistrictResolutionService districtResolutionService;
     private final MediaSignedUrlService mediaSignedUrlService;
+    private final ReportDuplicateLinkService duplicateLinkService;
 
     public Report findReportOrThrow(String reportId) {
         return reportRepository.findById(reportId)
@@ -74,6 +76,14 @@ public class ReportSupport {
         return List.copyOf(unique);
     }
 
+    public ReportResponse finalizeResponse(Report report, ReportResponse mapped) {
+        return withSignedMedia(withDuplicateMeta(mapped, report));
+    }
+
+    public ReportListResponse finalizeListResponse(Report report, ReportListResponse mapped) {
+        return withDuplicateMeta(mapped, report);
+    }
+
     public ReportResponse withSignedMedia(ReportResponse response) {
         if (response.mediaUrls() == null || response.mediaUrls().isEmpty()) {
             return response;
@@ -97,6 +107,59 @@ public class ReportSupport {
                 response.aiSuggestedCategory(),
                 response.aiSlaRisk(),
                 response.aiReplyDraft(),
-                response.aiDuplicateHint());
+                response.aiDuplicateHint(),
+                response.duplicateGroupId(),
+                response.duplicateGroupSize());
+    }
+
+    private ReportResponse withDuplicateMeta(ReportResponse response, Report report) {
+        String groupId = report.getDuplicateGroupId();
+        Integer size = duplicateGroupSize(groupId);
+        return new ReportResponse(
+                response.id(),
+                response.title(),
+                response.description(),
+                response.status(),
+                response.categoryName(),
+                response.reporterFullName(),
+                response.assigneeFullName(),
+                response.latitude(),
+                response.longitude(),
+                response.createdAt(),
+                response.updatedAt(),
+                response.mediaUrls(),
+                response.district(),
+                response.aiPriority(),
+                response.aiSummary(),
+                response.aiSuggestedCategory(),
+                response.aiSlaRisk(),
+                response.aiReplyDraft(),
+                response.aiDuplicateHint(),
+                groupId,
+                size);
+    }
+
+    private ReportListResponse withDuplicateMeta(ReportListResponse response, Report report) {
+        String groupId = report.getDuplicateGroupId();
+        return new ReportListResponse(
+                response.id(),
+                response.title(),
+                response.status(),
+                response.categoryName(),
+                response.latitude(),
+                response.longitude(),
+                response.createdAt(),
+                response.district(),
+                response.aiPriority(),
+                groupId,
+                duplicateGroupSize(groupId));
+    }
+
+    private Integer duplicateGroupSize(String groupId) {
+        if (groupId == null || groupId.isBlank()) {
+            return null;
+        }
+        int count = duplicateLinkService.countInGroup(groupId);
+        return count > 1 ? count : null;
     }
 }

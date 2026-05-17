@@ -101,6 +101,10 @@ public class Report extends BaseEntity {
     @Column(length = 500)
     private String aiDuplicateHint;
 
+    /** Aynı konumdan gelen aktif ihbarlar için paylaşılan grup kimliği. */
+    @Column(length = 36)
+    private String duplicateGroupId;
+
     /**
      * Durum değişikliği geçmişi — auditability için.
      */

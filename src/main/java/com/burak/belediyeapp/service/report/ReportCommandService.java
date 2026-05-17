@@ -79,7 +79,7 @@ public class ReportCommandService {
         }
 
         log.info("Rapor durumu güncellendi: {} — {} → {}", reportId, oldStatus, request.status());
-        return reportSupport.withSignedMedia(reportMapper.toResponse(saved));
+        return reportSupport.finalizeResponse(saved, reportMapper.toResponse(saved));
     }
 
     @Transactional
@@ -124,7 +124,7 @@ public class ReportCommandService {
         }
 
         log.info("Rapor atandı: {} → {}", reportId, assignee.getEmail());
-        return reportSupport.withSignedMedia(reportMapper.toResponse(saved));
+        return reportSupport.finalizeResponse(saved, reportMapper.toResponse(saved));
     }
 
     @Transactional

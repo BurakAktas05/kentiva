@@ -2,6 +2,8 @@
 
 Web, Android ve iOS için belediye bildirim uygulaması.
 
+**Production yayınlama (Railway API + APK):** [`../deployment/YAYINLAMA.md`](../deployment/YAYINLAMA.md)
+
 ## Web geliştirme
 
 1. `npm install`

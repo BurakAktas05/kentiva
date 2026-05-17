@@ -11,5 +11,7 @@ public record ReportListResponse(
         Double longitude,
         LocalDateTime createdAt,
         String district,
-        String aiPriority
+        String aiPriority,
+        String duplicateGroupId,
+        Integer duplicateGroupSize
 ) {}

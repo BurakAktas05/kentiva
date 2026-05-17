@@ -132,6 +132,16 @@ public class ReportController {
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
+    @GetMapping("/{reportId}/duplicate-group")
+    @Operation(summary = "Aynı konum grubundaki diğer ihbarlar")
+    public ResponseEntity<ApiResponse<List<ReportListResponse>>> getDuplicateGroup(
+            @PathVariable String reportId,
+            @AuthenticationPrincipal AppUser currentUser) {
+
+        List<ReportListResponse> members = reportService.getDuplicateGroupMembers(reportId, currentUser);
+        return ResponseEntity.ok(ApiResponse.success(members));
+    }
+
     @GetMapping("/{reportId}/timeline")
     @Operation(summary = "Rapor yaşam döngüsü zaman çizelgesi")
     public ResponseEntity<ApiResponse<List<ReportTimelineEntryResponse>>> getTimeline(
