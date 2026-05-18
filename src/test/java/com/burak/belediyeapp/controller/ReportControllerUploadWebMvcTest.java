@@ -5,6 +5,7 @@ import com.burak.belediyeapp.security.ApiKeyAuthFilter;
 import com.burak.belediyeapp.security.JwtAuthenticationSupport;
 import com.burak.belediyeapp.service.media.MediaGuardClient;
 import com.burak.belediyeapp.service.media.MediaSignedUrlService;
+import com.burak.belediyeapp.service.report.ReportDraftAnalysisService;
 import com.burak.belediyeapp.service.report.ReportService;
 import com.burak.belediyeapp.service.auth.JwtService;
 import com.burak.belediyeapp.service.storage.StorageService;
@@ -31,6 +32,7 @@ class ReportControllerUploadWebMvcTest {
     @Autowired MockMvc mockMvc;
 
     @MockitoBean ReportService reportService;
+    @MockitoBean ReportDraftAnalysisService reportDraftAnalysisService;
     @MockitoBean StorageService storageService;
     @MockitoBean MediaGuardClient mediaGuardClient;
     @MockitoBean MediaSignedUrlService mediaSignedUrlService;

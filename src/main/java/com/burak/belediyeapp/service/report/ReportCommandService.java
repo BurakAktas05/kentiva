@@ -16,11 +16,14 @@ import com.burak.belediyeapp.repository.IReportHistoryRepository;
 import com.burak.belediyeapp.repository.IReportRepository;
 import com.burak.belediyeapp.service.ai.GeminiService;
 import com.burak.belediyeapp.service.ai.HeuristicReportAnalyzer;
+import com.burak.belediyeapp.service.citizen.CitizenReputationService;
 import com.burak.belediyeapp.service.integration.WebhookDispatchService;
 import com.burak.belediyeapp.service.notification.NotificationService;
 import com.burak.belediyeapp.tenant.TenantAccessService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +47,15 @@ public class ReportCommandService {
     private final GeminiService geminiService;
     private final HeuristicReportAnalyzer heuristicReportAnalyzer;
     private final WebhookDispatchService webhookDispatchService;
+    private final CitizenReputationService citizenReputationService;
+
+    /**
+     * Spring proxy SELF-CALL'ları yakalamadığı için iç @Transactional metotlarını
+     * proxy üzerinden çağırmak için kendine @Lazy referans tutarız.
+     */
+    @Autowired
+    @Lazy
+    private ReportCommandService self;
 
     @Transactional
     @PreAuthorize("hasAnyAuthority('ROLE_FIELD_OFFICER', 'ROLE_DEPT_MANAGER', 'ROLE_ADMIN', 'ROLE_SUPER_ADMIN')")
@@ -79,6 +91,11 @@ public class ReportCommandService {
                 .build());
 
         Report saved = reportRepository.save(report);
+        if (request.status() == ReportStatus.RESOLVED) {
+            citizenReputationService.onReportResolved(saved);
+        } else if (request.status() == ReportStatus.REJECTED) {
+            citizenReputationService.onReportRejected(saved, false);
+        }
         notificationService.notifyReportStatusChanged(saved);
 
         if (saved.getMunicipality() != null) {
@@ -113,6 +130,8 @@ public class ReportCommandService {
                     .note("[SİSTEM] Otomatik red — " + reason)
                     .build());
             reportRepository.save(report);
+            citizenReputationService.onReportRejected(
+                    report, CitizenReputationService.isSelfieReason(reason));
             // Vatandaşı bilgilendirme: REJECTED notification gönder
             try {
                 notificationService.notifyReportStatusChanged(report);
@@ -173,7 +192,12 @@ public class ReportCommandService {
         return reportSupport.finalizeResponse(saved, reportMapper.toResponse(saved));
     }
 
-    @Transactional
+    /**
+     * Bulk endpoint — DELIBERATELY non-transactional.
+     * Her item kendi REQUIRED txn'inde işlenir (assignReport/updateReportStatus zaten @Transactional);
+     * tek bir başarısızlık tüm grubu rollback'e SÜRÜKLEMEZ ve uzun txn'ler DB connection'larını
+     * tutmaz (audit gereğince hata satır bazlı raporlanır).
+     */
     @PreAuthorize("hasAnyAuthority('ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     public BulkReportOperationResult bulkAssignReports(BulkAssignReportsRequest request, AppUser assignedBy) {
         List<String> ids = ReportSupport.distinctIds(request.reportIds());
@@ -190,7 +214,6 @@ public class ReportCommandService {
         return new BulkReportOperationResult(success, failures.size(), failures);
     }
 
-    @Transactional
     @PreAuthorize("hasAnyAuthority('ROLE_FIELD_OFFICER', 'ROLE_DEPT_MANAGER', 'ROLE_ADMIN', 'ROLE_SUPER_ADMIN')")
     @com.burak.belediyeapp.audit.AuditAction(action = "REPORT_STATUS_BULK_UPDATE", description = "Toplu rapor durumu güncellendi")
     public BulkReportOperationResult bulkUpdateReportStatus(
@@ -210,41 +233,103 @@ public class ReportCommandService {
         return new BulkReportOperationResult(success, failures.size(), failures);
     }
 
-    @Transactional
-    public void performAiAnalysis(String reportId) {
-        Report report = reportSupport.findReportOrThrow(reportId);
+    /**
+     * Adminin / saha ekibinin elle tetiklediği AI analizi — IDOR korumalı.
+     * Çağıran kullanıcı raporun belediye kapsamında değilse erişim reddedilir.
+     * Gemini HTTP çağrısı transaction DIŞINDA yapılır (DB connection bekletilmez).
+     */
+    @PreAuthorize("hasAnyAuthority('ROLE_FIELD_OFFICER','ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    public void performAiAnalysis(String reportId, AppUser currentUser) {
+        // self üzerinden çağırarak @Transactional proxy'sini garanti altına alırız.
+        AiContext ctx = self.loadReportWithTenantCheck(reportId, currentUser);
+        applyAiAnalysisOutsideTx(reportId, ctx);
+    }
+
+    /**
+     * Sistem (event listener) tarafından tetiklenen AI analizi.
+     * Hiçbir kullanıcı yok — IDOR kontrolüne tabi değildir, ama kategori değiştirme
+     * yine de raporun belediye kapsamına bağlanır.
+     */
+    public void performAiAnalysisAsSystem(String reportId) {
+        AiContext ctx = self.loadReportForSystemAi(reportId);
+        applyAiAnalysisOutsideTx(reportId, ctx);
+    }
+
+    /**
+     * AI analizi için hot-path snapshot. Detached entity LAZY proxy'lerine erişimden
+     * kaçınmak için Gemini/Heuristic'in ihtiyacı olan alanları önceden okur.
+     */
+    public record AiContext(Report report, String municipalityId) {}
+
+    @Transactional(readOnly = true)
+    public AiContext loadReportWithTenantCheck(String reportId, AppUser currentUser) {
+        Report report = reportRepository.findByIdForRealtimePush(reportId)
+                .orElseThrow(() -> new com.burak.belediyeapp.exception.ResourceNotFoundException(
+                        "Rapor", "id", reportId));
+        tenantAccess.ensureCanViewReport(report, currentUser);
+        // LAZY alanları henüz session açıkken zorla initialize et:
+        String muniId = report.getMunicipality() != null ? report.getMunicipality().getId() : null;
+        if (report.getCategory() != null) report.getCategory().getName();
+        return new AiContext(report, muniId);
+    }
+
+    @Transactional(readOnly = true)
+    public AiContext loadReportForSystemAi(String reportId) {
+        Report report = reportRepository.findByIdForRealtimePush(reportId)
+                .orElseThrow(() -> new com.burak.belediyeapp.exception.ResourceNotFoundException(
+                        "Rapor", "id", reportId));
+        String muniId = report.getMunicipality() != null ? report.getMunicipality().getId() : null;
+        if (report.getCategory() != null) report.getCategory().getName();
+        return new AiContext(report, muniId);
+    }
+
+    /** Gemini/HTTP çağrısı txn dışında. Sonra kısa yazma txn'i ile kaydeder. */
+    private void applyAiAnalysisOutsideTx(String reportId, AiContext ctx) {
+        Report report = ctx.report();
         GeminiService.AIAnalysisResult result = geminiService.analyzeReport(report);
         if (result == null) {
             result = heuristicReportAnalyzer.analyze(report);
             log.info("Kural tabanlı AI yedek analiz kullanıldı: {}", reportId);
         }
-
-        if (result != null) {
-            report.setAiPriority(result.priority());
-            report.setAiSummary(composeSummaryWithRationale(result.summary(), result.priorityRationale()));
-            report.setAiSlaRisk(blankToNull(truncate(result.slaRisk(), 20)));
-            report.setAiReplyDraft(blankToNull(result.replyDraft()));
-            report.setAiDuplicateHint(blankToNull(truncate(result.duplicateHint(), 500)));
-
-            if (result.suggestedTitle() != null && !result.suggestedTitle().isBlank()) {
-                report.setTitle(result.suggestedTitle());
-            }
-
-            if (result.suggestedCategoryName() != null && !result.suggestedCategoryName().isBlank()) {
-                report.setAiSuggestedCategory(result.suggestedCategoryName());
-
-                if (!result.isCategoryCorrect() || report.getCategory().getName().equals("Diğer")) {
-                    categoryRepository.findByName(result.suggestedCategoryName())
-                            .ifPresent(newCat -> {
-                                report.setCategory(newCat);
-                                log.info("AI otomatik kategori düzeltti: {} -> {}", reportId, newCat.getName());
-                            });
-                }
-            }
-
-            reportRepository.save(report);
-            log.info("AI analizi tamamlandı: rapor={}, öncelik={}", reportId, result.priority());
+        if (result == null) {
+            return;
         }
+        self.persistAiResult(reportId, ctx.municipalityId(), result);
+    }
+
+    @Transactional
+    public void persistAiResult(String reportId, String municipalityId, GeminiService.AIAnalysisResult result) {
+        Report report = reportSupport.findReportOrThrow(reportId);
+        report.setAiPriority(result.priority());
+        report.setAiSummary(composeSummaryWithRationale(result.summary(), result.priorityRationale()));
+        report.setAiSlaRisk(blankToNull(truncate(result.slaRisk(), 20)));
+        report.setAiReplyDraft(blankToNull(result.replyDraft()));
+        report.setAiDuplicateHint(blankToNull(truncate(result.duplicateHint(), 500)));
+
+        if (result.suggestedTitle() != null && !result.suggestedTitle().isBlank()) {
+            report.setTitle(result.suggestedTitle());
+        }
+
+        if (result.suggestedCategoryName() != null && !result.suggestedCategoryName().isBlank()) {
+            report.setAiSuggestedCategory(result.suggestedCategoryName());
+
+            boolean shouldReassign = !result.isCategoryCorrect()
+                    || (report.getCategory() != null && "Diğer".equals(report.getCategory().getName()));
+            if (shouldReassign) {
+                // Cross-tenant kategori atamasını önlemek için belediye kapsamında ara.
+                categoryRepository.findVisibleToMunicipalityByName(
+                                result.suggestedCategoryName(), municipalityId)
+                        .stream()
+                        .findFirst()
+                        .ifPresent(newCat -> {
+                            report.setCategory(newCat);
+                            log.info("AI otomatik kategori düzeltti (tenant-scoped): {} -> {}",
+                                    reportId, newCat.getName());
+                        });
+            }
+        }
+        reportRepository.save(report);
+        log.info("AI analizi tamamlandı: rapor={}, öncelik={}", reportId, result.priority());
     }
 
     private static String composeSummaryWithRationale(String summary, String rationale) {

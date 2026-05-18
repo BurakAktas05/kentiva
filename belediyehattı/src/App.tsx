@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { initNativeShell, registerNativeBackHandler } from './lib/nativeShell';
 import { Home as HomeIcon, PlusCircle, User, Bell, Building2 } from 'lucide-react';
-import { getSavedUser, clearTokens, getUnreadCount, AuthUser, type PublicTenant } from './api';
+import { getSavedUser, clearTokens, getUnreadCount, getMyProfile, setPreferredMunicipality, AuthUser, type PublicTenant } from './api';
 import { setupCitizenPush } from './lib/pushNotifications';
 import { Lang, t } from './i18n';
 import { useTenant } from './TenantContext';
@@ -20,11 +20,13 @@ export default function App() {
   const { tenant, setTenant } = useTenant();
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [openReportId, setOpenReportId] = useState<string | null>(null);
+  const [reportReturnTab, setReportReturnTab] = useState<Tab>('home');
   const [user, setUser] = useState<AuthUser | null>(getSavedUser());
   const [unreadCount, setUnreadCount] = useState(0);
   const [key, setKey] = useState(0);
   const [lang, setLang] = useState<Lang>(() => (localStorage.getItem('belediye_lang') as Lang) || 'tr');
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => (localStorage.getItem('belediye_theme') as any) || 'light');
+  const [showMunicipalityPicker, setShowMunicipalityPicker] = useState(false);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -44,11 +46,38 @@ export default function App() {
   useEffect(() => { localStorage.setItem('belediye_theme', theme); }, [theme]);
 
   useEffect(() => {
+    if (user && !tenant) {
+      getMyProfile()
+        .then((p) => {
+          const pref = p.preferredMunicipality as PublicTenant | undefined;
+          if (pref?.id && pref.onboarded) {
+            setTenant({
+              id: pref.id,
+              slug: pref.slug ?? '',
+              displayName: pref.displayName ?? '',
+              logoUrl: pref.logoUrl ?? null,
+              primaryColor: pref.primaryColor ?? null,
+              secondaryColor: pref.secondaryColor ?? null,
+              accentColor: pref.accentColor ?? null,
+              slogan: pref.slogan ?? null,
+              centerLat: pref.centerLat ?? 41,
+              centerLng: pref.centerLng ?? 29,
+              active: Boolean(pref.active),
+              onboarded: Boolean(pref.onboarded),
+            });
+          }
+        })
+        .catch(() => {});
+    }
+  }, [user, tenant, setTenant]);
+
+  useEffect(() => {
     if (user) {
       loadUnreadCount();
       const interval = setInterval(loadUnreadCount, 30000);
 
       const teardownPush = setupCitizenPush((reportId) => {
+        setReportReturnTab('home');
         setOpenReportId(reportId);
         setActiveTab('home');
       });
@@ -87,10 +116,20 @@ export default function App() {
     void initNativeShell(isDark);
   }, [isDark]);
 
+  const openReport = useCallback((id: string) => {
+    setReportReturnTab(activeTab);
+    setOpenReportId(id);
+  }, [activeTab]);
+
+  const closeReport = useCallback(() => {
+    setOpenReportId(null);
+    setActiveTab(reportReturnTab);
+    setKey((k) => k + 1);
+  }, [reportReturnTab]);
+
   const handleNativeBack = useCallback((): boolean => {
     if (openReportId) {
-      setOpenReportId(null);
-      setKey((k) => k + 1);
+      closeReport();
       return true;
     }
     if (activeTab === 'settings') {
@@ -102,12 +141,30 @@ export default function App() {
       return true;
     }
     return false;
-  }, [activeTab, openReportId, tenant]);
+  }, [activeTab, openReportId, closeReport, tenant]);
 
   useEffect(() => registerNativeBackHandler(handleNativeBack), [handleNativeBack]);
 
   if (!user) {
     return <AuthScreen onAuth={handleAuth} lang={lang} />;
+  }
+
+  if (showMunicipalityPicker) {
+    return (
+      <MunicipalityPicker
+        lang={lang}
+        isDark={isDark}
+        onSelect={async (t) => {
+          setTenant(t);
+          setShowMunicipalityPicker(false);
+          try {
+            await setPreferredMunicipality(t.id);
+          } catch {
+            /* ignore */
+          }
+        }}
+      />
+    );
   }
 
   return (
@@ -144,13 +201,14 @@ export default function App() {
         )}
 
         <main className={`flex-1 overflow-y-auto overflow-x-hidden relative pb-20 ${isDark ? 'bg-slate-900' : 'bg-slate-50'}`}>
-          {activeTab === 'home' && (
+          {activeTab === 'home' && !openReportId && (
             <Fragment key={key}>
               <Home
                 onNavigate={setActiveTab}
-                onOpenReport={(id) => setOpenReportId(id)}
+                onOpenReport={openReport}
                 lang={lang}
                 isDark={isDark}
+                homeMunicipality={tenant}
               />
             </Fragment>
           )}
@@ -159,10 +217,7 @@ export default function App() {
               reportId={openReportId}
               lang={lang}
               isDark={isDark}
-              onClose={() => {
-                setOpenReportId(null);
-                setKey((k) => k + 1);
-              }}
+              onClose={closeReport}
             />
           )}
           {activeTab === 'report' && (
@@ -178,7 +233,7 @@ export default function App() {
             <Profile
               onLogout={handleLogout}
               onSettings={() => setActiveTab('settings')}
-              onOpenReport={(id) => setOpenReportId(id)}
+              onOpenReport={openReport}
               lang={lang}
               isDark={isDark}
             />
@@ -192,6 +247,7 @@ export default function App() {
               onLangChange={setLang}
               onThemeChange={setTheme}
               onBack={() => setActiveTab('profile')}
+              onChangeMunicipality={() => setShowMunicipalityPicker(true)}
             />
           )}
         </main>

@@ -5,7 +5,8 @@ import api from '../api';
 import MunicipalityBrandingForm from '../components/MunicipalityBrandingForm';
 import MunicipalityBrandingPreview from '../components/MunicipalityBrandingPreview';
 import MunicipalitySettingsSkeleton from '../components/MunicipalitySettingsSkeleton';
-import BoundaryGeoJsonPanel from '../components/BoundaryGeoJsonPanel';
+import OsmBoundaryFetchPanel from '../components/OsmBoundaryFetchPanel';
+import MunicipalityWidgetsPanel from '../components/MunicipalityWidgetsPanel';
 import ReportTemplatesPanel from '../components/ReportTemplatesPanel';
 import ToastBanner, { type ToastState } from '../components/ToastBanner';
 import { emptyBrandingForm, type BrandingFormValues } from '../lib/branding';
@@ -275,11 +276,8 @@ export default function MunicipalitySettingsPage() {
             onFormChange={handleFormChange}
           />
           <ReportTemplatesPanel />
-          <BoundaryGeoJsonPanel
-            centerLat={municipality.centerLat}
-            centerLng={municipality.centerLng}
-            defaultZoom={municipality.defaultZoom}
-          />
+          <MunicipalityWidgetsPanel />
+          <OsmBoundaryFetchPanel />
         </div>
 
         <aside className="xl:sticky xl:top-6 xl:self-start">

@@ -152,17 +152,25 @@ public class AuthService {
 
     /**
      * Telefon numarasına OTP gönder.
+     * Hesap yok/var ayrımı yapılmaz (enumeration önleme).
+     * SmsOtpService telefon-başına cooldown ve günlük tavan uygular → ek SMS flood'a karşı.
      */
     public void sendPasswordResetOtp(String phoneNumber) {
         userRepository.findByPhoneNumber(phoneNumber).ifPresent(user -> {
             boolean sent = smsOtpService.sendOtp(phoneNumber);
+            // Log'da kullanıcı kimliği/telefon değil, kullanıcı UUID'sinin kuyruk eki kullanılır.
+            String tag = userTag(user.getId());
             if (!sent) {
-                log.warn("Şifre sıfırlama SMS gönderilemedi: {}", phoneNumber);
+                log.warn("Şifre sıfırlama SMS gönderilemedi (kullanıcı={})", tag);
             } else {
-                log.info("Şifre sıfırlama OTP gönderildi: {}", phoneNumber);
+                log.info("Şifre sıfırlama OTP gönderildi (kullanıcı={})", tag);
             }
         });
-        // Hesap var/yok ayrımı yapılmaz (enumeration önleme)
+    }
+
+    private static String userTag(String userId) {
+        if (userId == null || userId.length() < 8) return "***";
+        return "u-" + userId.substring(userId.length() - 8);
     }
 
     /**
@@ -186,7 +194,7 @@ public class AuthService {
         // Tüm mevcut oturumları kapat
         refreshTokenRepository.revokeAllByUserId(user.getId());
 
-        log.info("Şifre sıfırlandı: {} ({})", user.getEmail(), phoneNumber);
+        log.info("Şifre sıfırlandı (kullanıcı={})", userTag(user.getId()));
     }
 
     // ===================================================

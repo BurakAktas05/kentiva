@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, lazy, Suspense, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -28,8 +28,10 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import api, { clearAuthStorage, REFRESH_KEY, TOKEN_KEY, type PredictiveInsight, type Stats } from './api';
+import { downloadBlobResponse } from './lib/downloadExport';
 import DashboardLoadingSkeleton from './components/DashboardLoadingSkeleton';
 import { reportStatusBadgeClass } from './lib/ui';
+import { ReportLiveProvider, useReportLive } from './context/ReportLiveContext';
 
 const LiveMap = lazy(() => import('./LiveMap'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
@@ -97,6 +99,7 @@ interface User {
 // --- Components ---
 const Sidebar = ({ isOpen, setOpen, user }: { isOpen: boolean, setOpen: (o: boolean) => void, user: User }) => {
   const location = useLocation();
+  const { newCount: liveNewReports } = useReportLive();
   const isPlatformSuperAdmin =
     user.roles.includes('ROLE_SUPER_ADMIN') && !user.municipality;
 
@@ -165,7 +168,12 @@ const Sidebar = ({ isOpen, setOpen, user }: { isOpen: boolean, setOpen: (o: bool
                 }`}
               >
                 <item.icon size={18} strokeWidth={isActive ? 2.25 : 2} />
-                <span>{item.name}</span>
+                <span className="flex-1">{item.name}</span>
+                {item.path === '/reports' && liveNewReports > 0 ? (
+                  <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[10px] font-bold text-white animate-pulse">
+                    +{liveNewReports > 9 ? '9+' : liveNewReports}
+                  </span>
+                ) : null}
               </Link>
             );
           })}
@@ -209,13 +217,24 @@ const Header = ({
 }) => {
   const navigate = useNavigate();
   const [pendingCount, setPendingCount] = useState(0);
+  const { newCount: liveNewReports } = useReportLive();
 
-  useEffect(() => {
+  const refreshPending = useCallback(() => {
     api
       .get('/dashboard/stats')
       .then((res) => setPendingCount(Number(res.data.data?.pendingReports ?? 0)))
       .catch(() => setPendingCount(0));
   }, []);
+
+  useEffect(() => {
+    refreshPending();
+  }, [refreshPending]);
+
+  useEffect(() => {
+    if (liveNewReports > 0) {
+      refreshPending();
+    }
+  }, [liveNewReports, refreshPending]);
 
   return (
     <header className="sticky top-0 z-40 flex h-[4.25rem] items-center justify-between border-b border-slate-200/90 bg-white/95 px-4 backdrop-blur-md sm:px-6 dark:border-slate-800 dark:bg-slate-900/95">
@@ -281,6 +300,7 @@ const Dashboard = ({ user }: { user: User }) => {
   const [recentReports, setRecentReports] = useState<{ id: string; title: string; status: string; categoryName: string; createdAt: string; district: string }[]>([]);
   const [insights, setInsights] = useState<PredictiveInsight[]>([]);
   const [exporting, setExporting] = useState<'excel' | 'pdf' | null>(null);
+  const [mapReportId, setMapReportId] = useState<string | null>(null);
 
   useEffect(() => {
     api
@@ -304,14 +324,12 @@ const Dashboard = ({ user }: { user: User }) => {
     try {
       const path = format === 'excel' ? '/export/reports/excel' : '/export/reports/pdf';
       const res = await api.get(path, { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `kentiva-raporlar-${new Date().toISOString().slice(0, 10)}.${format === 'excel' ? 'xlsx' : 'pdf'}`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-    } catch {
-      alert('Dışa aktarma başarısız oldu.');
+      await downloadBlobResponse(
+        res,
+        `kentiva-raporlar-${new Date().toISOString().slice(0, 10)}.${format === 'excel' ? 'xlsx' : 'pdf'}`,
+      );
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Dışa aktarma başarısız oldu.');
     } finally {
       setExporting(null);
     }
@@ -460,6 +478,7 @@ const Dashboard = ({ user }: { user: User }) => {
                 centerLng={user.municipality?.centerLng}
                 zoom={user.municipality?.defaultZoom}
                 municipalityId={user.municipality?.id}
+                onOpenReport={(id) => setMapReportId(id)}
               />
             </Suspense>
           </div>
@@ -497,6 +516,16 @@ const Dashboard = ({ user }: { user: User }) => {
           </a>
         </div>
       </div>
+
+      {mapReportId && (
+        <Suspense fallback={null}>
+          <ReportDetailPage
+            reportId={mapReportId}
+            embedded
+            onClose={() => setMapReportId(null)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };
@@ -558,6 +587,7 @@ const App = () => {
         
         <Route path="/*" element={
           !user ? <Navigate to="/login" /> : (
+            <ReportLiveProvider municipalityId={user.municipality?.id}>
             <div className="flex min-h-screen bg-slate-100 dark:bg-slate-950">
               <Sidebar isOpen={sidebarOpen} setOpen={setSidebarOpen} user={user} />
               
@@ -673,6 +703,7 @@ const App = () => {
                 )}
               </AnimatePresence>
             </div>
+            </ReportLiveProvider>
           )
         } />
       </Routes>

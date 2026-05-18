@@ -20,6 +20,21 @@ public interface IReportCategoryRepository extends JpaRepository<ReportCategory,
 
     Optional<ReportCategory> findByName(String name);
 
+    /**
+     * Belediyeye ait özel kategori; yoksa global (municipality IS NULL) eşleşmeye düşer.
+     * AI'nın "kategoriyi düzelt" yetkisi bu sorgu ile tenant kapsamı içine alınır.
+     */
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT c FROM ReportCategory c
+            WHERE c.active = true
+              AND LOWER(c.name) = LOWER(:name)
+              AND (c.municipality IS NULL OR c.municipality.id = :municipalityId)
+            ORDER BY CASE WHEN c.municipality.id = :municipalityId THEN 0 ELSE 1 END
+            """)
+    java.util.List<ReportCategory> findVisibleToMunicipalityByName(
+            @org.springframework.data.repository.query.Param("name") String name,
+            @org.springframework.data.repository.query.Param("municipalityId") String municipalityId);
+
     List<ReportCategory> findAllByActiveTrueAndMunicipalityIsNull();
 
     List<ReportCategory> findAllByActiveTrueAndMunicipality_Id(String municipalityId);

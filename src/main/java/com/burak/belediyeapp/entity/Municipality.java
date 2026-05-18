@@ -159,4 +159,12 @@ public class Municipality extends BaseEntity {
     /** HMAC imza için paylaşılan sır (X-BelediyeApp-Signature) */
     @Column(name = "webhook_secret", length = 64)
     private String webhookSecret;
+
+    /** EczaneAPI il slug (örn. istanbul) — boşsa konumdan çözülür */
+    @Column(name = "widget_city_slug", length = 80)
+    private String widgetCitySlug;
+
+    /** EczaneAPI ilçe slug (örn. kadikoy) */
+    @Column(name = "widget_district_slug", length = 80)
+    private String widgetDistrictSlug;
 }

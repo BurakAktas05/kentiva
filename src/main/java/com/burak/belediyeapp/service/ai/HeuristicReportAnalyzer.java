@@ -2,6 +2,7 @@ package com.burak.belediyeapp.service.ai;
 
 import com.burak.belediyeapp.entity.Report;
 import com.burak.belediyeapp.repository.IReportCategoryRepository;
+import com.burak.belediyeapp.service.notification.ReportLanguageMessages;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -27,14 +28,22 @@ public class HeuristicReportAnalyzer {
         String summary = truncate(report.getDescription(), 120);
         boolean categoryCorrect = suggestedCategory.equalsIgnoreCase(report.getCategory().getName());
 
+        String lang = report.getContentLanguage() != null ? report.getContentLanguage() : "tr";
+        String replyDraft = ReportLanguageMessages.heuristicReplyDraft(lang);
+        String summaryFallback = switch (ReportLanguageMessages.normalizeLang(lang)) {
+            case "en" -> "Citizen report received.";
+            case "ar" -> "تم استلام بلاغ المواطن.";
+            default -> "Vatandaş bildirimi alındı.";
+        };
+
         return new GeminiService.AIAnalysisResult(
                 priority,
-                summary.isBlank() ? "Vatandaş bildirimi alındı." : summary,
+                summary.isBlank() ? summaryFallback : summary,
                 categoryCorrect,
                 suggestedCategory,
                 report.getTitle(),
                 priority.equals("CRITICAL") || priority.equals("HIGH") ? "HIGH" : "LOW",
-                "Bildiriminiz kayda alınmıştır. Ekiplerimiz en kısa sürede değerlendirecektir.",
+                replyDraft,
                 "",
                 "Kural tabanlı analiz"
         );

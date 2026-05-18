@@ -32,19 +32,6 @@ VALUES
     'CRITICAL', 'Şebeke hattında olası patlak ve su kaybı.', NOW() - INTERVAL '4 hours', NOW() - INTERVAL '2 hours'
 );
 
-INSERT INTO reports (id, title, description, location, report_status, category_id, reporter_id, district, municipality_id, created_at, updated_at)
-VALUES
-(
-    'mock-rep-6', 'Hatalı Park', 'Otobüs durağının önüne araç park edilmiş.',
-    ST_SetSRID(ST_MakePoint(28.978, 41.008), 4326), 'PENDING',
-    (SELECT id FROM report_categories WHERE name = 'Park İhlali' LIMIT 1), 'uuid-admin-user', 'Fatih', NULL, NOW(), NOW()
-),
-(
-    'mock-rep-7', 'Ağaç Devrilmesi', 'Fırtınadan dolayı yola ağaç devrildi.',
-    ST_SetSRID(ST_MakePoint(29.025, 41.045), 4326), 'PENDING',
-    (SELECT id FROM report_categories WHERE name = 'Diğer' LIMIT 1), 'uuid-admin-user', 'Beşiktaş', NULL, NOW(), NOW()
-);
-
 INSERT INTO report_history (id, report_id, old_status, new_status, changed_by_id, note, created_at)
 VALUES
 (gen_random_uuid()::varchar, 'mock-rep-2', 'PENDING', 'PROCESSING', 'user-safranbolu-admin', 'Saha ekibi görevlendirildi.', NOW() - INTERVAL '5 hours'),

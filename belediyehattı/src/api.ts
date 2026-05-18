@@ -20,11 +20,32 @@ export function apiBase(): string {
   );
 }
 
-/** Göreli imzalı medya yolunu tam URL yapar (img src için). */
+/** Göreli imzalı medya yolunu tam URL yapar (img src için). Sunucunun localhost tabanlı imzasını istemci API köküne çevirir. */
 export function resolveMediaUrl(url: string | null | undefined): string {
   if (!url) return '';
-  if (/^https?:\/\//i.test(url)) return url;
   const origin = apiBase().replace(/\/api\/v1\/?$/i, '') || 'http://localhost:8080';
+
+  const accessMatch = url.match(/\/api\/v1\/media\/access\?token=[^&\s]+/);
+  if (accessMatch) {
+    return `${origin}${accessMatch[0]}`;
+  }
+
+  if (/^https?:\/\//i.test(url)) {
+    try {
+      const parsed = new URL(url);
+      if (parsed.pathname.includes('/media/access')) {
+        return `${origin}${parsed.pathname}${parsed.search}`;
+      }
+    } catch {
+      return url;
+    }
+    return url;
+  }
+
+  if (url.startsWith('/api/v1/media/access')) {
+    return `${origin}${url}`;
+  }
+
   return `${origin}${url.startsWith('/') ? url : `/${url}`}`;
 }
 
@@ -114,6 +135,7 @@ export interface ApiReportList {
   createdAt: string;
   district?: string | null;
   aiPriority?: string | null;
+  aiSlaRisk?: string | null;
 }
 
 export interface ApiReportDetail {
@@ -165,7 +187,88 @@ export interface ApiUserProfile {
   email: string;
   phoneNumber: string | null;
   roles: string[];
+  reputationScore?: number;
+  reputationLevel?: string;
+  preferredMunicipality?: (PublicTenant & { name?: string }) | null;
 }
+
+export type NearbyReportHint = {
+  id: string;
+  title: string;
+  categoryName: string;
+  status: string;
+  distanceMeters: number;
+  createdAt: string;
+};
+
+export type WeatherWidget = {
+  available: boolean;
+  temperatureC: number | null;
+  apparentTemperatureC: number | null;
+  humidityPercent: number | null;
+  windSpeedKmh: number | null;
+  precipitationMm: number | null;
+  dailyMaxC: number | null;
+  dailyMinC: number | null;
+  weatherCode: number | null;
+  description: string | null;
+  usAqi: number | null;
+  aqiLabel: string | null;
+  pm25: number | null;
+  pm10: number | null;
+  dataSource: string | null;
+};
+
+export type PharmacyWidget = {
+  name: string;
+  address: string;
+  distanceMeters: number | null;
+  lat: number | null;
+  lng: number | null;
+  onDuty: boolean;
+  phone: string | null;
+  dutyVerified: boolean;
+};
+
+export type ReportDraftAnalysis = {
+  priority: string;
+  summary: string;
+  suggestedCategoryName: string;
+  categoryCorrect: boolean;
+  slaRisk: string;
+  priorityRationale: string;
+  analysisSource: string;
+  steps: string[];
+};
+
+export type OutageWidget = {
+  id: string;
+  outageType: string;
+  title: string;
+  district: string | null;
+  message: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
+};
+
+export type EventWidget = {
+  id: string;
+  title: string;
+  venue: string | null;
+  description: string | null;
+  startsAt: string;
+  endsAt: string | null;
+  externalUrl: string | null;
+};
+
+export type HomeWidgetsBundle = {
+  weather: WeatherWidget;
+  pharmacies: PharmacyWidget[];
+  pharmacyApiConfigured: boolean;
+  pharmacyDataSource: string | null;
+  outages: OutageWidget[];
+  events: EventWidget[];
+};
 
 function isAuthPath(path: string): boolean {
   const base = path.split('?')[0];
@@ -363,7 +466,8 @@ export async function getReportTemplates(tenant: { slug: string } | { id: string
   if ('slug' in tenant && tenant.slug) {
     return publicFetch(`/public/municipalities/${encodeURIComponent(tenant.slug)}/report-templates`);
   }
-  return publicFetch(`/public/municipalities/report-templates?municipalityId=${encodeURIComponent(tenant.id)}`);
+  const municipalityId = 'id' in tenant ? tenant.id : '';
+  return publicFetch(`/public/municipalities/report-templates?municipalityId=${encodeURIComponent(municipalityId)}`);
 }
 
 export async function createReport(
@@ -455,6 +559,50 @@ export async function markAllNotificationsRead(): Promise<void> {
 
 export async function getMyProfile(): Promise<ApiUserProfile> {
   return apiFetch('/users/me');
+}
+
+export async function setPreferredMunicipality(municipalityId: string): Promise<ApiUserProfile> {
+  return apiFetch('/users/me/preferred-municipality', {
+    method: 'PATCH',
+    body: JSON.stringify({ municipalityId }),
+  });
+}
+
+export async function fetchNearbyReportHints(
+  latitude: number,
+  longitude: number,
+  municipalityId: string,
+  radiusMeters = 75,
+): Promise<NearbyReportHint[]> {
+  const q = new URLSearchParams({
+    latitude: String(latitude),
+    longitude: String(longitude),
+    municipalityId,
+    radiusMeters: String(radiusMeters),
+  });
+  return apiFetch(`/reports/nearby-hints?${q}`);
+}
+
+export async function fetchHomeWidgets(
+  municipalityId: string,
+  lat: number,
+  lng: number,
+): Promise<HomeWidgetsBundle> {
+  const q = new URLSearchParams({ lat: String(lat), lng: String(lng) });
+  return publicFetch(`/public/municipalities/${encodeURIComponent(municipalityId)}/home-widgets?${q}`);
+}
+
+export async function analyzeReportDraft(payload: {
+  categoryId: string;
+  title: string;
+  description?: string;
+  contentLanguage?: string;
+  mediaUrl?: string;
+}): Promise<ReportDraftAnalysis> {
+  return apiFetch('/reports/analyze-draft', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function updateFcmToken(fcmToken: string): Promise<void> {

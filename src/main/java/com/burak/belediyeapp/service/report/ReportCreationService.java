@@ -8,6 +8,8 @@ import com.burak.belediyeapp.mapper.IReportMapper;
 import com.burak.belediyeapp.repository.IReportCategoryRepository;
 import com.burak.belediyeapp.repository.IReportHistoryRepository;
 import com.burak.belediyeapp.repository.IReportRepository;
+import com.burak.belediyeapp.service.ai.ContentLanguageDetector;
+import com.burak.belediyeapp.service.citizen.CitizenReputationService;
 import com.burak.belediyeapp.service.integration.WebhookDispatchService;
 import com.burak.belediyeapp.service.media.MediaSignedUrlService;
 import com.burak.belediyeapp.tenant.TenantAccessService;
@@ -35,6 +37,7 @@ public class ReportCreationService {
     private final ApplicationEventPublisher eventPublisher;
     private final ReportDuplicateLinkService duplicateLinkService;
     private final WebhookDispatchService webhookDispatchService;
+    private final CitizenReputationService citizenReputationService;
 
     @Transactional
     @PreAuthorize("hasAuthority('ROLE_CITIZEN')")
@@ -47,6 +50,7 @@ public class ReportCreationService {
         Report report = reportMapper.toEntity(request);
         report.setCategory(category);
         report.setReporter(reporter);
+        report.setContentLanguage(ContentLanguageDetector.detect(request.title(), request.description()));
 
         if (reporter.getMunicipality() != null && !tenantAccess.isCitizenOnly(reporter)) {
             report.setMunicipality(reporter.getMunicipality());
@@ -87,10 +91,11 @@ public class ReportCreationService {
         }
 
         eventPublisher.publishEvent(new ReportCreatedEvent(saved.getId()));
+        citizenReputationService.onReportCreated(reporter);
 
         log.info("Yeni rapor oluşturuldu: {} — {} — ilçe={}", saved.getId(), reporter.getEmail(), report.getDistrict());
 
         Report refreshed = reportSupport.findReportOrThrow(saved.getId());
-        return reportSupport.finalizeResponse(refreshed, reportMapper.toResponse(refreshed));
+        return reportSupport.finalizeResponse(refreshed, reportMapper.toResponse(refreshed), true);
     }
 }

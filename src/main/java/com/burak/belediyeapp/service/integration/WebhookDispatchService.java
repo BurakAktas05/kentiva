@@ -25,7 +25,6 @@ public class WebhookDispatchService {
     private final ObjectMapper objectMapper;
     private final RestClient http = RestClient.builder().build();
 
-    @Async
     public void dispatchReportStatusChanged(
             Municipality municipality,
             Report report,
@@ -33,69 +32,63 @@ public class WebhookDispatchService {
             ReportStatus newStatus,
             String note
     ) {
-        dispatch(municipality, report, "report.status_changed", oldStatus, newStatus, note);
+        WebhookDispatchContext ctx = WebhookDispatchContext.statusChanged(
+                municipality, report, oldStatus, newStatus, note);
+        if (ctx != null) {
+            dispatchAsync(ctx);
+        }
     }
 
-    @Async
     public void dispatchReportCreated(Municipality municipality, Report report) {
-        dispatch(municipality, report, "report.created", null, ReportStatus.PENDING, null);
+        WebhookDispatchContext ctx = WebhookDispatchContext.created(municipality, report);
+        if (ctx != null) {
+            dispatchAsync(ctx);
+        }
+    }
+
+    public void dispatchReportAssigned(Municipality municipality, Report report, String assigneeId) {
+        WebhookDispatchContext ctx = WebhookDispatchContext.assigned(municipality, report, assigneeId);
+        if (ctx != null) {
+            dispatchAsync(ctx);
+        }
     }
 
     @Async
-    public void dispatchReportAssigned(Municipality municipality, Report report, String assigneeId) {
-        dispatch(municipality, report, "report.assigned", report.getReportStatus(), report.getReportStatus(),
-                assigneeId != null ? "assigneeId=" + assigneeId : null);
-    }
-
-    private void dispatch(
-            Municipality municipality,
-            Report report,
-            String event,
-            ReportStatus oldStatus,
-            ReportStatus newStatus,
-            String note
-    ) {
-        if (municipality == null || !municipality.isWebhookEnabled()) {
-            return;
-        }
-        String url = municipality.getWebhookUrl();
-        if (url == null || url.isBlank()) {
-            return;
-        }
-
+    void dispatchAsync(WebhookDispatchContext ctx) {
         ReportStatusWebhookPayload payload = new ReportStatusWebhookPayload(
-                event,
+                ctx.event(),
                 LocalDateTime.now(),
-                municipality.getId(),
-                report.getId(),
-                oldStatus != null ? oldStatus.name() : null,
-                newStatus != null ? newStatus.name() : null,
-                report.getTitle(),
-                report.getCategory() != null ? report.getCategory().getName() : null,
-                report.getDistrict(),
-                report.getLocation() != null ? report.getLocation().getY() : null,
-                report.getLocation() != null ? report.getLocation().getX() : null,
-                note
+                ctx.municipalityId(),
+                ctx.reportId(),
+                ctx.oldStatus() != null ? ctx.oldStatus().name() : null,
+                ctx.newStatus() != null ? ctx.newStatus().name() : null,
+                ctx.title(),
+                ctx.categoryName(),
+                ctx.district(),
+                ctx.latitude(),
+                ctx.longitude(),
+                ctx.note()
         );
 
         try {
             byte[] body = objectMapper.writeValueAsBytes(payload);
             var spec = http.post()
-                    .uri(url)
+                    .uri(ctx.webhookUrl())
                     .header("Content-Type", "application/json")
                     .header("X-BelediyeApp-Event", payload.event())
                     .body(body);
 
-            String secret = municipality.getWebhookSecret();
+            String secret = ctx.webhookSecret();
             if (secret != null && !secret.isBlank()) {
                 spec = spec.header("X-BelediyeApp-Signature", "sha256=" + hmacSha256Hex(secret, body));
             }
 
             spec.retrieve().toBodilessEntity();
-            log.info("Webhook gönderildi: event={}, belediye={}, rapor={}", event, municipality.getId(), report.getId());
+            log.info("Webhook gönderildi: event={}, belediye={}, rapor={}",
+                    ctx.event(), ctx.municipalityId(), ctx.reportId());
         } catch (Exception e) {
             log.warn("Webhook gönderilemedi: event={}, belediye={}, rapor={}, hata={}",
-                    event, municipality.getId(), report.getId(), e.getMessage());
+                    ctx.event(), ctx.municipalityId(), ctx.reportId(), e.getMessage());
         }
     }
 

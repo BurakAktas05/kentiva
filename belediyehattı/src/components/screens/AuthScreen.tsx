@@ -85,11 +85,11 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
   };
 
   return (
-    <div className="min-h-app flex flex-col items-center justify-center bg-gradient-to-b from-slate-50 via-white to-slate-100 p-6 pt-safe pb-safe font-sans [background-image:radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(14,165,233,0.12),transparent)]">
+    <div className="min-h-app w-full overflow-x-hidden flex flex-col items-center justify-center bg-gradient-to-b from-slate-50 via-white to-slate-100 px-4 py-6 pt-safe pb-safe font-sans [background-image:radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(14,165,233,0.12),transparent)]">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md"
+        className="w-full max-w-md min-w-0"
       >
         {/* Brand */}
         <div className="text-center mb-10">
@@ -126,17 +126,17 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="wait" initial={false}>
             {!isLogin && (
               <motion.div
                 key="register-fields"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="space-y-4 overflow-hidden"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="space-y-4"
               >
-                <div className="flex gap-3">
-                  <div className="flex-1 relative">
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <div className="flex-1 relative min-w-0">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <input
                       type="text"
@@ -147,7 +147,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
                       className="w-full bg-white border border-slate-200 rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm"
                     />
                   </div>
-                  <div className="flex-1 relative">
+                  <div className="flex-1 relative min-w-0">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <input
                       type="text"

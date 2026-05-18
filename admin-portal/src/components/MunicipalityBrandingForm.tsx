@@ -278,6 +278,35 @@ export default function MunicipalityBrandingForm({
 
       {/* Görünüm */}
       <Section title="Görünüm" subtitle="Mobil uygulama ve kamu sitesi renk paleti.">
+        <div className="flex flex-wrap gap-2">
+          {[
+            { label: 'Kentiva', primary: '#0b4f9c', secondary: '#0ea5e9', accent: '#f59e0b' },
+            { label: 'Orman', primary: '#14532d', secondary: '#22c55e', accent: '#84cc16' },
+            { label: 'Gece', primary: '#1e293b', secondary: '#6366f1', accent: '#f472b6' },
+            { label: 'Gün batımı', primary: '#9a3412', secondary: '#ea580c', accent: '#fbbf24' },
+          ].map((preset) => (
+            <button
+              key={preset.label}
+              type="button"
+              onClick={() =>
+                setForm((f) => ({
+                  ...f,
+                  primaryColor: preset.primary,
+                  secondaryColor: preset.secondary,
+                  accentColor: preset.accent,
+                }))
+              }
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-primary/40 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
+            >
+              <span className="flex gap-0.5">
+                <span className="h-4 w-4 rounded-full" style={{ background: preset.primary }} />
+                <span className="h-4 w-4 rounded-full" style={{ background: preset.secondary }} />
+                <span className="h-4 w-4 rounded-full" style={{ background: preset.accent }} />
+              </span>
+              {preset.label}
+            </button>
+          ))}
+        </div>
         <div className="grid gap-4 sm:grid-cols-3">
           <ColorField
             label="Birincil"

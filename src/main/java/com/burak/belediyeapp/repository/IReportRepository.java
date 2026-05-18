@@ -4,6 +4,7 @@ import com.burak.belediyeapp.entity.Report;
 import com.burak.belediyeapp.entity.ReportStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -18,7 +19,9 @@ public interface IReportRepository extends JpaRepository<Report, String> {
 
     /**
      * Vatandaşın kendi raporlarını sayfalanmış olarak getirir.
+     * EntityGraph: kategori LAZY N+1 olmasın diye eagerly fetch.
      */
+    @EntityGraph(attributePaths = {"category"})
     Page<Report> findByReporterId(String reporterId, Pageable pageable);
 
     Optional<Report> findByIdAndMunicipalityId(String id, String municipalityId);
@@ -38,20 +41,25 @@ public interface IReportRepository extends JpaRepository<Report, String> {
     /**
      * Belirli bir saha görevlisine atanmış raporları getirir.
      */
+    @EntityGraph(attributePaths = {"category"})
     Page<Report> findByAssigneeId(String assigneeId, Pageable pageable);
 
+    @EntityGraph(attributePaths = {"category"})
     Page<Report> findByAssigneeIdAndMunicipalityId(String assigneeId, String municipalityId, Pageable pageable);
 
     /**
      * Duruma göre filtreli rapor listesi (admin paneli için).
      */
+    @EntityGraph(attributePaths = {"category"})
     Page<Report> findByReportStatus(ReportStatus status, Pageable pageable);
 
     /**
      * Departmana göre raporları getirir (birim müdürü görünümü).
      */
+    @EntityGraph(attributePaths = {"category"})
     Page<Report> findByCategoryDepartmentId(String departmentId, Pageable pageable);
 
+    @EntityGraph(attributePaths = {"category"})
     Page<Report> findByCategoryDepartmentIdAndMunicipalityId(String departmentId, String municipalityId, Pageable pageable);
 
     /**
@@ -109,16 +117,30 @@ public interface IReportRepository extends JpaRepository<Report, String> {
                 :radiusInMeters
             )
             ORDER BY r.created_at ASC
+            LIMIT :maxRows
             """, nativeQuery = true)
     List<Report> findActiveNearbyInMunicipality(
             @Param("latitude") double latitude,
             @Param("longitude") double longitude,
             @Param("radiusInMeters") double radiusInMeters,
             @Param("municipalityId") String municipalityId,
-            @Param("excludeId") String excludeId
+            @Param("excludeId") String excludeId,
+            @Param("maxRows") int maxRows
     );
 
     int countByDuplicateGroupId(String duplicateGroupId);
+
+    /**
+     * Bir sayfa rapor için duplicate grup büyüklüklerini TEK sorguda toplar (N+1 çözümü).
+     * Çıktı: Object[]{groupId, count}
+     */
+    @Query("""
+            SELECT r.duplicateGroupId, COUNT(r)
+            FROM Report r
+            WHERE r.duplicateGroupId IN :groupIds
+            GROUP BY r.duplicateGroupId
+            """)
+    List<Object[]> countDuplicateGroupsForIds(@Param("groupIds") java.util.Collection<String> groupIds);
 
     List<Report> findByDuplicateGroupIdAndIdNot(String duplicateGroupId, String excludeId);
 
@@ -142,13 +164,27 @@ public interface IReportRepository extends JpaRepository<Report, String> {
      */
     long countByDistrictAndReportStatus(String district, ReportStatus status);
 
+    @EntityGraph(attributePaths = {"category"})
     Page<Report> findByMunicipalityId(String municipalityId, Pageable pageable);
-    
+
+    @EntityGraph(attributePaths = {"category"})
     Page<Report> findByMunicipalityIdAndReportStatus(String municipalityId, ReportStatus status, Pageable pageable);
     
     long countByMunicipalityIdAndReportStatus(String municipalityId, ReportStatus status);
 
     long countByMunicipalityId(String municipalityId);
+
+    /**
+     * Tüm belediyeler için rapor sayısını TEK SQL ile getirir (dashboard N+1 önleme).
+     * Çıktı: Object[]{municipalityId, count}
+     */
+    @Query("""
+            SELECT r.municipality.id, COUNT(r)
+            FROM Report r
+            WHERE r.municipality.id IS NOT NULL
+            GROUP BY r.municipality.id
+            """)
+    List<Object[]> countAllGroupedByMunicipality();
 
     @Query("""
             SELECT r FROM Report r

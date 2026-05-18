@@ -6,7 +6,8 @@ import api from '../api';
 
 type SetupStatus = {
   needsBootstrap: boolean;
-  bootstrapConfigured: boolean;
+  // Backend yalnızca kurulum gerekiyorsa döndürür; platform kuruluysa undefined.
+  bootstrapConfigured?: boolean;
 };
 
 export default function SetupPage() {
@@ -83,7 +84,7 @@ export default function SetupPage() {
           </div>
         </div>
 
-        {!status.bootstrapConfigured && (
+        {status.bootstrapConfigured === false && (
           <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
             Sunucuda <code className="font-mono text-xs">APP_SETUP_TOKEN</code> tanımlı değil. Railway / .env
             dosyanıza ekleyin.
@@ -147,7 +148,7 @@ export default function SetupPage() {
           {error && <p className="text-sm font-medium text-red-600">{error}</p>}
           <button
             type="submit"
-            disabled={loading || !status.bootstrapConfigured}
+            disabled={loading || status.bootstrapConfigured === false}
             className="w-full rounded-xl bg-primary py-3 text-sm font-bold text-white hover:bg-primary-hover disabled:opacity-50"
           >
             {loading ? 'Oluşturuluyor…' : 'Süper admin oluştur'}

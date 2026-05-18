@@ -25,10 +25,25 @@ public interface IAppUserRepository extends JpaRepository<AppUser, String> {
     Optional<AppUser> findByIdAndMunicipalityId(String id, String municipalityId);
     
     java.util.List<AppUser> findByRoles_NameAndMunicipalityId(String roleName, String municipalityId);
-    
+
     long countByMunicipalityId(String municipalityId);
+
+    /**
+     * Tüm belediyeler için kullanıcı sayısını TEK SQL ile getirir (N+1 önleme).
+     * Çıktı: Object[]{municipalityId, count}
+     */
+    @Query("""
+            SELECT u.municipality.id, COUNT(u)
+            FROM AppUser u
+            WHERE u.municipality.id IS NOT NULL
+            GROUP BY u.municipality.id
+            """)
+    java.util.List<Object[]> countAllGroupedByMunicipality();
 
     Optional<AppUser> findByPhoneNumber(String phoneNumber);
 
     long countByRoles_Name(String roleName);
+
+    /** Belediyeyi tercih eden vatandaşlar (ana ekran widget'larında bu belediyeyi seçenler). */
+    java.util.List<AppUser> findByPreferredMunicipalityId(String preferredMunicipalityId);
 }

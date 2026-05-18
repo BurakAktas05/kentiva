@@ -105,6 +105,11 @@ public class Report extends BaseEntity {
     @Column(length = 36)
     private String duplicateGroupId;
 
+    /** Vatandaş rapor metninin dili (tr, en, ar) — bildirim ve yanıt taslağı için. */
+    @Column(name = "content_language", nullable = false, length = 5)
+    @Builder.Default
+    private String contentLanguage = "tr";
+
     /**
      * Durum değişikliği geçmişi — auditability için.
      */

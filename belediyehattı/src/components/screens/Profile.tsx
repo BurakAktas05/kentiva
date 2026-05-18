@@ -54,14 +54,8 @@ export default function Profile({ onLogout, onSettings, onOpenReport, lang, isDa
     onLogout();
   };
 
-  const resolvedCount = reports.filter(r => r.status === 'RESOLVED').length;
-  const points = reports.length * 50 + resolvedCount * 100;
-  
-  // Dynamic level based on points
-  let level = 'Yeni Üye';
-  if (points >= 1000) level = 'Şehir Kahramanı';
-  else if (points >= 500) level = 'Şehir Gönüllüsü';
-  else if (points >= 200) level = 'Aktif Vatandaş';
+  const points = profile?.reputationScore ?? 100;
+  const level = profile?.reputationLevel ?? (lang === 'tr' ? 'Yeni Üye' : 'New member');
 
   if (loading) {
     return (
@@ -136,7 +130,9 @@ export default function Profile({ onLogout, onSettings, onOpenReport, lang, isDa
           </div>
           <div className="flex-1 text-center">
             <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{t('profile.resolved', lang)}</p>
-            <p className="text-2xl font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400">{resolvedCount}</p>
+            <p className="text-2xl font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400">
+              {reports.filter((r) => r.status === 'RESOLVED').length}
+            </p>
           </div>
         </div>
       </div>

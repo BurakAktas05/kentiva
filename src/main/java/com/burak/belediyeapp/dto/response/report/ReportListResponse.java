@@ -12,6 +12,7 @@ public record ReportListResponse(
         LocalDateTime createdAt,
         String district,
         String aiPriority,
+        String aiSlaRisk,
         String duplicateGroupId,
         Integer duplicateGroupSize
 ) {}

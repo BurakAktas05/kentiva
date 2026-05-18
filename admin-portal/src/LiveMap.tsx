@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -72,18 +71,21 @@ const LiveMap = ({
   centerLng,
   zoom,
   municipalityId,
+  onOpenReport,
 }: {
   centerLat?: number;
   centerLng?: number;
   zoom?: number;
   municipalityId?: string;
+  onOpenReport?: (reportId: string) => void;
 }) => {
-  const navigate = useNavigate();
   const openReportDetail = useCallback(
     (reportId: string) => {
-      navigate(`/reports/${reportId}`);
+      if (onOpenReport) {
+        onOpenReport(reportId);
+      }
     },
-    [navigate],
+    [onOpenReport],
   );
 
   const [reports, setReports] = useState<Report[]>([]);

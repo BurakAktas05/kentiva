@@ -21,7 +21,8 @@ const translations: Record<Lang, Record<string, string>> = {
     'report.location.denied': 'Konum izni olmadan devam edilemez. Ayarlardan izin verin veya yeniden deneyin.',
     'report.needTenant': 'Önce ayarlardan bir belediye seçmelisiniz.',
     'report.municipality.resolved': 'Bildirimin gideceği belediye',
-    'report.municipality.outside': 'Konumunuz platformdaki hiçbir aktif belediye sınırı içinde değil.',
+    'report.municipality.outside':
+      'Seçtiğiniz konum sınırları içindeki belediye Kentiva\'ya üye değil. Lütfen üye bir belediye sınırı içinden bildirim gönderin.',
 
     // Tabs
     'tab.feed': 'Akış',
@@ -176,7 +177,8 @@ const translations: Record<Lang, Record<string, string>> = {
     'report.location.denied': 'Location permission is required. Enable it in settings and try again.',
     'report.needTenant': 'Please select a municipality in settings first.',
     'report.municipality.resolved': 'Report will be sent to',
-    'report.municipality.outside': 'Your location is outside any active municipality on the platform.',
+    'report.municipality.outside':
+      'The municipality at your selected location is not a Kentiva member. Please submit from within a member municipality boundary.',
     'tab.feed': 'Feed',
     'tab.profile': 'Profile',
     'home.hero.title': 'Report Problems Around You',
@@ -314,7 +316,8 @@ const translations: Record<Lang, Record<string, string>> = {
     'report.location.denied': 'يلزم إذن الموقع. فعّله من الإعدادات ثم أعد المحاولة.',
     'report.needTenant': 'يرجى اختيار بلدية من الإعدادات أولاً.',
     'report.municipality.resolved': 'ستُرسل البلاغ إلى',
-    'report.municipality.outside': 'موقعك خارج حدود أي بلدية نشطة على المنصة.',
+    'report.municipality.outside':
+      'البلدية ضمن حدود موقعك المحدد ليست عضوًا في Kentiva. يرجى الإبلاغ من داخل حدود بلدية عضو.',
 
     'tab.feed': 'الرئيسية',
     'tab.profile': 'حسابي',

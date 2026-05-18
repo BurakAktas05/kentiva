@@ -13,8 +13,12 @@ import com.burak.belediyeapp.repository.IMunicipalityRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -82,11 +86,75 @@ public class ReportSupport {
     }
 
     public ReportResponse finalizeResponse(Report report, ReportResponse mapped) {
-        return withSignedMedia(withDuplicateMeta(mapped, report));
+        return finalizeResponse(report, mapped, false);
+    }
+
+    public ReportResponse finalizeResponse(Report report, ReportResponse mapped, boolean citizenView) {
+        ReportResponse response = withSignedMedia(withDuplicateMeta(mapped, report));
+        return citizenView ? sanitizeForCitizen(response) : response;
+    }
+
+    private static ReportResponse sanitizeForCitizen(ReportResponse response) {
+        return new ReportResponse(
+                response.id(),
+                response.title(),
+                response.description(),
+                response.status(),
+                response.categoryName(),
+                response.reporterFullName(),
+                null,
+                response.latitude(),
+                response.longitude(),
+                response.createdAt(),
+                response.updatedAt(),
+                response.mediaUrls(),
+                response.district(),
+                response.aiPriority(),
+                response.aiSummary(),
+                response.aiSuggestedCategory(),
+                response.aiSlaRisk(),
+                null,
+                response.aiDuplicateHint(),
+                response.duplicateGroupId(),
+                response.duplicateGroupSize());
     }
 
     public ReportListResponse finalizeListResponse(Report report, ReportListResponse mapped) {
         return withDuplicateMeta(mapped, report);
+    }
+
+    /**
+     * Batched API: bir sayfa raporun TÜM duplicate group sayılarını TEK SQL ile çözer.
+     * Çağıran {@link #finalizeListResponse(Report, ReportListResponse, Map)} ile sayıları enjekte eder.
+     */
+    public Map<String, Integer> batchDuplicateGroupSizes(List<Report> reports) {
+        if (reports == null || reports.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Set<String> groupIds = new HashSet<>();
+        for (Report r : reports) {
+            String gid = r.getDuplicateGroupId();
+            if (gid != null && !gid.isBlank()) {
+                groupIds.add(gid);
+            }
+        }
+        if (groupIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<String, Integer> sizes = new HashMap<>();
+        for (Object[] row : reportRepository.countDuplicateGroupsForIds(groupIds)) {
+            String gid = (String) row[0];
+            int count = ((Number) row[1]).intValue();
+            if (count > 1) {
+                sizes.put(gid, count);
+            }
+        }
+        return sizes;
+    }
+
+    public ReportListResponse finalizeListResponse(
+            Report report, ReportListResponse mapped, Map<String, Integer> groupSizeCache) {
+        return withDuplicateMeta(mapped, report, groupSizeCache);
     }
 
     public ReportResponse withSignedMedia(ReportResponse response) {
@@ -145,7 +213,18 @@ public class ReportSupport {
     }
 
     private ReportListResponse withDuplicateMeta(ReportListResponse response, Report report) {
+        return withDuplicateMeta(response, report, null);
+    }
+
+    private ReportListResponse withDuplicateMeta(
+            ReportListResponse response, Report report, Map<String, Integer> groupSizeCache) {
         String groupId = report.getDuplicateGroupId();
+        Integer size;
+        if (groupSizeCache != null) {
+            size = (groupId == null || groupId.isBlank()) ? null : groupSizeCache.get(groupId);
+        } else {
+            size = duplicateGroupSize(groupId);
+        }
         return new ReportListResponse(
                 response.id(),
                 response.title(),
@@ -156,8 +235,9 @@ public class ReportSupport {
                 response.createdAt(),
                 response.district(),
                 response.aiPriority(),
+                response.aiSlaRisk(),
                 groupId,
-                duplicateGroupSize(groupId));
+                size);
     }
 
     private Integer duplicateGroupSize(String groupId) {

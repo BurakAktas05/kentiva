@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { BellOff, CheckCheck, FileText, UserCheck, Info, Loader2 } from 'lucide-react';
+import { BellOff, CheckCheck, FileText, UserCheck, Info, Loader2, Droplets, Zap } from 'lucide-react';
 import { getNotifications, markAllNotificationsRead, ApiNotification } from '../../api';
 import { Lang, t } from '../../i18n';
 
@@ -14,6 +14,8 @@ const getNotifIcon = (type: string) => {
   switch (type) {
     case 'REPORT_STATUS_CHANGED': return <FileText className="w-5 h-5" />;
     case 'REPORT_ASSIGNED': return <UserCheck className="w-5 h-5" />;
+    case 'OUTAGE_WATER': return <Droplets className="w-5 h-5" />;
+    case 'OUTAGE_ELECTRIC': return <Zap className="w-5 h-5" />;
     default: return <Info className="w-5 h-5" />;
   }
 };
@@ -22,6 +24,9 @@ const getNotifColor = (type: string, isDark: boolean) => {
   switch (type) {
     case 'REPORT_STATUS_CHANGED': return isDark ? 'border-primary/40 bg-primary/20 text-secondary' : 'border-primary/20 bg-primary/10 text-primary';
     case 'REPORT_ASSIGNED': return isDark ? 'bg-emerald-900/30 text-emerald-400 border-emerald-900/50' : 'bg-emerald-50 text-emerald-600 border-emerald-100';
+    case 'OUTAGE_WATER':
+    case 'OUTAGE_ELECTRIC':
+      return isDark ? 'bg-amber-900/30 text-amber-300 border-amber-900/50' : 'bg-amber-50 text-amber-700 border-amber-200';
     default: return isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-50 text-slate-600 border-slate-100';
   }
 };

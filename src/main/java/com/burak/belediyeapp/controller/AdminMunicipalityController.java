@@ -6,8 +6,8 @@ import com.burak.belediyeapp.dto.request.municipality.MunicipalityPatchRequest;
 import com.burak.belediyeapp.dto.response.common.ApiResponse;
 import com.burak.belediyeapp.dto.response.municipality.MunicipalityDto;
 import com.burak.belediyeapp.dto.response.municipality.NotificationTemplateAiResponse;
+import com.burak.belediyeapp.service.geo.MunicipalityBoundaryAutoSyncService;
 import com.burak.belediyeapp.service.municipality.MunicipalityManagementService;
-import com.burak.belediyeapp.service.geo.OsmBoundaryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -19,7 +19,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/admin/municipalities")
@@ -28,7 +27,7 @@ import java.util.Map;
 public class AdminMunicipalityController {
 
     private final MunicipalityManagementService municipalityManagementService;
-    private final OsmBoundaryService osmBoundaryService;
+    private final MunicipalityBoundaryAutoSyncService boundaryAutoSyncService;
 
     @GetMapping
     @PreAuthorize("hasRole('SUPER_ADMIN')")
@@ -81,48 +80,23 @@ public class AdminMunicipalityController {
         return ResponseEntity.ok(ApiResponse.success("Logo yüklendi", url));
     }
 
-    @PostMapping("/{id}/boundaries/fetch-from-osm")
+    /**
+     * Sınırı OpenStreetMap'ten otomatik yeniler — parametre gerekmez.
+     * Süper admin tarafında genelde belediye oluşturulduktan sonra otomatik tetiklenir;
+     * bu endpoint manuel yenileme içindir.
+     */
+    @PostMapping("/{id}/boundaries/refresh")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    @Operation(summary = "OSM Nominatim'den cografi sinir otomatik cek ve kaydet")
-    public ResponseEntity<ApiResponse<String>> fetchBoundaryFromOsm(
-            @PathVariable String id,
-            @RequestBody Map<String, String> body) {
-        String districtName = body.get("districtName");
-        String cityName     = body.get("cityName");
-        String countryCode  = body.getOrDefault("countryCode", "TR");
-
-        if (districtName == null || districtName.isBlank()) {
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("districtName zorunludur.", "MISSING_DISTRICT_NAME"));
-        }
-
-        java.util.Optional<String> geoJsonOpt = osmBoundaryService.fetchGeoJson(districtName, cityName, countryCode);
-        if (geoJsonOpt.isEmpty()) {
+    @Operation(summary = "Sınırı OpenStreetMap'ten yenile (otomatik)")
+    public ResponseEntity<ApiResponse<String>> refreshBoundary(@PathVariable String id) {
+        boolean ok = boundaryAutoSyncService.syncNow(id);
+        if (!ok) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ApiResponse.error(
-                            "OpenStreetMap'te '" + districtName + "' icin cografi sinir bulunamadi.",
+                            "OpenStreetMap uzerinde belediye siniri bulunamadi. "
+                                    + "Belediye adinin OSM yazimiyla eslestiginden emin olun.",
                             "OSM_NOT_FOUND"));
         }
-        municipalityManagementService.updateBoundariesFromOsm(id, geoJsonOpt.get());
         return ResponseEntity.ok(ApiResponse.success("Cografi sinir OpenStreetMap'ten alindi ve kaydedildi.", (String) null));
-    }
-
-    /**
-     * Manuel GeoJSON yukle.
-     * Body: { "geoJson": "{ \"type\": \"Polygon\", ... }" }
-     */
-    @PostMapping("/{id}/boundaries")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
-    @Operation(summary = "Manuel GeoJSON sinir yukle")
-    public ResponseEntity<ApiResponse<String>> uploadBoundary(
-            @PathVariable String id,
-            @RequestBody Map<String, String> body) {
-        String geoJson = body.get("geoJson");
-        if (geoJson == null || geoJson.isBlank()) {
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("geoJson alani zorunludur.", "MISSING_GEOJSON"));
-        }
-        municipalityManagementService.updateBoundaries(id, geoJson);
-        return ResponseEntity.ok(ApiResponse.success("Cografi sinir kaydedildi.", (String) null));
     }
 }

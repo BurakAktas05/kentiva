@@ -15,6 +15,9 @@ import com.burak.belediyeapp.repository.IAppUserRepository;
 import com.burak.belediyeapp.repository.IDepartmentRepository;
 import com.burak.belediyeapp.repository.IRefreshTokenRepository;
 import com.burak.belediyeapp.repository.IRoleRepository;
+import com.burak.belediyeapp.repository.IMunicipalityRepository;
+import com.burak.belediyeapp.service.citizen.CitizenReputationService;
+import com.burak.belediyeapp.entity.Municipality;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -36,10 +39,22 @@ public class UserService {
     private final IDepartmentRepository departmentRepository;
     private final IRefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
+    private final IMunicipalityRepository municipalityRepository;
 
     @Transactional(readOnly = true)
     public UserResponse getUserProfile(AppUser currentUser) {
         return mapToResponse(currentUser);
+    }
+
+    @Transactional
+    public UserResponse updatePreferredMunicipality(AppUser currentUser, String municipalityId) {
+        Municipality m = municipalityRepository.findById(municipalityId)
+                .orElseThrow(() -> new ResourceNotFoundException("Belediye", "id", municipalityId));
+        if (!m.isActive() || !m.isOnboarded()) {
+            throw new BusinessException("Bu belediye henüz aktif değil.", "MUNICIPALITY_NOT_AVAILABLE");
+        }
+        currentUser.setPreferredMunicipality(m);
+        return mapToResponse(userRepository.save(currentUser));
     }
 
     @Transactional(readOnly = true)
@@ -279,6 +294,9 @@ public class UserService {
     private UserResponse mapToResponse(AppUser user) {
         com.burak.belediyeapp.dto.response.municipality.MunicipalityDto municipalityDto =
                 com.burak.belediyeapp.dto.response.municipality.MunicipalityDto.fromEntity(user.getMunicipality());
+        com.burak.belediyeapp.dto.response.municipality.MunicipalityDto preferredDto =
+                com.burak.belediyeapp.dto.response.municipality.MunicipalityDto.fromEntity(user.getPreferredMunicipality());
+        int score = user.getReputationScore();
 
         return new UserResponse(
                 user.getId(),
@@ -288,7 +306,10 @@ public class UserService {
                 user.getPhoneNumber(),
                 user.getRoles().stream().map(Role::getName).collect(Collectors.toList()),
                 user.getDistrict(),
-                municipalityDto
+                municipalityDto,
+                preferredDto,
+                score,
+                CitizenReputationService.levelForScore(score)
         );
     }
 }

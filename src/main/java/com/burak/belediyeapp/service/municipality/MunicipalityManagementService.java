@@ -13,6 +13,7 @@ import com.burak.belediyeapp.exception.BusinessException;
 import com.burak.belediyeapp.exception.ResourceNotFoundException;
 import com.burak.belediyeapp.config.EvictMunicipalityCaches;
 import com.burak.belediyeapp.repository.IMunicipalityRepository;
+import com.burak.belediyeapp.service.geo.MunicipalityBoundaryAutoSyncService;
 import com.burak.belediyeapp.service.media.MediaGuardClient;
 import com.burak.belediyeapp.service.storage.StorageService;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +35,7 @@ public class MunicipalityManagementService {
     private final StorageService storageService;
     private final MediaGuardClient mediaGuardClient;
     private final GeminiService geminiService;
+    private final MunicipalityBoundaryAutoSyncService boundaryAutoSyncService;
 
     @Transactional(readOnly = true)
     public List<MunicipalityDto> listAll() {
@@ -83,6 +85,9 @@ public class MunicipalityManagementService {
         }
         Municipality saved = municipalityRepository.save(entity);
         log.info("Yeni belediye oluşturuldu: {} ({})", saved.getName(), saved.getId());
+        // Sınır OpenStreetMap'ten otomatik çekilsin — admin manuel girmek zorunda kalmaz.
+        // Asenkron + REQUIRES_NEW transaction; create yanıtını bloklamaz.
+        boundaryAutoSyncService.syncAsync(saved.getId());
         return MunicipalityDto.fromEntity(saved);
     }
 
@@ -212,27 +217,6 @@ public class MunicipalityManagementService {
         }
     }
 
-    @Transactional
-    @EvictMunicipalityCaches
-    public void updateBoundaries(String municipalityId, String geoJson) {
-        if (!municipalityRepository.existsById(municipalityId)) {
-            throw new ResourceNotFoundException("Belediye", "id", municipalityId);
-        }
-        municipalityRepository.updateBoundariesFromGeoJson(municipalityId, geoJson);
-        log.info("Belediye sınırları güncellendi: {}", municipalityId);
-    }
-
-    /**
-     * OpenStreetMap Nominatim'den alınan GeoJSON ile sınır güncelle.
-     * updateBoundaries ile aynıdır; çağrı kaynakını ayırt etmek için ayrı metot.
-     */
-    @Transactional
-    @EvictMunicipalityCaches
-    public void updateBoundariesFromOsm(String municipalityId, String geoJson) {
-        updateBoundaries(municipalityId, geoJson);
-        log.info("Belediye sınırları OSM'den güncellendi: {}", municipalityId);
-    }
-
     private String uploadLogo(String municipalityId, MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException("Logo dosyası gerekli", "FILE_REQUIRED");
@@ -286,9 +270,7 @@ public class MunicipalityManagementService {
                 : m.getName();
         String text = geminiService.generateNotificationTemplate(display, m.getSlogan(), kind);
         if (text == null || text.isBlank()) {
-            throw new BusinessException(
-                    "AI şablon üretilemedi. GEMINI_API_KEY ortam değişkenini kontrol edin.",
-                    "AI_TEMPLATE_FAILED");
+            text = com.burak.belediyeapp.service.ai.NotificationTemplateFallbacks.forKind(kind, display);
         }
         return new NotificationTemplateAiResponse(text.trim());
     }

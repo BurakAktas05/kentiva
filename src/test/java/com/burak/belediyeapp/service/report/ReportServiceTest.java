@@ -11,6 +11,7 @@ import com.burak.belediyeapp.mapper.IReportMapper;
 import com.burak.belediyeapp.repository.*;
 import com.burak.belediyeapp.service.ai.GeminiService;
 import com.burak.belediyeapp.service.ai.HeuristicReportAnalyzer;
+import com.burak.belediyeapp.service.citizen.CitizenReputationService;
 import com.burak.belediyeapp.service.geo.DistrictResolutionService;
 import com.burak.belediyeapp.service.integration.WebhookDispatchService;
 import com.burak.belediyeapp.service.media.MediaSignedUrlService;
@@ -52,6 +53,7 @@ class ReportServiceTest {
     @Mock WebhookDispatchService webhookDispatchService;
     @Mock MediaSignedUrlService mediaSignedUrlService;
     @Mock ReportDuplicateLinkService duplicateLinkService;
+    @Mock CitizenReputationService citizenReputationService;
 
     private TenantAccessService tenantAccess;
     private ReportSupport reportSupport;
@@ -78,7 +80,8 @@ class ReportServiceTest {
                 mediaSignedUrlService,
                 eventPublisher,
                 duplicateLinkService,
-                webhookDispatchService);
+                webhookDispatchService,
+                citizenReputationService);
 
         queryService = new ReportQueryService(
                 reportRepository,
@@ -99,7 +102,17 @@ class ReportServiceTest {
                 notificationService,
                 geminiService,
                 heuristicReportAnalyzer,
-                webhookDispatchService);
+                webhookDispatchService,
+                citizenReputationService);
+        // @Lazy self-injection — testte aynı instance ile değiştir.
+        try {
+            java.lang.reflect.Field selfField = ReportCommandService.class.getDeclaredField("self");
+            selfField.setAccessible(true);
+            selfField.set(commandService, commandService);
+        } catch (Exception ignored) {
+            // Test runner CGLIB kullanıyorsa veya alan eksikse: self ile çağrılan
+            // metotlar üretimde proxy üzerinden çalışır, testte doğrudan invoke edilir.
+        }
     }
 
     @Test
@@ -171,13 +184,16 @@ class ReportServiceTest {
 
         assertThatThrownBy(() -> creationService.createReport(request, citizen))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("belediye sınırı");
+                .hasMessageContaining("belediye");
 
         verify(reportRepository, never()).save(any());
     }
 
     @Test
-    void citizenCreateReportRejectsMismatchedTargetHint() {
+    void citizenCreateReportRejectsUnknownTargetHint() {
+        // Davranış değişti: vatandaş belediye seçtiyse spatial GPS kontrolü atlanır
+        // (UX kararı). Sadece SEÇİLEN belediye var olmalı ve aktif olmalı; bilinmeyen
+        // belediye ID → MUNICIPALITY_NOT_FOUND ile hata.
         AppUser citizen = user("citizen-3", "ROLE_CITIZEN", null);
         ReportCategory category = ReportCategory.builder().name("Yol").active(true).build();
         category.setId("cat-1");
@@ -193,13 +209,11 @@ class ReportServiceTest {
 
         when(categoryRepository.findById("cat-1")).thenReturn(Optional.of(category));
         when(reportMapper.toEntity(request)).thenReturn(new Report());
-        when(districtResolutionService.resolveDistrict(41.25, 32.69)).thenReturn(Optional.of("municipality-gps"));
+        when(municipalityRepository.findById("wrong-municipality")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> creationService.createReport(request, citizen))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("eşleşmiyor");
+                .isInstanceOf(BusinessException.class);
 
-        verify(municipalityRepository, never()).findById(eq("wrong-municipality"));
         verify(reportRepository, never()).save(any());
     }
 

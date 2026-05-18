@@ -32,7 +32,10 @@ public class PlatformSetupService {
 
     @Transactional(readOnly = true)
     public SetupStatusResponse status() {
-        return new SetupStatusResponse(needsBootstrap(), isBootstrapConfigured());
+        boolean needs = needsBootstrap();
+        // Platform kurulmuşsa setup token durumu sızdırılmaz — saldırgan platformun
+        // henüz konfigüre edilip edilmediğini sayfa yanıtından öğrenemesin.
+        return new SetupStatusResponse(needs, needs ? isBootstrapConfigured() : null);
     }
 
     @Transactional

@@ -51,7 +51,7 @@ class MigrationHygieneTest {
 
     @Test
     void devMockReportsUseCurrentReportStatusEnumValues() throws Exception {
-        String mockReports = Files.readString(Path.of("src/main/resources/db/dev-migration/V20__insert_mock_reports.sql"));
+        String mockReports = Files.readString(Path.of("src/main/resources/db/dev-migration/V91__insert_mock_reports.sql"));
 
         assertThat(mockReports).doesNotContain("'IN_PROGRESS'");
         assertThat(mockReports).contains("'PROCESSING'");

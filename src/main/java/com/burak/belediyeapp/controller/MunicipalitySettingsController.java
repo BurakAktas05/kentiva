@@ -6,11 +6,15 @@ import com.burak.belediyeapp.dto.response.common.ApiResponse;
 import com.burak.belediyeapp.dto.response.municipality.MunicipalityDto;
 import com.burak.belediyeapp.dto.response.municipality.NotificationTemplateAiResponse;
 import com.burak.belediyeapp.entity.AppUser;
+import com.burak.belediyeapp.exception.BusinessException;
+import com.burak.belediyeapp.service.geo.MunicipalityBoundaryAutoSyncService;
 import com.burak.belediyeapp.service.municipality.MunicipalityManagementService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -20,10 +24,12 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/api/v1/municipalities")
 @RequiredArgsConstructor
+@Slf4j
 @Tag(name = "Belediye ayarları", description = "Kendi belediyesi markalama bilgileri")
 public class MunicipalitySettingsController {
 
     private final MunicipalityManagementService municipalityManagementService;
+    private final MunicipalityBoundaryAutoSyncService boundaryAutoSyncService;
 
     @GetMapping("/me")
     @PreAuthorize("hasAnyRole('ADMIN','DEPT_MANAGER','FIELD_OFFICER')")
@@ -61,13 +67,25 @@ public class MunicipalitySettingsController {
         return ResponseEntity.ok(ApiResponse.success("Logo yüklendi", url));
     }
 
-    @PostMapping("/me/boundaries")
+    /**
+     * Belediye sınırı OpenStreetMap'ten otomatik çekilir.
+     * Admin'in district / city girmesine gerek yok — belediye adı + parent büyükşehir adı kullanılır.
+     */
+    @PostMapping("/me/boundaries/refresh")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Belediye sınırlarını GeoJSON ile güncelle")
-    public ResponseEntity<ApiResponse<Void>> uploadBoundaries(
-            @AuthenticationPrincipal AppUser user,
-            @RequestBody String geoJson) {
-        municipalityManagementService.updateBoundaries(user.getMunicipality().getId(), geoJson);
-        return ResponseEntity.ok(ApiResponse.success("Belediye sınırları başarıyla güncellendi.", null));
+    @Operation(summary = "Sınırı OpenStreetMap'ten yenile (otomatik, parametre gerekmez)")
+    public ResponseEntity<ApiResponse<String>> refreshBoundary(@AuthenticationPrincipal AppUser user) {
+        if (user.getMunicipality() == null) {
+            throw new BusinessException("Bu hesap bir belediyeye bağlı değil", "MUNICIPALITY_NOT_ASSIGNED");
+        }
+        boolean ok = boundaryAutoSyncService.syncNow(user.getMunicipality().getId());
+        if (!ok) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(
+                            "OpenStreetMap üzerinde belediye sınırı bulunamadı. "
+                                    + "Belediye adının resmi OSM yazımıyla eşleştiğinden emin olun.",
+                            "OSM_NOT_FOUND"));
+        }
+        return ResponseEntity.ok(ApiResponse.success("Coğrafi sınır OpenStreetMap'ten alındı ve kaydedildi.", null));
     }
 }

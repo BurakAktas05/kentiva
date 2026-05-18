@@ -9,6 +9,7 @@ import api, {
   type ExportSchedule,
   type SpringPage,
 } from '../api';
+import { downloadBlobResponse } from '../lib/downloadExport';
 
 const FORMAT_LABELS: Record<ExportFormat, string> = { EXCEL: 'Excel', PDF: 'PDF' };
 const FREQUENCY_LABELS: Record<ExportFrequency, string> = { DAILY: 'Günlük', WEEKLY: 'Haftalık' };
@@ -134,14 +135,9 @@ export default function ScheduledExportsPage() {
     setDownloadingId(run.id);
     try {
       const res = await api.get(`/export/schedules/runs/${run.id}/download`, { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = run.fileName;
-      a.click();
-      window.URL.revokeObjectURL(url);
-    } catch {
-      alert('Dosya indirilemedi.');
+      await downloadBlobResponse(res, run.fileName || 'kentiva-export.xlsx');
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Dosya indirilemedi.');
     } finally {
       setDownloadingId(null);
     }

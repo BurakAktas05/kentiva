@@ -105,6 +105,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/v1/reports").hasRole("CITIZEN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/reports/upload").hasRole("CITIZEN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/reports/my").hasRole("CITIZEN")
+                .requestMatchers(HttpMethod.GET, "/api/v1/reports/nearby-hints").hasRole("CITIZEN")
 
                 // ── Zaman çizelgesi — vatandaş (kendi raporu) + personel
                 .requestMatchers(HttpMethod.GET, "/api/v1/reports/*/timeline").authenticated()

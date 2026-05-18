@@ -26,7 +26,12 @@ public class GeminiService {
     @Value("${app.ai.gemini.api-key:}")
     private String apiKey;
 
-    private static final String GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+    @Value("${app.ai.gemini.model:gemini-2.5-flash}")
+    private String model;
+
+    private String geminiGenerateContentUrl() {
+        return "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent";
+    }
 
     private final RestClient restClient = RestClient.builder()
             .requestFactory(requestFactory())
@@ -43,18 +48,30 @@ public class GeminiService {
                 .map(c -> c.getName())
                 .collect(Collectors.joining(", "));
 
+        String lang = report.getContentLanguage() != null && !report.getContentLanguage().isBlank()
+                ? report.getContentLanguage()
+                : ContentLanguageDetector.detect(report.getTitle(), report.getDescription());
+        String replyLanguage = switch (lang.toLowerCase()) {
+            case "en" -> "English";
+            case "ar" -> "Arabic";
+            default -> "Turkish";
+        };
+
         String prompt = String.format(
                 """
                 Sen Kentiva şehir bildirim platformunun analiz asistanısın. Aşağıdaki vatandaş bildirimini analiz et.
                 Geçerli kategori adları (yalnızca bunlardan birini öner): [%s]
                 Mevcut seçilen kategori: %s
+                Rapor içerik dili: %s
                 JSON döndür (İngilizce anahtarlar):
-                {"priority":"LOW|MEDIUM|HIGH|CRITICAL","summary":"max 25 kelime Türkçe","is_category_correct":true/false,"suggested_category_name":"yalnızca listeden bir ad veya mevcut kategori","suggested_title":"kısa, etkili bir başlık (max 10 kelime)","sla_risk":"LOW|MEDIUM|HIGH","duplicate_hint":"mükerrer olasılığına dair kısa Türkçe not veya boş","reply_draft":"vatandaşa gönderilebilecek kısa resmi Türkçe cevap taslağı","priority_rationale":"öncelik gerekçesi, max 20 kelime Türkçe"}
+                {"priority":"LOW|MEDIUM|HIGH|CRITICAL","summary":"max 25 kelime, staff için Türkçe","is_category_correct":true/false,"suggested_category_name":"yalnızca listeden bir ad veya mevcut kategori","suggested_title":"kısa başlık (rapor diliyle uyumlu, max 10 kelime)","sla_risk":"LOW|MEDIUM|HIGH","duplicate_hint":"mükerrer notu Türkçe veya boş","reply_draft":"vatandaşa gönderilecek kısa resmi yanıt — mutlaka %s dilinde","priority_rationale":"öncelik gerekçesi Türkçe, max 20 kelime"}
                 Başlık: %s
                 Açıklama: %s
                 """,
                 categoryOptions,
                 report.getCategory().getName(),
+                lang,
+                replyLanguage,
                 report.getTitle(),
                 report.getDescription()
         );
@@ -71,7 +88,7 @@ public class GeminiService {
         for (int attempt = 1; attempt <= 2; attempt++) {
             try {
                 String response = restClient.post()
-                        .uri(GEMINI_API_URL + "?key=" + apiKey)
+                        .uri(geminiGenerateContentUrl() + "?key=" + apiKey)
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(requestBody)
                         .retrieve()
@@ -112,7 +129,7 @@ public class GeminiService {
         for (int attempt = 1; attempt <= 2; attempt++) {
             try {
                 String response = restClient.post()
-                        .uri(GEMINI_API_URL + "?key=" + apiKey)
+                        .uri(geminiGenerateContentUrl() + "?key=" + apiKey)
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(requestBody)
                         .retrieve()

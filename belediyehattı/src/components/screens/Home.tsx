@@ -19,7 +19,10 @@ import {
 } from '../../api';
 import { Lang, t } from '../../i18n';
 import AiPriorityBadge from '../AiPriorityBadge';
+import SlaIndicator from '../SlaIndicator';
+import HomeWidgets from '../home/HomeWidgets';
 import { reportStatusBadgeClass } from '../../lib/ui';
+import type { PublicTenant } from '../../api';
 
 const MY_REPORTS_PAGE_SIZE = 120;
 
@@ -28,6 +31,7 @@ interface HomeProps {
   onOpenReport?: (reportId: string) => void;
   lang: Lang;
   isDark: boolean;
+  homeMunicipality?: PublicTenant | null;
 }
 
 const getCategoryIcon = (category: string) => {
@@ -43,12 +47,25 @@ const StatusBadge = ({ status, lang }: { status: string; lang: Lang }) => (
   <span className={reportStatusBadgeClass(status)}>{t(`status.${status}`, lang)}</span>
 );
 
-export default function Home({ onNavigate, onOpenReport, lang, isDark }: HomeProps) {
+function reportUrgencyScore(r: ApiReportList): number {
+  const hours = (Date.now() - new Date(r.createdAt).getTime()) / 3600000;
+  const risk = (r.aiSlaRisk || '').toUpperCase();
+  let score = hours;
+  if (risk === 'CRITICAL') score += 100;
+  else if (risk === 'HIGH') score += 60;
+  else if (risk === 'MEDIUM') score += 30;
+  if (r.status === 'PENDING') score += 20;
+  return score;
+}
+
+export default function Home({ onNavigate, onOpenReport, lang, isDark, homeMunicipality }: HomeProps) {
   const [reports, setReports] = useState<ApiReportList[]>([]);
   const [totalMyReports, setTotalMyReports] = useState(0);
   const [loading, setLoading] = useState(true);
   const [publicOverview, setPublicOverview] = useState<PublicStatsOverview | null>(null);
   const [publicError, setPublicError] = useState(false);
+  const [userLat, setUserLat] = useState<number | null>(null);
+  const [userLng, setUserLng] = useState<number | null>(null);
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -79,13 +96,36 @@ export default function Home({ onNavigate, onOpenReport, lang, isDark }: HomePro
     };
   }, []);
 
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserLat(pos.coords.latitude);
+        setUserLng(pos.coords.longitude);
+      },
+      () => {},
+      { enableHighAccuracy: false, timeout: 12000 },
+    );
+  }, []);
+
   const cardBorder = isDark ? 'border-slate-700 bg-slate-800/90' : 'border-slate-200/90 bg-white';
   const muted = isDark ? 'text-slate-400' : 'text-slate-600';
+  const sortedReports = [...reports].sort((a, b) => reportUrgencyScore(b) - reportUrgencyScore(a));
 
   return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-5 p-4 pb-8">
-      {/* Hero */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary to-primary-dark p-5 text-white shadow-lg shadow-primary/20 ring-1 ring-white/10">
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-5 pb-8">
+      {homeMunicipality?.onboarded ? (
+        <HomeWidgets
+          tenant={homeMunicipality}
+          userLat={userLat}
+          userLng={userLng}
+          lang={lang}
+          isDark={isDark}
+          onReport={() => onNavigate('report')}
+        />
+      ) : null}
+      {!homeMunicipality?.onboarded && (
+      <div className="relative overflow-hidden mx-4 rounded-2xl bg-gradient-to-br from-primary via-primary to-primary-dark p-5 text-white shadow-lg shadow-primary/20 ring-1 ring-white/10">
         <div
           className="pointer-events-none absolute -right-8 top-0 h-32 w-32 rounded-full bg-secondary/25 blur-2xl"
           aria-hidden
@@ -106,9 +146,10 @@ export default function Home({ onNavigate, onOpenReport, lang, isDark }: HomePro
           <AlertCircle className="h-28 w-28" />
         </div>
       </div>
+      )}
 
       {/* Kamu istatistikleri */}
-      <section className={`rounded-2xl border p-4 shadow-sm ${cardBorder}`} aria-label={t('home.public.title', lang)}>
+      <section className={`mx-4 rounded-2xl border p-4 shadow-sm ${cardBorder}`} aria-label={t('home.public.title', lang)}>
         <div className="mb-3 flex items-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/15">
             <Sparkles className="h-4 w-4" strokeWidth={2} />
@@ -159,7 +200,7 @@ export default function Home({ onNavigate, onOpenReport, lang, isDark }: HomePro
       </section>
 
       {/* Ä°puÃ§larÄ± */}
-      <section className={`rounded-2xl border p-4 shadow-sm ${cardBorder}`}>
+      <section className={`mx-4 rounded-2xl border p-4 shadow-sm ${cardBorder}`}>
         <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-primary">{t('home.tips.eyebrow', lang)}</p>
         <h3 className={`mt-1 text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{t('home.tips.title', lang)}</h3>
         <ul className={`mt-3 space-y-2 text-xs font-medium leading-relaxed ${muted}`}>
@@ -215,7 +256,7 @@ export default function Home({ onNavigate, onOpenReport, lang, isDark }: HomePro
           </div>
         ) : (
           <div className="space-y-3">
-            {reports.map((report, idx) => (
+            {sortedReports.map((report, idx) => (
               <motion.div
                 key={report.id}
                 initial={{ opacity: 0, y: 6 }}
@@ -247,6 +288,7 @@ export default function Home({ onNavigate, onOpenReport, lang, isDark }: HomePro
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
+                    <SlaIndicator createdAt={report.createdAt} aiSlaRisk={report.aiSlaRisk} lang={lang} compact />
                     {report.aiPriority && <AiPriorityBadge priority={report.aiPriority} lang={lang} />}
                     <StatusBadge status={report.status} lang={lang} />
                   </div>

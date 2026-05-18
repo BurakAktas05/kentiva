@@ -1,0 +1,91 @@
+package com.burak.belediyeapp.service.geo;
+
+import lombok.extern.slf4j.Slf4j;
+import org.json.JSONObject;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
+
+import java.util.Locale;
+import java.util.Optional;
+
+/**
+ * Konum → il / ilçe (Nominatim — yalnızca resmi nöbetçi eczane API sorgusu için).
+ */
+@Service
+@Slf4j
+public class NominatimReverseGeocodeService {
+
+    private static final String USER_AGENT = "KentivaBelediyeApp/1.0 (municipal citizen app; contact: support@kentiva.app)";
+
+    private final RestClient client = RestClient.builder()
+            .defaultHeader("User-Agent", USER_AGENT)
+            .defaultHeader("Accept-Language", "tr")
+            .build();
+
+    public record AdminArea(String provinceName, String districtName, String provinceSlug, String districtSlug) {}
+
+    public Optional<AdminArea> resolve(double lat, double lng) {
+        try {
+            String url = String.format(
+                    "https://nominatim.openstreetmap.org/reverse?lat=%s&lon=%s&format=json&addressdetails=1&zoom=12",
+                    lat, lng);
+            String body = client.get().uri(url).retrieve().body(String.class);
+            if (body == null || body.isBlank()) {
+                return Optional.empty();
+            }
+            JSONObject root = new JSONObject(body);
+            JSONObject address = root.optJSONObject("address");
+            if (address == null) {
+                return Optional.empty();
+            }
+            String province = firstNonBlank(
+                    address.optString("province", null),
+                    address.optString("state", null),
+                    address.optString("city", null));
+            String district = firstNonBlank(
+                    address.optString("town", null),
+                    address.optString("city_district", null),
+                    address.optString("suburb", null),
+                    address.optString("county", null),
+                    address.optString("municipality", null));
+            if (province == null) {
+                return Optional.empty();
+            }
+            return Optional.of(new AdminArea(
+                    province,
+                    district != null ? district : province,
+                    slugify(province),
+                    slugify(district != null ? district : province)));
+        } catch (Exception e) {
+            log.warn("Nominatim reverse geocode başarısız: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    private static String firstNonBlank(String... values) {
+        for (String v : values) {
+            if (v != null && !v.isBlank()) {
+                return v.trim();
+            }
+        }
+        return null;
+    }
+
+    static String slugify(String input) {
+        if (input == null || input.isBlank()) {
+            return "";
+        }
+        String normalized = input.trim().toLowerCase(Locale.forLanguageTag("tr"));
+        normalized = normalized
+                .replace('ı', 'i')
+                .replace('ğ', 'g')
+                .replace('ü', 'u')
+                .replace('ş', 's')
+                .replace('ö', 'o')
+                .replace('ç', 'c')
+                .replace('İ', 'i');
+        return normalized
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("^-|-$", "");
+    }
+}

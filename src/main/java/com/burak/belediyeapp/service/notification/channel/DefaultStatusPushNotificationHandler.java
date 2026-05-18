@@ -32,7 +32,7 @@ public class DefaultStatusPushNotificationHandler implements ReportStatusNotific
     @Override
     public void deliver(AppUser reporter, Report report, String staffNote) {
         MunicipalityMessageService.PushMessage push = municipalityMessageService.buildProcessingPush(
-                report.getMunicipality(), report.getTitle(), staffNote);
+                report.getMunicipality(), report.getTitle(), staffNote, report.getContentLanguage());
 
         notificationRepository.save(Notification.builder()
                 .user(reporter)

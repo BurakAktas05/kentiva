@@ -39,7 +39,7 @@ public class ResolvedSmsNotificationHandler implements ReportStatusNotificationH
             return;
         }
         String smsBody = municipalityMessageService.buildResolvedSms(
-                report.getMunicipality(), report.getTitle(), staffNote);
+                report.getMunicipality(), report.getTitle(), staffNote, report.getContentLanguage());
         String senderHeader = municipalityMessageService.resolveSmsSenderHeader(report.getMunicipality());
         boolean sent = smsOtpService.sendNotification(phone, smsBody, senderHeader);
         if (sent) {

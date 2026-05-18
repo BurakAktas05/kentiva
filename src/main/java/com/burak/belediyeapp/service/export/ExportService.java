@@ -5,6 +5,7 @@ import com.burak.belediyeapp.repository.IReportRepository;
 import com.lowagie.text.Chunk;
 import com.lowagie.text.Document;
 import com.lowagie.text.FontFactory;
+import com.lowagie.text.pdf.BaseFont;
 import com.lowagie.text.PageSize;
 import com.lowagie.text.Paragraph;
 import com.lowagie.text.Phrase;
@@ -18,7 +19,6 @@ import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.FillPatternType;
-import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -87,7 +87,7 @@ public class ExportService {
             Sheet sheet = workbook.createSheet("Raporlar");
 
             CellStyle headerStyle = workbook.createCellStyle();
-            Font headerFont = workbook.createFont();
+            org.apache.poi.ss.usermodel.Font headerFont = workbook.createFont();
             headerFont.setBold(true);
             headerStyle.setFont(headerFont);
             headerStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
@@ -140,8 +140,9 @@ public class ExportService {
         PdfWriter.getInstance(document, out);
         document.open();
 
-        com.lowagie.text.Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 16);
-        com.lowagie.text.Font metaFont = FontFactory.getFont(FontFactory.HELVETICA, 10, Color.DARK_GRAY);
+        com.lowagie.text.Font titleFont = pdfFont(16, com.lowagie.text.Font.BOLD);
+        com.lowagie.text.Font metaFont = pdfFont(10, com.lowagie.text.Font.NORMAL);
+        metaFont.setColor(java.awt.Color.DARK_GRAY);
         Paragraph title = new Paragraph("Kentiva — Rapor Dışa Aktarım", titleFont);
         title.setSpacingAfter(4);
         document.add(title);
@@ -155,13 +156,13 @@ public class ExportService {
 
         String[] headers = {"Başlık", "Kategori", "İlçe", "Durum", "Öncelik", "Özet", "Raporlayan", "Tarih"};
         for (String h : headers) {
-            PdfPCell cell = new PdfPCell(new Phrase(h, FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9)));
-            cell.setBackgroundColor(new Color(230, 236, 245));
+            PdfPCell cell = new PdfPCell(new Phrase(h, pdfFont(9, com.lowagie.text.Font.BOLD)));
+            cell.setBackgroundColor(new java.awt.Color(230, 236, 245));
             cell.setPadding(6);
             table.addCell(cell);
         }
 
-        com.lowagie.text.Font cellFont = FontFactory.getFont(FontFactory.HELVETICA, 8);
+        com.lowagie.text.Font cellFont = pdfFont(8, com.lowagie.text.Font.NORMAL);
         for (Report report : reports) {
             table.addCell(cell(report.getTitle(), cellFont));
             table.addCell(cell(report.getCategory() != null ? report.getCategory().getName() : "", cellFont));
@@ -176,6 +177,15 @@ public class ExportService {
         document.add(table);
         document.close();
         return out.toByteArray();
+    }
+
+    private static com.lowagie.text.Font pdfFont(float size, int style) {
+        try {
+            BaseFont base = BaseFont.createFont(BaseFont.HELVETICA, "Cp1254", BaseFont.NOT_EMBEDDED);
+            return new com.lowagie.text.Font(base, size, style);
+        } catch (Exception e) {
+            return FontFactory.getFont(FontFactory.HELVETICA, size, style);
+        }
     }
 
     private static PdfPCell cell(String text, com.lowagie.text.Font font) {

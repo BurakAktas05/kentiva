@@ -29,7 +29,9 @@ springdoc.api-docs.enabled=true
 logging.level.com.burak.belediyeapp=DEBUG
 spring.jpa.show-sql=true
 
-# Opsiyonel — AI / SMS / Firebase (.env ile de verilebilir)
-# app.ai.gemini.api-key=
+# Opsiyonel — AI / SMS / Firebase / widget (.env ile de verilebilir)
+# ECZANE_API_KEY=   # https://eczaneapi.com — nöbetçi eczane (resmi kaynak)
+# GEMINI_API_KEY=   # kök .env — Google AI Studio
+# GEMINI_MODEL=gemini-2.5-flash
 # app.sms.provider=none
 # app.firebase.config-base64=

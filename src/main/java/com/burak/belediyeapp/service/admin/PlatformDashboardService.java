@@ -26,6 +26,17 @@ public class PlatformDashboardService {
     @Transactional(readOnly = true)
     public PlatformDashboardResponse getDashboard() {
         List<Municipality> municipalities = municipalityRepository.findAll();
+
+        // 2N → 3 sorgu: tüm belediyeler, tüm user sayıları (group by), tüm rapor sayıları (group by).
+        java.util.Map<String, Long> userCounts = new java.util.HashMap<>();
+        for (Object[] row : userRepository.countAllGroupedByMunicipality()) {
+            userCounts.put((String) row[0], ((Number) row[1]).longValue());
+        }
+        java.util.Map<String, Long> reportCounts = new java.util.HashMap<>();
+        for (Object[] row : reportRepository.countAllGroupedByMunicipality()) {
+            reportCounts.put((String) row[0], ((Number) row[1]).longValue());
+        }
+
         List<PlatformDashboardResponse.TenantRow> tenants = new ArrayList<>();
 
         long active = 0;
@@ -37,8 +48,8 @@ public class PlatformDashboardService {
         long totalReports = 0;
 
         for (Municipality m : municipalities) {
-            long userCount = userRepository.countByMunicipalityId(m.getId());
-            long reportCount = reportRepository.countByMunicipalityId(m.getId());
+            long userCount = userCounts.getOrDefault(m.getId(), 0L);
+            long reportCount = reportCounts.getOrDefault(m.getId(), 0L);
             MembershipStatus status = MembershipStatusResolver.resolve(m);
             Long daysRemaining = MembershipStatusResolver.daysRemaining(m.getSubscriptionEndsAt());
 

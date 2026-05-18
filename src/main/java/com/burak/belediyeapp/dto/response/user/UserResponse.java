@@ -10,5 +10,8 @@ public record UserResponse(
         String phoneNumber,
         List<String> roles,
         String district,
-        com.burak.belediyeapp.dto.response.municipality.MunicipalityDto municipality
+        com.burak.belediyeapp.dto.response.municipality.MunicipalityDto municipality,
+        com.burak.belediyeapp.dto.response.municipality.MunicipalityDto preferredMunicipality,
+        int reputationScore,
+        String reputationLevel
 ) {}

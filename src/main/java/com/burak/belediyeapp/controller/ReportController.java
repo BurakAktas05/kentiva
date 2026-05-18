@@ -1,12 +1,15 @@
 package com.burak.belediyeapp.controller;
 
 import com.burak.belediyeapp.dto.request.report.AssignReportRequest;
+import com.burak.belediyeapp.dto.request.report.ReportDraftAnalysisRequest;
 import com.burak.belediyeapp.dto.request.report.BulkAssignReportsRequest;
 import com.burak.belediyeapp.dto.request.report.BulkUpdateReportStatusRequest;
 import com.burak.belediyeapp.dto.request.report.CreateReportRequest;
 import com.burak.belediyeapp.dto.request.report.UpdateReportStatusRequest;
 import com.burak.belediyeapp.dto.response.report.BulkReportOperationResult;
 import com.burak.belediyeapp.dto.response.common.ApiResponse;
+import com.burak.belediyeapp.dto.response.report.NearbyReportHintResponse;
+import com.burak.belediyeapp.dto.response.report.ReportDraftAnalysisResponse;
 import com.burak.belediyeapp.dto.response.report.ReportListResponse;
 import com.burak.belediyeapp.dto.response.report.ReportResponse;
 import com.burak.belediyeapp.dto.response.report.ReportTimelineEntryResponse;
@@ -14,6 +17,7 @@ import com.burak.belediyeapp.entity.AppUser;
 import com.burak.belediyeapp.entity.ReportStatus;
 import com.burak.belediyeapp.exception.BusinessException;
 import com.burak.belediyeapp.service.media.MediaGuardClient;
+import com.burak.belediyeapp.service.report.ReportDraftAnalysisService;
 import com.burak.belediyeapp.service.report.ReportService;
 import com.burak.belediyeapp.service.storage.StorageService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -27,6 +31,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -41,6 +46,7 @@ import java.util.List;
 public class ReportController {
 
     private final ReportService reportService;
+    private final ReportDraftAnalysisService draftAnalysisService;
     private final StorageService storageService;
     private final MediaGuardClient mediaGuardClient;
 
@@ -72,6 +78,14 @@ public class ReportController {
         }
 
         return ResponseEntity.ok(ApiResponse.success("Dosyalar yüklendi", urls));
+    }
+
+    @PostMapping("/analyze-draft")
+    @Operation(summary = "İhbar taslağı AI analizi (Gemini veya kural tabanlı)")
+    public ResponseEntity<ApiResponse<ReportDraftAnalysisResponse>> analyzeDraft(
+            @Valid @RequestBody ReportDraftAnalysisRequest request,
+            @AuthenticationPrincipal AppUser currentUser) {
+        return ResponseEntity.ok(ApiResponse.success(draftAnalysisService.analyze(currentUser, request)));
     }
 
     @PostMapping
@@ -120,6 +134,21 @@ public class ReportController {
         return ResponseEntity.ok(ApiResponse.success(page));
     }
 
+    @GetMapping("/nearby-hints")
+    @PreAuthorize("hasRole('CITIZEN')")
+    @Operation(summary = "Yakındaki aktif ihbarlar — çift kayıt uyarısı (Vatandaş)")
+    public ResponseEntity<ApiResponse<List<NearbyReportHintResponse>>> getNearbyHints(
+            @RequestParam double latitude,
+            @RequestParam double longitude,
+            @RequestParam String municipalityId,
+            @RequestParam(defaultValue = "75") @Min(10) @Max(500) double radiusMeters,
+            @AuthenticationPrincipal AppUser currentUser) {
+
+        List<NearbyReportHintResponse> hints = reportService.getNearbyHintsForCitizen(
+                latitude, longitude, municipalityId, radiusMeters, currentUser);
+        return ResponseEntity.ok(ApiResponse.success(hints));
+    }
+
     @GetMapping("/nearby")
     @Operation(summary = "Yakındaki raporlar — PostGIS spatial sorgu (Saha Ekibi)")
     public ResponseEntity<ApiResponse<List<ReportListResponse>>> getNearbyReports(
@@ -160,6 +189,18 @@ public class ReportController {
 
         ReportResponse response = reportService.getReportById(reportId, currentUser);
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @PostMapping("/{reportId}/ai-analysis")
+    @PreAuthorize("hasAnyAuthority('ROLE_FIELD_OFFICER','ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @Operation(summary = "Rapor için AI analizi ve vatandaş yanıt taslağı oluştur")
+    public ResponseEntity<ApiResponse<ReportResponse>> runAiAnalysis(
+            @PathVariable String reportId,
+            @AuthenticationPrincipal AppUser currentUser) {
+
+        reportService.performAiAnalysis(reportId, currentUser);
+        ReportResponse response = reportService.getReportById(reportId, currentUser);
+        return ResponseEntity.ok(ApiResponse.success("AI analizi tamamlandı", response));
     }
 
     @PatchMapping("/{reportId}/status")

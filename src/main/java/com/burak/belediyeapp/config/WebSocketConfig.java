@@ -32,7 +32,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private final JwtWebSocketHandshakeInterceptor handshakeInterceptor;
     private final StompAuthenticationChannelInterceptor stompAuthenticationChannelInterceptor;
 
-    @Value("${app.websocket.allowed-origins:*}")
+    /**
+     * Whitelisted WS origins (CSV). Boş bırakılırsa HİÇBİR origin handshake yapamaz —
+     * üretimde APP_WEBSOCKET_ALLOWED_ORIGINS zorunludur. Vahşi joker (*) varsayılan değildir.
+     */
+    @Value("${app.websocket.allowed-origins:}")
     private String allowedOrigins;
 
     @Override

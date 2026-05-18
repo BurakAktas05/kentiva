@@ -1,5 +1,9 @@
 -- Safranbolu Test Verileri (yalnızca dev profili için)
-INSERT INTO municipalities (id, name, type, center_lat, center_lng, default_zoom, boundaries, created_at, updated_at)
+INSERT INTO municipalities (
+    id, name, type, center_lat, center_lng, default_zoom, boundaries,
+    slug, display_name, active, onboarded, public_stats_enabled,
+    created_at, updated_at
+)
 VALUES (
     'safranbolu-id-123',
     'Safranbolu Belediyesi',
@@ -8,6 +12,11 @@ VALUES (
     32.68,
     13,
     ST_Buffer(ST_SetSRID(ST_MakePoint(32.68, 41.25), 4326)::geography, 10000)::geometry,
+    'safranbolu-dev',
+    'Safranbolu Belediyesi',
+    true,
+    true,
+    true,
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
 ) ON CONFLICT (id) DO NOTHING;

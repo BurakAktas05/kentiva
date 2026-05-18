@@ -1,12 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { resolveMediaUrl } from '../lib/env';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Layers, MapPin, Sparkles, UserPlus, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Layers, MapPin, Sparkles, UserPlus, CheckCircle2, X } from 'lucide-react';
 import axios from 'axios';
 import api, { type Report, type ReportListItem, type ReportTimelineEntry, type User } from '../api';
 
-export default function ReportDetailPage() {
-  const { id } = useParams<{ id: string }>();
+type ReportDetailPageProps = {
+  reportId?: string;
+  embedded?: boolean;
+  onClose?: () => void;
+};
+
+export default function ReportDetailPage({ reportId: reportIdProp, embedded, onClose }: ReportDetailPageProps = {}) {
+  const { id: routeId } = useParams<{ id: string }>();
+  const id = reportIdProp ?? routeId;
   const [report, setReport] = useState<Report | null>(null);
   const [timeline, setTimeline] = useState<ReportTimelineEntry[]>([]);
   const [officers, setOfficers] = useState<User[]>([]);
@@ -16,6 +23,10 @@ export default function ReportDetailPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [duplicateGroup, setDuplicateGroup] = useState<ReportListItem[]>([]);
   const [bulkBusy, setBulkBusy] = useState<'RESOLVED' | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [statusValue, setStatusValue] = useState<'PROCESSING' | 'RESOLVED'>('PROCESSING');
+  const [noteText, setNoteText] = useState('');
+  const [statusBusy, setStatusBusy] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -29,10 +40,14 @@ export default function ReportDetailPage() {
           api.get(`/reports/${id}/duplicate-group`),
         ]);
         if (!cancelled) {
-          setReport(r.data.data as Report);
+          const rep = r.data.data as Report;
+          setReport(rep);
           setTimeline(tl.data.data as ReportTimelineEntry[]);
           setOfficers(u.data.data as User[]);
           setDuplicateGroup(dup.data.data as ReportListItem[]);
+          if (rep.aiReplyDraft) {
+            setNoteText(rep.aiReplyDraft);
+          }
         }
       } catch {
         if (!cancelled) setError('Rapor bulunamadı veya erişim yok.');
@@ -73,6 +88,43 @@ export default function ReportDetailPage() {
     }
   };
 
+  const runAiAnalysis = async () => {
+    if (!id) return;
+    setAiBusy(true);
+    setError(null);
+    try {
+      const res = await api.post(`/reports/${id}/ai-analysis`);
+      const next = res.data.data as Report;
+      setReport(next);
+      // Tek tuşla taslağı üret ve doğrudan "Vatandaşa Not" alanına yerleştir —
+      // ayrı bir "AI Yanıtı Kullan" butonuna gerek kalmaz.
+      if (next.aiReplyDraft) {
+        setNoteText(next.aiReplyDraft);
+      }
+      setSuccessMsg('AI yanıt taslağı oluşturuldu ve nota eklendi.');
+      setTimeout(() => setSuccessMsg(null), 4000);
+    } catch (err: unknown) {
+      const msg = axios.isAxiosError(err)
+        ? String((err.response?.data as { message?: string } | undefined)?.message ?? 'AI analizi başarısız.')
+        : 'AI analizi başarısız.';
+      window.alert(msg);
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
+  const saveStatus = async () => {
+    if (!id || statusBusy) return;
+    setStatusBusy(true);
+    try {
+      await api.patch(`/reports/${id}/status`, { status: statusValue, note: noteText });
+      window.location.reload();
+    } catch {
+      window.alert('Durum güncellenemedi');
+      setStatusBusy(false);
+    }
+  };
+
   const handleAssign = async () => {
     if (!selectedOfficerId || !id) return;
     setIsAssigning(true);
@@ -95,28 +147,65 @@ export default function ReportDetailPage() {
     }
   };
 
-  if (error) {
-    return (
-      <div className="p-6">
-        <Link to="/reports" className="mb-4 inline-flex items-center gap-2 text-sm font-bold text-primary">
-          <ArrowLeft className="h-4 w-4" />
-          Raporlara dön
-        </Link>
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">{error}</div>
+  const backNav = embedded ? (
+    <button
+      type="button"
+      onClick={onClose}
+      className="inline-flex items-center gap-2 text-sm font-bold text-primary hover:underline"
+    >
+      <ArrowLeft className="h-4 w-4" />
+      Haritaya dön
+    </button>
+  ) : (
+    <Link to="/reports" className="inline-flex items-center gap-2 text-sm font-bold text-primary hover:underline">
+      <ArrowLeft className="h-4 w-4" />
+      Raporlara dön
+    </Link>
+  );
+
+  const wrapEmbedded = (node: ReactNode) =>
+    embedded ? (
+      <div className="fixed inset-0 z-[2000] flex">
+        <button
+          type="button"
+          className="flex-1 bg-slate-900/50 backdrop-blur-sm"
+          aria-label="Kapat"
+          onClick={onClose}
+        />
+        <div className="relative flex h-full w-full max-w-2xl flex-col overflow-hidden bg-slate-50 shadow-2xl dark:bg-slate-950">
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute right-4 top-4 z-10 rounded-lg border border-slate-200 bg-white p-2 text-slate-600 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+            aria-label="Kapat"
+          >
+            <X className="h-4 w-4" />
+          </button>
+          <div className="flex-1 overflow-y-auto">{node}</div>
+        </div>
       </div>
+    ) : (
+      node
+    );
+
+  if (error) {
+    return wrapEmbedded(
+      <div className="p-6">
+        {backNav}
+        <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-6 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+          {error}
+        </div>
+      </div>,
     );
   }
 
   if (!report) {
-    return <div className="p-6 text-slate-500">Yükleniyor…</div>;
+    return wrapEmbedded(<div className="p-6 text-slate-500">Yükleniyor…</div>);
   }
 
-  return (
+  return wrapEmbedded(
     <div className="space-y-6 p-6">
-      <Link to="/reports" className="inline-flex items-center gap-2 text-sm font-bold text-primary hover:underline">
-        <ArrowLeft className="h-4 w-4" />
-        Raporlara dön
-      </Link>
+      {backNav}
 
       <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
@@ -131,10 +220,10 @@ export default function ReportDetailPage() {
 
         {report.description && <p className="mb-6 whitespace-pre-wrap text-slate-700 dark:text-slate-300">{report.description}</p>}
 
-        {(report.aiSummary || report.aiSuggestedCategory || report.aiPriority || report.aiDuplicateHint) && (
-          <div className="mb-6 flex gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-4 dark:border-primary/30 dark:bg-primary/10">
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-4 dark:border-primary/30 dark:bg-primary/10">
+          <div className="flex min-w-0 flex-1 gap-3">
             <Sparkles className="h-5 w-5 shrink-0 text-secondary" />
-            <div className="text-sm">
+            <div className="min-w-0 text-sm">
               {report.aiPriority && (
                 <p className="font-bold text-primary">
                   AI öncelik: <span className="font-mono">{report.aiPriority}</span>
@@ -149,9 +238,28 @@ export default function ReportDetailPage() {
                   Mükerrer notu: {report.aiDuplicateHint}
                 </p>
               )}
+              {!report.aiSummary && !report.aiSuggestedCategory && !report.aiPriority && !report.aiDuplicateHint && (
+                <p className="text-slate-600 dark:text-slate-400">
+                  Henüz AI analizi yok. Sağdaki düğme özet üretir ve aşağıdaki "Vatandaşa Not" alanını otomatik doldurur.
+                </p>
+              )}
+              {report.aiReplyDraft && (
+                <p className="mt-3 rounded-lg bg-white/80 p-2 text-xs text-slate-700 dark:bg-slate-900/60 dark:text-slate-200">
+                  <span className="font-bold">Yanıt taslağı:</span> {report.aiReplyDraft}
+                </p>
+              )}
             </div>
           </div>
-        )}
+          <button
+            type="button"
+            disabled={aiBusy}
+            onClick={() => void runAiAnalysis()}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-violet-600 px-3 py-2 text-xs font-bold text-white hover:bg-violet-700 disabled:opacity-50"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            {aiBusy ? 'Oluşturuluyor…' : 'AI yanıtı oluştur'}
+          </button>
+        </div>
 
         {(report.duplicateGroupSize != null && report.duplicateGroupSize > 1) || duplicateGroup.length > 0 ? (
           <div className="mb-6 rounded-2xl border border-violet-200/90 bg-violet-50/80 p-4 dark:border-violet-900/50 dark:bg-violet-950/30">
@@ -264,9 +372,11 @@ export default function ReportDetailPage() {
           <h2 className="mb-6 text-lg font-bold text-slate-900 dark:text-white">Durum Güncelle</h2>
           <div className="space-y-4">
             <div>
-              <label className="mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-300">Yeni Durum</label>
+              <label htmlFor="statusSelect" className="mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-300">Yeni Durum</label>
               <select
                 id="statusSelect"
+                value={statusValue}
+                onChange={(e) => setStatusValue(e.target.value as 'PROCESSING' | 'RESOLVED')}
                 className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               >
                 <option value="PROCESSING">İşlemde</option>
@@ -274,41 +384,24 @@ export default function ReportDetailPage() {
               </select>
             </div>
             <div>
-              <div className="mb-1 flex items-center justify-between">
-                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Vatandaşa Not</label>
-                {report.aiReplyDraft && (
-                  <button
-                    onClick={() => {
-                      const noteEl = document.getElementById('statusNote') as HTMLTextAreaElement;
-                      if (noteEl) noteEl.value = report.aiReplyDraft!;
-                    }}
-                    className="flex items-center gap-1.5 rounded-lg bg-secondary/10 px-2 py-1 text-xs font-bold text-secondary transition-colors hover:bg-secondary/20"
-                  >
-                    <Sparkles className="h-3 w-3" /> AI Yanıtı Kullan
-                  </button>
-                )}
-              </div>
+              <label htmlFor="statusNote" className="mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-300">
+                Vatandaşa Not
+              </label>
               <textarea
                 id="statusNote"
                 rows={3}
-                placeholder="Vatandaşa iletilecek not (opsiyonel)..."
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                placeholder="Vatandaşa iletilecek not (opsiyonel). Üst kısımdaki 'AI yanıtı oluştur' tuşu bu alanı otomatik doldurur."
                 className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              ></textarea>
+              />
             </div>
             <button
-              onClick={async () => {
-                const newStatus = (document.getElementById('statusSelect') as HTMLSelectElement).value;
-                const note = (document.getElementById('statusNote') as HTMLTextAreaElement).value;
-                try {
-                  await api.patch(`/reports/${id}/status`, { status: newStatus, note });
-                  window.location.reload();
-                } catch (e) {
-                  alert('Durum güncellenemedi');
-                }
-              }}
-              className="w-full rounded-xl bg-primary py-3 text-sm font-bold text-white transition-colors hover:bg-primary-hover"
+              onClick={() => void saveStatus()}
+              disabled={statusBusy}
+              className="w-full rounded-xl bg-primary py-3 text-sm font-bold text-white transition-colors hover:bg-primary-hover disabled:opacity-60"
             >
-              Durumu Kaydet
+              {statusBusy ? 'Kaydediliyor…' : 'Durumu Kaydet'}
             </button>
           </div>
         </div>
@@ -332,6 +425,6 @@ export default function ReportDetailPage() {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
   );
 }

@@ -8,6 +8,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
@@ -35,13 +37,18 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         if (apiKey != null && !apiKey.isBlank()) {
             return "apikey:" + apiKey.substring(0, Math.min(12, apiKey.length()));
         }
-        String auth = request.getHeader("Authorization");
-        if (auth != null && auth.regionMatches(true, 0, "ApiKey ", 0, 7)) {
-            String key = auth.substring(7).trim();
+        String authorization = request.getHeader("Authorization");
+        if (authorization != null && authorization.regionMatches(true, 0, "ApiKey ", 0, 7)) {
+            String key = authorization.substring(7).trim();
             return "apikey:" + key.substring(0, Math.min(12, key.length()));
         }
         if (request.getRequestURI().startsWith("/api/v1/integration/")) {
             return "integration:" + request.getRemoteAddr();
+        }
+        Authentication securityAuth = SecurityContextHolder.getContext().getAuthentication();
+        if (securityAuth != null && securityAuth.isAuthenticated()
+                && !"anonymousUser".equals(securityAuth.getPrincipal())) {
+            return "user:" + securityAuth.getName();
         }
         String ip = request.getHeader("X-Forwarded-For");
         if (ip == null || ip.isBlank()) {
@@ -61,7 +68,12 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
         String rateKey = resolveRateLimitKey(request);
 
-        int perMinute = rateKey.startsWith("apikey:") ? 120 : 60;
+        int perMinute = switch (rateKey.split(":", 2)[0]) {
+            case "apikey" -> 120;
+            case "user" -> 300;
+            case "integration" -> 90;
+            default -> 120;
+        };
         Bucket bucket = buckets.computeIfAbsent(rateKey, k -> createNewBucket(perMinute));
 
         if (bucket.tryConsume(1)) {

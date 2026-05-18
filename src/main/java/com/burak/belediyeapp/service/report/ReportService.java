@@ -2,6 +2,7 @@ package com.burak.belediyeapp.service.report;
 
 import com.burak.belediyeapp.dto.request.report.*;
 import com.burak.belediyeapp.dto.response.report.BulkReportOperationResult;
+import com.burak.belediyeapp.dto.response.report.NearbyReportHintResponse;
 import com.burak.belediyeapp.dto.response.report.ReportListResponse;
 import com.burak.belediyeapp.dto.response.report.ReportResponse;
 import com.burak.belediyeapp.dto.response.report.ReportTimelineEntryResponse;
@@ -78,13 +79,26 @@ public class ReportService {
         return commandService.bulkUpdateReportStatus(request, currentUser);
     }
 
+    public List<NearbyReportHintResponse> getNearbyHintsForCitizen(
+            double latitude, double longitude, String municipalityId, double radiusMeters,
+            AppUser currentUser) {
+        return queryService.getNearbyHintsForCitizen(
+                latitude, longitude, municipalityId, radiusMeters, currentUser);
+    }
+
     public List<ReportListResponse> getNearbyReports(
             double latitude, double longitude, double radiusMeters, AppUser currentUser) {
         return queryService.getNearbyReports(latitude, longitude, radiusMeters, currentUser);
     }
 
-    public void performAiAnalysis(String reportId) {
-        commandService.performAiAnalysis(reportId);
+    /** Admin / saha ekibi tarafından elle tetiklenen AI analizi (IDOR korumalı). */
+    public void performAiAnalysis(String reportId, AppUser currentUser) {
+        commandService.performAiAnalysis(reportId, currentUser);
+    }
+
+    /** Sistem (event listener) tarafından otomatik AI analizi — admin oturumu yok. */
+    public void performAiAnalysisAsSystem(String reportId) {
+        commandService.performAiAnalysisAsSystem(reportId);
     }
 
     /**

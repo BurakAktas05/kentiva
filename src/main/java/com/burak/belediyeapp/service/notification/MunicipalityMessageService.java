@@ -35,17 +35,44 @@ public class MunicipalityMessageService {
             "\"{baslik}\" başlıklı rapor size atandı.{not}";
 
     public String buildResolvedSms(Municipality municipality, String reportTitle, String staffNote) {
+        return buildResolvedSms(municipality, reportTitle, staffNote, "tr");
+    }
+
+    public String buildResolvedSms(Municipality municipality, String reportTitle, String staffNote, String contentLanguage) {
+        if (!"tr".equals(ReportLanguageMessages.normalizeLang(contentLanguage))) {
+            return ReportLanguageMessages.resolvedSms(
+                    contentLanguage, resolveLabel(municipality), truncate(reportTitle, 70), staffNote);
+        }
         String template = pickTemplate(municipality != null ? municipality.getSmsResolvedTemplate() : null, DEFAULT_SMS_RESOLVED);
         return render(template, municipality, reportTitle, staffNote);
     }
 
     public String buildProcessingSms(Municipality municipality, String reportTitle, String staffNote) {
+        return buildProcessingSms(municipality, reportTitle, staffNote, "tr");
+    }
+
+    public String buildProcessingSms(Municipality municipality, String reportTitle, String staffNote, String contentLanguage) {
+        if (!"tr".equals(ReportLanguageMessages.normalizeLang(contentLanguage))) {
+            return ReportLanguageMessages.processingSms(
+                    contentLanguage, resolveLabel(municipality), truncate(reportTitle, 70), staffNote);
+        }
         String template = pickTemplate(
                 municipality != null ? municipality.getSmsProcessingTemplate() : null, DEFAULT_SMS_PROCESSING);
         return render(template, municipality, reportTitle, staffNote);
     }
 
     public PushMessage buildProcessingPush(Municipality municipality, String reportTitle, String staffNote) {
+        return buildProcessingPush(municipality, reportTitle, staffNote, "tr");
+    }
+
+    public PushMessage buildProcessingPush(
+            Municipality municipality, String reportTitle, String staffNote, String contentLanguage) {
+        if (!"tr".equals(ReportLanguageMessages.normalizeLang(contentLanguage))) {
+            String name = resolveLabel(municipality);
+            return new PushMessage(
+                    ReportLanguageMessages.processingPushTitle(contentLanguage, name),
+                    ReportLanguageMessages.processingPushBody(contentLanguage, truncate(reportTitle, 70), staffNote));
+        }
         String titleTpl = pickTemplate(
                 municipality != null ? municipality.getPushProcessingTitleTemplate() : null,
                 DEFAULT_PUSH_PROCESSING_TITLE);
@@ -76,6 +103,17 @@ public class MunicipalityMessageService {
     }
 
     public PushMessage buildRejectedPush(Municipality municipality, String reportTitle, String staffNote) {
+        return buildRejectedPush(municipality, reportTitle, staffNote, "tr");
+    }
+
+    public PushMessage buildRejectedPush(
+            Municipality municipality, String reportTitle, String staffNote, String contentLanguage) {
+        if (!"tr".equals(ReportLanguageMessages.normalizeLang(contentLanguage))) {
+            String name = resolveLabel(municipality);
+            return new PushMessage(
+                    ReportLanguageMessages.rejectedPushTitle(contentLanguage, name),
+                    ReportLanguageMessages.rejectedPushBody(contentLanguage, truncate(reportTitle, 70), staffNote));
+        }
         String titleTpl = pickTemplate(
                 municipality != null ? municipality.getPushRejectedTitleTemplate() : null,
                 DEFAULT_PUSH_REJECTED_TITLE);

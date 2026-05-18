@@ -1,5 +1,6 @@
 package com.burak.belediyeapp.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -30,6 +31,11 @@ public class AppUser extends BaseEntity implements UserDetails {
     @Column(nullable = false, unique = true, length = 150)
     private String email;
 
+    /**
+     * Bcrypt hash — savunma derinliği için JSON serileştirmesinden dışlanır.
+     * (UserDetails.getPassword() dahili Spring Security tarafından kullanılır.)
+     */
+    @JsonIgnore
     @Column(nullable = false)
     private String password;
 
@@ -70,6 +76,16 @@ public class AppUser extends BaseEntity implements UserDetails {
     @JoinColumn(name = "municipality_id")
     private Municipality municipality;
 
+    /** Vatandaşın ana ekran widget'ları için seçtiği belediye (ihbar konumu ayrı). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "preferred_municipality_id")
+    private Municipality preferredMunicipality;
+
+    @Column(nullable = false)
+    private int reputationScore = 100;
+
+    /** FCM push token — bearer-equivalent secret, JSON yanıtlarda paylaşılmaz. */
+    @JsonIgnore
     @Column(length = 255)
     private String fcmToken;
 

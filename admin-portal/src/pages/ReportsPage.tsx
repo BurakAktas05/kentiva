@@ -1,19 +1,27 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Download,
   Filter,
+  Plus,
   RefreshCw,
   Search,
   UserPlus,
+  Wifi,
+  WifiOff,
   X,
 } from 'lucide-react';
 import axios from 'axios';
 import api, { type BulkReportOperationResult, type ReportListItem, type SpringPage, type User } from '../api';
+import { downloadBlobResponse } from '../lib/downloadExport';
 import { reportStatusBadgeClass } from '../lib/ui';
+import { useReportLive } from '../context/ReportLiveContext';
+import { reportToListItem } from '../lib/reportUtils';
+import type { Report } from '../api';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Tüm durumlar' },
@@ -57,6 +65,12 @@ export default function ReportsPage() {
   const [bulkStatus, setBulkStatus] = useState('PROCESSING');
   const [bulkNote, setBulkNote] = useState('');
   const [exportFormat, setExportFormat] = useState<'excel' | 'pdf'>('excel');
+  const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
+  const [incomingBanner, setIncomingBanner] = useState<Report | null>(null);
+  const [sessionNewCount, setSessionNewCount] = useState(0);
+  const lastHandledReportId = useRef<string | null>(null);
+
+  const { latestReport, wsConnected } = useReportLive();
 
   const canAssign = hasAnyRole(roles, ['ROLE_DEPT_MANAGER', 'ROLE_ADMIN', 'ROLE_SUPER_ADMIN']);
   const canChangeStatus = hasAnyRole(roles, [
@@ -109,6 +123,48 @@ export default function ReportsPage() {
     const t = window.setTimeout(() => setToast(null), 5000);
     return () => window.clearTimeout(t);
   }, [toast]);
+
+  useEffect(() => {
+    if (!latestReport?.id || latestReport.id === lastHandledReportId.current) return;
+    lastHandledReportId.current = latestReport.id;
+
+    const item = reportToListItem(latestReport);
+    const q = searchText.trim().toLowerCase();
+    const matchesSearch =
+      !q ||
+      [item.title, item.categoryName, item.district, item.id].some((f) =>
+        String(f ?? '')
+          .toLowerCase()
+          .includes(q),
+      );
+    const matchesStatus = !status || item.status === status;
+
+    if (page === 0 && matchesStatus && matchesSearch) {
+      setData((prev) => {
+        if (!prev) return prev;
+        if (prev.content.some((r) => r.id === item.id)) return prev;
+        return {
+          ...prev,
+          content: [item, ...prev.content].slice(0, size),
+          totalElements: prev.totalElements + 1,
+        };
+      });
+    }
+
+    setHighlightedIds((prev) => new Set(prev).add(item.id));
+    window.setTimeout(() => {
+      setHighlightedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+    }, 5000);
+
+    setIncomingBanner(latestReport);
+    setSessionNewCount((c) => c + 1);
+    const hide = window.setTimeout(() => setIncomingBanner(null), 7000);
+    return () => window.clearTimeout(hide);
+  }, [latestReport, page, size, status, searchText]);
 
   const totalPages = data?.totalPages ?? 0;
   const rows = data?.content ?? [];
@@ -219,16 +275,14 @@ export default function ReportsPage() {
       const params = new URLSearchParams();
       [...selected].forEach((id) => params.append('reportIds', id));
       const res = await api.get(`${path}?${params.toString()}`, { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `kentiva-secili-${new Date().toISOString().slice(0, 10)}.${exportFormat === 'excel' ? 'xlsx' : 'pdf'}`;
-      a.click();
-      window.URL.revokeObjectURL(url);
+      await downloadBlobResponse(
+        res,
+        `kentiva-secili-${new Date().toISOString().slice(0, 10)}.${exportFormat === 'excel' ? 'xlsx' : 'pdf'}`,
+      );
       showToast('success', `${selectedCount} rapor dışa aktarıldı.`);
       setModal(null);
-    } catch {
-      showToast('error', 'Dışa aktarma başarısız oldu.');
+    } catch (e: unknown) {
+      showToast('error', e instanceof Error ? e.message : 'Dışa aktarma başarısız oldu.');
     } finally {
       setBulkBusy(false);
     }
@@ -255,12 +309,64 @@ export default function ReportsPage() {
         </div>
       )}
 
+      <AnimatePresence>
+        {incomingBanner && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-300/80 bg-emerald-50 px-4 py-3 dark:border-emerald-800/60 dark:bg-emerald-950/40"
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-sm font-bold text-white">
+                <Plus className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-wide text-emerald-800 dark:text-emerald-200">
+                  Yeni ihbar
+                </p>
+                <p className="truncate text-sm font-bold text-slate-900 dark:text-white">{incomingBanner.title}</p>
+                <p className="text-xs text-emerald-700/90 dark:text-emerald-300/90">
+                  {incomingBanner.categoryName}
+                  {incomingBanner.district ? ` · ${incomingBanner.district}` : ''}
+                </p>
+              </div>
+            </div>
+            <Link
+              to={`/reports/${incomingBanner.id}`}
+              className="shrink-0 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700"
+            >
+              Görüntüle
+            </Link>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="kentiva-eyebrow">İş listesi</p>
-          <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">Raporlar</h2>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">Raporlar</h2>
+            {sessionNewCount > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500 px-2.5 py-0.5 text-xs font-bold text-white animate-pulse">
+                <Plus className="h-3.5 w-3.5" />
+                {sessionNewCount} yeni
+              </span>
+            )}
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                wsConnected
+                  ? 'bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-200'
+                  : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+              }`}
+              title={wsConnected ? 'Canlı bildirim açık' : 'Canlı bildirim kapalı (WebSocket)'}
+            >
+              {wsConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+              {wsConnected ? 'Canlı' : 'Çevrimdışı'}
+            </span>
+          </div>
           <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">
-            Tüm ihbarlar, sayfalama, filtre ve toplu işlemler.
+            Yeni ihbar gelince kısa bir ses çalar; liste ve bildirimler anında güncellenir.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -407,7 +513,13 @@ export default function ReportsPage() {
                 filteredRows.map((r) => (
                   <tr
                     key={r.id}
-                    className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${selected.has(r.id) ? 'bg-primary/5 dark:bg-primary/10' : ''}`}
+                    className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${
+                      selected.has(r.id) ? 'bg-primary/5 dark:bg-primary/10' : ''
+                    } ${
+                      highlightedIds.has(r.id)
+                        ? 'bg-emerald-50/90 ring-1 ring-inset ring-emerald-300/80 dark:bg-emerald-950/30 dark:ring-emerald-700/50'
+                        : ''
+                    }`}
                   >
                     <td className="px-3 py-3">
                       <input
@@ -421,6 +533,11 @@ export default function ReportsPage() {
                     </td>
                     <td className="max-w-[260px] px-4 py-3 font-medium text-slate-900 dark:text-white">
                       <div className="flex flex-wrap items-center gap-2">
+                        {highlightedIds.has(r.id) && (
+                          <span className="shrink-0 rounded bg-emerald-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                            YENİ
+                          </span>
+                        )}
                         <span className="truncate">{r.title}</span>
                         {r.duplicateGroupSize != null && r.duplicateGroupSize > 1 && (
                           <span

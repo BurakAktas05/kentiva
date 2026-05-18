@@ -152,6 +152,7 @@ public class MunicipalityOnboardingService {
 
     private UserResponse toUserResponse(AppUser user) {
         MunicipalityDto municipalityDto = MunicipalityDto.fromEntity(user.getMunicipality());
+        int score = user.getReputationScore();
         return new UserResponse(
                 user.getId(),
                 user.getFirstName(),
@@ -160,6 +161,9 @@ public class MunicipalityOnboardingService {
                 user.getPhoneNumber(),
                 user.getRoles().stream().map(Role::getName).toList(),
                 user.getDistrict(),
-                municipalityDto);
+                municipalityDto,
+                com.burak.belediyeapp.dto.response.municipality.MunicipalityDto.fromEntity(user.getPreferredMunicipality()),
+                score,
+                com.burak.belediyeapp.service.citizen.CitizenReputationService.levelForScore(score));
     }
 }

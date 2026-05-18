@@ -49,10 +49,19 @@ scripts/tunnel-url.txt
 
 ### Frontend ###
 node_modules/
+node_modules/.tmp/
 dist/
 .vercel/
 .output/
 *.log
+
+### Android / Capacitor (yerel cache & build çıktıları) ###
+**/.gradle/
+**/android/**/build/
+**/android/**/outputs/
+*.apk
+*.aab
+*.tsbuildinfo
 
 ### Logs & Temp ###
 boot.log
@@ -61,4 +70,3 @@ ngrok.log
 scripts/tunnel-url.txt
 scripts/.local-tunnel.state.json
 uploads/
-HELP.md

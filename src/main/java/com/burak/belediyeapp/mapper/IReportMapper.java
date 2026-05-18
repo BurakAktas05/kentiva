@@ -67,6 +67,7 @@ public interface IReportMapper {
     @Mapping(target = "aiSlaRisk", ignore = true)
     @Mapping(target = "aiReplyDraft", ignore = true)
     @Mapping(target = "aiDuplicateHint", ignore = true)
+    @Mapping(target = "contentLanguage", ignore = true)
     @BeanMapping(ignoreUnmappedSourceProperties = {"categoryId", "mediaUrls", "latitude", "longitude", "targetMunicipalityId"})
     @Mapping(target = "location", source = "request", qualifiedByName = "coordinatesToPoint")
     Report toEntity(CreateReportRequest request);

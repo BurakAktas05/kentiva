@@ -57,6 +57,21 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success("Şifre başarıyla değiştirildi", null));
     }
 
+    @PatchMapping("/me/preferred-municipality")
+    @PreAuthorize("hasAuthority('ROLE_CITIZEN')")
+    @Operation(summary = "Ana ekran widget'ları için tercih edilen belediye")
+    public ResponseEntity<ApiResponse<UserResponse>> updatePreferredMunicipality(
+            @AuthenticationPrincipal AppUser currentUser,
+            @RequestBody java.util.Map<String, String> body) {
+        String municipalityId = body.get("municipalityId");
+        if (municipalityId == null || municipalityId.isBlank()) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("municipalityId zorunludur", "MISSING_MUNICIPALITY_ID"));
+        }
+        return ResponseEntity.ok(ApiResponse.success(
+                userService.updatePreferredMunicipality(currentUser, municipalityId.trim())));
+    }
+
     @PatchMapping("/fcm-token")
     @Operation(summary = "FCM Token güncelle")
     public ResponseEntity<ApiResponse<Void>> updateFcmToken(

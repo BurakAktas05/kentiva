@@ -8,11 +8,16 @@ import {
   uploadMedia,
   resolveMediaUrl,
   resolveMunicipalityByGps,
+  fetchNearbyReportHints,
+  analyzeReportDraft,
   type ApiCategory,
   type ApiReportTemplate,
+  type NearbyReportHint,
   type PublicTenant,
+  type ReportDraftAnalysis,
 } from '../../api';
 import { Lang, t } from '../../i18n';
+import ReportAiScanOverlay from '../ReportAiScanOverlay';
 
 interface NewReportProps {
   defaultMunicipality?: PublicTenant | null;
@@ -40,6 +45,7 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
   const [locationText, setLocationText] = useState('');
   const [resolvedMunicipality, setResolvedMunicipality] = useState<PublicTenant | null>(null);
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+  const [localPhotoPreview, setLocalPhotoPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -47,12 +53,26 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
   const [templates, setTemplates] = useState<ApiReportTemplate[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<string | null>(null);
+  const [aiScanOpen, setAiScanOpen] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState<ReportDraftAnalysis | null>(null);
+  const [aiAnalysisLoading, setAiAnalysisLoading] = useState(false);
+  const [nearbyHints, setNearbyHints] = useState<NearbyReportHint[]>([]);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
 
   useEffect(() => {
     if (defaultMunicipality?.onboarded && defaultMunicipality.id && !resolvedMunicipality) {
       setResolvedMunicipality(defaultMunicipality);
     }
   }, [defaultMunicipality, resolvedMunicipality]);
+
+  useEffect(() => {
+    return () => {
+      if (localPhotoPreview) URL.revokeObjectURL(localPhotoPreview);
+    };
+  }, [localPhotoPreview]);
+
+  const minDescriptionLen = 20;
+  const descriptionTooShort = description.trim().length > 0 && description.trim().length < minDescriptionLen;
 
   // Ekran acilir acilmaz GPS al ve belediyeyi otomatik tespit et
   useEffect(() => {
@@ -178,10 +198,31 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
     );
   };
 
-  const handleNext = () => {
-    if (step === 1 && description.trim() && latitude !== null && longitude !== null && categoryId && resolvedMunicipality) {
-      setStep(2);
+  const proceedToSummary = () => setStep(2);
+
+  const handleNext = async () => {
+    if (description.trim().length < minDescriptionLen) {
+      setError(
+        lang === 'tr'
+          ? `Açıklama en az ${minDescriptionLen} karakter olmalıdır.`
+          : `Description must be at least ${minDescriptionLen} characters.`,
+      );
+      return;
     }
+    if (step !== 1 || latitude === null || longitude === null || !categoryId || !resolvedMunicipality) {
+      return;
+    }
+    try {
+      const hints = await fetchNearbyReportHints(latitude, longitude, resolvedMunicipality.id, 75);
+      if (hints.length > 0) {
+        setNearbyHints(hints);
+        setShowDuplicateModal(true);
+        return;
+      }
+    } catch {
+      /* devam */
+    }
+    proceedToSummary();
   };
 
   const handleSubmit = async () => {
@@ -230,7 +271,7 @@ ${description}`;
   };
 
   const canProceed =
-    Boolean(description.trim()) &&
+    description.trim().length >= minDescriptionLen &&
     latitude !== null &&
     longitude !== null &&
     Boolean(categoryId) &&
@@ -377,7 +418,14 @@ ${description}`;
               )}
 
               {latitude != null && longitude != null && !resolvedMunicipality && !locating && (
-                <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">{t('report.municipality.outside', lang)}</p>
+                <motion.div
+                  className={`mt-3 flex gap-3 rounded-xl border p-3 text-xs font-medium ${
+                    isDark ? 'border-amber-800/60 bg-amber-950/50 text-amber-100' : 'border-amber-200 bg-amber-50 text-amber-900'
+                  }`}
+                >
+                  <Building2 className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p>{t('report.municipality.outside', lang)}</p>
+                </motion.div>
               )}
             </div>
 
@@ -388,7 +436,7 @@ ${description}`;
                 <Camera className="w-4 h-4 text-primary" /> {t('report.photo', lang)}
               </label>
               <label
-                className={`w-full aspect-[21/9] border-2 border-dashed rounded-2xl flex flex-col items-center justify-center transition-colors cursor-pointer overflow-hidden relative ${
+                className={`relative flex aspect-[21/9] w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed transition-colors ${
                   isDark
                     ? 'bg-slate-800 border-slate-700 text-slate-500 hover:text-secondary hover:border-primary'
                     : 'bg-slate-50 border-slate-300 text-slate-400 hover:text-primary hover:border-primary'
@@ -399,16 +447,44 @@ ${description}`;
                   accept="image/*"
                   className="hidden"
                   onChange={async (e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      setIsUploading(true);
-                      try {
-                        const urls = await uploadMedia(e.target.files[0]);
-                        if (urls.length > 0) setMediaUrl(urls[0]);
-                      } catch (err: unknown) {
-                        setError(err instanceof Error ? err.message : lang === 'tr' ? 'Fotoğraf yüklenemedi' : 'Upload failed');
-                      } finally {
-                        setIsUploading(false);
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (localPhotoPreview) URL.revokeObjectURL(localPhotoPreview);
+                    setLocalPhotoPreview(URL.createObjectURL(file));
+                    setIsUploading(true);
+                    setError('');
+                    try {
+                      const urls = await uploadMedia(file);
+                      if (urls.length > 0) {
+                        const url = urls[0];
+                        setMediaUrl(url);
+                        if (categoryId) {
+                          setAiScanOpen(true);
+                          setAiAnalysisLoading(true);
+                          setAiAnalysis(null);
+                          const cat = categories.find((c) => c.id === categoryId);
+                          const title = buildReportTitle(description, cat?.name, lang);
+                          try {
+                            const result = await analyzeReportDraft({
+                              categoryId,
+                              title,
+                              description: description.trim() || undefined,
+                              contentLanguage: lang,
+                              mediaUrl: url,
+                            });
+                            setAiAnalysis(result);
+                          } catch {
+                            setAiScanOpen(false);
+                          } finally {
+                            setAiAnalysisLoading(false);
+                          }
+                        }
                       }
+                    } catch (err: unknown) {
+                      setError(err instanceof Error ? err.message : lang === 'tr' ? 'Fotoğraf yüklenemedi' : 'Upload failed');
+                      setMediaUrl(null);
+                    } finally {
+                      setIsUploading(false);
                     }
                   }}
                   disabled={isUploading}
@@ -418,8 +494,25 @@ ${description}`;
                     <motion.div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mb-2"></motion.div>
                     <span className="text-sm font-medium">{t('report.uploading', lang)}</span>
                   </div>
-                ) : mediaUrl ? (
-                  <img src={resolveMediaUrl(mediaUrl)} alt="Uploaded" className="w-full h-full object-cover" />
+                ) : localPhotoPreview || mediaUrl ? (
+                  <>
+                    <img
+                      src={localPhotoPreview || resolveMediaUrl(mediaUrl!)}
+                      alt={lang === 'tr' ? 'Yüklenen fotoğraf' : 'Uploaded photo'}
+                      className="absolute inset-0 h-full w-full object-cover"
+                    />
+                    <div
+                      className="pointer-events-none absolute inset-0 grid grid-cols-3 grid-rows-3 border border-white/40"
+                      aria-hidden
+                    >
+                      {Array.from({ length: 9 }).map((_, i) => (
+                        <span key={i} className="border border-white/25" />
+                      ))}
+                    </div>
+                    <p className="pointer-events-none absolute bottom-2 left-2 right-2 rounded-lg bg-black/50 px-2 py-1 text-center text-[10px] font-semibold text-white">
+                      {lang === 'tr' ? 'Sorunu çerçevenin içine alın' : 'Frame the issue in view'}
+                    </p>
+                  </>
                 ) : (
                   <>
                     <Camera className="w-8 h-8 mb-2" />
@@ -444,12 +537,19 @@ ${description}`;
                   isDark ? 'bg-slate-800 border-slate-700 text-white focus:border-primary' : 'bg-slate-50 border-slate-200 focus:ring-2 focus:ring-primary'
                 }`}
               />
+              {descriptionTooShort && (
+                <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                  {lang === 'tr'
+                    ? `En az ${minDescriptionLen} karakter (${description.trim().length}/${minDescriptionLen})`
+                    : `At least ${minDescriptionLen} characters (${description.trim().length}/${minDescriptionLen})`}
+                </p>
+              )}
             </div>
 
             {error && step === 1 && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm p-3 rounded-xl">
+              <motion.div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
                 {error}
-              </div>
+              </motion.div>
             )}
           </motion.div>
         )}
@@ -511,6 +611,56 @@ ${description}`;
           </button>
         )}
       </div>
+
+      <ReportAiScanOverlay
+        open={aiScanOpen}
+        analysis={aiAnalysis}
+        loading={aiAnalysisLoading}
+        lang={lang}
+        onDone={() => setAiScanOpen(false)}
+      />
+
+      {showDuplicateModal && nearbyHints.length > 0 && (
+        <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+          <div className={`w-full max-w-md rounded-2xl border p-5 shadow-xl ${isDark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-white'}`}>
+            <p className="text-sm font-bold text-slate-900 dark:text-white">
+              {lang === 'tr' ? 'Yakında benzer ihbar var' : 'Similar report nearby'}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              {lang === 'tr'
+                ? `Bu konumda yaklaşık ${Math.round(nearbyHints[0].distanceMeters)} m ötede zaten bir ihbar var.`
+                : `A report exists about ${Math.round(nearbyHints[0].distanceMeters)} m away.`}
+            </p>
+            <ul className="mt-3 space-y-2">
+              {nearbyHints.slice(0, 3).map((h) => (
+                <li key={h.id} className="rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-700">
+                  <span className="font-semibold">{h.title}</span>
+                  <span className="text-slate-500"> · {h.categoryName}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDuplicateModal(false);
+                  proceedToSummary();
+                }}
+                className="flex-1 rounded-xl bg-primary py-2.5 text-xs font-bold text-white"
+              >
+                {lang === 'tr' ? 'Yine de devam et' : 'Continue anyway'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowDuplicateModal(false)}
+                className="rounded-xl border border-slate-300 px-4 py-2.5 text-xs font-bold dark:border-slate-600"
+              >
+                {lang === 'tr' ? 'Geri' : 'Back'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

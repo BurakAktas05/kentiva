@@ -35,8 +35,10 @@ public class ReportDuplicateLinkService {
         double lng = report.getLocation().getX();
         String municipalityId = report.getMunicipality().getId();
 
+        // Duplicate kümeleme için bir aşamada en fazla 50 yakın aktif kayıt yeterli;
+        // sayfa boyutu büyütülmek istenirse property ile değiştirilebilir.
         List<Report> nearby = reportRepository.findActiveNearbyInMunicipality(
-                lat, lng, radiusMeters, municipalityId, report.getId());
+                lat, lng, radiusMeters, municipalityId, report.getId(), 50);
         if (nearby.isEmpty()) {
             return;
         }
@@ -45,11 +47,16 @@ public class ReportDuplicateLinkService {
         Set<Report> toUpdate = new LinkedHashSet<>(nearby);
         toUpdate.add(report);
 
+        // Save-in-loop yerine tek saveAll: flush sayısını azaltır, JDBC batch çalışır.
+        java.util.List<Report> dirty = new java.util.ArrayList<>();
         for (Report r : toUpdate) {
             if (!groupId.equals(r.getDuplicateGroupId())) {
                 r.setDuplicateGroupId(groupId);
-                reportRepository.save(r);
+                dirty.add(r);
             }
+        }
+        if (!dirty.isEmpty()) {
+            reportRepository.saveAll(dirty);
         }
 
         int size = reportRepository.countByDuplicateGroupId(groupId);
