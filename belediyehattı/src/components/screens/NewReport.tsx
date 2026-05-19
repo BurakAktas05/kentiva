@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Camera, MapPin, FileText, CheckCircle2, ChevronLeft, ArrowRight, Building2, Navigation, Tag, LayoutTemplate } from 'lucide-react';
+import { Camera, CheckCircle2, ChevronLeft, ArrowRight, Building2, Navigation } from 'lucide-react';
 import {
   getCategories,
   getReportTemplates,
@@ -257,18 +257,12 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
 
   const municipalityLabel = resolvedMunicipality?.displayName ?? '—';
 
-  const generatePreviewText = () => {
-    const today = new Date().toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US');
-
-    return `${t('report.location', lang)}: ${locationText || 'GPS'}
-${lang === 'tr' ? 'Belediye' : 'Municipality'}: ${municipalityLabel}
-${lang === 'tr' ? 'Kategori' : 'Category'}: ${selectedCategory?.name ?? '—'}
-${lang === 'tr' ? 'Tarih' : 'Date'}: ${today}
-${mediaUrl ? (lang === 'tr' ? 'Fotoğraf eklendi' : 'Photo attached') : ''}
-
-${t('report.description', lang)}:
-${description}`;
-  };
+  const previewRow = (label: string, value: string) => (
+    <div className={`flex gap-3 border-b py-3 last:border-0 ${isDark ? 'border-slate-700' : 'border-slate-100'}`}>
+      <span className={`w-24 shrink-0 text-xs font-semibold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{label}</span>
+      <span className={`min-w-0 flex-1 text-sm font-medium ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{value}</span>
+</div>
+  );
 
   const canProceed =
     description.trim().length >= minDescriptionLen &&
@@ -287,9 +281,14 @@ ${description}`;
         >
           <ChevronLeft className="w-6 h-6" />
         </button>
-        <span className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-slate-800'}`}>
-          {t(`report.step${step}` as 'report.step1' | 'report.step2', lang)}
-        </span>
+        <div className="text-center">
+          <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-800'}`}>
+            {t('report.screenTitle', lang)}
+          </p>
+          <p className={`text-[11px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+            {step === 2 ? t('report.step2.short', lang) : t('report.stepProgress', lang, { current: step, total: 2 })}
+          </p>
+        </div>
         <div className="w-10" />
       </motion.div>
 
@@ -302,10 +301,7 @@ ${description}`;
           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-5">
             {resolvedMunicipality && (templates.length > 0 || templatesLoading) && (
               <div>
-                <label
-                  className={`mb-2 flex items-center gap-2 text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}
-                >
-                  <LayoutTemplate className="h-4 w-4 text-primary" />
+                <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                   {t('report.templates', lang)}
                 </label>
                 <p className={`mb-2 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{t('report.templates.hint', lang)}</p>
@@ -342,10 +338,8 @@ ${description}`;
             )}
 
             <div>
-              <label
-                className={`block text-sm font-semibold mb-2 flex items-center gap-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}
-              >
-                <Tag className="w-4 h-4 text-primary" /> {lang === 'tr' ? 'Kategori' : 'Category'}
+              <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                {t('report.preview.category', lang)}
               </label>
               {categories.length === 0 ? (
                 <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
@@ -374,10 +368,8 @@ ${description}`;
             </div>
 
             <div>
-              <label
-                className={`block text-sm font-semibold mb-2 flex items-center gap-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}
-              >
-                <MapPin className="w-4 h-4 text-primary" /> {t('report.location', lang)}
+              <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                {t('report.location', lang)}
               </label>
               <div className="flex gap-2">
                 <input
@@ -430,13 +422,11 @@ ${description}`;
             </div>
 
             <div>
-              <label
-                className={`block text-sm font-semibold mb-2 flex items-center gap-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}
-              >
-                <Camera className="w-4 h-4 text-primary" /> {t('report.photo', lang)}
+              <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                {t('report.photo', lang)}
               </label>
               <label
-                className={`relative flex aspect-[21/9] w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed transition-colors ${
+                className={`relative flex aspect-[4/3] max-h-48 w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed transition-colors ${
                   isDark
                     ? 'bg-slate-800 border-slate-700 text-slate-500 hover:text-secondary hover:border-primary'
                     : 'bg-slate-50 border-slate-300 text-slate-400 hover:text-primary hover:border-primary'
@@ -523,10 +513,8 @@ ${description}`;
             </div>
 
             <div>
-              <label
-                className={`block text-sm font-semibold mb-2 flex items-center gap-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}
-              >
-                <FileText className="w-4 h-4 text-primary" /> {t('report.description', lang)}
+              <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                {t('report.description', lang)}
               </label>
               <textarea
                 value={description}
@@ -555,22 +543,46 @@ ${description}`;
         )}
 
         {step === 2 && (
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-6">
-            <div
-              className={`border rounded-xl p-4 text-sm ${isDark ? 'bg-primary/15 border-primary/30 text-secondary' : 'bg-primary/5 border-primary/20 text-primary'}`}
-            >
-              <p className="font-semibold mb-1 flex items-center gap-2">
-                <FileText className="w-4 h-4" /> {lang === 'tr' ? 'Bildirim özeti' : 'Report summary'}
-              </p>
-              <p className="opacity-80">{lang === 'tr' ? 'Lütfen bilgilerinizi kontrol edin ve gönderin.' : 'Please review and submit.'}</p>
-            </div>
-
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-4">
             <motion.div
-              className={`p-5 rounded-2xl border font-sans text-sm font-medium leading-relaxed whitespace-pre-wrap shadow-sm relative ${
-                isDark ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+              className={`overflow-hidden rounded-2xl border shadow-sm ${
+                isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'
               }`}
             >
-              {generatePreviewText()}
+              <motion.div className="px-4 pt-3">
+                {selectedCategory && (
+                  <span className="inline-block rounded-lg bg-primary/15 px-2.5 py-1 text-xs font-bold text-primary dark:text-sky-300">
+                    {selectedCategory.name}
+                  </span>
+                )}
+              </motion.div>
+              <motion.div className="px-4 pb-2">
+                {previewRow(t('report.preview.location', lang), locationText || 'GPS')}
+                {previewRow(t('report.preview.municipality', lang), municipalityLabel)}
+                {previewRow(
+                  t('report.preview.photo', lang),
+                  mediaUrl || localPhotoPreview
+                    ? lang === 'tr'
+                      ? 'Eklendi'
+                      : lang === 'ar'
+                        ? 'مضافة'
+                        : 'Attached'
+                    : t('report.preview.noPhoto', lang),
+                )}
+              </motion.div>
+              {(localPhotoPreview || mediaUrl) && (
+                <img
+                  src={localPhotoPreview || resolveMediaUrl(mediaUrl!)}
+                  alt=""
+                  className="h-36 w-full object-cover"
+                />
+              )}
+              <motion.div className={`px-4 py-3 ${isDark ? 'bg-slate-800/80' : 'bg-slate-50'}`}>
+                <p className={`mb-1 text-xs font-semibold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                  {t('report.preview.description', lang)}
+                </p>
+                <p className={`text-sm leading-relaxed ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{description}</p>
+              </motion.div>
             </motion.div>
 
             {error && (

@@ -54,10 +54,46 @@ export function setStoredApiBaseOverride(url: string | null): void {
 
 
 
+/** Tam kök URL (medya imzası vb.) — göreli /api/v1 ise tarayıcı kökü kullanılır. */
+export function apiOriginFromBase(base: string): string {
+  const b = base.trim();
+  if (b.startsWith('/')) {
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      return window.location.origin;
+    }
+    return 'http://localhost:3000';
+  }
+  return b.replace(/\/api\/v1\/?$/i, '') || 'http://localhost:8080';
+}
+
 export function resolveApiBase(buildTimeUrl?: string): string {
+  const override = getStoredApiBaseOverride();
+  if (override) {
+    return normalizeApiBase(override);
+  }
+  // Yerel Vite: aynı origin + proxy → CORS / ölü tünel URL sorunu yok
+  if (typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
+    return '/api/v1';
+  }
+  return normalizeApiBase(buildTimeUrl);
+}
 
-  return normalizeApiBase(getStoredApiBaseOverride() ?? buildTimeUrl);
-
+/** Dev modda kayıtlı API adresi ayakta değilse sıfırla. */
+export async function clearStaleApiOverrideIfNeeded(): Promise<void> {
+  if (typeof import.meta === 'undefined' || !import.meta.env?.DEV) return;
+  const override = getStoredApiBaseOverride();
+  if (!override) return;
+  const root = apiOriginFromBase(override);
+  try {
+    const res = await fetch(`${root}/actuator/health`, {
+      signal: AbortSignal.timeout(4000),
+    });
+    const json = await res.json();
+    if (res.ok && (json.status === 'UP' || json.status === 'up')) return;
+  } catch {
+    /* stale */
+  }
+  setStoredApiBaseOverride(null);
 }
 
 

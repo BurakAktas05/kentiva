@@ -12,6 +12,8 @@ import java.lang.annotation.Target;
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
-@CacheEvict(value = {CacheNames.PUBLIC_MUNICIPALITIES, CacheNames.MUNICIPALITIES}, allEntries = true)
+@CacheEvict(
+        value = {CacheNames.PUBLIC_MUNICIPALITIES, CacheNames.MUNICIPALITIES, CacheNames.DUTY_PHARMACY},
+        allEntries = true)
 public @interface EvictMunicipalityCaches {
 }

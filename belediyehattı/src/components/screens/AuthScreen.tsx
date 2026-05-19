@@ -2,10 +2,11 @@ import { useState, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Mail, Lock, User, Phone, ArrowRight, Building2, Loader2, KeyRound, ShieldCheck } from 'lucide-react';
 import { login, register, AuthUser, apiBase } from '../../api';
+import type { AuthMeta } from '../../lib/authTypes';
 import { Lang, t } from '../../i18n';
 
 interface AuthScreenProps {
-  onAuth: (user: AuthUser) => void;
+  onAuth: (user: AuthUser, meta?: AuthMeta) => void;
   lang: Lang;
 }
 
@@ -34,12 +35,22 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
       let user: AuthUser;
       if (isLogin) {
         user = await login(email, password);
+        onAuth(user);
       } else {
         user = await register(firstName, lastName, email, password, phone || undefined);
+        onAuth(user, { isNewUser: true });
       }
-      onAuth(user);
-    } catch (err: any) {
-      setError(err.message || t('auth.error', lang));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '';
+      if (msg === 'Failed to fetch' || msg.includes('NetworkError')) {
+        setError(
+          lang === 'tr'
+            ? 'Sunucuya bağlanılamadı. http://localhost:3000 adresini kullanın; Ayarlar’daki API adresini temizleyin; backend’in (8080) çalıştığından emin olun.'
+            : 'Cannot reach the server. Use http://localhost:3000, clear API URL in Settings, and ensure the backend (8080) is running.',
+        );
+      } else {
+        setError(msg || t('auth.error', lang));
+      }
     } finally {
       setLoading(false);
     }

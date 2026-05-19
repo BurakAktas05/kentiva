@@ -18,6 +18,7 @@ public class LocalCacheConfig {
         return new ConcurrentMapCacheManager(
                 CacheNames.CATEGORIES,
                 CacheNames.PUBLIC_MUNICIPALITIES,
-                CacheNames.MUNICIPALITIES);
+                CacheNames.MUNICIPALITIES,
+                CacheNames.DUTY_PHARMACY);
     }
 }

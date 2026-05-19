@@ -19,11 +19,21 @@ public class CorsConfig {
     @Value("${app.cors.allowed-origins}")
     private String allowedOrigins;
 
+    @Value("${app.cors.allowed-origin-patterns:}")
+    private String allowedOriginPatterns;
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         // Credentials açıkken wildcard origin kullanmak prod'da tenant verisi sızıntısına yol açabilir.
-        configuration.setAllowedOrigins(parseCsv(allowedOrigins));
+        List<String> patterns = parseCsv(allowedOriginPatterns);
+        List<String> origins = parseCsv(allowedOrigins);
+        if (!patterns.isEmpty()) {
+            configuration.setAllowedOriginPatterns(patterns);
+        }
+        if (!origins.isEmpty()) {
+            configuration.setAllowedOrigins(origins);
+        }
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

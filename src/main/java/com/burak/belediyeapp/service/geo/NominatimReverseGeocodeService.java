@@ -2,6 +2,7 @@ package com.burak.belediyeapp.service.geo;
 
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONObject;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -18,6 +19,7 @@ public class NominatimReverseGeocodeService {
     private static final String USER_AGENT = "KentivaBelediyeApp/1.0 (municipal citizen app; contact: support@kentiva.app)";
 
     private final RestClient client = RestClient.builder()
+            .requestFactory(factory())
             .defaultHeader("User-Agent", USER_AGENT)
             .defaultHeader("Accept-Language", "tr")
             .build();
@@ -87,5 +89,12 @@ public class NominatimReverseGeocodeService {
         return normalized
                 .replaceAll("[^a-z0-9]+", "-")
                 .replaceAll("^-|-$", "");
+    }
+
+    private static SimpleClientHttpRequestFactory factory() {
+        SimpleClientHttpRequestFactory f = new SimpleClientHttpRequestFactory();
+        f.setConnectTimeout(6_000);
+        f.setReadTimeout(10_000);
+        return f;
     }
 }

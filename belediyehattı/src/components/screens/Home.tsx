@@ -1,322 +1,328 @@
 ﻿import { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
-import {
-  MapPin,
-  Clock,
-  AlertCircle,
-  Trash2,
-  HardHat,
-  Lightbulb,
-  TreePine,
-  Construction,
-  Sparkles,
-} from 'lucide-react';
-import {
-  getMyReports,
-  ApiReportList,
-  fetchPublicStatsOverview,
-  type PublicStatsOverview,
-} from '../../api';
-import { Lang, t } from '../../i18n';
-import AiPriorityBadge from '../AiPriorityBadge';
-import SlaIndicator from '../SlaIndicator';
-import HomeWidgets from '../home/HomeWidgets';
-import { reportStatusBadgeClass } from '../../lib/ui';
-import type { PublicTenant } from '../../api';
 
-const MY_REPORTS_PAGE_SIZE = 120;
+import { motion } from 'motion/react';
+
+import { Building2, ChevronRight, ClipboardList } from 'lucide-react';
+
+import {
+
+  getMyReports,
+
+  fetchPublicStatsOverview,
+
+  type PublicStatsOverview,
+
+  type PublicTenant,
+
+} from '../../api';
+
+import { Lang, t } from '../../i18n';
+
+import HomeWidgets from '../home/HomeWidgets';
+
+
+
+const MY_REPORTS_PREVIEW_SIZE = 3;
+
+
 
 interface HomeProps {
-  onNavigate: (tab: 'report') => void;
-  onOpenReport?: (reportId: string) => void;
+
+  onViewMyReports: () => void;
+
+  onSelectMunicipality?: () => void;
+
   lang: Lang;
+
   isDark: boolean;
+
   homeMunicipality?: PublicTenant | null;
+
 }
 
-const getCategoryIcon = (category: string) => {
-  const c = category.toLowerCase();
-  if (c.includes('çukur') || c.includes('yol') || c.includes('pothole')) return <Construction className="w-5 h-5" />;
-  if (c.includes('çöp') || c.includes('temiz') || c.includes('waste') || c.includes('trash')) return <Trash2 className="w-5 h-5" />;
-  if (c.includes('park') || c.includes('bahçe') || c.includes('garden')) return <TreePine className="w-5 h-5" />;
-  if (c.includes('aydınlatma') || c.includes('ışık') || c.includes('light')) return <Lightbulb className="w-5 h-5" />;
-  return <AlertCircle className="w-5 h-5" />;
-};
 
-const StatusBadge = ({ status, lang }: { status: string; lang: Lang }) => (
-  <span className={reportStatusBadgeClass(status)}>{t(`status.${status}`, lang)}</span>
-);
 
-function reportUrgencyScore(r: ApiReportList): number {
-  const hours = (Date.now() - new Date(r.createdAt).getTime()) / 3600000;
-  const risk = (r.aiSlaRisk || '').toUpperCase();
-  let score = hours;
-  if (risk === 'CRITICAL') score += 100;
-  else if (risk === 'HIGH') score += 60;
-  else if (risk === 'MEDIUM') score += 30;
-  if (r.status === 'PENDING') score += 20;
-  return score;
-}
+export default function Home({
 
-export default function Home({ onNavigate, onOpenReport, lang, isDark, homeMunicipality }: HomeProps) {
-  const [reports, setReports] = useState<ApiReportList[]>([]);
+  onViewMyReports,
+
+  onSelectMunicipality,
+
+  lang,
+
+  isDark,
+
+  homeMunicipality,
+
+}: HomeProps) {
+
   const [totalMyReports, setTotalMyReports] = useState(0);
-  const [loading, setLoading] = useState(true);
+
+  const [previewTitles, setPreviewTitles] = useState<string[]>([]);
+
+  const [reportsLoading, setReportsLoading] = useState(true);
+
   const [publicOverview, setPublicOverview] = useState<PublicStatsOverview | null>(null);
-  const [publicError, setPublicError] = useState(false);
-  const [userLat, setUserLat] = useState<number | null>(null);
-  const [userLng, setUserLng] = useState<number | null>(null);
+
+
+
   useEffect(() => {
+
     let cancelled = false;
+
     (async () => {
-      setLoading(true);
-      setPublicError(false);
+
+      setReportsLoading(true);
+
       try {
+
         const [rep, overview] = await Promise.all([
-          getMyReports(0, MY_REPORTS_PAGE_SIZE),
+
+          getMyReports(0, MY_REPORTS_PREVIEW_SIZE).catch(() => ({ content: [], totalElements: 0 })),
+
           fetchPublicStatsOverview().catch(() => null),
+
         ]);
+
         if (cancelled) return;
-        setReports(rep.content || []);
+
         setTotalMyReports(rep.totalElements ?? (rep.content || []).length);
+
+        setPreviewTitles((rep.content || []).map((r) => r.title).filter(Boolean));
+
         setPublicOverview(overview);
-      } catch (e) {
-        console.error('Akış yüklenemedi', e);
-        if (!cancelled) {
-          setReports([]);
-          setTotalMyReports(0);
-          setPublicError(true);
-        }
+
       } finally {
-        if (!cancelled) setLoading(false);
+
+        if (!cancelled) setReportsLoading(false);
+
       }
+
     })();
+
     return () => {
+
       cancelled = true;
+
     };
+
   }, []);
 
-  useEffect(() => {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setUserLat(pos.coords.latitude);
-        setUserLng(pos.coords.longitude);
-      },
-      () => {},
-      { enableHighAccuracy: false, timeout: 12000 },
-    );
-  }, []);
 
-  const cardBorder = isDark ? 'border-slate-700 bg-slate-800/90' : 'border-slate-200/90 bg-white';
-  const muted = isDark ? 'text-slate-400' : 'text-slate-600';
-  const sortedReports = [...reports].sort((a, b) => reportUrgencyScore(b) - reportUrgencyScore(a));
+
+  const card = isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white';
+
+  const muted = isDark ? 'text-slate-400' : 'text-slate-500';
+
+
+
+  const reportsCard = (
+
+    <button
+
+      type="button"
+
+      onClick={onViewMyReports}
+
+      className={`w-full rounded-2xl border p-4 text-left transition active:scale-[0.99] ${
+
+        isDark
+
+          ? 'border-primary/30 bg-primary/10 hover:border-primary/40'
+
+          : 'border-primary/15 bg-white shadow-sm hover:border-primary/25'
+
+      }`}
+
+    >
+
+      <motion.div className="flex items-center gap-3">
+
+        <motion.div
+
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
+
+            isDark ? 'bg-primary/25 text-sky-300' : 'bg-primary/10 text-primary'
+
+          }`}
+
+        >
+
+          <ClipboardList className="h-5 w-5" />
+
+        </motion.div>
+
+        <motion.div className="min-w-0 flex-1">
+
+          <p className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+
+            {t('home.reports.cardTitle', lang)}
+
+          </p>
+
+          {reportsLoading ? (
+
+            <p className={`mt-0.5 text-xs ${muted}`}>…</p>
+
+          ) : (
+
+            <>
+
+              <p className={`mt-0.5 text-xs ${muted}`}>
+
+                {t('home.reports.count', lang, { n: totalMyReports })}
+
+              </p>
+
+              {previewTitles.length > 0 && (
+
+                <p className={`mt-1 truncate text-[11px] ${muted}`}>{previewTitles[0]}</p>
+
+              )}
+
+            </>
+
+          )}
+
+        </motion.div>
+
+        <motion.div className="flex shrink-0 flex-col items-end gap-0.5">
+
+          <span className="text-xs font-bold text-primary">{t('home.reports.viewAll', lang)}</span>
+
+          <ChevronRight className="h-4 w-4 text-primary" />
+
+        </motion.div>
+
+      </motion.div>
+
+    </button>
+
+  );
+
+
 
   return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-5 pb-8">
-      {homeMunicipality?.onboarded ? (
-        <HomeWidgets
-          tenant={homeMunicipality}
-          userLat={userLat}
-          userLng={userLng}
-          lang={lang}
-          isDark={isDark}
-          onReport={() => onNavigate('report')}
-        />
-      ) : null}
-      {!homeMunicipality?.onboarded && (
-      <div className="relative overflow-hidden mx-4 rounded-2xl bg-gradient-to-br from-primary via-primary to-primary-dark p-5 text-white shadow-lg shadow-primary/20 ring-1 ring-white/10">
-        <div
-          className="pointer-events-none absolute -right-8 top-0 h-32 w-32 rounded-full bg-secondary/25 blur-2xl"
-          aria-hidden
-        />
-        <div className="relative z-10">
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/70">{t('app.name', lang)}</p>
-          <h2 className="mt-1 text-lg font-extrabold tracking-tight">{t('home.hero.title', lang)}</h2>
-          <p className="mt-2 text-sm font-medium leading-relaxed text-white/90">{t('home.hero.desc', lang)}</p>
-          <button
-            type="button"
-            onClick={() => onNavigate('report')}
-            className="mt-4 rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-slate-900 shadow-md transition-transform active:scale-[0.98]"
-          >
-            {t('home.hero.btn', lang)}
-          </button>
+
+    <motion.div
+
+      initial={{ opacity: 0 }}
+
+      animate={{ opacity: 1 }}
+
+      className={`pb-8 ${isDark ? 'bg-slate-900' : 'bg-gradient-to-b from-sky-50/80 via-violet-50/25 to-slate-50'}`}
+
+    >
+
+      {!homeMunicipality?.id ? (
+
+        <div className="px-4 pt-4">
+
+          <motion.div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 dark:border-primary/30 dark:bg-primary/10">
+
+            <motion.div className="flex gap-3">
+
+              <motion.div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+
+                <Building2 className="h-6 w-6" />
+
+              </motion.div>
+
+              <motion.div className="min-w-0 flex-1">
+
+                <p className="text-sm font-bold text-slate-900 dark:text-white">
+
+                  {t('home.municipalityBanner.title', lang)}
+
+                </p>
+
+                <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+
+                  {t('home.municipalityBanner.desc', lang)}
+
+                </p>
+
+                {onSelectMunicipality ? (
+
+                  <button
+
+                    type="button"
+
+                    onClick={onSelectMunicipality}
+
+                    className="mt-3 inline-flex items-center gap-1 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-white active:scale-[0.98]"
+
+                  >
+
+                    {t('home.selectMunicipality', lang)}
+
+                    <ChevronRight className="h-4 w-4" />
+
+                  </button>
+
+                ) : null}
+
+              </motion.div>
+
+            </motion.div>
+
+          </motion.div>
+
         </div>
-        <div className="pointer-events-none absolute -bottom-8 -right-4 opacity-[0.12]" aria-hidden>
-          <AlertCircle className="h-28 w-28" />
+
+      ) : (
+
+        <div className="space-y-4 px-4 pt-4">
+
+          {reportsCard}
+
+          <HomeWidgets tenant={homeMunicipality} lang={lang} isDark={isDark} />
+
         </div>
-      </div>
+
       )}
 
-      {/* Kamu istatistikleri */}
-      <section className={`mx-4 rounded-2xl border p-4 shadow-sm ${cardBorder}`} aria-label={t('home.public.title', lang)}>
-        <div className="mb-3 flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/15">
-            <Sparkles className="h-4 w-4" strokeWidth={2} />
-          </div>
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-primary">{t('home.public.eyebrow', lang)}</p>
-            <h3 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{t('home.public.title', lang)}</h3>
-          </div>
-        </div>
-        {publicError || !publicOverview ? (
-          <p className={`text-xs font-medium ${muted}`}>{t('home.public.loadError', lang)}</p>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className={`rounded-xl border p-3 ${isDark ? 'border-slate-600 bg-slate-900/50' : 'border-slate-100 bg-slate-50'}`}>
-              <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                {t('home.public.total', lang)}
-              </p>
-              <p className={`mt-1 text-lg font-extrabold tabular-nums ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                {publicOverview.totalReports}
-              </p>
-            </div>
-            <div className={`rounded-xl border p-3 ${isDark ? 'border-slate-600 bg-slate-900/50' : 'border-slate-100 bg-slate-50'}`}>
-              <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                {t('home.public.resolved', lang)}
-              </p>
-              <p className={`mt-1 text-lg font-extrabold tabular-nums ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                {publicOverview.resolvedReports}
-              </p>
-            </div>
-            <div className={`rounded-xl border p-3 ${isDark ? 'border-slate-600 bg-slate-900/50' : 'border-slate-100 bg-slate-50'}`}>
-              <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                {t('home.public.rate', lang)}
-              </p>
-              <p className={`mt-1 text-lg font-extrabold tabular-nums text-primary`}>
-                %{publicOverview.resolutionRatePercent}
-              </p>
-            </div>
-            <div className={`rounded-xl border p-3 ${isDark ? 'border-slate-600 bg-slate-900/50' : 'border-slate-100 bg-slate-50'}`}>
-              <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                {t('home.public.municipalities', lang)}
-              </p>
-              <p className={`mt-1 text-lg font-extrabold tabular-nums ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                {publicOverview.onboardedMunicipalityCount}
-              </p>
-            </div>
-          </div>
-        )}
-      </section>
 
-      {/* Ä°puÃ§larÄ± */}
-      <section className={`mx-4 rounded-2xl border p-4 shadow-sm ${cardBorder}`}>
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-primary">{t('home.tips.eyebrow', lang)}</p>
-        <h3 className={`mt-1 text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{t('home.tips.title', lang)}</h3>
-        <ul className={`mt-3 space-y-2 text-xs font-medium leading-relaxed ${muted}`}>
-          <li className="flex gap-2">
-            <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-            {t('home.tips.a', lang)}
-          </li>
-          <li className="flex gap-2">
-            <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-secondary" />
-            {t('home.tips.b', lang)}
-          </li>
-          <li className="flex gap-2">
-            <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-            {t('home.tips.c', lang)}
-          </li>
-        </ul>
-      </section>
 
-      {/* Bildirimler listesi */}
-      <div>
-        <div className="mb-3 px-0.5">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-primary">{t('home.reports.sectionEyebrow', lang)}</p>
-          <h3 className={`mt-1 flex items-center justify-between text-base font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-800'}`}>
-            <span>{t('home.reports.title', lang)}</span>
-            <span className={`text-xs font-semibold ${muted}`}>{t('home.reports.count', lang, { n: totalMyReports })}</span>
-          </h3>
+      {publicOverview && (
+
+        <div className="mt-5 px-4">
+
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+
+            <div className={`shrink-0 rounded-xl border px-3 py-2 ${card}`}>
+
+              <p className="text-[9px] font-bold uppercase text-slate-400">{t('home.public.total', lang)}</p>
+
+              <p className="text-base font-extrabold tabular-nums">{publicOverview.totalReports}</p>
+
+            </div>
+
+            <div className={`shrink-0 rounded-xl border px-3 py-2 ${card}`}>
+
+              <p className="text-[9px] font-bold uppercase text-slate-400">{t('home.public.resolved', lang)}</p>
+
+              <p className="text-base font-extrabold tabular-nums text-emerald-600">{publicOverview.resolvedReports}</p>
+
+            </div>
+
+            <div className={`shrink-0 rounded-xl border px-3 py-2 ${card}`}>
+
+              <p className="text-[9px] font-bold uppercase text-slate-400">{t('home.public.rate', lang)}</p>
+
+              <p className="text-base font-extrabold tabular-nums text-primary">%{publicOverview.resolutionRatePercent}</p>
+
+            </div>
+
+          </div>
+
         </div>
 
-        {loading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className={`animate-pulse rounded-2xl border p-4 ${isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'}`}
-              >
-                <div className="flex gap-3">
-                  <div className={`h-10 w-10 rounded-xl ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`} />
-                  <div className="flex-1 space-y-2">
-                    <div className={`h-4 w-3/4 rounded ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`} />
-                    <div className={`h-3 w-1/2 rounded ${isDark ? 'bg-slate-700/50' : 'bg-slate-100'}`} />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : reports.length === 0 ? (
-          <div
-            className={`rounded-2xl border py-12 text-center ${isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'}`}
-          >
-            <HardHat className="mx-auto mb-3 h-12 w-12 text-slate-300 dark:text-slate-600" />
-            <p className={`text-sm font-semibold ${muted}`}>{t('home.reports.empty.title', lang)}</p>
-            <p className={`mt-1 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{t('home.reports.empty.desc', lang)}</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {sortedReports.map((report, idx) => (
-              <motion.div
-                key={report.id}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: Math.min(idx * 0.04, 0.35) }}
-                role={onOpenReport ? 'button' : undefined}
-                tabIndex={onOpenReport ? 0 : undefined}
-                onClick={() => onOpenReport?.(report.id)}
-                onKeyDown={(ev) => {
-                  if (onOpenReport && (ev.key === 'Enter' || ev.key === ' ')) {
-                    ev.preventDefault();
-                    onOpenReport(report.id);
-                  }
-                }}
-                className={`flex flex-col gap-3 rounded-2xl border p-4 shadow-sm transition-colors ${
-                  onOpenReport ? `cursor-pointer active:scale-[0.99] ${isDark ? 'hover:border-slate-600' : 'hover:border-slate-300'}` : ''
-                } ${isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200/90 bg-white'}`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex min-w-0 gap-3">
-                    <div
-                      className={`shrink-0 rounded-xl border p-2.5 ${isDark ? 'border-slate-600 bg-slate-900 text-slate-400' : 'border-slate-100 bg-slate-50 text-slate-600'}`}
-                    >
-                      {getCategoryIcon(report.categoryName)}
-                    </div>
-                    <div className="min-w-0">
-                      <h4 className={`truncate text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{report.title}</h4>
-                      <p className={`mt-0.5 truncate text-xs ${muted}`}>{report.categoryName}</p>
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    <SlaIndicator createdAt={report.createdAt} aiSlaRisk={report.aiSlaRisk} lang={lang} compact />
-                    {report.aiPriority && <AiPriorityBadge priority={report.aiPriority} lang={lang} />}
-                    <StatusBadge status={report.status} lang={lang} />
-                  </div>
-                </div>
+      )}
 
-                <div
-                  className={`flex items-center justify-between border-t pt-2 text-xs ${isDark ? 'border-slate-700 text-slate-500' : 'border-slate-100 text-slate-500'}`}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="h-3.5 w-3.5 shrink-0" />
-                    <span>
-                      {new Date(report.createdAt).toLocaleDateString(lang === 'tr' ? 'tr-TR' : lang === 'ar' ? 'ar' : 'en-US', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
-                    </span>
-                  </div>
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    <MapPin className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{report.district || `${report.latitude?.toFixed(3)}, ${report.longitude?.toFixed(3)}`}</span>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        )}
-      </div>
     </motion.div>
+
   );
+
 }
+

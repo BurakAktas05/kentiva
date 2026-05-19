@@ -29,8 +29,13 @@ springdoc.api-docs.enabled=true
 logging.level.com.burak.belediyeapp=DEBUG
 spring.jpa.show-sql=true
 
+# Mobil Vite (LAN IP / 127.0.0.1) — tarayici dogrudan API'ye giderse
+app.cors.allowed-origin-patterns=http://localhost:*,http://127.0.0.1:*,http://192.168.*.*:*,http://10.*.*.*:*
+
 # Opsiyonel — AI / SMS / Firebase / widget (.env ile de verilebilir)
-# ECZANE_API_KEY=   # https://eczaneapi.com — nöbetçi eczane (resmi kaynak)
+# Nöbetçi eczane — ücretsiz plan: https://eczaneapi.com/dashboard (ayda ~200 istek)
+# Anahtarsız yedek: eczaneler.gen.tr scrape (otomatik)
+# ECZANE_API_KEY=your-key-here
 # GEMINI_API_KEY=   # kök .env — Google AI Studio
 # GEMINI_MODEL=gemini-2.5-flash
 # app.sms.provider=none

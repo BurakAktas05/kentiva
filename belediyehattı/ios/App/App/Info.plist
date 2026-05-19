@@ -48,7 +48,7 @@
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Bildirimin konumunu belirlemek ve size yakın belediyeleri göstermek için konum kullanılır.</string>
+	<string>Hava durumu, nöbetçi eczane, bildirim konumu ve size yakın belediyeler için konum kullanılır.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Bildirime fotoğraf eklemek için kamera erişimi gerekir.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

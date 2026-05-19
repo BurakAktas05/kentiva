@@ -1,10 +1,12 @@
 package com.burak.belediyeapp.service.widget;
 
+import com.burak.belediyeapp.config.CacheNames;
 import com.burak.belediyeapp.dto.response.widget.PharmacyWidgetItem;
 import com.burak.belediyeapp.entity.Municipality;
 import com.burak.belediyeapp.service.geo.NominatimReverseGeocodeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -19,12 +21,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Ücretsiz, anahtarsız nöbetçi eczane kaynağı (eczaneler.gen.tr — Türkiye Eczacılar Odalarının
- * yayımladığı listeleri toplayan kamu sayfası).
- *
- * URL şablonu: https://www.eczaneler.gen.tr/nobetci-{il-slug}-{ilce-slug}
- * Yalnızca "bugün açık" (tab id="nav-bugun") sekmesindeki eczaneleri çekeriz —
- * tüm eczaneler değil, sadece o günün nöbet listesi.
+ * Free, no-key on-duty pharmacy source backed by eczaneler.gen.tr.
+ * We only surface the currently active on-duty list and ignore nearby fallback rows.
  */
 @Service
 @RequiredArgsConstructor
@@ -33,21 +31,29 @@ public class EczanelerGenTrService {
 
     private static final String BASE = "https://www.eczaneler.gen.tr";
 
-    // <div ... id="nav-bugun" ...> ... </div>  (aktif "bugün" sekmesi)
     private static final Pattern TODAY_TAB = Pattern.compile(
-            "id=\"nav-bugun\"[^>]*>(.*?)(?=<div[^>]*id=\"nav-yarin\"|</div>\\s*</div>\\s*</div>)",
+            "<div[^>]*id=\"nav-bugun\"[^>]*>(.*?)</table>\\s*</div>",
             Pattern.DOTALL);
 
-    // Her eczane satırı bir <tr><td colspan="3"> ... </td></tr> içinde.
+    private static final Pattern FIRST_RESULTS_TABLE = Pattern.compile(
+            "<table class=\"table table-striped mt-2\"[^>]*>(.*?)</table>",
+            Pattern.DOTALL);
+
+    private static final Pattern NO_ON_DUTY = Pattern.compile(
+            "açık\\s*<b><u>\\s*nöbetçi eczane bulunmuyor\\s*</u></b>|nöbetçi eczane bulunmuyor",
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+
+    private static final Pattern NEARBY_SECTION = Pattern.compile(
+            "<h3[^>]*>.*?En Yakın Nöbetçi Eczaneler.*?</h3>",
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE | Pattern.DOTALL);
+
     private static final Pattern ROW = Pattern.compile(
             "<tr>\\s*<td[^>]*colspan=\"3\"[^>]*>(.*?)</td>\\s*</tr>",
             Pattern.DOTALL);
 
-    private static final Pattern NAME      = Pattern.compile("<span class=\"isim\">([^<]+)</span>");
+    private static final Pattern NAME = Pattern.compile("<span class=\"isim\">([^<]+)</span>");
     private static final Pattern PHONE_COL = Pattern.compile(
             "<div class=['\"]col-lg-3 py-lg-2['\"]>([^<]+)</div>");
-    // col-lg-6 içinde iç içe div'ler var; non-greedy `(.*?)</div>` ilk iç div'de durur.
-    // Bir sonraki kardeş kolon (phone) her zaman 'col-lg-3 py-lg-2' ile başlar; ona kadar yakalıyoruz.
     private static final Pattern ADDRESS_COL = Pattern.compile(
             "<div class=['\"]col-lg-6['\"]>(.*?)<div class=['\"]col-lg-3 py-lg-2['\"]>",
             Pattern.DOTALL);
@@ -66,36 +72,33 @@ public class EczanelerGenTrService {
             .defaultHeader("Accept-Language", "tr,en;q=0.8")
             .build();
 
-    /**
-     * @param municipality   Belediye (widgetCitySlug / widgetDistrictSlug öncelikli)
-     * @param userLat / userLng  konumdan slug çözmek için (slug yoksa)
-     * @param limit  döndürülen maksimum kayıt
-     * @return on-duty eczane listesi; sayfa bulunamazsa boş
-     */
+    @Cacheable(
+            value = CacheNames.DUTY_PHARMACY,
+            key = "'gen:' + T(com.burak.belediyeapp.service.widget.DutyPharmacyCacheKeys).key(#municipality.id, #municipality.widgetCitySlug, #municipality.widgetDistrictSlug)")
     public List<PharmacyWidgetItem> fetchOnDuty(
             Municipality municipality, double userLat, double userLng, int limit) {
 
-        String citySlug = municipality.getWidgetCitySlug();
-        String districtSlug = municipality.getWidgetDistrictSlug();
+        String resolvedCity = municipality.getWidgetCitySlug();
+        String resolvedDistrict = municipality.getWidgetDistrictSlug();
 
-        if (citySlug == null || citySlug.isBlank() || districtSlug == null || districtSlug.isBlank()) {
+        if (resolvedCity == null || resolvedCity.isBlank() || resolvedDistrict == null || resolvedDistrict.isBlank()) {
             Optional<NominatimReverseGeocodeService.AdminArea> area =
                     geocodeService.resolve(userLat, userLng);
             if (area.isEmpty()) {
-                log.debug("Eczaneler.gen.tr: slug çözülemedi (Nominatim boş)");
+                log.debug("Eczaneler.gen.tr: slug could not be resolved from coordinates.");
                 return List.of();
             }
-            if (citySlug == null || citySlug.isBlank()) {
-                citySlug = area.get().provinceSlug();
+            if (resolvedCity == null || resolvedCity.isBlank()) {
+                resolvedCity = area.get().provinceSlug();
             }
-            if (districtSlug == null || districtSlug.isBlank()) {
-                districtSlug = area.get().districtSlug();
+            if (resolvedDistrict == null || resolvedDistrict.isBlank()) {
+                resolvedDistrict = area.get().districtSlug();
             }
         }
-        if (citySlug == null || citySlug.isBlank()) {
+        if (resolvedCity == null || resolvedCity.isBlank()) {
             return List.of();
         }
-        return fetch(citySlug, districtSlug, limit);
+        return fetch(resolvedCity, resolvedDistrict, limit);
     }
 
     private List<PharmacyWidgetItem> fetch(String citySlug, String districtSlug, int limit) {
@@ -103,8 +106,6 @@ public class EczanelerGenTrService {
                 + (districtSlug != null && !districtSlug.isBlank() ? "-" + districtSlug : "");
         URI uri = UriComponentsBuilder.fromUriString(BASE + path).build().encode().toUri();
         try {
-            // Sunucu Content-Type'da charset bildirmediği için Spring varsayılan ISO-8859-1'e düşer
-            // ve Türkçe karakterler bozulur. Bayt olarak çek, UTF-8 olarak yorumla.
             byte[] bytes = http.get().uri(uri).retrieve().body(byte[].class);
             if (bytes == null || bytes.length == 0) {
                 return List.of();
@@ -112,15 +113,20 @@ public class EczanelerGenTrService {
             String html = new String(bytes, StandardCharsets.UTF_8);
             return parse(html, limit);
         } catch (Exception e) {
-            log.warn("Eczaneler.gen.tr çağrısı başarısız ({}): {}", uri, e.getMessage());
+            log.warn("Eczaneler.gen.tr call failed ({}): {}", uri, e.getMessage());
             return List.of();
         }
     }
 
     List<PharmacyWidgetItem> parse(String html, int limit) {
-        // Aktif "bugün" sekmesini ayıkla
-        Matcher tabM = TODAY_TAB.matcher(html);
-        String body = tabM.find() ? tabM.group(1) : html;
+        String body = extractTodaySection(html);
+        if (body == null || body.isBlank()) {
+            return List.of();
+        }
+        if (NO_ON_DUTY.matcher(body).find()) {
+            return List.of();
+        }
+        body = trimBeforeNearbySection(body);
 
         List<PharmacyWidgetItem> items = new ArrayList<>();
         Matcher rowM = ROW.matcher(body);
@@ -137,11 +143,12 @@ public class EczanelerGenTrService {
             items.add(new PharmacyWidgetItem(
                     decodeEntities(name.trim()),
                     address,
-                    null,                                    // mesafe — sayfa koordinat içermez
-                    null, null,
-                    true,                                    // nöbetçi listesi
+                    null,
+                    null,
+                    null,
+                    true,
                     phone != null && !phone.isBlank() ? phone : null,
-                    true));                                  // doğrulanmış (resmi liste)
+                    true));
             if (items.size() >= limit) {
                 break;
             }
@@ -149,28 +156,53 @@ public class EczanelerGenTrService {
         return items;
     }
 
+    private static String extractTodaySection(String html) {
+        Matcher tabM = TODAY_TAB.matcher(html);
+        if (tabM.find()) {
+            return tabM.group(1);
+        }
+        Matcher tableM = FIRST_RESULTS_TABLE.matcher(html);
+        return tableM.find() ? tableM.group(1) : null;
+    }
+
+    private static String trimBeforeNearbySection(String html) {
+        Matcher nearbyM = NEARBY_SECTION.matcher(html);
+        return nearbyM.find() ? html.substring(0, nearbyM.start()) : html;
+    }
+
     private static String extractAddress(String row) {
         Matcher m = ADDRESS_COL.matcher(row);
-        if (!m.find()) return "";
+        if (!m.find()) {
+            return "";
+        }
         String col = m.group(1);
 
-        // İlk <br> ya da <div>'e kadar olan kısım açık sokak adresidir.
         int cut = col.indexOf("<br>");
-        if (cut < 0) cut = col.indexOf("<br/>");
-        if (cut < 0) cut = col.indexOf("<div");
+        if (cut < 0) {
+            cut = col.indexOf("<br/>");
+        }
+        if (cut < 0) {
+            cut = col.indexOf("<div");
+        }
         String streetLine = (cut > 0 ? col.substring(0, cut) : col).trim();
 
         String italic = extract(ITALIC_DESC, col);
         String hood = extract(NEIGHBORHOOD, col);
 
         StringBuilder sb = new StringBuilder();
-        if (!streetLine.isBlank()) sb.append(decodeEntities(stripTags(streetLine).trim()));
+        if (!streetLine.isBlank()) {
+            sb.append(decodeEntities(stripTags(streetLine).trim()));
+        }
         if (italic != null && !italic.isBlank()) {
-            if (sb.length() > 0) sb.append(" — ");
+            if (sb.length() > 0) {
+                sb.append(" - ");
+            }
             sb.append(decodeEntities(stripTags(italic).trim()));
         }
         if (hood != null && !hood.isBlank()) {
-            if (sb.length() > 0) sb.append(" · ");
+            if (sb.length() > 0) {
+                sb.append(" · ");
+            }
             sb.append(decodeEntities(hood.trim()));
         }
         return sb.toString();
@@ -190,7 +222,9 @@ public class EczanelerGenTrService {
     }
 
     private static String decodeEntities(String s) {
-        if (s == null) return null;
+        if (s == null) {
+            return null;
+        }
         return s
                 .replace("&raquo;", "»")
                 .replace("&apos;", "'")

@@ -2,7 +2,7 @@
 // BelediyeApp API Service — Backend Integration
 // ============================================
 
-import { resolveApiBase } from './lib/apiBase';
+import { apiOriginFromBase, clearStaleApiOverrideIfNeeded, resolveApiBase } from './lib/apiBase';
 
 const AUTH_PATHS = [
   '/auth/login',
@@ -23,7 +23,7 @@ export function apiBase(): string {
 /** Göreli imzalı medya yolunu tam URL yapar (img src için). Sunucunun localhost tabanlı imzasını istemci API köküne çevirir. */
 export function resolveMediaUrl(url: string | null | undefined): string {
   if (!url) return '';
-  const origin = apiBase().replace(/\/api\/v1\/?$/i, '') || 'http://localhost:8080';
+  const origin = apiOriginFromBase(apiBase());
 
   const accessMatch = url.match(/\/api\/v1\/media\/access\?token=[^&\s]+/);
   if (accessMatch) {
@@ -297,7 +297,7 @@ async function tryRefreshToken(): Promise<boolean> {
     try {
       const res = await fetch(`${apiBase()}/auth/refresh`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken: refresh }),
       });
       const json = await parseJsonBody(res);
@@ -333,7 +333,6 @@ async function handleUnauthorized(path: string): Promise<never> {
 async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'ngrok-skip-browser-warning': 'true',
     ...(opts.headers as Record<string, string> || {}),
   };
   const token = getToken();
@@ -369,7 +368,7 @@ async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
 
 async function publicFetch<T>(path: string): Promise<T> {
   const res = await fetch(`${apiBase()}${path}`, {
-    headers: { 'ngrok-skip-browser-warning': 'true' },
+    headers: {},
   });
   const json = await parseJsonBody(res);
   if (!res.ok || !json.success) {
@@ -419,7 +418,7 @@ export async function resolveMunicipalityByGps(lat: number, lng: number): Promis
 export async function login(email: string, password: string): Promise<AuthUser> {
   const res = await fetch(`${apiBase()}/auth/login`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   });
   const json = await parseJsonBody(res);
@@ -502,7 +501,7 @@ export async function uploadMedia(file: File): Promise<string[]> {
   const attempt = async () => {
     const formData = new FormData();
     formData.append('files', file);
-    const headers: Record<string, string> = { 'ngrok-skip-browser-warning': 'true' };
+    const headers: Record<string, string> = {};
     const token = getToken();
     if (token) headers['Authorization'] = `Bearer ${token}`;
     return fetch(`${apiBase()}/reports/upload`, { method: 'POST', headers, body: formData });

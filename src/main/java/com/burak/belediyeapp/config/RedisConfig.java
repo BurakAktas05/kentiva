@@ -63,7 +63,8 @@ public class RedisConfig {
         Map<String, RedisCacheConfiguration> perCache = Map.of(
                 CacheNames.CATEGORIES, base.entryTtl(Duration.ofMinutes(30)),
                 CacheNames.PUBLIC_MUNICIPALITIES, base.entryTtl(Duration.ofHours(2)),
-                CacheNames.MUNICIPALITIES, base.entryTtl(Duration.ofMinutes(15)));
+                CacheNames.MUNICIPALITIES, base.entryTtl(Duration.ofMinutes(15)),
+                CacheNames.DUTY_PHARMACY, base.entryTtl(Duration.ofHours(6)));
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(base)

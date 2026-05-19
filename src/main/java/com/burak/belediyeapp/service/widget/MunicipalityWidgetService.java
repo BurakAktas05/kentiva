@@ -39,8 +39,13 @@ public class MunicipalityWidgetService {
     public HomeWidgetsResponse homeBundle(String municipalityId, double lat, double lng) {
         Municipality m = loadMunicipality(municipalityId);
 
-        double widgetLat = m.getCenterLat() != null ? m.getCenterLat() : lat;
-        double widgetLng = m.getCenterLng() != null ? m.getCenterLng() : lng;
+        boolean hasUserCoords = hasUsableCoordinates(lat, lng);
+        double widgetLat = hasUserCoords
+                ? lat
+                : (m.getCenterLat() != null ? m.getCenterLat() : lat);
+        double widgetLng = hasUserCoords
+                ? lng
+                : (m.getCenterLng() != null ? m.getCenterLng() : lng);
 
         WeatherWidgetResponse weather = weatherService.fetch(widgetLat, widgetLng);
         EczaneApiDutyPharmacyService.PharmacyQueryResult pharmacyResult =
@@ -72,6 +77,13 @@ public class MunicipalityWidgetService {
                 pharmacyDataSource,
                 outages,
                 events);
+    }
+
+    private static boolean hasUsableCoordinates(double lat, double lng) {
+        return Double.isFinite(lat)
+                && Double.isFinite(lng)
+                && lat >= -90 && lat <= 90
+                && lng >= -180 && lng <= 180;
     }
 
     @Transactional(readOnly = true)

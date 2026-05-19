@@ -7,7 +7,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import com.burak.belediyeapp.config.CacheNames;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -31,10 +34,17 @@ public class EczaneApiDutyPharmacyService {
     private String apiKey;
 
     private final NominatimReverseGeocodeService geocodeService;
-    private final RestClient client = RestClient.create();
+    private final RestClient client = RestClient.builder()
+            .requestFactory(factory())
+            .defaultHeader("Accept", "application/json")
+            .build();
 
     public record PharmacyQueryResult(List<PharmacyWidgetItem> pharmacies, String dataSource, boolean configured) {}
 
+    @Cacheable(
+            value = CacheNames.DUTY_PHARMACY,
+            key = "T(com.burak.belediyeapp.service.widget.DutyPharmacyCacheKeys).key(#municipality.id, #municipality.widgetCitySlug, #municipality.widgetDistrictSlug)",
+            unless = "#result == null || !#result.configured()")
     public PharmacyQueryResult findOnDuty(Municipality municipality, double lat, double lng, int limit) {
         if (apiKey == null || apiKey.isBlank()) {
             return new PharmacyQueryResult(List.of(), null, false);
@@ -43,19 +53,20 @@ public class EczaneApiDutyPharmacyService {
         if (!nearby.isEmpty()) {
             return new PharmacyQueryResult(nearby, "EczaneAPI — nöbetçi eczane (konum)", true);
         }
-        String citySlug = municipality.getWidgetCitySlug();
-        String districtSlug = municipality.getWidgetDistrictSlug();
-        if (citySlug == null || citySlug.isBlank()) {
+        String resolvedCity = municipality.getWidgetCitySlug();
+        String resolvedDistrict = municipality.getWidgetDistrictSlug();
+        if (resolvedCity == null || resolvedCity.isBlank()) {
             Optional<NominatimReverseGeocodeService.AdminArea> area = geocodeService.resolve(lat, lng);
             if (area.isPresent()) {
-                citySlug = area.get().provinceSlug();
-                districtSlug = area.get().districtSlug();
+                resolvedCity = area.get().provinceSlug();
+                resolvedDistrict = area.get().districtSlug();
             }
         }
-        if (citySlug == null || citySlug.isBlank()) {
+        if (resolvedCity == null || resolvedCity.isBlank()) {
             return new PharmacyQueryResult(List.of(), "EczaneAPI", true);
         }
-        List<PharmacyWidgetItem> byDistrict = fetchOnDutyByDistrict(citySlug, districtSlug, lat, lng, limit);
+        List<PharmacyWidgetItem> byDistrict =
+                fetchOnDutyByDistrict(resolvedCity, resolvedDistrict, lat, lng, limit);
         return new PharmacyQueryResult(byDistrict, "EczaneAPI — nöbetçi eczane (il/ilçe)", true);
     }
 
@@ -153,5 +164,12 @@ public class EczaneApiDutyPharmacyService {
                 + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
                 * Math.sin(dLon / 2) * Math.sin(dLon / 2);
         return r * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    private static SimpleClientHttpRequestFactory factory() {
+        SimpleClientHttpRequestFactory f = new SimpleClientHttpRequestFactory();
+        f.setConnectTimeout(6_000);
+        f.setReadTimeout(10_000);
+        return f;
     }
 }

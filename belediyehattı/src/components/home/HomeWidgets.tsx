@@ -1,14 +1,18 @@
-import { useEffect, useState } from 'react';
-import { motion } from 'motion/react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
-  AlertTriangle,
-  Calendar,
+  CalendarDays,
   Cloud,
+  CloudFog,
+  CloudLightning,
+  CloudRain,
+  CloudSnow,
+  CloudSun,
   Droplets,
   ExternalLink,
-  MapPin,
+  Navigation,
   Pill,
-  Plus,
+  RefreshCw,
+  Sun,
   Wind,
   Zap,
 } from 'lucide-react';
@@ -16,72 +20,230 @@ import {
   fetchHomeWidgets,
   type HomeWidgetsBundle,
   type PublicTenant,
+  type WeatherWidget,
 } from '../../api';
-import { Lang } from '../../i18n';
+import { openMapsNavigation } from '../../lib/deviceLocation';
+import { Lang, t } from '../../i18n';
 
 type Props = {
   tenant: PublicTenant;
-  userLat: number | null;
-  userLng: number | null;
   lang: Lang;
   isDark: boolean;
-  onReport: () => void;
 };
 
 const OFFICIAL_PHARMACY_URL = 'https://www.turkiye.gov.tr/saglik-nobetci-eczane-arama';
 
-export default function HomeWidgets({ tenant, userLat, userLng, lang, isDark, onReport }: Props) {
+function weatherVisual(code: number | null | undefined, className: string): ReactNode {
+  const c = code ?? -1;
+  if (c === 0) return <Sun className={className} strokeWidth={1.5} />;
+  if (c >= 1 && c <= 3) return <CloudSun className={className} strokeWidth={1.5} />;
+  if (c === 45 || c === 48) return <CloudFog className={className} strokeWidth={1.5} />;
+  if ((c >= 51 && c <= 67) || (c >= 80 && c <= 82)) return <CloudRain className={className} strokeWidth={1.5} />;
+  if ((c >= 71 && c <= 77) || (c >= 85 && c <= 86)) return <CloudSnow className={className} strokeWidth={1.5} />;
+  if (c >= 95) return <CloudLightning className={className} strokeWidth={1.5} />;
+  return <Cloud className={className} strokeWidth={1.5} />;
+}
+
+function weatherCardTheme(code: number | null | undefined, isDark: boolean): string {
+  if (isDark) return 'border-sky-800/60 bg-gradient-to-br from-sky-950 via-slate-900 to-slate-900';
+  const c = code ?? -1;
+  if (c === 0) return 'border-amber-200/80 bg-gradient-to-br from-amber-100 via-sky-50 to-sky-100';
+  if (c >= 95) return 'border-violet-200/80 bg-gradient-to-br from-violet-100 via-slate-100 to-sky-100';
+  if ((c >= 61 && c <= 82) || (c >= 51 && c <= 57)) return 'border-sky-300/80 bg-gradient-to-br from-sky-200/70 via-sky-50 to-blue-50';
+  if ((c >= 71 && c <= 86)) return 'border-slate-200 bg-gradient-to-br from-slate-100 via-sky-50 to-white';
+  return 'border-sky-200/80 bg-gradient-to-br from-sky-100 via-white to-sky-50';
+}
+
+function WidgetHeader({
+  icon,
+  title,
+  accent,
+  isDark,
+}: {
+  icon: ReactNode;
+  title: string;
+  accent: 'sky' | 'violet' | 'emerald';
+  isDark: boolean;
+}) {
+  const tones = {
+    sky: isDark
+      ? 'bg-sky-500/20 text-sky-300'
+      : 'bg-sky-500/15 text-sky-700',
+    violet: isDark
+      ? 'bg-violet-500/20 text-violet-300'
+      : 'bg-violet-500/15 text-violet-700',
+    emerald: isDark
+      ? 'bg-emerald-500/20 text-emerald-300'
+      : 'bg-emerald-500/15 text-emerald-700',
+  };
+  return (
+    <div className="flex items-center gap-2.5">
+      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${tones[accent]}`}>
+        {icon}
+      </div>
+      <h3 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>{title}</h3>
+    </div>
+  );
+}
+
+function WeatherBlock({
+  loading,
+  weather,
+  lang,
+  isDark,
+  onRefresh,
+}: {
+  loading: boolean;
+  weather: WeatherWidget | undefined;
+  lang: Lang;
+  isDark: boolean;
+  onRefresh: () => void;
+}) {
+  const hasData = weather?.available && weather.temperatureC != null;
+  const theme = weatherCardTheme(weather?.weatherCode, isDark);
+
+  return (
+    <section className={`overflow-hidden rounded-2xl border shadow-sm ${theme}`}>
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-2">
+          <WidgetHeader
+            icon={<Cloud className="h-4 w-4" />}
+            title={t('home.widgets.weather', lang)}
+            accent="sky"
+            isDark={isDark}
+          />
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={loading}
+            aria-label={t('home.widgets.refresh', lang)}
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition active:scale-95 disabled:opacity-50 ${
+              isDark ? 'bg-slate-800 text-slate-300' : 'bg-white/70 text-sky-700 shadow-sm'
+            }`}
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="mt-4 flex gap-4">
+            <div className="h-20 w-20 animate-pulse rounded-2xl bg-white/40 dark:bg-slate-700/50" />
+            <div className="flex-1 space-y-2 pt-2">
+              <div className="h-10 w-24 animate-pulse rounded-lg bg-white/40 dark:bg-slate-700/50" />
+              <div className="h-4 w-32 animate-pulse rounded bg-white/40 dark:bg-slate-700/50" />
+            </div>
+          </div>
+        ) : hasData ? (
+          <div className="mt-3 flex items-center gap-4">
+            <div
+              className={`flex h-[5.5rem] w-[5.5rem] shrink-0 items-center justify-center rounded-2xl ${
+                isDark ? 'bg-sky-500/15 text-sky-200' : 'bg-white/60 text-sky-600 shadow-inner'
+              }`}
+              aria-hidden
+            >
+              {weatherVisual(weather.weatherCode, 'h-14 w-14')}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className={`text-5xl font-extrabold tabular-nums leading-none ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                {Math.round(weather.temperatureC!)}°
+              </p>
+              <p className={`mt-1 text-sm font-semibold ${isDark ? 'text-sky-100/90' : 'text-slate-700'}`}>
+                {weather.description}
+              </p>
+              <div className={`mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                {weather.apparentTemperatureC != null && (
+                  <span>
+                    {t('home.widgets.feelsLike', lang)}{' '}
+                    <strong className={isDark ? 'text-slate-200' : 'text-slate-800'}>
+                      {Math.round(weather.apparentTemperatureC)}°
+                    </strong>
+                  </span>
+                )}
+                {(weather.dailyMinC != null || weather.dailyMaxC != null) && (
+                  <span className="tabular-nums">
+                    {weather.dailyMinC != null && `↓${Math.round(weather.dailyMinC)}°`}
+                    {weather.dailyMaxC != null && ` ↑${Math.round(weather.dailyMaxC)}°`}
+                  </span>
+                )}
+                {weather.windSpeedKmh != null && (
+                  <span className="inline-flex items-center gap-1">
+                    <Wind className="h-3 w-3" />
+                    {Math.round(weather.windSpeedKmh)} km/s
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className={`mt-4 text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+            {t('home.widgets.weatherUnavailable', lang)}
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+export default function HomeWidgets({ tenant, lang, isDark }: Props) {
   const [bundle, setBundle] = useState<HomeWidgetsBundle | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const card = isDark
-    ? 'border-slate-700 bg-slate-800/95'
-    : 'border-slate-200/90 bg-white';
+  const widgetLat = tenant.centerLat;
+  const widgetLng = tenant.centerLng;
+
+  const loadWidgets = useCallback(async (signal?: { cancelled: boolean }) => {
+    if (!tenant.id || widgetLat == null || widgetLng == null) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const b = await fetchHomeWidgets(tenant.id, widgetLat, widgetLng);
+      if (!signal?.cancelled) setBundle(b);
+    } catch {
+      if (!signal?.cancelled) setBundle(null);
+    } finally {
+      if (!signal?.cancelled) setLoading(false);
+    }
+  }, [tenant.id, widgetLat, widgetLng]);
 
   useEffect(() => {
-    if (!tenant.id) {
-      setLoading(false);
-      return;
-    }
-    // GPS izni verilmemiş / başarısız ise belediye merkez koordinatına geri düşeriz —
-    // bu sayede hava durumu kartı her durumda görünür.
-    const lat = userLat ?? tenant.centerLat;
-    const lng = userLng ?? tenant.centerLng;
-    if (lat == null || lng == null) {
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    fetchHomeWidgets(tenant.id, lat, lng)
-      .then((b) => {
-        if (!cancelled) setBundle(b);
-      })
-      .catch(() => {
-        if (!cancelled) setBundle(null);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    const signal = { cancelled: false };
+    void loadWidgets(signal);
     return () => {
-      cancelled = true;
+      signal.cancelled = true;
     };
-  }, [tenant.id, tenant.centerLat, tenant.centerLng, userLat, userLng]);
+  }, [loadWidgets, refreshKey]);
 
   const outages = bundle?.outages ?? [];
   const weather = bundle?.weather;
   const pharmacies = bundle?.pharmacies ?? [];
   const events = bundle?.events ?? [];
-  const pharmacyConfigured = bundle?.pharmacyApiConfigured ?? false;
+  const hasOnDuty = pharmacies.some((p) => p.onDuty);
+
+  const pharmacyTitle = pharmacies.length === 0
+    ? t('home.widgets.pharmacy', lang)
+    : hasOnDuty
+      ? t('home.widgets.pharmacy', lang)
+      : t('home.widgets.pharmacyNearby', lang);
+
+  const calendarSurface = isDark
+    ? 'border-violet-800/50 bg-gradient-to-br from-violet-950/40 to-slate-900/80'
+    : 'border-violet-200/90 bg-gradient-to-br from-violet-50/90 via-white to-fuchsia-50/40';
+
+  const pharmacySurface = isDark
+    ? 'border-emerald-800/50 bg-gradient-to-br from-emerald-950/30 to-slate-900/80'
+    : 'border-emerald-200/90 bg-gradient-to-br from-emerald-50/90 via-white to-teal-50/30';
 
   return (
     <div className="space-y-3">
       {outages.length > 0 && (
-        <div className="space-y-2 px-4">
+        <div className="space-y-2">
           {outages.slice(0, 2).map((o) => (
             <div
               key={o.id}
-              className="flex gap-3 rounded-xl border border-amber-300/80 bg-amber-50 px-3 py-2.5 dark:border-amber-700/50 dark:bg-amber-950/40"
+              className="flex gap-3 rounded-2xl border border-amber-300/70 bg-amber-50 px-4 py-3 dark:border-amber-700/40 dark:bg-amber-950/50"
             >
               {o.outageType === 'WATER' ? (
                 <Droplets className="h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300" />
@@ -89,14 +251,9 @@ export default function HomeWidgets({ tenant, userLat, userLng, lang, isDark, on
                 <Zap className="h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300" />
               )}
               <div className="min-w-0">
-                <p className="text-xs font-bold text-amber-900 dark:text-amber-100">{o.title}</p>
+                <p className="text-sm font-bold text-amber-950 dark:text-amber-100">{o.title}</p>
                 {o.message && (
-                  <p className="mt-0.5 text-[11px] text-amber-800/90 dark:text-amber-200/90">{o.message}</p>
-                )}
-                {o.district && (
-                  <p className="mt-0.5 text-[10px] font-medium text-amber-700/80 dark:text-amber-300/80">
-                    {o.district}
-                  </p>
+                  <p className="mt-0.5 text-xs text-amber-900/85 dark:text-amber-200/85">{o.message}</p>
                 )}
               </div>
             </div>
@@ -104,254 +261,166 @@ export default function HomeWidgets({ tenant, userLat, userLng, lang, isDark, on
         </div>
       )}
 
-      <div className="flex items-center justify-between px-4">
-        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-primary">
-          {tenant.displayName}
-        </p>
-        <button
-          type="button"
-          onClick={onReport}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-white shadow-sm active:scale-[0.98]"
-        >
-          <Plus className="h-4 w-4" />
-          {lang === 'tr' ? 'İhbar Yap' : 'New report'}
-        </button>
-      </div>
+      <WeatherBlock
+        loading={loading}
+        weather={weather}
+        lang={lang}
+        isDark={isDark}
+        onRefresh={() => setRefreshKey((k) => k + 1)}
+      />
 
-      <div className="-mx-0 flex gap-3 overflow-x-auto px-4 pb-1 snap-x snap-mandatory scrollbar-hide">
-        {/* Hava kartı her zaman gösterilir: GPS yoksa belediye merkezi kullanılır,
-            servis cevap vermezse "alınamadı" mesajı görünür. */}
-        <motion.article
-            className={`min-w-[200px] max-w-[200px] shrink-0 snap-start rounded-2xl border p-4 shadow-sm ${card}`}
-          >
-            <motion.div className="mb-2 flex items-center gap-2 text-sky-600 dark:text-sky-400">
-              <Cloud className="h-4 w-4" />
-              <span className="text-[10px] font-bold uppercase tracking-wide">
-                {lang === 'tr' ? 'Hava' : 'Weather'}
-              </span>
-            </motion.div>
-            {loading ? (
-              <p className="text-xs text-slate-500">{lang === 'tr' ? 'Yükleniyor…' : 'Loading…'}</p>
-            ) : weather?.available && weather.temperatureC != null ? (
-              <>
-                <p className="text-2xl font-extrabold tabular-nums text-slate-900 dark:text-white">
-                  {Math.round(weather.temperatureC)}°
-                </p>
-                <p className="text-xs text-slate-500">{weather.description}</p>
-                {weather.apparentTemperatureC != null && (
-                  <p className="mt-0.5 text-[10px] text-slate-500">
-                    {lang === 'tr' ? 'Hissedilen' : 'Feels'}{' '}
-                    <span className="font-semibold text-slate-700 dark:text-slate-200 tabular-nums">
-                      {Math.round(weather.apparentTemperatureC)}°
-                    </span>
-                  </p>
-                )}
-                {(weather.dailyMaxC != null || weather.dailyMinC != null) && (
-                  <p className="text-[10px] text-slate-500 tabular-nums">
-                    {weather.dailyMinC != null && `↓ ${Math.round(weather.dailyMinC)}°`}
-                    {weather.dailyMaxC != null && weather.dailyMinC != null && ' · '}
-                    {weather.dailyMaxC != null && `↑ ${Math.round(weather.dailyMaxC)}°`}
-                  </p>
-                )}
-                {weather.windSpeedKmh != null && (
-                  <p className="mt-1 flex items-center gap-1 text-[10px] text-slate-500">
-                    <Wind className="h-3 w-3" />
-                    {Math.round(weather.windSpeedKmh)} km/h
-                  </p>
-                )}
-                {weather.usAqi != null && (
-                  <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-violet-700 dark:text-violet-300">
-                    AQI {weather.usAqi} · {weather.aqiLabel}
-                  </p>
-                )}
-                {weather.dataSource && (
-                  <p className="mt-2 text-[9px] text-slate-400 leading-tight">{weather.dataSource}</p>
-                )}
-              </>
-            ) : (
-              <p className="text-xs text-slate-500">
-                {lang === 'tr' ? 'Hava verisi şu an alınamadı.' : 'Weather unavailable.'}
-              </p>
-            )}
-          </motion.article>
-
-        {/* Eczane kartı her zaman görünür. Sadece NÖBETÇİ eczane listelenir:
-            önce EczaneAPI (varsa), olmazsa eczaneler.gen.tr (Eczacı Odası listesi, ücretsiz),
-            ikisi de boşsa e-Devlet doğrulama linki gösterilir. */}
-        {(() => {
-          const hasOnDuty = pharmacies.some((p) => p.onDuty);
-          const cardTitle =
-            pharmacies.length === 0
-              ? lang === 'tr' ? 'Nöbetçi eczane' : 'On-duty pharmacy'
-              : hasOnDuty
-                ? lang === 'tr' ? 'Nöbetçi eczane' : 'On-duty pharmacy'
-                : lang === 'tr' ? 'Yakın eczaneler' : 'Nearby pharmacies';
-          return (
-            <motion.article
-              className={`min-w-[220px] max-w-[240px] shrink-0 snap-start rounded-2xl border p-4 shadow-sm ${card}`}
+      <section className={`rounded-2xl border p-4 shadow-sm ${calendarSurface}`}>
+        <WidgetHeader
+          icon={<CalendarDays className="h-4 w-4" />}
+          title={t('home.widgets.calendar', lang)}
+          accent="violet"
+          isDark={isDark}
+        />
+        <div className="mt-3">
+          {loading ? (
+            <div className="space-y-2">
+              {[1, 2].map((i) => (
+                <div key={i} className="h-12 animate-pulse rounded-xl bg-violet-100/60 dark:bg-slate-700/40" />
+              ))}
+            </div>
+          ) : events.length === 0 ? (
+            <div
+              className={`flex items-center gap-3 rounded-xl px-3 py-4 ${
+                isDark ? 'bg-slate-800/60' : 'bg-violet-50/80'
+              }`}
             >
-              <motion.div className="mb-2 flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-                <Pill className="h-4 w-4" />
-                <span className="text-[10px] font-bold uppercase tracking-wide">{cardTitle}</span>
-              </motion.div>
-              {loading ? (
-                <p className="text-xs text-slate-500">{lang === 'tr' ? 'Yükleniyor…' : 'Loading…'}</p>
-              ) : pharmacies.length === 0 ? (
-                <>
-                  <p className="text-xs text-slate-500">
-                    {lang === 'tr'
-                      ? 'Yakında eczane bulunamadı.'
-                      : 'No pharmacy found nearby.'}
-                  </p>
-                  <a
-                    href={OFFICIAL_PHARMACY_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-primary"
-                  >
-                    {lang === 'tr' ? 'e-Devlet nöbetçi arama' : 'Official lookup'}
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                </>
-              ) : (
-                <>
-                  <ul className="space-y-2">
-                    {pharmacies.slice(0, 3).map((p, i) => (
-                      <li key={i} className="text-xs">
-                        <p className="font-bold text-slate-800 dark:text-slate-100 truncate">{p.name}</p>
-                        {p.address && <p className="text-[10px] text-slate-500 truncate">{p.address}</p>}
-                        {p.distanceMeters != null && (
-                          <p className="text-[10px] text-primary font-semibold">
-                            {p.distanceMeters < 1000
-                              ? `~${Math.round(p.distanceMeters)} m`
-                              : `~${(p.distanceMeters / 1000).toFixed(1)} km`}
-                          </p>
-                        )}
-                        {p.phone && (
-                          <a
-                            href={`tel:${p.phone.replace(/\s/g, '')}`}
-                            className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300"
-                          >
-                            {p.phone}
-                          </a>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                  {!hasOnDuty && (
-                    <a
-                      href={OFFICIAL_PHARMACY_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-primary"
-                    >
-                      {lang === 'tr' ? 'Nöbet için e-Devlet' : 'Verify on e-Devlet'}
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  )}
-                </>
-              )}
-              {bundle?.pharmacyDataSource && (
-                <p className="mt-2 text-[9px] text-slate-400 leading-tight">{bundle.pharmacyDataSource}</p>
-              )}
-            </motion.article>
-          );
-        })()}
-
-        <motion.article
-          className={`min-w-[240px] max-w-[240px] shrink-0 snap-start rounded-2xl border p-4 shadow-sm ${card}`}
-        >
-          <motion.div className="mb-2 flex items-center gap-2 text-violet-600 dark:text-violet-400">
-            <Calendar className="h-4 w-4" />
-            <span className="text-[10px] font-bold uppercase tracking-wide">
-              {lang === 'tr' ? 'Kent takvimi' : 'Events'}
-            </span>
-          </motion.div>
-          {events.length === 0 ? (
-            <p className="text-xs text-slate-500">
-              {lang === 'tr'
-                ? 'Belediyenizin yayınladığı etkinlik yok.'
-                : 'No events published by your municipality.'}
-            </p>
+              <CalendarDays className={`h-8 w-8 shrink-0 opacity-40 ${isDark ? 'text-violet-300' : 'text-violet-400'}`} />
+              <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                {t('home.widgets.calendarEmpty', lang)}
+              </p>
+            </div>
           ) : (
             <ul className="space-y-2">
               {events.slice(0, 2).map((ev) => (
-                <li key={ev.id} className="rounded-lg bg-slate-50 p-2 dark:bg-slate-900/60">
-                  <p className="text-xs font-bold text-slate-800 dark:text-white">{ev.title}</p>
-                  <p className="text-[10px] text-slate-500">
-                    {new Date(ev.startsAt).toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', {
+                <li
+                  key={ev.id}
+                  className={`rounded-xl border px-3 py-2.5 ${
+                    isDark ? 'border-violet-800/40 bg-slate-800/50' : 'border-violet-100 bg-white/80'
+                  }`}
+                >
+                  <p className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{ev.title}</p>
+                  <p className={`mt-0.5 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    {new Date(ev.startsAt).toLocaleDateString(lang === 'tr' ? 'tr-TR' : lang === 'ar' ? 'ar' : 'en-US', {
+                      weekday: 'short',
                       day: 'numeric',
                       month: 'short',
                       hour: '2-digit',
                       minute: '2-digit',
                     })}
+                    {ev.venue ? ` · ${ev.venue}` : ''}
                   </p>
-                  {ev.venue && <p className="text-[10px] text-slate-400 truncate">{ev.venue}</p>}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const start = new Date(ev.startsAt);
-                      const end = ev.endsAt
-                        ? new Date(ev.endsAt)
-                        : new Date(start.getTime() + 2 * 60 * 60 * 1000);
-                      const ics = [
-                        'BEGIN:VCALENDAR',
-                        'VERSION:2.0',
-                        'BEGIN:VEVENT',
-                        `DTSTART:${start.toISOString().replace(/[-:]/g, '').split('.')[0]}Z`,
-                        `DTEND:${end.toISOString().replace(/[-:]/g, '').split('.')[0]}Z`,
-                        `SUMMARY:${ev.title}`,
-                        `LOCATION:${ev.venue ?? ''}`,
-                        'END:VEVENT',
-                        'END:VCALENDAR',
-                      ].join('\n');
-                      const blob = new Blob([ics], { type: 'text/calendar' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = 'kentiva-etkinlik.ics';
-                      a.click();
-                      URL.revokeObjectURL(url);
-                    }}
-                    className="mt-1 text-[10px] font-bold text-primary"
-                  >
-                    {lang === 'tr' ? 'Takvime ekle' : 'Add to calendar'}
-                  </button>
                 </li>
               ))}
+              {events.length > 2 && (
+                <p className={`pt-1 text-center text-xs font-semibold ${isDark ? 'text-violet-300' : 'text-violet-600'}`}>
+                  {t('home.widgets.eventsMore', lang, { n: events.length - 2 })}
+                </p>
+              )}
             </ul>
           )}
-          <p className="mt-2 text-[9px] text-slate-400">
-            {lang === 'tr' ? 'Resmi belediye duyurusu' : 'Official municipality listing'}
-          </p>
-        </motion.article>
+        </div>
+      </section>
 
-        {userLat != null && userLng != null && (
-          <motion.article
-            className={`min-w-[160px] shrink-0 snap-start rounded-2xl border p-4 shadow-sm ${card}`}
-          >
-            <MapPin className="h-4 w-4 text-primary mb-2" />
-            <p className="text-[10px] font-bold uppercase text-slate-500">
-              {lang === 'tr' ? 'Konumunuz' : 'Your location'}
-            </p>
-            <p className="mt-1 font-mono text-xs text-slate-700 dark:text-slate-300">
-              {userLat.toFixed(4)}, {userLng.toFixed(4)}
-            </p>
-            <p className="mt-2 text-[10px] text-slate-400">
-              {lang === 'tr' ? 'İhbar GPS ile yönlendirilir.' : 'Reports route via GPS.'}
-            </p>
-          </motion.article>
-        )}
-      </div>
+      <section className={`rounded-2xl border shadow-sm ${pharmacySurface}`}>
+        <div className="p-4">
+          <div className="flex items-center gap-3">
+            <div
+              className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${
+                isDark ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-500/15 text-emerald-600'
+              }`}
+              aria-hidden
+            >
+              <Pill className="h-8 w-8" strokeWidth={1.5} />
+            </div>
+            <h3 className={`flex-1 text-sm font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>{pharmacyTitle}</h3>
+          </div>
+          <div className="mt-3">
+            {loading ? (
+                  <div className="space-y-2">
+                    {[1, 2].map((i) => (
+                      <div key={i} className="h-12 animate-pulse rounded-xl bg-emerald-100/50 dark:bg-slate-700/40" />
+                    ))}
+                  </div>
+                ) : pharmacies.length === 0 ? (
+                  <div>
+                    <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                      {t('home.widgets.pharmacyEmpty', lang)}
+                    </p>
+                    <a
+                      href={OFFICIAL_PHARMACY_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-flex items-center gap-1 text-sm font-bold text-primary"
+                    >
+                      {t('home.widgets.pharmacyEdevlet', lang)}
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-emerald-100/80 dark:divide-emerald-900/40">
+                    {pharmacies.slice(0, 3).map((p, i) => (
+                      <li key={i} className="py-2.5 first:pt-0 last:pb-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{p.name}</p>
+                            {p.address && (
+                              <p className={`mt-0.5 text-xs line-clamp-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                {p.address}
+                              </p>
+                            )}
+                          </div>
+                          {p.distanceMeters != null && (
+                            <span className="shrink-0 rounded-lg bg-emerald-500/15 px-2 py-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                              {p.distanceMeters < 1000
+                                ? `${Math.round(p.distanceMeters)} m`
+                                : `${(p.distanceMeters / 1000).toFixed(1)} km`}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap gap-3">
+                          {p.phone && (
+                            <a
+                              href={`tel:${p.phone.replace(/\s/g, '')}`}
+                              className="text-xs font-semibold text-emerald-700 dark:text-emerald-300"
+                            >
+                              {p.phone}
+                            </a>
+                          )}
+                          {p.lat != null && p.lng != null && (
+                            <button
+                              type="button"
+                              onClick={() => openMapsNavigation(p.lat!, p.lng!, p.name)}
+                              className="inline-flex items-center gap-1 text-xs font-bold text-primary"
+                            >
+                              <Navigation className="h-3.5 w-3.5" />
+                              {t('home.widgets.directions', lang)}
+                            </button>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {!loading && !hasOnDuty && pharmacies.length > 0 && (
+                  <a
+                    href={OFFICIAL_PHARMACY_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-primary"
+                  >
+                    {t('home.widgets.pharmacyVerify', lang)}
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+            )}
+          </div>
+        </div>
+      </section>
 
-      {!loading && outages.length === 0 && events.length === 0 && (
-        <p className="px-4 text-center text-[11px] text-slate-400 flex items-center justify-center gap-1">
-          <AlertTriangle className="h-3.5 w-3.5" />
-          {lang === 'tr'
-            ? 'Kesinti ve etkinlikler yalnızca belediye yönetiminden yayınlandığında görünür.'
-            : 'Outages and events appear only when published by your municipality.'}
-        </p>
-      )}
     </div>
   );
 }
