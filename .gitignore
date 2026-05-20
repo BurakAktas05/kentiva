@@ -36,6 +36,7 @@ build/
 .env
 .env.*
 !.env.example
+!.env.docker.example
 railway.env
 RAILWAY_ENV_VARS.txt
 deployment/ANAHTARLAR.local.env

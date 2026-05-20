@@ -6,6 +6,8 @@ export function toPublicTenant(raw: Partial<PublicTenant> & { id: string }): Pub
     id: raw.id,
     slug: raw.slug ?? '',
     displayName: raw.displayName ?? '',
+    provinceName: raw.provinceName ?? null,
+    parentId: raw.parentId ?? null,
     logoUrl: raw.logoUrl ?? null,
     primaryColor: raw.primaryColor ?? null,
     secondaryColor: raw.secondaryColor ?? null,

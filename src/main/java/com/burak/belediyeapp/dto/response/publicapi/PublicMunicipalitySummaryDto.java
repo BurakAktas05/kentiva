@@ -7,6 +7,8 @@ public record PublicMunicipalitySummaryDto(
         String id,
         String slug,
         String displayName,
+        String provinceName,
+        String parentId,
         String logoUrl,
         String primaryColor,
         String secondaryColor,

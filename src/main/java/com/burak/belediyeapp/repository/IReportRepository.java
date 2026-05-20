@@ -62,6 +62,12 @@ public interface IReportRepository extends JpaRepository<Report, String> {
     @EntityGraph(attributePaths = {"category"})
     Page<Report> findByCategoryDepartmentIdAndMunicipalityId(String departmentId, String municipalityId, Pageable pageable);
 
+    @EntityGraph(attributePaths = {"category"})
+    Page<Report> findByCategoryDepartmentIdAndMunicipalityIdAndReportStatus(String departmentId, String municipalityId, ReportStatus reportStatus, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"category"})
+    Page<Report> findByCategoryDepartmentIdAndReportStatus(String departmentId, ReportStatus status, Pageable pageable);
+
     /**
      * PostGIS ile belirtilen koordinat merkezine belirli bir yarıçap (metre)
      * içindeki raporları getirir. Saha ekibinin yakındaki sorunları görmesi için.

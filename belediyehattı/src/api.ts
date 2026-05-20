@@ -95,6 +95,8 @@ export interface PublicTenant {
   id: string;
   slug: string;
   displayName: string;
+  provinceName?: string | null;
+  parentId?: string | null;
   logoUrl: string | null;
   primaryColor: string | null;
   secondaryColor: string | null;
@@ -367,7 +369,8 @@ async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
 }
 
 async function publicFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${apiBase()}${path}`, {
+  const normalized = path.startsWith('/') ? path : `/${path}`;
+  const res = await fetch(`${apiBase()}${normalized}`, {
     headers: {},
   });
   const json = await parseJsonBody(res);
@@ -608,5 +611,193 @@ export async function updateFcmToken(fcmToken: string): Promise<void> {
   await apiFetch('/users/fcm-token', {
     method: 'PATCH',
     body: JSON.stringify({ fcmToken }),
+  });
+}
+
+// --- NEW SOCIAL AND NOTIFICATION ENDPOINTS ---
+
+export interface ApiAnnouncement {
+  id: string;
+  title: string;
+  content: string;
+  imageUrl: string | null;
+  startsAt: string;
+  active: boolean;
+}
+
+export interface ApiSurvey {
+  id: string;
+  title: string;
+  description: string;
+  option1: string;
+  option2: string;
+  option3: string | null;
+  option4: string | null;
+  active: boolean;
+  voted: boolean;
+  votedOption: number | null;
+  option1Count: number;
+  option2Count: number;
+  option3Count: number;
+  option4Count: number;
+  totalVotes: number;
+}
+
+export interface ApiBloodSearchAd {
+  id: string;
+  userId: string;
+  userName: string;
+  bloodType: string;
+  hospitalName: string;
+  hospitalDistrict: string;
+  patientName: string;
+  contactPhone: string;
+  description: string;
+  createdAt: string;
+}
+
+export interface ApiLostPetAd {
+  id: string;
+  userId: string;
+  userName: string;
+  petName: string;
+  petType: string;
+  breed: string;
+  lastSeenDistrict: string;
+  contactPhone: string;
+  description: string;
+  mediaUrl: string | null;
+  createdAt: string;
+}
+
+export interface ApiItemDonationAd {
+  id: string;
+  userId: string;
+  userName: string;
+  itemTitle: string;
+  category: string;
+  district: string;
+  itemCondition: string;
+  contactPhone: string;
+  description: string;
+  mediaUrl: string | null;
+  createdAt: string;
+}
+
+export interface ApiNotificationPreferences {
+  id: string;
+  announcementsEnabled: boolean;
+  outagesEnabled: boolean;
+  bloodDonationsEnabled: boolean;
+  lostPetsEnabled: boolean;
+  surveysEnabled: boolean;
+}
+
+export async function getPublicAnnouncements(municipalityId: string): Promise<ApiAnnouncement[]> {
+  return apiFetch<ApiAnnouncement[]>(`/public/municipalities/${encodeURIComponent(municipalityId)}/announcements`);
+}
+
+export async function getPublicSurveys(municipalityId: string): Promise<ApiSurvey[]> {
+  return apiFetch<ApiSurvey[]>(`/public/municipalities/${encodeURIComponent(municipalityId)}/surveys`);
+}
+
+export async function voteSurvey(surveyId: string, selectedOption: number): Promise<ApiSurvey> {
+  return apiFetch<ApiSurvey>(`/public/surveys/${encodeURIComponent(surveyId)}/vote`, {
+    method: 'POST',
+    body: JSON.stringify({ selectedOption }),
+  });
+}
+
+export async function getBloodAds(district?: string): Promise<ApiBloodSearchAd[]> {
+  const q = district ? `?district=${encodeURIComponent(district)}` : '';
+  return apiFetch<ApiBloodSearchAd[]>(`/public/social/blood-ads${q}`);
+}
+
+export async function createBloodAd(payload: {
+  bloodType: string;
+  hospitalName: string;
+  hospitalDistrict: string;
+  patientName: string;
+  contactPhone: string;
+  description: string;
+}): Promise<ApiBloodSearchAd> {
+  return apiFetch<ApiBloodSearchAd>('/social/blood-ads', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteBloodAd(id: string): Promise<void> {
+  await apiFetch(`/social/blood-ads/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function getLostPetAds(district?: string): Promise<ApiLostPetAd[]> {
+  const q = district ? `?district=${encodeURIComponent(district)}` : '';
+  return apiFetch<ApiLostPetAd[]>(`/public/social/lost-pet-ads${q}`);
+}
+
+export async function createLostPetAd(payload: {
+  petName: string;
+  petType: string;
+  breed: string;
+  lastSeenDistrict: string;
+  contactPhone: string;
+  description: string;
+  mediaUrl: string;
+}): Promise<ApiLostPetAd> {
+  return apiFetch<ApiLostPetAd>('/social/lost-pet-ads', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteLostPetAd(id: string): Promise<void> {
+  await apiFetch(`/social/lost-pet-ads/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function getItemDonationAds(district?: string): Promise<ApiItemDonationAd[]> {
+  const q = district ? `?district=${encodeURIComponent(district)}` : '';
+  return apiFetch<ApiItemDonationAd[]>(`/public/social/item-donation-ads${q}`);
+}
+
+export async function createItemDonationAd(payload: {
+  itemTitle: string;
+  category: string;
+  district: string;
+  itemCondition: string;
+  contactPhone: string;
+  description: string;
+  mediaUrl: string;
+}): Promise<ApiItemDonationAd> {
+  return apiFetch<ApiItemDonationAd>('/social/item-donation-ads', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteItemDonationAd(id: string): Promise<void> {
+  await apiFetch(`/social/item-donation-ads/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function getNotificationPreferences(): Promise<ApiNotificationPreferences> {
+  return apiFetch<ApiNotificationPreferences>('/users/me/notification-preferences');
+}
+
+export async function updateNotificationPreferences(payload: {
+  announcementsEnabled: boolean;
+  outagesEnabled: boolean;
+  bloodDonationsEnabled: boolean;
+  lostPetsEnabled: boolean;
+  surveysEnabled: boolean;
+}): Promise<ApiNotificationPreferences> {
+  return apiFetch<ApiNotificationPreferences>('/users/me/notification-preferences', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
   });
 }

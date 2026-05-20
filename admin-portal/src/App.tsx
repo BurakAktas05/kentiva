@@ -24,6 +24,8 @@ import {
   ArrowRight,
   Shield,
   Sparkles,
+  Megaphone,
+  BarChart3,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -48,6 +50,8 @@ const MunicipalityOnboardingPage = lazy(() => import('./pages/MunicipalityOnboar
 const AuditLogsPage = lazy(() => import('./pages/AuditLogsPage'));
 const SetupPage = lazy(() => import('./pages/SetupPage'));
 const SuperAdminHomePage = lazy(() => import('./pages/SuperAdminHomePage'));
+const AnnouncementsPage = lazy(() => import('./pages/AnnouncementsPage'));
+const SurveysPage = lazy(() => import('./pages/SurveysPage'));
 
 const PageFallback = () => (
   <motion.div
@@ -94,6 +98,8 @@ interface User {
     centerLng: number;
     defaultZoom: number;
   } | null;
+  departmentId?: string | null;
+  departmentName?: string | null;
 }
 
 // --- Components ---
@@ -116,6 +122,8 @@ const Sidebar = ({ isOpen, setOpen, user }: { isOpen: boolean, setOpen: (o: bool
         const baseItems: MenuItem[] = [
           { name: 'Dashboard', icon: LayoutDashboard, path: '/' },
           { name: 'Raporlar', icon: FileText, path: '/reports' },
+          { name: 'Duyurular', icon: Megaphone, path: '/announcements' },
+          { name: 'Anketler', icon: BarChart3, path: '/surveys' },
           { name: 'Personeller', icon: Users, path: '/staff' },
           { name: 'Departmanlar', icon: Building2, path: '/departments' },
           { name: 'İstatistikler', icon: PieChart, path: '/stats' },
@@ -602,6 +610,22 @@ const App = () => {
                   <Routes>
                     <Route path="/" element={<Dashboard user={user} />} />
                     <Route path="/reports" element={<ReportsPage />} />
+                    <Route
+                      path="/announcements"
+                      element={
+                        <ProtectedRoute user={user} allow={(u) => u.roles.some((r) => ['ROLE_ADMIN', 'ROLE_DEPT_MANAGER', 'ROLE_SUPER_ADMIN'].includes(r))}>
+                          <AnnouncementsPage canManage={user.roles.some((r) => ['ROLE_ADMIN', 'ROLE_SUPER_ADMIN'].includes(r))} />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/surveys"
+                      element={
+                        <ProtectedRoute user={user} allow={(u) => u.roles.some((r) => ['ROLE_ADMIN', 'ROLE_DEPT_MANAGER', 'ROLE_SUPER_ADMIN'].includes(r))}>
+                          <SurveysPage canManage={user.roles.some((r) => ['ROLE_ADMIN', 'ROLE_SUPER_ADMIN'].includes(r))} />
+                        </ProtectedRoute>
+                      }
+                    />
                     <Route path="/reports/:id" element={<ReportDetailPage />} />
                     <Route path="/stats" element={<StatisticsPage />} />
                     <Route

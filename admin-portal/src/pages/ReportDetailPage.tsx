@@ -27,17 +27,19 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
   const [statusValue, setStatusValue] = useState<'PROCESSING' | 'RESOLVED'>('PROCESSING');
   const [noteText, setNoteText] = useState('');
   const [statusBusy, setStatusBusy] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any | null>(null);
 
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
     (async () => {
       try {
-        const [r, tl, u, dup] = await Promise.all([
+        const [r, tl, u, dup, me] = await Promise.all([
           api.get(`/reports/${id}`), 
           api.get(`/reports/${id}/timeline`),
           api.get('/users?role=ROLE_FIELD_OFFICER'),
           api.get(`/reports/${id}/duplicate-group`),
+          api.get('/auth/me'),
         ]);
         if (!cancelled) {
           const rep = r.data.data as Report;
@@ -45,6 +47,7 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
           setTimeline(tl.data.data as ReportTimelineEntry[]);
           setOfficers(u.data.data as User[]);
           setDuplicateGroup(dup.data.data as ReportListItem[]);
+          setCurrentUser(me.data.data);
           if (rep.aiReplyDraft) {
             setNoteText(rep.aiReplyDraft);
           }
@@ -285,16 +288,18 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
                 </li>
               ))}
             </ul>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={bulkBusy !== null}
-                onClick={() => bulkCloseDuplicateGroup()}
-                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
-              >
-                {bulkBusy === 'RESOLVED' ? '…' : 'Grubu çözüldü işaretle'}
-              </button>
-            </div>
+            {currentUser?.departmentId != null && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={bulkBusy !== null}
+                  onClick={() => bulkCloseDuplicateGroup()}
+                  className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {bulkBusy === 'RESOLVED' ? '…' : 'Grubu çözüldü işaretle'}
+                </button>
+              </div>
+            )}
           </div>
         ) : null}
 
@@ -380,7 +385,9 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
                 className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               >
                 <option value="PROCESSING">İşlemde</option>
-                <option value="RESOLVED">Çözüldü</option>
+                {currentUser?.departmentId != null && (
+                  <option value="RESOLVED">Çözüldü</option>
+                )}
               </select>
             </div>
             <div>

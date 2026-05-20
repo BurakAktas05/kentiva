@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { Building2, ChevronLeft, MapPin, Loader2, Search, Sparkles } from 'lucide-react';
+import { Building2, ChevronLeft, MapPin, Loader2, Sparkles, Search, Check } from 'lucide-react';
 import { fetchPublicMunicipalities, resolveMunicipalityByGps, type PublicTenant } from '../../api';
 import { getDevicePosition, isDeviceLocationFailure } from '../../lib/deviceLocation';
+import { groupByProvince, sortedProvinces } from '../../lib/municipalityRegions';
 import { Lang, t } from '../../i18n';
+import { kentivaCard, primaryBtnClass, screenHeadingClass, screenSubtitleClass } from '../../lib/ui';
 
 export type MunicipalityPickerMode = 'onboarding' | 'change';
 
@@ -26,7 +28,9 @@ export default function MunicipalityPicker({
   const [loading, setLoading] = useState(true);
   const [gpsBusy, setGpsBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [query, setQuery] = useState('');
+  const [province, setProvince] = useState('');
+  const [districtId, setDistrictId] = useState('');
+  const [districtSearch, setDistrictSearch] = useState('');
 
   const isOnboarding = mode === 'onboarding';
 
@@ -37,7 +41,7 @@ export default function MunicipalityPicker({
         const rows = await fetchPublicMunicipalities();
         if (!cancelled) setList(rows.filter((m) => m.onboarded));
       } catch {
-        if (!cancelled) setErr(lang === 'tr' ? 'Belediye listesi yüklenemedi.' : 'Could not load municipalities.');
+        if (!cancelled) setErr(t('tenant.loadError', lang));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -47,15 +51,32 @@ export default function MunicipalityPicker({
     };
   }, [lang]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return list;
-    return list.filter(
-      (m) =>
-        m.displayName.toLowerCase().includes(q) ||
-        m.slug.toLowerCase().includes(q),
-    );
-  }, [list, query]);
+  const byProvince = useMemo(() => groupByProvince(list), [list]);
+  const provinces = useMemo(() => sortedProvinces(byProvince), [byProvince]);
+
+  const districtsInProvince = useMemo(() => {
+    if (!province) return [];
+    return byProvince.get(province) ?? [];
+  }, [byProvince, province]);
+
+  const filteredDistricts = useMemo(() => {
+    const q = districtSearch.trim().toLowerCase();
+    if (!q) return districtsInProvince;
+    return districtsInProvince.filter((d) => d.displayName.toLowerCase().includes(q));
+  }, [districtsInProvince, districtSearch]);
+
+  const selectedDistrict = useMemo(
+    () => list.find((m) => m.id === districtId) ?? null,
+    [list, districtId],
+  );
+
+  useEffect(() => {
+    if (province && !provinces.includes(province)) {
+      setProvince('');
+      setDistrictId('');
+      setDistrictSearch('');
+    }
+  }, [province, provinces]);
 
   const useGps = async () => {
     setErr('');
@@ -67,39 +88,44 @@ export default function MunicipalityPicker({
         if (resolved?.onboarded) {
           onSelect(resolved);
         } else {
-          setErr(lang === 'tr' ? 'Konum kayıtlı bir ilçe sınırıyla eşleşmedi.' : 'Location did not match a registered district.');
+          setErr(t('tenant.gpsNoMatch', lang));
         }
       } catch {
-        setErr(lang === 'tr' ? 'Konuma göre belediye bulunamadı.' : 'Could not resolve municipality.');
+        setErr(t('tenant.gpsResolveError', lang));
       } finally {
         setGpsBusy(false);
       }
     } else if (isDeviceLocationFailure(result)) {
       setGpsBusy(false);
-      if (result.reason === 'denied') {
-        setErr(t('report.location.denied', lang));
-      } else if (result.reason === 'unsupported') {
-        setErr(t('report.location.needGps', lang));
-      } else {
-        setErr(lang === 'tr' ? 'Konum alınamadı. Listeden seçebilirsiniz.' : 'Could not get location. Pick from the list.');
-      }
+      if (result.reason === 'denied') setErr(t('report.location.denied', lang));
+      else if (result.reason === 'unsupported') setErr(t('report.location.needGps', lang));
+      else setErr(t('tenant.gpsFailed', lang));
     } else {
       setGpsBusy(false);
     }
   };
 
+  const confirmManual = () => {
+    if (!selectedDistrict) {
+      setErr(t('tenant.pickDistrict', lang));
+      return;
+    }
+    setErr('');
+    onSelect(selectedDistrict);
+  };
+
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       className={`flex min-h-app flex-col ${isDark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'}`}
     >
-      <div
-        className={`border-b px-4 pb-5 pt-safe ${isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white'}`}
-      >
+      <div className={`shrink-0 border-b px-4 pb-4 pt-safe ${isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white'}`}>
         {!isOnboarding && onCancel ? (
           <button
             type="button"
             onClick={onCancel}
-            className={`mb-3 flex items-center gap-1 text-sm font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}
+            className="mb-3 flex min-h-11 items-center gap-1 text-sm font-medium text-slate-500"
           >
             <ChevronLeft className="h-5 w-5" />
             {t('settings.back', lang)}
@@ -107,105 +133,160 @@ export default function MunicipalityPicker({
         ) : null}
 
         {isOnboarding ? (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-4 flex items-center gap-3"
-          >
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-white shadow-lg shadow-primary/25">
-              <Sparkles className="h-6 w-6" />
+          <div className="mb-3 flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-white">
+              <Sparkles className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-primary">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-primary">
                 {t('tenant.onboardingStep', lang)}
               </p>
-              <h1 className={`text-xl font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                {t('tenant.onboardingTitle', lang)}
-              </h1>
+              <h1 className={screenHeadingClass(isDark)}>{t('tenant.onboardingTitle', lang)}</h1>
             </div>
-          </motion.div>
+          </div>
         ) : (
-          <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-            {t('tenant.title', lang)}
-          </h2>
+          <h1 className={screenHeadingClass(isDark)}>{t('tenant.title', lang)}</h1>
         )}
 
-        <p className={`mt-2 text-sm leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+        <p className={`mt-1.5 ${screenSubtitleClass()}`}>
           {isOnboarding ? t('tenant.onboardingSubtitle', lang) : t('tenant.subtitle', lang)}
         </p>
-
-        <button
-          type="button"
-          onClick={() => void useGps()}
-          disabled={gpsBusy}
-          className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-sm font-bold text-white shadow-md shadow-primary/25 disabled:opacity-60 active:scale-[0.99]"
-        >
-          {gpsBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <MapPin className="h-5 w-5" />}
-          {t('tenant.gps', lang)}
-        </button>
-
-        <div className="relative mt-3">
-          <Search
-            className={`pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}
-          />
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t('tenant.search', lang)}
-            className={`w-full rounded-xl border py-2.5 pl-9 pr-3 text-sm ${
-              isDark
-                ? 'border-slate-700 bg-slate-800 text-white placeholder:text-slate-500'
-                : 'border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400'
-            }`}
-          />
-        </div>
-
-        {err ? <p className="mt-3 text-sm font-medium text-red-500">{err}</p> : null}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-2 pb-safe">
+      <div className="flex-1 overflow-y-auto px-4 py-4 pb-28">
         {loading ? (
           <div className="flex justify-center py-16">
-            <Loader2 className={`h-8 w-8 animate-spin ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+            <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
           </div>
-        ) : filtered.length === 0 ? (
-          <p className={`py-8 text-center text-sm ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
-            {t('tenant.emptySearch', lang)}
-          </p>
+        ) : list.length === 0 ? (
+          <p className="py-8 text-center text-sm text-slate-500">{t('tenant.emptyMembers', lang)}</p>
         ) : (
-          filtered.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => onSelect(m)}
-              className={`flex w-full items-center gap-3 rounded-2xl border p-4 text-left transition-all active:scale-[0.99] ${
-                isDark
-                  ? 'border-slate-700 bg-slate-800/60 hover:bg-slate-800'
-                  : 'border-slate-200 bg-white hover:border-primary/30 hover:shadow-sm'
-              }`}
-            >
-              {m.logoUrl ? (
-                <img src={m.logoUrl} alt="" className="h-12 w-12 rounded-xl object-contain bg-white p-0.5" />
-              ) : (
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <Building2 className="h-6 w-6" />
-                </div>
-              )}
-              <div className="min-w-0 flex-1">
-                <p className={`truncate font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                  {m.displayName}
-                </p>
-                {m.slogan ? (
-                  <p className={`mt-0.5 truncate text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
-                    {m.slogan}
-                  </p>
-                ) : null}
+          <div className="space-y-5">
+            <section>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {t('tenant.sectionGps', lang)}
+              </p>
+              <button type="button" onClick={() => void useGps()} disabled={gpsBusy} className={primaryBtnClass(gpsBusy)}>
+                {gpsBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <MapPin className="h-5 w-5" />}
+                {t('tenant.gps', lang)}
+              </button>
+            </section>
+
+            <div className="flex items-center gap-3">
+              <div className={`h-px flex-1 ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`} />
+              <span className="text-xs font-medium text-slate-400">{t('tenant.orManual', lang)}</span>
+              <div className={`h-px flex-1 ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`} />
+            </div>
+
+            <section>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {t('tenant.province', lang)}
+              </p>
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+                {provinces.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => {
+                      setProvince(p);
+                      setDistrictId('');
+                      setDistrictSearch('');
+                      setErr('');
+                    }}
+                    className={`shrink-0 rounded-full px-4 py-2 text-xs font-semibold transition-colors ${
+                      province === p
+                        ? 'bg-primary text-white'
+                        : isDark
+                          ? 'bg-slate-800 text-slate-300'
+                          : 'bg-white border border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
               </div>
-            </button>
-          ))
+            </section>
+
+            {province ? (
+              <section>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  {t('tenant.district', lang)}
+                </p>
+                <div className="relative mb-3">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="search"
+                    value={districtSearch}
+                    onChange={(e) => setDistrictSearch(e.target.value)}
+                    placeholder={t('tenant.searchDistrict', lang)}
+                    className={`w-full rounded-xl border py-3 pl-9 pr-3 text-sm ${
+                      isDark
+                        ? 'border-slate-700 bg-slate-900 text-white placeholder:text-slate-500'
+                        : 'border-slate-200 bg-white text-slate-900 placeholder:text-slate-400'
+                    }`}
+                  />
+                </div>
+                <ul className="space-y-2 max-h-[min(50vh,360px)] overflow-y-auto">
+                  {filteredDistricts.map((d) => {
+                    const selected = districtId === d.id;
+                    return (
+                      <li key={d.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDistrictId(d.id);
+                            setErr('');
+                          }}
+                          className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition active:scale-[0.99] ${
+                            selected
+                              ? 'border-primary bg-primary/5 dark:bg-primary/10'
+                              : isDark
+                                ? 'border-slate-800 bg-slate-900'
+                                : 'border-slate-200 bg-white'
+                          }`}
+                        >
+                          {d.logoUrl ? (
+                            <img src={d.logoUrl} alt="" className="h-10 w-10 rounded-lg object-contain bg-white p-0.5" />
+                          ) : (
+                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                              <Building2 className="h-5 w-5" />
+                            </div>
+                          )}
+                          <span className="min-w-0 flex-1 truncate text-sm font-semibold">{d.displayName}</span>
+                          {selected ? <Check className="h-5 w-5 shrink-0 text-primary" /> : null}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {filteredDistricts.length === 0 ? (
+                  <p className="py-4 text-center text-xs text-slate-500">{t('tenant.noDistrictMatch', lang)}</p>
+                ) : null}
+              </section>
+            ) : (
+              <p className="text-center text-xs text-slate-500">{t('tenant.selectProvinceFirst', lang)}</p>
+            )}
+
+            {selectedDistrict ? (
+              <div className={kentivaCard(isDark)}>
+                <p className="text-xs text-slate-500">{t('tenant.selected', lang)}</p>
+                <p className="mt-1 text-sm font-semibold">{selectedDistrict.displayName}</p>
+              </div>
+            ) : null}
+          </div>
         )}
+        {err ? <p className="mt-4 text-sm font-medium text-red-500">{err}</p> : null}
       </div>
-    </div>
+
+      <div
+        className={`fixed bottom-0 left-0 right-0 z-20 border-t px-4 py-3 pb-safe mx-auto max-w-md ${
+          isDark ? 'border-slate-800 bg-slate-900/95' : 'border-slate-200 bg-white/95'
+        } backdrop-blur-md`}
+      >
+        <button type="button" onClick={confirmManual} disabled={!districtId} className={primaryBtnClass(!districtId)}>
+          {t('tenant.confirm', lang)}
+        </button>
+      </div>
+    </motion.div>
   );
 }

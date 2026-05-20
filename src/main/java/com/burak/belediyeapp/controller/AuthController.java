@@ -74,13 +74,18 @@ public class AuthController {
         var municipality = com.burak.belediyeapp.dto.response.municipality.MunicipalityDto.fromEntity(
                 currentUser.getMunicipality());
 
+        String departmentId = currentUser.getDepartment() != null ? currentUser.getDepartment().getId() : null;
+        String departmentName = currentUser.getDepartment() != null ? currentUser.getDepartment().getName() : null;
+
         AuthMeResponse response = new AuthMeResponse(
                 currentUser.getId(),
                 currentUser.getEmail(),
                 currentUser.getFullName(),
                 roles,
                 currentUser.getDistrict(),
-                municipality
+                municipality,
+                departmentId,
+                departmentName
         );
         return ResponseEntity.ok(ApiResponse.success(response));
     }
@@ -123,6 +128,8 @@ public class AuthController {
             String fullName,
             java.util.Set<String> roles,
             String district,
-            com.burak.belediyeapp.dto.response.municipality.MunicipalityDto municipality
+            com.burak.belediyeapp.dto.response.municipality.MunicipalityDto municipality,
+            String departmentId,
+            String departmentName
     ) {}
 }

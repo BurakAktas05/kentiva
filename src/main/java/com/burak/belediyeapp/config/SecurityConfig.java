@@ -142,6 +142,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.PATCH, "/api/v1/users/me").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/v1/users/me/change-password").authenticated()
                 .requestMatchers(HttpMethod.PATCH, "/api/v1/users/fcm-token").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/v1/users/me/notification-preferences").authenticated()
+                .requestMatchers(HttpMethod.PUT, "/api/v1/users/me/notification-preferences").authenticated()
 
                 // ── Kullanıcı yönetimi — yöneticiler ──────────
                 .requestMatchers("/api/v1/users/**")

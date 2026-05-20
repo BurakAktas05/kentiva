@@ -38,6 +38,13 @@
   .h-app {
     height: 100dvh;
   }
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Capacitor: status bar does not overlay WebView */

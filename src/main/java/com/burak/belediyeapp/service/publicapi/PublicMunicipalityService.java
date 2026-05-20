@@ -13,7 +13,9 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 @Service
@@ -26,7 +28,10 @@ public class PublicMunicipalityService {
     @Transactional(readOnly = true)
     @Cacheable(value = CacheNames.PUBLIC_MUNICIPALITIES, key = "'list-district'")
     public List<PublicMunicipalitySummaryDto> listDistrictMunicipalities() {
-        return municipalityRepository.findActiveByTypeOrderByDisplay(MunicipalityType.DISTRICT).stream()
+        return municipalityRepository.findOnboardedActiveByTypeWithParent(MunicipalityType.DISTRICT).stream()
+                .sorted(Comparator
+                        .comparing((Municipality m) -> resolveProvinceName(m), String.CASE_INSENSITIVE_ORDER)
+                        .thenComparing(m -> displayOf(m), String.CASE_INSENSITIVE_ORDER))
                 .map(this::toSummary)
                 .toList();
     }
@@ -43,18 +48,19 @@ public class PublicMunicipalityService {
     public Optional<PublicMunicipalityDetailDto> resolveByCoordinates(double latitude, double longitude) {
         return districtResolutionService.resolveDistrict(latitude, longitude)
                 .flatMap(municipalityRepository::findById)
-                .filter(Municipality::isActive)
+                .filter(m -> m.isActive() && m.isOnboarded())
                 .map(this::toDetail);
     }
 
     private PublicMunicipalitySummaryDto toSummary(Municipality m) {
-        String display = m.getDisplayName() != null && !m.getDisplayName().isBlank()
-                ? m.getDisplayName()
-                : m.getName();
+        String display = displayOf(m);
+        Municipality parent = m.getParentMunicipality();
         return new PublicMunicipalitySummaryDto(
                 m.getId(),
                 m.getSlug(),
                 display,
+                resolveProvinceName(m),
+                parent != null ? parent.getId() : null,
                 m.getLogoUrl(),
                 m.getPrimaryColor(),
                 m.getSecondaryColor(),
@@ -68,9 +74,7 @@ public class PublicMunicipalityService {
     }
 
     private PublicMunicipalityDetailDto toDetail(Municipality m) {
-        String display = m.getDisplayName() != null && !m.getDisplayName().isBlank()
-                ? m.getDisplayName()
-                : m.getName();
+        String display = displayOf(m);
         return new PublicMunicipalityDetailDto(
                 m.getId(),
                 m.getSlug(),
@@ -89,5 +93,31 @@ public class PublicMunicipalityService {
                 m.isOnboarded(),
                 m.isPublicStatsEnabled()
         );
+    }
+
+    private static String displayOf(Municipality m) {
+        if (m.getDisplayName() != null && !m.getDisplayName().isBlank()) {
+            return m.getDisplayName().trim();
+        }
+        return m.getName();
+    }
+
+    private static String resolveProvinceName(Municipality m) {
+        if (m.getParentMunicipality() != null) {
+            return displayOf(m.getParentMunicipality());
+        }
+        if (m.getWidgetCitySlug() != null && !m.getWidgetCitySlug().isBlank()) {
+            return humanizeSlug(m.getWidgetCitySlug());
+        }
+        return displayOf(m);
+    }
+
+    private static String humanizeSlug(String slug) {
+        String normalized = slug.trim().replace('-', ' ').replace('_', ' ');
+        if (normalized.isEmpty()) {
+            return slug;
+        }
+        return normalized.substring(0, 1).toUpperCase(Locale.forLanguageTag("tr"))
+                + normalized.substring(1).toLowerCase(Locale.forLanguageTag("tr"));
     }
 }

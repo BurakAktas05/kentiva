@@ -56,6 +56,7 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
+  const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [modal, setModal] = useState<BulkModal>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -80,6 +81,13 @@ export default function ReportsPage() {
     'ROLE_SUPER_ADMIN',
   ]);
   const canExport = hasAnyRole(roles, ['ROLE_DEPT_MANAGER', 'ROLE_ADMIN', 'ROLE_SUPER_ADMIN']);
+
+  const availableBulkStatusOptions = useMemo(() => {
+    if (!currentUser || !currentUser.departmentId) {
+      return BULK_STATUS_OPTIONS.filter((o) => o.value !== 'RESOLVED');
+    }
+    return BULK_STATUS_OPTIONS;
+  }, [currentUser]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -106,8 +114,14 @@ export default function ReportsPage() {
   useEffect(() => {
     api
       .get('/auth/me')
-      .then((res) => setRoles(res.data.data?.roles ?? []))
-      .catch(() => setRoles([]));
+      .then((res) => {
+        setRoles(res.data.data?.roles ?? []);
+        setCurrentUser(res.data.data);
+      })
+      .catch(() => {
+        setRoles([]);
+        setCurrentUser(null);
+      });
   }, []);
 
   useEffect(() => {
@@ -653,7 +667,7 @@ export default function ReportsPage() {
                     disabled={bulkBusy}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   >
-                    {BULK_STATUS_OPTIONS.map((o) => (
+                    {availableBulkStatusOptions.map((o) => (
                       <option key={o.value} value={o.value}>
                         {o.label}
                       </option>

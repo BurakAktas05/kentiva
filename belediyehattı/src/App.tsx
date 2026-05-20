@@ -1,8 +1,9 @@
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { useEdgeSwipeBack } from './lib/useEdgeSwipeBack';
 import { clearStaleApiOverrideIfNeeded } from './lib/apiBase';
 import { initNativeShell, registerNativeBackHandler } from './lib/nativeShell';
 import { toPublicTenant } from './lib/tenantUtils';
-import { Home as HomeIcon, PlusCircle, User, Bell, Building2 } from 'lucide-react';
+import { Home as HomeIcon, PlusCircle, User, Bell, Building2, Map, Users } from 'lucide-react';
 import {
   getSavedUser,
   clearTokens,
@@ -10,6 +11,7 @@ import {
   getMyProfile,
   setPreferredMunicipality,
   AuthUser,
+  type ApiAnnouncement,
 } from './api';
 import { setupCitizenPush } from './lib/pushNotifications';
 import { Lang, t } from './i18n';
@@ -25,12 +27,31 @@ import ReportDetailScreen from './components/screens/ReportDetailScreen';
 import MunicipalityPicker, { type MunicipalityPickerMode } from './components/screens/MunicipalityPicker';
 import type { AuthMeta } from './lib/authTypes';
 
-export type Tab = 'home' | 'report' | 'reports' | 'profile' | 'notifications' | 'settings';
+import KentScreen from './components/screens/KentScreen';
+import CommunityScreen from './components/screens/CommunityScreen';
+import NotificationPrefsModal from './components/screens/NotificationPrefsModal';
+import AnnouncementDetailScreen from './components/screens/AnnouncementDetailScreen';
+
+export type Tab =
+  | 'home'
+  | 'kent'
+  | 'topluluk'
+  | 'report'
+  | 'reports'
+  | 'profile'
+  | 'notifications'
+  | 'settings';
+
+const MAIN_TABS: Tab[] = ['home', 'kent', 'topluluk', 'profile'];
 
 export default function App() {
   const { tenant, setTenant } = useTenant();
   const [activeTab, setActiveTab] = useState<Tab>('home');
+  const [navStack, setNavStack] = useState<Tab[]>([]);
+  const navStackRef = useRef(navStack);
+  navStackRef.current = navStack;
   const [openReportId, setOpenReportId] = useState<string | null>(null);
+  const [openAnnouncement, setOpenAnnouncement] = useState<ApiAnnouncement | null>(null);
   const [reportReturnTab, setReportReturnTab] = useState<Tab>('home');
   const [user, setUser] = useState<AuthUser | null>(getSavedUser());
   const [unreadCount, setUnreadCount] = useState(0);
@@ -39,6 +60,7 @@ export default function App() {
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => (localStorage.getItem('belediye_theme') as any) || 'light');
   const [pickerMode, setPickerMode] = useState<MunicipalityPickerMode | null>(null);
   const [sessionBooting, setSessionBooting] = useState(() => Boolean(getSavedUser()));
+  const [isPrefsModalOpen, setIsPrefsModalOpen] = useState(false);
 
   useEffect(() => {
     void clearStaleApiOverrideIfNeeded();
@@ -96,6 +118,15 @@ export default function App() {
       cancelled = true;
     };
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps -- yalnızca oturum açılışında
+
+  useEffect(() => {
+    if (user && localStorage.getItem('belediye_notification_prefs_onboarded') !== 'true') {
+      const timer = setTimeout(() => {
+        setIsPrefsModalOpen(true);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [user]);
 
   useEffect(() => {
     if (user) {
@@ -174,9 +205,23 @@ export default function App() {
     setKey((k) => k + 1);
   }, [reportReturnTab]);
 
-  const handleNativeBack = useCallback((): boolean => {
+  const goToTab = useCallback((tab: Tab) => {
+    setActiveTab((current) => {
+      if (current === tab) return current;
+      if (MAIN_TABS.includes(current) && MAIN_TABS.includes(tab)) {
+        setNavStack((stack) => [...stack, current].slice(-8));
+      }
+      return tab;
+    });
+  }, []);
+
+  const popNavigation = useCallback((): boolean => {
     if (pickerMode === 'change') {
       setPickerMode(null);
+      return true;
+    }
+    if (openAnnouncement) {
+      setOpenAnnouncement(null);
       return true;
     }
     if (openReportId) {
@@ -188,13 +233,38 @@ export default function App() {
       return true;
     }
     if (activeTab === 'report' || activeTab === 'notifications' || activeTab === 'reports') {
+      setNavStack([]);
+      setActiveTab('home');
+      return true;
+    }
+    const stack = navStackRef.current;
+    if (stack.length > 0) {
+      const prev = stack[stack.length - 1];
+      setNavStack((s) => s.slice(0, -1));
+      setActiveTab(prev);
+      return true;
+    }
+    if (activeTab !== 'home' && MAIN_TABS.includes(activeTab)) {
       setActiveTab('home');
       return true;
     }
     return false;
-  }, [activeTab, openReportId, closeReport, pickerMode]);
+  }, [activeTab, openReportId, openAnnouncement, closeReport, pickerMode]);
+
+  const handleNativeBack = popNavigation;
 
   useEffect(() => registerNativeBackHandler(handleNativeBack), [handleNativeBack]);
+
+  useEdgeSwipeBack({
+    enabled:
+      Boolean(user) &&
+      !pickerMode &&
+      !openAnnouncement &&
+      !openReportId &&
+      activeTab !== 'report' &&
+      activeTab !== 'settings',
+    onBack: popNavigation,
+  });
 
   if (!user) {
     return <AuthScreen onAuth={handleAuth} lang={lang} />;
@@ -226,7 +296,7 @@ export default function App() {
     <div className={`min-h-app flex justify-center font-sans ${isDark ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-900'}`}>
       <div className={`w-full max-w-md flex flex-col h-app relative overflow-hidden sm:border-x sm:shadow-kentiva ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200/80'}`}>
 
-        {!openReportId && activeTab !== 'reports' && (
+        {!openReportId && !openAnnouncement && activeTab !== 'reports' && (
           <header className={`px-4 py-3.5 pt-safe z-10 flex justify-between items-center shrink-0 border-b backdrop-blur-md ${isDark ? 'border-slate-800 bg-slate-900/95' : 'border-slate-200/80 bg-white/90'}`}>
             <button
               type="button"
@@ -240,17 +310,22 @@ export default function App() {
                   <Building2 className="w-5 h-5" />
                 )}
               </div>
-              <div className="min-w-0">
-                <h1 className={`text-base font-bold tracking-tight truncate ${isDark ? 'text-white' : 'text-slate-800'}`}>
-                  {tenant?.displayName ?? t('app.name', lang)}
-                </h1>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 min-w-0">
+                  <h1 className={`text-base font-bold tracking-tight truncate ${isDark ? 'text-white' : 'text-slate-800'}`}>
+                    {tenant?.displayName ?? t('app.name', lang)}
+                  </h1>
+                </div>
                 <p className={`text-[10px] font-medium tracking-wide truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                   {tenant ? t('settings.municipalityLinked', lang) : t('app.slogan', lang)}
                 </p>
               </div>
             </button>
             <button
-              onClick={() => setActiveTab('notifications')}
+              onClick={() => {
+                setNavStack((s) => [...s, activeTab].slice(-8));
+                setActiveTab('notifications');
+              }}
               className={`relative shrink-0 p-2 rounded-xl transition-colors ${isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-100'}`}
             >
               <Bell className={`w-5 h-5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`} strokeWidth={activeTab === 'notifications' ? 2.5 : 2} />
@@ -264,16 +339,40 @@ export default function App() {
         )}
 
         <main className={`flex-1 overflow-y-auto overflow-x-hidden relative pb-20 ${isDark ? 'bg-slate-900' : 'bg-slate-50'}`}>
-          {activeTab === 'home' && !openReportId && (
+          {openAnnouncement && (
+            <AnnouncementDetailScreen
+              announcement={openAnnouncement}
+              lang={lang}
+              isDark={isDark}
+              onClose={() => setOpenAnnouncement(null)}
+            />
+          )}
+          {activeTab === 'home' && !openReportId && !openAnnouncement && (
             <Fragment key={key}>
               <Home
-                onViewMyReports={() => setActiveTab('reports')}
+                onViewMyReports={() => {
+                  setNavStack((s) => [...s, 'home'].slice(-8));
+                  setActiveTab('reports');
+                }}
+                onOpenAnnouncement={setOpenAnnouncement}
                 onSelectMunicipality={() => setPickerMode('onboarding')}
+                onReputationChange={() => setKey((prev) => prev + 1)}
                 lang={lang}
                 isDark={isDark}
                 homeMunicipality={tenant}
               />
             </Fragment>
+          )}
+          {activeTab === 'kent' && (
+            <KentScreen
+              municipality={tenant}
+              lang={lang}
+              isDark={isDark}
+              onSelectMunicipality={() => setPickerMode('onboarding')}
+            />
+          )}
+          {activeTab === 'topluluk' && (
+            <CommunityScreen municipality={tenant} lang={lang} isDark={isDark} />
           )}
           {openReportId && (
             <ReportDetailScreen
@@ -287,14 +386,14 @@ export default function App() {
             <NewReport
               defaultMunicipality={tenant}
               onSubmit={handleReportSubmit}
-              onCancel={() => setActiveTab('home')}
+              onCancel={() => goToTab('home')}
               lang={lang}
               isDark={isDark}
             />
           )}
           {activeTab === 'reports' && !openReportId && (
             <MyReports
-              onBack={() => setActiveTab('home')}
+              onBack={() => goToTab('home')}
               onOpenReport={openReport}
               lang={lang}
               isDark={isDark}
@@ -310,7 +409,14 @@ export default function App() {
               isDark={isDark}
             />
           )}
-          {activeTab === 'notifications' && <Notifications onBadgeUpdate={setUnreadCount} lang={lang} isDark={isDark} />}
+          {activeTab === 'notifications' && (
+            <Notifications
+              onBadgeUpdate={setUnreadCount}
+              onOpenReport={openReport}
+              lang={lang}
+              isDark={isDark}
+            />
+          )}
           {activeTab === 'settings' && (
             <Settings
               lang={lang}
@@ -325,31 +431,65 @@ export default function App() {
           )}
         </main>
 
-        {activeTab !== 'settings' && activeTab !== 'reports' && !openReportId && (
-          <nav className={`absolute bottom-0 w-full border-t flex justify-around items-center pb-safe pt-2.5 px-2 z-20 rounded-t-2xl shadow-[0_-8px_30px_-12px_rgba(15,23,42,0.12)] ${isDark ? 'bg-slate-900/95 border-slate-800 backdrop-blur-md' : 'bg-white/95 border-slate-200/90 backdrop-blur-md'}`}>
+        {activeTab !== 'settings' && activeTab !== 'reports' && activeTab !== 'report' && activeTab !== 'notifications' && !openReportId && !openAnnouncement && (
+          <nav className={`absolute bottom-0 w-full border-t flex items-end justify-between pb-safe pt-2 px-1 z-20 rounded-t-2xl shadow-[0_-8px_30px_-12px_rgba(15,23,42,0.12)] ${isDark ? 'bg-slate-900/95 border-slate-800 backdrop-blur-md' : 'bg-white/95 border-slate-200/90 backdrop-blur-md'}`}>
             <button
-              onClick={() => setActiveTab('home')}
-              className={`flex flex-col items-center p-3 w-20 transition-colors ${activeTab === 'home' ? 'text-primary' : isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-400 hover:text-slate-600'}`}
+              type="button"
+              onClick={() => goToTab('home')}
+              className={`flex flex-1 flex-col items-center py-2 min-w-0 transition-colors ${activeTab === 'home' ? 'text-primary' : isDark ? 'text-slate-500' : 'text-slate-400'}`}
             >
-              <HomeIcon className="w-6 h-6 mb-1" strokeWidth={activeTab === 'home' ? 2.5 : 2} />
-              <span className="text-[10px] font-medium">{t('tab.feed', lang)}</span>
+              <HomeIcon className="w-5 h-5 mb-0.5" strokeWidth={activeTab === 'home' ? 2.5 : 2} />
+              <span className="text-[9px] font-medium truncate max-w-full px-0.5">{t('tab.home', lang)}</span>
             </button>
 
-            <button onClick={() => setActiveTab('report')} className="flex flex-col items-center justify-center -mt-8 mb-2">
-              <div className={`p-4 rounded-full shadow-lg shadow-primary/30 transition-transform active:scale-95 ${activeTab === 'report' ? 'bg-primary-hover' : 'bg-primary'}`}>
-                <PlusCircle className="w-8 h-8 text-white" strokeWidth={2} />
+            <button
+              type="button"
+              onClick={() => goToTab('kent')}
+              className={`flex flex-1 flex-col items-center py-2 min-w-0 transition-colors ${activeTab === 'kent' ? 'text-primary' : isDark ? 'text-slate-500' : 'text-slate-400'}`}
+            >
+              <Map className="w-5 h-5 mb-0.5" strokeWidth={activeTab === 'kent' ? 2.5 : 2} />
+              <span className="text-[9px] font-medium truncate max-w-full px-0.5">{t('tab.kent', lang)}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setNavStack((s) => (MAIN_TABS.includes(activeTab) ? [...s, activeTab] : s).slice(-8));
+                setActiveTab('report');
+              }}
+              className="flex flex-col items-center justify-center -mt-6 px-2 shrink-0"
+              aria-label={t('tab.report', lang)}
+            >
+              <div className={`p-3.5 rounded-full shadow-lg shadow-primary/30 transition-transform active:scale-95 ${activeTab === 'report' ? 'bg-primary-hover' : 'bg-primary'}`}>
+                <PlusCircle className="w-7 h-7 text-white" strokeWidth={2} />
               </div>
             </button>
 
             <button
-              onClick={() => setActiveTab('profile')}
-              className={`flex flex-col items-center p-3 w-20 transition-colors ${activeTab === 'profile' ? 'text-primary' : isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-400 hover:text-slate-600'}`}
+              type="button"
+              onClick={() => goToTab('topluluk')}
+              className={`flex flex-1 flex-col items-center py-2 min-w-0 transition-colors ${activeTab === 'topluluk' ? 'text-primary' : isDark ? 'text-slate-500' : 'text-slate-400'}`}
             >
-              <User className="w-6 h-6 mb-1" strokeWidth={activeTab === 'profile' ? 2.5 : 2} />
-              <span className="text-[10px] font-medium">{t('tab.profile', lang)}</span>
+              <Users className="w-5 h-5 mb-0.5" strokeWidth={activeTab === 'topluluk' ? 2.5 : 2} />
+              <span className="text-[9px] font-medium truncate max-w-full px-0.5">{t('tab.community', lang)}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => goToTab('profile')}
+              className={`flex flex-1 flex-col items-center py-2 min-w-0 transition-colors ${activeTab === 'profile' ? 'text-primary' : isDark ? 'text-slate-500' : 'text-slate-400'}`}
+            >
+              <User className="w-5 h-5 mb-0.5" strokeWidth={activeTab === 'profile' ? 2.5 : 2} />
+              <span className="text-[9px] font-medium truncate max-w-full px-0.5">{t('tab.profile', lang)}</span>
             </button>
           </nav>
         )}
+        <NotificationPrefsModal
+          lang={lang}
+          isDark={isDark}
+          isOpen={isPrefsModalOpen}
+          onClose={() => setIsPrefsModalOpen(false)}
+        />
       </div>
     </div>
   );

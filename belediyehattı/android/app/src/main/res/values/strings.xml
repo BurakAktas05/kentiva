@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">BelediyeHatti</string>
-    <string name="title_activity_main">BelediyeHatti</string>
+    <string name="app_name">Kentiva</string>
+    <string name="title_activity_main">Kentiva</string>
     <string name="package_name">com.burak.belediye</string>
     <string name="custom_url_scheme">com.burak.belediye</string>
 </resources>

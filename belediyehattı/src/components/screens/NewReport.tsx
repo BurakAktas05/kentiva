@@ -17,6 +17,7 @@ import {
   type ReportDraftAnalysis,
 } from '../../api';
 import { Lang, t } from '../../i18n';
+import { captureReportPhotoFile, PhotoCaptureCancelledError } from '../../lib/captureReportPhoto';
 import ReportAiScanOverlay from '../ReportAiScanOverlay';
 
 interface NewReportProps {
@@ -160,6 +161,49 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
   };
 
   const selectedCategory = categories.find((c) => c.id === categoryId);
+
+  const handleCapturePhoto = async () => {
+    if (isUploading) return;
+    setError('');
+    try {
+      const file = await captureReportPhotoFile();
+      if (localPhotoPreview) URL.revokeObjectURL(localPhotoPreview);
+      setLocalPhotoPreview(URL.createObjectURL(file));
+      setIsUploading(true);
+      const urls = await uploadMedia(file);
+      if (urls.length > 0) {
+        const url = urls[0];
+        setMediaUrl(url);
+        if (categoryId) {
+          setAiScanOpen(true);
+          setAiAnalysisLoading(true);
+          setAiAnalysis(null);
+          const cat = categories.find((c) => c.id === categoryId);
+          const title = buildReportTitle(description, cat?.name, lang);
+          try {
+            const result = await analyzeReportDraft({
+              categoryId,
+              title,
+              description: description.trim() || undefined,
+              contentLanguage: lang,
+              mediaUrl: url,
+            });
+            setAiAnalysis(result);
+          } catch {
+            setAiScanOpen(false);
+          } finally {
+            setAiAnalysisLoading(false);
+          }
+        }
+      }
+    } catch (err: unknown) {
+      if (err instanceof PhotoCaptureCancelledError) return;
+      setError(err instanceof Error ? err.message : lang === 'tr' ? 'Fotoğraf yüklenemedi' : 'Upload failed');
+      setMediaUrl(null);
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const resolveMunicipalityAt = async (lat: number, lng: number) => {
     const m = await resolveMunicipalityByGps(lat, lng);
@@ -425,60 +469,16 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
               <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                 {t('report.photo', lang)}
               </label>
-              <label
-                className={`relative flex aspect-[4/3] max-h-48 w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed transition-colors ${
+              <button
+                type="button"
+                onClick={() => void handleCapturePhoto()}
+                disabled={isUploading}
+                className={`relative flex aspect-[4/3] max-h-48 w-full flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed transition-colors disabled:opacity-60 ${
                   isDark
                     ? 'bg-slate-800 border-slate-700 text-slate-500 hover:text-secondary hover:border-primary'
                     : 'bg-slate-50 border-slate-300 text-slate-400 hover:text-primary hover:border-primary'
                 }`}
               >
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    if (localPhotoPreview) URL.revokeObjectURL(localPhotoPreview);
-                    setLocalPhotoPreview(URL.createObjectURL(file));
-                    setIsUploading(true);
-                    setError('');
-                    try {
-                      const urls = await uploadMedia(file);
-                      if (urls.length > 0) {
-                        const url = urls[0];
-                        setMediaUrl(url);
-                        if (categoryId) {
-                          setAiScanOpen(true);
-                          setAiAnalysisLoading(true);
-                          setAiAnalysis(null);
-                          const cat = categories.find((c) => c.id === categoryId);
-                          const title = buildReportTitle(description, cat?.name, lang);
-                          try {
-                            const result = await analyzeReportDraft({
-                              categoryId,
-                              title,
-                              description: description.trim() || undefined,
-                              contentLanguage: lang,
-                              mediaUrl: url,
-                            });
-                            setAiAnalysis(result);
-                          } catch {
-                            setAiScanOpen(false);
-                          } finally {
-                            setAiAnalysisLoading(false);
-                          }
-                        }
-                      }
-                    } catch (err: unknown) {
-                      setError(err instanceof Error ? err.message : lang === 'tr' ? 'Fotoğraf yüklenemedi' : 'Upload failed');
-                      setMediaUrl(null);
-                    } finally {
-                      setIsUploading(false);
-                    }
-                  }}
-                  disabled={isUploading}
-                />
                 {isUploading ? (
                   <div className="flex flex-col items-center">
                     <motion.div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mb-2"></motion.div>
@@ -509,7 +509,7 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
                     <span className="text-sm font-medium">{t('report.photo.btn', lang)}</span>
                   </>
                 )}
-              </label>
+              </button>
             </div>
 
             <div>

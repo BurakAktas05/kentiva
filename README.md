@@ -32,6 +32,17 @@ Kentiva is a B2B SaaS platform designed to modernize municipal operations, strea
 *   **Geographic Boundaries:** Supports GeoJSON uploads. The system automatically rejects reports that fall outside the municipal borders using PostGIS spatial algorithms.
 *   **Enterprise Security:** Hardened against DDoS, brute-force, and SQL injection. Swagger is disabled in production environments.
 
+## Docker (yerel tam yığın)
+
+Arkadaşınıza veya yerel test için tek komutla API + PostgreSQL + Admin + Vatandaş web:
+
+```bash
+cp .env.docker.example .env.docker
+docker compose --env-file .env.docker up --build
+```
+
+Ayrıntılar: [`DOCKER.md`](DOCKER.md)
+
 ## Deployment Instructions (Railway / Cloud)
 
 This application is containerized and ready for PaaS providers like Railway, Render, or AWS AppRunner.

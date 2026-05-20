@@ -79,6 +79,13 @@ public class ReportCommandService {
                     "REJECT_FORBIDDEN");
         }
 
+        // Beyaz Masa görevlileri ihbarları çözüldü yapamaz; bu işlem yalnızca ilgili departman tarafından gerçekleştirilebilir.
+        if (request.status() == ReportStatus.RESOLVED && currentUser.getDepartment() == null) {
+            throw new BusinessException(
+                    "Beyaz masa görevlileri ihbarları çözüldü yapamaz; bu işlem yalnızca ilgili departman tarafından gerçekleştirilebilir.",
+                    "RESOLVE_FORBIDDEN_FOR_WHITE_TABLE");
+        }
+
         ReportStatus oldStatus = report.getReportStatus();
         report.setReportStatus(request.status());
 

@@ -19,10 +19,12 @@ public interface IMunicipalityRepository extends JpaRepository<Municipality, Str
 
     @Query("""
             SELECT m FROM Municipality m
-            WHERE m.active = true AND m.type = :type
-            ORDER BY COALESCE(NULLIF(TRIM(m.displayName), ''), m.name)
+            LEFT JOIN FETCH m.parentMunicipality
+            WHERE m.active = true
+              AND m.onboarded = true
+              AND m.type = :type
             """)
-    List<Municipality> findActiveByTypeOrderByDisplay(@Param("type") MunicipalityType type);
+    List<Municipality> findOnboardedActiveByTypeWithParent(@Param("type") MunicipalityType type);
 
     @org.springframework.data.jpa.repository.Modifying
     @Query(value = "UPDATE municipalities SET boundaries = ST_SetSRID(ST_GeomFromGeoJSON(:geoJson), 4326) WHERE id = :id", nativeQuery = true)

@@ -60,40 +60,100 @@ public class ReportQueryService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAnyAuthority('ROLE_FIELD_OFFICER','ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     public Page<ReportListResponse> getAllReports(AppUser user, Pageable pageable) {
-        Page<Report> page = tenantAccess.staffMunicipalityScope(user)
-                .map(muniId -> reportRepository.findByMunicipalityId(muniId, pageable))
-                .orElseGet(() -> reportRepository.findAll(pageable));
+        Page<Report> page;
+        if (user.getDepartment() != null) {
+            String deptId = user.getDepartment().getId();
+            page = tenantAccess.staffMunicipalityScope(user)
+                    .map(muniId -> reportRepository.findByCategoryDepartmentIdAndMunicipalityId(deptId, muniId, pageable))
+                    .orElseGet(() -> reportRepository.findByCategoryDepartmentId(deptId, pageable));
+        } else {
+            page = tenantAccess.staffMunicipalityScope(user)
+                    .map(muniId -> reportRepository.findByMunicipalityId(muniId, pageable))
+                    .orElseGet(() -> reportRepository.findAll(pageable));
+        }
         return mapPage(page);
     }
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasAnyAuthority('ROLE_FIELD_OFFICER','ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     public Page<ReportListResponse> getReportsByStatus(ReportStatus status, AppUser user, Pageable pageable) {
-        Page<Report> page = tenantAccess.staffMunicipalityScope(user)
-                .map(muniId -> reportRepository.findByMunicipalityIdAndReportStatus(muniId, status, pageable))
-                .orElseGet(() -> reportRepository.findByReportStatus(status, pageable));
+        Page<Report> page;
+        if (user.getDepartment() != null) {
+            String deptId = user.getDepartment().getId();
+            page = tenantAccess.staffMunicipalityScope(user)
+                    .map(muniId -> reportRepository.findByCategoryDepartmentIdAndMunicipalityIdAndReportStatus(deptId, muniId, status, pageable))
+                    .orElseGet(() -> reportRepository.findByCategoryDepartmentIdAndReportStatus(deptId, status, pageable));
+        } else {
+            page = tenantAccess.staffMunicipalityScope(user)
+                    .map(muniId -> reportRepository.findByMunicipalityIdAndReportStatus(muniId, status, pageable))
+                    .orElseGet(() -> reportRepository.findByReportStatus(status, pageable));
+        }
         return mapPage(page);
     }
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasAnyAuthority('ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     public Page<ReportListResponse> getReportsByDepartment(String departmentId, AppUser user, Pageable pageable) {
+        // Eğer kullanıcının bir departmanı varsa, yalnızca kendi departmanının ihbarlarını görebilir.
+        String effectiveDeptId = user.getDepartment() != null ? user.getDepartment().getId() : departmentId;
         Page<Report> page;
         if (tenantAccess.isSuperAdmin(user)) {
-            page = reportRepository.findByCategoryDepartmentId(departmentId, pageable);
+            page = reportRepository.findByCategoryDepartmentId(effectiveDeptId, pageable);
         } else {
             String muniId = tenantAccess.requireStaffMunicipalityId(user);
-            page = reportRepository.findByCategoryDepartmentIdAndMunicipalityId(departmentId, muniId, pageable);
+            page = reportRepository.findByCategoryDepartmentIdAndMunicipalityId(effectiveDeptId, muniId, pageable);
         }
         return mapPage(page);
+    }
+
+    private ReportResponse maskReporterDetails(ReportResponse response) {
+        return new ReportResponse(
+                response.id(),
+                response.title(),
+                response.description(),
+                response.status(),
+                response.categoryName(),
+                "Gizli Vatandaş",
+                response.assigneeFullName(),
+                response.latitude(),
+                response.longitude(),
+                response.createdAt(),
+                response.updatedAt(),
+                response.mediaUrls(),
+                response.district(),
+                response.aiPriority(),
+                response.aiSummary(),
+                response.aiSuggestedCategory(),
+                response.aiSlaRisk(),
+                response.aiReplyDraft(),
+                response.aiDuplicateHint(),
+                response.duplicateGroupId(),
+                response.duplicateGroupSize()
+        );
     }
 
     @Transactional(readOnly = true)
     public ReportResponse getReportById(String reportId, AppUser currentUser) {
         Report report = reportSupport.findReportOrThrow(reportId);
         tenantAccess.ensureCanViewReport(report, currentUser);
+
+        // Departman kontrolü: Departman görevlileri yalnızca kendi departmanına ait ihbarları görebilir
+        if (currentUser != null && currentUser.getDepartment() != null) {
+            if (report.getCategory() == null || report.getCategory().getDepartment() == null ||
+                    !report.getCategory().getDepartment().getId().equals(currentUser.getDepartment().getId())) {
+                throw new BusinessException("Bu ihbar sizin departmanınıza ait olmadığından erişim yetkiniz yoktur.", "DEPARTMENT_ACCESS_DENIED");
+            }
+        }
+
         boolean citizenView = tenantAccess.isCitizenOnly(currentUser);
-        return reportSupport.finalizeResponse(report, reportMapper.toResponse(report), citizenView);
+        ReportResponse response = reportSupport.finalizeResponse(report, reportMapper.toResponse(report), citizenView);
+
+        // Departman çalışanlarından vatandaş kimliğini gizle
+        if (currentUser != null && currentUser.getDepartment() != null) {
+            response = maskReporterDetails(response);
+        }
+
+        return response;
     }
 
     @Transactional(readOnly = true)
