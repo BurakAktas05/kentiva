@@ -167,4 +167,9 @@ public class Municipality extends BaseEntity {
     /** EczaneAPI ilçe slug (örn. kadikoy) */
     @Column(name = "widget_district_slug", length = 80)
     private String widgetDistrictSlug;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "workflow_mode", nullable = false, length = 20)
+    @Builder.Default
+    private WorkflowMode workflowMode = WorkflowMode.SIMPLE;
 }

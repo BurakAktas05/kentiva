@@ -194,6 +194,9 @@ public class MunicipalityManagementService {
             m.setPublicStatsEnabled(p.publicStatsEnabled());
         }
         if (superAdminFields) {
+            if (p.workflowMode() != null && !p.workflowMode().isBlank()) {
+                m.setWorkflowMode(com.burak.belediyeapp.entity.WorkflowMode.valueOf(p.workflowMode().trim().toUpperCase()));
+            }
             if (p.active() != null) {
                 m.setActive(p.active());
             }

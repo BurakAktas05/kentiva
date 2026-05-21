@@ -24,6 +24,7 @@ export type BrandingFormValues = {
   smsAssignedTemplate: string;
   pushAssignedTitleTemplate: string;
   pushAssignedBodyTemplate: string;
+  workflowMode: string;
 };
 
 export function emptyBrandingForm(): BrandingFormValues {
@@ -48,6 +49,7 @@ export function emptyBrandingForm(): BrandingFormValues {
     smsAssignedTemplate: '',
     pushAssignedTitleTemplate: '',
     pushAssignedBodyTemplate: '',
+    workflowMode: 'SIMPLE',
   };
 }
 

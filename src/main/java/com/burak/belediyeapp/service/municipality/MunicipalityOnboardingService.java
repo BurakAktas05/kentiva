@@ -39,6 +39,7 @@ public class MunicipalityOnboardingService {
     private final IAppUserRepository userRepository;
     private final IRoleRepository roleRepository;
     private final IReportCategoryRepository categoryRepository;
+    private final com.burak.belediyeapp.repository.IDepartmentRepository departmentRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Transactional
@@ -68,7 +69,25 @@ public class MunicipalityOnboardingService {
         Municipality municipality = municipalityRepository.findById(municipalityDto.id())
                 .orElseThrow(() -> new IllegalStateException("Belediye kaydı oluşturulamadı"));
 
+        municipality.setWorkflowMode(
+                "DEPARTMENTAL".equals(m.workflowMode())
+                        ? com.burak.belediyeapp.entity.WorkflowMode.DEPARTMENTAL
+                        : com.burak.belediyeapp.entity.WorkflowMode.SIMPLE);
+        municipalityRepository.save(municipality);
+
         UserResponse admin = createFirstAdmin(request.admin(), municipality, adminEmail);
+
+        if (request.whiteDesk() != null) {
+            String wdEmail = request.whiteDesk().email().trim().toLowerCase();
+            if (!userRepository.existsByEmail(wdEmail)) {
+                createWhiteDeskUser(request.whiteDesk(), municipality, wdEmail);
+            }
+        }
+
+        if (request.departments() != null && !request.departments().isEmpty()) {
+            seedDepartments(municipality, request.departments());
+        }
+
         CategorySeedResult categories = seedCategories(municipality, request.categories());
 
         log.info(
@@ -102,6 +121,42 @@ public class MunicipalityOnboardingService {
 
         AppUser saved = userRepository.save(user);
         return toUserResponse(saved);
+    }
+
+    private void createWhiteDeskUser(
+            MunicipalityOnboardingRequest.WhiteDeskPart part, Municipality municipality, String normalizedEmail) {
+        NameParts names = splitFullName(part.fullName());
+
+        Role wdRole = roleRepository.findByName("ROLE_WHITE_DESK")
+                .orElseThrow(() -> new BusinessException("ROLE_WHITE_DESK bulunamadı", "ROLE_NOT_FOUND"));
+
+        AppUser user = new AppUser();
+        user.setFirstName(names.firstName());
+        user.setLastName(names.lastName());
+        user.setEmail(normalizedEmail);
+        user.setPassword(passwordEncoder.encode(part.password()));
+        user.setPhoneNumber(part.phone() != null && !part.phone().isBlank() ? part.phone().trim() : null);
+        user.setRoles(Set.of(wdRole));
+        user.setMunicipality(municipality);
+        user.setDistrict(municipality.getName());
+        user.setEnabled(true);
+
+        userRepository.save(user);
+    }
+
+    private void seedDepartments(
+            Municipality municipality, List<MunicipalityOnboardingRequest.DepartmentPart> departments) {
+        for (MunicipalityOnboardingRequest.DepartmentPart part : departments) {
+            String name = part.name().trim();
+            if (name.isBlank()) continue;
+            
+            com.burak.belediyeapp.entity.Department dept = new com.burak.belediyeapp.entity.Department();
+            dept.setName(name);
+            dept.setDescription(part.description());
+            dept.setMunicipality(municipality);
+            dept.setActive(true);
+            departmentRepository.save(dept);
+        }
     }
 
     private CategorySeedResult seedCategories(

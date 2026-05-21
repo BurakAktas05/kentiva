@@ -69,6 +69,22 @@ public interface IReportRepository extends JpaRepository<Report, String> {
     Page<Report> findByCategoryDepartmentIdAndReportStatus(String departmentId, ReportStatus status, Pageable pageable);
 
     /**
+     * Yönlendirilmiş raporlar (Birim Müdürü DEPARTMENTAL mod)
+     */
+    @EntityGraph(attributePaths = {"category"})
+    Page<Report> findByForwardedDepartmentId(String departmentId, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"category"})
+    Page<Report> findByForwardedDepartmentIdAndMunicipalityId(String departmentId, String municipalityId, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"category"})
+    Page<Report> findByForwardedDepartmentIdAndReportStatus(String departmentId, ReportStatus status, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"category"})
+    Page<Report> findByForwardedDepartmentIdAndMunicipalityIdAndReportStatus(String departmentId, String municipalityId, ReportStatus status, Pageable pageable);
+
+
+    /**
      * PostGIS ile belirtilen koordinat merkezine belirli bir yarıçap (metre)
      * içindeki raporları getirir. Saha ekibinin yakındaki sorunları görmesi için.
      *

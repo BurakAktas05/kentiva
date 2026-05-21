@@ -17,7 +17,9 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
   const [report, setReport] = useState<Report | null>(null);
   const [timeline, setTimeline] = useState<ReportTimelineEntry[]>([]);
   const [officers, setOfficers] = useState<User[]>([]);
+  const [departments, setDepartments] = useState<{ id: string; name: string }[]>([]);
   const [selectedOfficerId, setSelectedOfficerId] = useState<string>('');
+  const [selectedDeptId, setSelectedDeptId] = useState<string>('');
   const [isAssigning, setIsAssigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -34,18 +36,20 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
     let cancelled = false;
     (async () => {
       try {
-        const [r, tl, u, dup, me] = await Promise.all([
+        const [r, tl, u, dup, me, depsRes] = await Promise.all([
           api.get(`/reports/${id}`), 
           api.get(`/reports/${id}/timeline`),
-          api.get('/users?role=ROLE_FIELD_OFFICER'),
+          api.get('/users?role=ROLE_FIELD_OFFICER').catch(() => ({ data: { data: [] } })),
           api.get(`/reports/${id}/duplicate-group`),
           api.get('/auth/me'),
+          api.get('/departments').catch(() => ({ data: { data: [] } }))
         ]);
         if (!cancelled) {
           const rep = r.data.data as Report;
           setReport(rep);
           setTimeline(tl.data.data as ReportTimelineEntry[]);
           setOfficers(u.data.data as User[]);
+          setDepartments(depsRes.data.data as { id: string; name: string }[]);
           setDuplicateGroup(dup.data.data as ReportListItem[]);
           setCurrentUser(me.data.data);
           if (rep.aiReplyDraft) {
@@ -144,6 +148,28 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
         axios.isAxiosError(err)
           ? String((err.response?.data as { message?: string } | undefined)?.message ?? 'Atama başarısız.')
           : 'Atama başarısız.'
+      );
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
+  const handleForward = async () => {
+    if (!selectedDeptId || !id) return;
+    setIsAssigning(true);
+    setSuccessMsg(null);
+    try {
+      await api.post(`/reports/${id}/forward`, { departmentId: selectedDeptId, note: noteText });
+      const [r, tl] = await Promise.all([api.get(`/reports/${id}`), api.get(`/reports/${id}/timeline`)]);
+      setReport(r.data.data as Report);
+      setTimeline(tl.data.data as ReportTimelineEntry[]);
+      setSuccessMsg('Departmana yönlendirildi.');
+      setTimeout(() => setSuccessMsg(null), 3000);
+    } catch (err: unknown) {
+      setError(
+        axios.isAxiosError(err)
+          ? String((err.response?.data as { message?: string } | undefined)?.message ?? 'Yönlendirme başarısız.')
+          : 'Yönlendirme başarısız.'
       );
     } finally {
       setIsAssigning(false);
@@ -349,6 +375,29 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
                   {isAssigning ? '...' : <><UserPlus className="h-3 w-3" /> Ata</>}
                 </button>
               </div>
+
+              {currentUser?.roles?.includes('ROLE_WHITE_DESK') && (
+                <div className="mt-2 border-t border-slate-100 pt-2 dark:border-slate-800 flex items-center gap-2">
+                  <select
+                    value={selectedDeptId}
+                    onChange={(e) => setSelectedDeptId(e.target.value)}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  >
+                    <option value="">Departmana Yönlendir...</option>
+                    {departments.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={handleForward}
+                    disabled={!selectedDeptId || isAssigning}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-bold text-white transition-all hover:bg-violet-700 disabled:opacity-50"
+                  >
+                    {isAssigning ? '...' : 'Yönlendir'}
+                  </button>
+                </div>
+              )}
+
               {successMsg && (
                 <p className="flex items-center gap-1 text-[11px] font-bold text-green-600 dark:text-green-400">
                   <CheckCircle2 className="h-3 w-3" /> {successMsg}
@@ -356,6 +405,15 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
               )}
             </dd>
           </div>
+          {report.forwardedDepartmentName && (
+            <div>
+              <dt className="font-semibold text-slate-500">Yönlendirilen Departman</dt>
+              <dd className="text-slate-900 dark:text-white">
+                {report.forwardedDepartmentName}
+                {report.forwardedByName ? ` (${report.forwardedByName})` : ''}
+              </dd>
+            </div>
+          )}
           <div>
             <dt className="font-semibold text-slate-500">Oluşturulma</dt>
             <dd className="text-slate-900 dark:text-white">{report.createdAt ? new Date(report.createdAt).toLocaleString('tr-TR') : '—'}</dd>

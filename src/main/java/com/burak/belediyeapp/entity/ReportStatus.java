@@ -17,6 +17,12 @@ public enum ReportStatus {
     PENDING,
 
     /**
+     * Beyaz Masa tarafından departmana yönlendirildi, müdürlük henüz almadı.
+     * Yalnızca DEPARTMENTAL modda kullanılır.
+     */
+    FORWARDED,
+
+    /**
      * Rapor incelendi, saha ekibine atandı, üzerinde çalışılıyor.
      */
     PROCESSING,

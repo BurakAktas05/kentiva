@@ -40,7 +40,8 @@ public record MunicipalityDto(
         String pushProcessingBodyTemplate,
         String smsAssignedTemplate,
         String pushAssignedTitleTemplate,
-        String pushAssignedBodyTemplate
+        String pushAssignedBodyTemplate,
+        String workflowMode
 ) {
     public static MunicipalityDto fromEntity(Municipality m) {
         if (m == null) {
@@ -83,7 +84,8 @@ public record MunicipalityDto(
                 m.getPushProcessingBodyTemplate(),
                 m.getSmsAssignedTemplate(),
                 m.getPushAssignedTitleTemplate(),
-                m.getPushAssignedBodyTemplate()
+                m.getPushAssignedBodyTemplate(),
+                m.getWorkflowMode() != null ? m.getWorkflowMode().name() : "SIMPLE"
         );
     }
 }

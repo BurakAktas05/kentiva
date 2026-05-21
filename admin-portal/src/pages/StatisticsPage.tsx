@@ -84,6 +84,7 @@ export default function StatisticsPage() {
     if (!stats) return [];
     return [
       { name: 'Bekleyen', key: 'PENDING', value: stats.pendingReports },
+      { name: 'Yönlendirilen', key: 'FORWARDED', value: stats.forwardedReports ?? 0 },
       { name: 'İşleniyor', key: 'PROCESSING', value: stats.processingReports },
       { name: 'Çözülen', key: 'RESOLVED', value: stats.resolvedReports },
       { name: 'Red', key: 'REJECTED', value: stats.rejectedReports },

@@ -225,6 +225,17 @@ public class ReportController {
         return ResponseEntity.ok(ApiResponse.success("Rapor atandı", response));
     }
 
+    @PostMapping("/{reportId}/forward")
+    @Operation(summary = "Raporu departmana yönlendir (Beyaz Masa ve üzeri)")
+    public ResponseEntity<ApiResponse<ReportResponse>> forwardReport(
+            @PathVariable String reportId,
+            @Valid @RequestBody com.burak.belediyeapp.dto.request.report.ForwardReportRequest request,
+            @AuthenticationPrincipal AppUser currentUser) {
+
+        ReportResponse response = reportService.forwardReportToDepartment(reportId, request, currentUser);
+        return ResponseEntity.ok(ApiResponse.success("Rapor yönlendirildi", response));
+    }
+
     @PostMapping("/batch/assign")
     @Operation(summary = "Seçili raporları toplu ata (Birim Müdürü ve üzeri)")
     public ResponseEntity<ApiResponse<BulkReportOperationResult>> bulkAssignReports(

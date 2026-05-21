@@ -82,7 +82,11 @@ public class IntegrationReportService {
                 response.aiReplyDraft(),
                 response.aiDuplicateHint(),
                 response.duplicateGroupId(),
-                response.duplicateGroupSize()
+                response.duplicateGroupSize(),
+                response.forwardedDepartmentId(),
+                response.forwardedDepartmentName(),
+                response.forwardedAt(),
+                response.forwardedByName()
         );
     }
 }

@@ -51,6 +51,7 @@ type MunicipalityDto = {
   smsAssignedTemplate: string | null;
   pushAssignedTitleTemplate: string | null;
   pushAssignedBodyTemplate: string | null;
+  workflowMode?: string | null;
   centerLat?: number | null;
   centerLng?: number | null;
   defaultZoom?: number | null;
@@ -78,6 +79,7 @@ function dtoToForm(m: MunicipalityDto): BrandingFormValues {
     smsAssignedTemplate: m.smsAssignedTemplate || '',
     pushAssignedTitleTemplate: m.pushAssignedTitleTemplate || '',
     pushAssignedBodyTemplate: m.pushAssignedBodyTemplate || '',
+    workflowMode: m.workflowMode || 'SIMPLE',
   };
 }
 

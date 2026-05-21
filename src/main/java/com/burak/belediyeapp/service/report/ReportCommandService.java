@@ -11,6 +11,7 @@ import com.burak.belediyeapp.exception.BusinessException;
 import com.burak.belediyeapp.exception.ResourceNotFoundException;
 import com.burak.belediyeapp.mapper.IReportMapper;
 import com.burak.belediyeapp.repository.IAppUserRepository;
+import com.burak.belediyeapp.repository.IDepartmentRepository;
 import com.burak.belediyeapp.repository.IReportCategoryRepository;
 import com.burak.belediyeapp.repository.IReportHistoryRepository;
 import com.burak.belediyeapp.repository.IReportRepository;
@@ -40,6 +41,7 @@ public class ReportCommandService {
     private final IReportCategoryRepository categoryRepository;
     private final IAppUserRepository userRepository;
     private final IReportHistoryRepository historyRepository;
+    private final IDepartmentRepository departmentRepository;
     private final IReportMapper reportMapper;
     private final ReportSupport reportSupport;
     private final TenantAccessService tenantAccess;
@@ -80,9 +82,9 @@ public class ReportCommandService {
         }
 
         // Beyaz Masa görevlileri ihbarları çözüldü yapamaz; bu işlem yalnızca ilgili departman tarafından gerçekleştirilebilir.
-        if (request.status() == ReportStatus.RESOLVED && currentUser.getDepartment() == null) {
+        if (request.status() == ReportStatus.RESOLVED && currentUser.getDepartment() == null && !currentUser.hasRole("ROLE_SUPER_ADMIN")) {
             throw new BusinessException(
-                    "Beyaz masa görevlileri ihbarları çözüldü yapamaz; bu işlem yalnızca ilgili departman tarafından gerçekleştirilebilir.",
+                    "Beyaz masa görevlileri veya departmansız yöneticiler ihbarları çözüldü yapamaz; bu işlem yalnızca ilgili departman tarafından gerçekleştirilebilir.",
                     "RESOLVE_FORBIDDEN_FOR_WHITE_TABLE");
         }
 
@@ -150,7 +152,50 @@ public class ReportCommandService {
     }
 
     @Transactional
-    @PreAuthorize("hasAnyAuthority('ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_WHITE_DESK','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @com.burak.belediyeapp.audit.AuditAction(action = "REPORT_FORWARD", description = "Rapor departmana yönlendirildi")
+    public ReportResponse forwardReportToDepartment(
+            String reportId, com.burak.belediyeapp.dto.request.report.ForwardReportRequest request, AppUser currentUser) {
+        Report report = reportSupport.findReportOrThrow(reportId);
+        tenantAccess.ensureCanViewReport(report, currentUser);
+
+        Municipality muni = report.getMunicipality();
+        if (muni == null || muni.getWorkflowMode() != WorkflowMode.DEPARTMENTAL) {
+            throw new BusinessException(
+                "Bu belediye departmanlı modda değil. Direkt atama yapın.",
+                "WORKFLOW_MODE_MISMATCH");
+        }
+
+        if (report.getReportStatus() != ReportStatus.PENDING) {
+            throw new BusinessException(
+                "Yalnızca bekleyen raporlar yönlendirilebilir.",
+                "INVALID_STATUS_FOR_FORWARD");
+        }
+
+        Department dept = departmentRepository.findById(request.departmentId())
+                .orElseThrow(() -> new ResourceNotFoundException("Departman", "id", request.departmentId()));
+        tenantAccess.ensureDepartmentInScope(dept, currentUser);
+
+        report.setForwardedDepartment(dept);
+        report.setForwardedAt(java.time.LocalDateTime.now());
+        report.setForwardedBy(currentUser);
+        report.setReportStatus(ReportStatus.FORWARDED);
+
+        historyRepository.save(ReportHistory.builder()
+            .report(report).oldStatus(ReportStatus.PENDING).newStatus(ReportStatus.FORWARDED)
+            .changedBy(currentUser)
+            .note(request.note() != null && !request.note().isBlank() ? request.note()
+                  : dept.getName() + " departmanına yönlendirildi")
+            .build());
+
+        Report saved = reportRepository.save(report);
+        // notificationService.notifyReportForwarded(saved, dept);
+        
+        return reportSupport.finalizeResponse(saved, reportMapper.toResponse(saved));
+    }
+
+    @Transactional
+    @PreAuthorize("hasAnyAuthority('ROLE_WHITE_DESK','ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     public ReportResponse assignReport(String reportId, AssignReportRequest request, AppUser assignedBy) {
         Report report = reportSupport.findReportOrThrow(reportId);
         tenantAccess.ensureCanViewReport(report, assignedBy);
@@ -168,9 +213,18 @@ public class ReportCommandService {
                     "INVALID_ASSIGNEE_ROLE");
         }
 
+        Municipality muni = report.getMunicipality();
+        if (muni != null && muni.getWorkflowMode() == WorkflowMode.DEPARTMENTAL) {
+            if (!assignedBy.hasRole("ROLE_DEPT_MANAGER") && !assignedBy.hasRole("ROLE_SUPER_ADMIN")) {
+                throw new BusinessException(
+                    "Departmanlı modda yalnızca birim müdürü atama yapabilir.",
+                    "ASSIGN_FORBIDDEN_DEPARTMENTAL");
+            }
+        }
+
         report.setAssignee(assignee);
 
-        if (report.getReportStatus() == ReportStatus.PENDING) {
+        if (report.getReportStatus() == ReportStatus.PENDING || report.getReportStatus() == ReportStatus.FORWARDED) {
             ReportStatus oldStatus = report.getReportStatus();
             report.setReportStatus(ReportStatus.PROCESSING);
 
@@ -205,7 +259,7 @@ public class ReportCommandService {
      * tek bir başarısızlık tüm grubu rollback'e SÜRÜKLEMEZ ve uzun txn'ler DB connection'larını
      * tutmaz (audit gereğince hata satır bazlı raporlanır).
      */
-    @PreAuthorize("hasAnyAuthority('ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_WHITE_DESK','ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     public BulkReportOperationResult bulkAssignReports(BulkAssignReportsRequest request, AppUser assignedBy) {
         List<String> ids = ReportSupport.distinctIds(request.reportIds());
         List<BulkReportOperationResult.BulkReportFailure> failures = new ArrayList<>();

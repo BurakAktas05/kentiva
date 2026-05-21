@@ -51,6 +51,7 @@ export default function MunicipalityOnboardingPage() {
   const [centerLngStr, setCenterLngStr] = useState('28.9784');
   const [defaultZoomStr, setDefaultZoomStr] = useState('12');
   const [slogan, setSlogan] = useState('');
+  const [workflowMode, setWorkflowMode] = useState<'SIMPLE' | 'DEPARTMENTAL'>('SIMPLE');
 
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
@@ -114,6 +115,7 @@ export default function MunicipalityOnboardingPage() {
           defaultZoom,
           slogan: slogan.trim() || null,
           parentMunicipalityId: null,
+          workflowMode,
         },
         admin: {
           email: adminEmail.trim(),
@@ -181,6 +183,12 @@ export default function MunicipalityOnboardingPage() {
               <label className="block text-xs font-semibold text-slate-500">Merkez boylam<input type="text" inputMode="decimal" className={`mt-1 ${inputClass}`} value={centerLngStr} onChange={(e) => setCenterLngStr(e.target.value)} /></label>
               <label className="block text-xs font-semibold text-slate-500">Zoom<input type="text" inputMode="numeric" className={`mt-1 ${inputClass}`} value={defaultZoomStr} onChange={(e) => setDefaultZoomStr(e.target.value)} /></label>
               <label className="sm:col-span-2 block text-xs font-semibold text-slate-500">Slogan<input className={`mt-1 ${inputClass}`} value={slogan} onChange={(e) => setSlogan(e.target.value)} /></label>
+              <label className="sm:col-span-2 block text-xs font-semibold text-slate-500">İş Akışı Modu
+                <select className={`mt-1 ${inputClass}`} value={workflowMode} onChange={(e) => setWorkflowMode(e.target.value as 'SIMPLE' | 'DEPARTMENTAL')}>
+                  <option value="SIMPLE">Basit Mod (Admin/Müdür doğrudan saha ekibine atar)</option>
+                  <option value="DEPARTMENTAL">Departmanlı Mod (Beyaz Masa gelen talebi departmana yönlendirir)</option>
+                </select>
+              </label>
             </div>
           </div>
         )}

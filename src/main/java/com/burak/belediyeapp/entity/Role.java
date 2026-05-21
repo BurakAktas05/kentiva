@@ -17,6 +17,7 @@ import java.util.Set;
  *  - ROLE_DEPT_MANAGER     : Birim Müdürü — kendi departmanını yönetir, ekip atar
  *  - ROLE_ADMIN            : Belediye Yöneticisi — tüm raporlar, kullanıcılar, kategoriler
  *  - ROLE_SUPER_ADMIN      : Sistem Yöneticisi — departman, rol atama dahil tam yetki
+ *  - ROLE_WHITE_DESK       : Beyaz Masa — ihbar alır; SIMPLE modda direkt atar, DEPARTMENTAL modda departmana yönlendirir
  */
 @Entity
 @Table(name = "roles")

@@ -137,6 +137,7 @@ export default function UsersPage() {
   const roleLabels: Record<string, string> = {
     'ROLE_SUPER_ADMIN': 'Süper Admin',
     'ROLE_ADMIN': 'Admin',
+    'ROLE_WHITE_DESK': 'Beyaz Masa',
     'ROLE_DEPT_MANAGER': 'Birim Müdürü',
     'ROLE_FIELD_OFFICER': 'Saha Görevlisi',
     'ROLE_CITIZEN': 'Vatandaş'
@@ -281,6 +282,7 @@ export default function UsersPage() {
                 <select value={role} onChange={e => setRole(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary bg-white">
                   <option value="ROLE_FIELD_OFFICER">Saha Görevlisi</option>
                   <option value="ROLE_DEPT_MANAGER">Birim Müdürü</option>
+                  <option value="ROLE_WHITE_DESK">Beyaz Masa</option>
                   <option value="ROLE_ADMIN">Admin</option>
                 </select>
               </div>

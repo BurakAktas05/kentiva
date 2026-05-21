@@ -179,6 +179,7 @@ export default function MunicipalityBrandingForm({
       publicStatsEnabled: form.publicStatsEnabled,
       active: null,
       onboarded: null,
+      workflowMode: form.workflowMode,
       slug: slugEditable && slug.trim() ? slug.trim() : null,
     };
     try {
@@ -216,6 +217,19 @@ export default function MunicipalityBrandingForm({
           value={form.displayName}
           onChange={(v) => setForm((f) => ({ ...f, displayName: v }))}
         />
+        {mode === 'superAdmin' && (
+          <label className="block">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">İş Akışı Modu</span>
+            <select
+              className={inputClass}
+              value={form.workflowMode}
+              onChange={(e) => setForm((f) => ({ ...f, workflowMode: e.target.value }))}
+            >
+              <option value="SIMPLE">Basit Mod (Doğrudan Atama)</option>
+              <option value="DEPARTMENTAL">Departmanlı Mod (Beyaz Masa &gt; Departman &gt; Atama)</option>
+            </select>
+          </label>
+        )}
         <Field
           label="Slogan"
           value={form.slogan}

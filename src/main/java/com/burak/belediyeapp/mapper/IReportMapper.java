@@ -29,6 +29,10 @@ public interface IReportMapper {
             expression = "java(report.getReporter() != null ? report.getReporter().getFirstName() + \" \" + report.getReporter().getLastName() : null)")
     @Mapping(target = "assigneeFullName",
             expression = "java(report.getAssignee() != null ? report.getAssignee().getFirstName() + \" \" + report.getAssignee().getLastName() : null)")
+    @Mapping(target = "forwardedDepartmentId", source = "forwardedDepartment.id")
+    @Mapping(target = "forwardedDepartmentName", source = "forwardedDepartment.name")
+    @Mapping(target = "forwardedByName",
+            expression = "java(report.getForwardedBy() != null ? report.getForwardedBy().getFirstName() + \" \" + report.getForwardedBy().getLastName() : null)")
     @Mapping(target = "latitude", source = "location.y")
     @Mapping(target = "longitude", source = "location.x")
     @Mapping(target = "status", source = "reportStatus")
@@ -68,6 +72,9 @@ public interface IReportMapper {
     @Mapping(target = "aiReplyDraft", ignore = true)
     @Mapping(target = "aiDuplicateHint", ignore = true)
     @Mapping(target = "contentLanguage", ignore = true)
+    @Mapping(target = "forwardedDepartment", ignore = true)
+    @Mapping(target = "forwardedAt", ignore = true)
+    @Mapping(target = "forwardedBy", ignore = true)
     @BeanMapping(ignoreUnmappedSourceProperties = {"categoryId", "mediaUrls", "latitude", "longitude", "targetMunicipalityId"})
     @Mapping(target = "location", source = "request", qualifiedByName = "coordinatesToPoint")
     Report toEntity(CreateReportRequest request);

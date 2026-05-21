@@ -15,6 +15,8 @@ import java.util.List;
 public record MunicipalityOnboardingRequest(
         @NotNull @Valid MunicipalityPart municipality,
         @NotNull @Valid AdminPart admin,
+        @Valid WhiteDeskPart whiteDesk,
+        List<@Valid DepartmentPart> departments,
         @NotEmpty List<@Valid CategoryPart> categories
 ) {
     public record MunicipalityPart(
@@ -25,7 +27,8 @@ public record MunicipalityOnboardingRequest(
             Double centerLng,
             Integer defaultZoom,
             @Size(max = 255) String slogan,
-            String parentMunicipalityId
+            String parentMunicipalityId,
+            String workflowMode
     ) {}
 
     public record AdminPart(
@@ -33,6 +36,18 @@ public record MunicipalityOnboardingRequest(
             @NotBlank @Size(min = 8, max = 100) String password,
             @NotBlank @Size(min = 2, max = 160) String fullName,
             @Size(max = 20) String phone
+    ) {}
+
+    public record WhiteDeskPart(
+            @NotBlank @Email String email,
+            @NotBlank @Size(min = 8, max = 100) String password,
+            @NotBlank @Size(min = 2, max = 160) String fullName,
+            @Size(max = 20) String phone
+    ) {}
+
+    public record DepartmentPart(
+            @NotBlank @Size(min = 2, max = 100) String name,
+            @Size(max = 255) String description
     ) {}
 
     public record CategoryPart(

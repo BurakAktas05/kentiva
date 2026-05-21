@@ -110,6 +110,20 @@ public class Report extends BaseEntity {
     @Builder.Default
     private String contentLanguage = "tr";
 
+    /** Beyaz Masa tarafından yönlendirilen departman (DEPARTMENTAL modda) */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "forwarded_department_id")
+    private Department forwardedDepartment;
+
+    /** Yönlendirme zamanı */
+    @Column(name = "forwarded_at")
+    private java.time.LocalDateTime forwardedAt;
+
+    /** Yönlendiren kullanıcı */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "forwarded_by_id")
+    private AppUser forwardedBy;
+
     /**
      * Durum değişikliği geçmişi — auditability için.
      */

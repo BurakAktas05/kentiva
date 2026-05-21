@@ -28,7 +28,12 @@ public class TenantAccessService {
                 && !user.hasRole("ROLE_FIELD_OFFICER")
                 && !user.hasRole("ROLE_DEPT_MANAGER")
                 && !user.hasRole("ROLE_ADMIN")
-                && !user.hasRole("ROLE_SUPER_ADMIN");
+                && !user.hasRole("ROLE_SUPER_ADMIN")
+                && !user.hasRole("ROLE_WHITE_DESK");
+    }
+
+    public boolean isWhiteDesk(AppUser user) {
+        return user != null && user.hasRole("ROLE_WHITE_DESK");
     }
 
     /**

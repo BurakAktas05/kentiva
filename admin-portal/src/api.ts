@@ -88,6 +88,7 @@ export interface Stats {
   processingReports: number;
   resolvedReports: number;
   rejectedReports: number;
+  forwardedReports: number;
   totalUsers: number;
   totalDepartments: number;
   totalCategories: number;
@@ -97,7 +98,7 @@ export interface Report {
   id: string;
   title: string;
   description?: string;
-  status: 'PENDING' | 'PROCESSING' | 'RESOLVED' | 'REJECTED';
+  status: 'PENDING' | 'PROCESSING' | 'RESOLVED' | 'REJECTED' | 'FORWARDED';
   categoryName: string;
   reporterFullName?: string;
   assigneeFullName?: string | null;
@@ -114,6 +115,10 @@ export interface Report {
   aiDuplicateHint?: string | null;
   duplicateGroupId?: string | null;
   duplicateGroupSize?: number | null;
+  forwardedDepartmentId?: string | null;
+  forwardedDepartmentName?: string | null;
+  forwardedAt?: string | null;
+  forwardedByName?: string | null;
 }
 
 export interface ReportTimelineEntry {

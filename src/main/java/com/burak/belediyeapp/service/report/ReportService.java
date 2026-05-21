@@ -70,6 +70,11 @@ public class ReportService {
         return commandService.assignReport(reportId, request, assignedBy);
     }
 
+    public ReportResponse forwardReportToDepartment(
+            String reportId, com.burak.belediyeapp.dto.request.report.ForwardReportRequest request, AppUser currentUser) {
+        return commandService.forwardReportToDepartment(reportId, request, currentUser);
+    }
+
     public BulkReportOperationResult bulkAssignReports(BulkAssignReportsRequest request, AppUser assignedBy) {
         return commandService.bulkAssignReports(request, assignedBy);
     }

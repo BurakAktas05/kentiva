@@ -28,6 +28,7 @@ public class DashboardService {
                     reportRepository.countByReportStatus(ReportStatus.PROCESSING),
                     reportRepository.countByReportStatus(ReportStatus.RESOLVED),
                     reportRepository.countByReportStatus(ReportStatus.REJECTED),
+                    reportRepository.countByReportStatus(ReportStatus.FORWARDED),
                     userRepository.count(),
                     departmentRepository.count(),
                     categoryRepository.count());
@@ -45,6 +46,7 @@ public class DashboardService {
                 reportRepository.countByMunicipalityIdAndReportStatus(municipalityId, ReportStatus.PROCESSING),
                 reportRepository.countByMunicipalityIdAndReportStatus(municipalityId, ReportStatus.RESOLVED),
                 reportRepository.countByMunicipalityIdAndReportStatus(municipalityId, ReportStatus.REJECTED),
+                reportRepository.countByMunicipalityIdAndReportStatus(municipalityId, ReportStatus.FORWARDED),
                 userRepository.countByMunicipalityId(municipalityId),
                 departmentRepository.countByMunicipalityId(municipalityId),
                 categoryCount);

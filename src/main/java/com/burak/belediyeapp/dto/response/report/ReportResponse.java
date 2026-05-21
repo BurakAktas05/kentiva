@@ -24,5 +24,9 @@ public record ReportResponse(
         String aiReplyDraft,
         String aiDuplicateHint,
         String duplicateGroupId,
-        Integer duplicateGroupSize
+        Integer duplicateGroupSize,
+        String forwardedDepartmentId,
+        String forwardedDepartmentName,
+        LocalDateTime forwardedAt,
+        String forwardedByName
 ) {}

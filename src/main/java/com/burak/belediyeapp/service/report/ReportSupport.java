@@ -116,7 +116,11 @@ public class ReportSupport {
                 null,
                 response.aiDuplicateHint(),
                 response.duplicateGroupId(),
-                response.duplicateGroupSize());
+                response.duplicateGroupSize(),
+                response.forwardedDepartmentId(),
+                response.forwardedDepartmentName(),
+                response.forwardedAt(),
+                null);
     }
 
     public ReportListResponse finalizeListResponse(Report report, ReportListResponse mapped) {
@@ -182,7 +186,11 @@ public class ReportSupport {
                 response.aiReplyDraft(),
                 response.aiDuplicateHint(),
                 response.duplicateGroupId(),
-                response.duplicateGroupSize());
+                response.duplicateGroupSize(),
+                response.forwardedDepartmentId(),
+                response.forwardedDepartmentName(),
+                response.forwardedAt(),
+                response.forwardedByName());
     }
 
     private ReportResponse withDuplicateMeta(ReportResponse response, Report report) {
@@ -209,7 +217,11 @@ public class ReportSupport {
                 response.aiReplyDraft(),
                 response.aiDuplicateHint(),
                 groupId,
-                size);
+                size,
+                response.forwardedDepartmentId(),
+                response.forwardedDepartmentName(),
+                response.forwardedAt(),
+                response.forwardedByName());
     }
 
     private ReportListResponse withDuplicateMeta(ReportListResponse response, Report report) {
