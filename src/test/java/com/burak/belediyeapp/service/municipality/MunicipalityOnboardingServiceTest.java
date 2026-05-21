@@ -77,7 +77,7 @@ class MunicipalityOnboardingServiceTest {
                         "Slogan", null, null, null, false, true, true,
                         "TRIAL", null, null, "TRIAL",
                         null, null, null, null,
-                        null, null, null, null, null, null));
+                        null, null, null, null, null, null, "SIMPLE"));
         Municipality municipality = Municipality.builder()
                 .name("Test İlçe")
                 .type(MunicipalityType.DISTRICT)
@@ -116,9 +116,11 @@ class MunicipalityOnboardingServiceTest {
     private static MunicipalityOnboardingRequest sampleRequest() {
         return new MunicipalityOnboardingRequest(
                 new MunicipalityOnboardingRequest.MunicipalityPart(
-                        "Test İlçe", "test-ilce", "Test İlçe", 41.0, 29.0, 12, "Slogan", null),
+                        "Test İlçe", "test-ilce", "Test İlçe", 41.0, 29.0, 12, "Slogan", null, "SIMPLE"),
                 new MunicipalityOnboardingRequest.AdminPart(
                         "admin@test.com", "password12", "Ali Veli", "5551112233"),
+                null,
+                null,
                 List.of(
                         new MunicipalityOnboardingRequest.CategoryPart("Çukur", "Yol çukuru", "road_crack"),
                         new MunicipalityOnboardingRequest.CategoryPart("Park", "Park alanı", "park")));
