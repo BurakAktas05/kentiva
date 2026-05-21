@@ -33,6 +33,14 @@ class AuthControllerWebMvcTest {
     @MockitoBean JwtAuthenticationSupport jwtAuthenticationSupport;
     @MockitoBean IAppUserRepository userRepository;
     @MockitoBean ApiKeyAuthFilter apiKeyAuthFilter;
+    @MockitoBean com.burak.belediyeapp.security.SubscriptionInterceptor subscriptionInterceptor;
+
+    @org.junit.jupiter.api.BeforeEach
+    void stubInterceptor() throws Exception {
+        org.mockito.Mockito.when(subscriptionInterceptor.preHandle(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(true);
+    }
 
     @Test
     void loginReturnsAuthResponseForValidRequest() throws Exception {

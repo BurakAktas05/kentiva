@@ -17,18 +17,24 @@ import {
   fetchHomeWidgets,
   type HomeWidgetsBundle,
   type PublicTenant,
-  type WeatherWidget,
 } from '../../api';
-import { openMapsNavigation } from '../../lib/deviceLocation';
+import { getDevicePosition, isDeviceLocationFailure, openMapsNavigation, type DeviceCoords } from '../../lib/deviceLocation';
 import { Lang, t } from '../../i18n';
 
 const OFFICIAL_PHARMACY_URL = 'https://www.turkiye.gov.tr/saglik-nobetci-eczane-arama';
+const LOCATION_CACHE_TTL_MS = 5 * 60 * 1000;
 
 type WidgetBaseProps = {
   tenant: PublicTenant;
   lang: Lang;
   isDark: boolean;
 };
+
+type WidgetLocationSource = 'device' | 'tenant' | 'none';
+
+let cachedDeviceCoords: DeviceCoords | null = null;
+let cachedDeviceCoordsAt = 0;
+let deviceCoordsPromise: Promise<DeviceCoords | null> | null = null;
 
 function weatherVisual(code: number | null | undefined, className: string): ReactNode {
   const c = code ?? -1;
@@ -49,6 +55,60 @@ function weatherCardTheme(code: number | null | undefined, isDark: boolean): str
   if ((c >= 61 && c <= 82) || (c >= 51 && c <= 57)) return 'border-sky-300/80 bg-gradient-to-br from-sky-200/70 via-sky-50 to-blue-50';
   if (c >= 71 && c <= 86) return 'border-slate-200 bg-gradient-to-br from-slate-100 via-sky-50 to-white';
   return 'border-sky-200/80 bg-gradient-to-br from-sky-100 via-white to-sky-50';
+}
+
+function locationSourceLabel(source: WidgetLocationSource, lang: Lang): string {
+  if (lang === 'ar') {
+    if (source === 'device') return 'بحسب موقعك';
+    if (source === 'tenant') return 'مركز البلدية';
+    return 'الموقع غير متاح';
+  }
+  if (lang === 'en') {
+    if (source === 'device') return 'Using your location';
+    if (source === 'tenant') return 'Municipality center';
+    return 'Location unavailable';
+  }
+  if (source === 'device') return 'Konumuna gore';
+  if (source === 'tenant') return 'Belediye merkezi';
+  return 'Konum yok';
+}
+
+async function loadDeviceCoords(forceRefresh: boolean): Promise<DeviceCoords | null> {
+  const now = Date.now();
+  if (!forceRefresh && cachedDeviceCoords && now - cachedDeviceCoordsAt < LOCATION_CACHE_TTL_MS) {
+    return cachedDeviceCoords;
+  }
+
+  if (!deviceCoordsPromise) {
+    deviceCoordsPromise = (async () => {
+      const result = await getDevicePosition({ highAccuracy: false, timeoutMs: 7000 });
+      if (isDeviceLocationFailure(result)) {
+        return null;
+      }
+      cachedDeviceCoords = result.coords;
+      cachedDeviceCoordsAt = Date.now();
+      return result.coords;
+    })().finally(() => {
+      deviceCoordsPromise = null;
+    });
+  }
+
+  return deviceCoordsPromise;
+}
+
+async function resolveWidgetCoords(
+  centerLat: number | null | undefined,
+  centerLng: number | null | undefined,
+  forceRefresh: boolean,
+): Promise<{ coords: DeviceCoords | null; source: WidgetLocationSource }> {
+  const deviceCoords = await loadDeviceCoords(forceRefresh);
+  if (deviceCoords) {
+    return { coords: deviceCoords, source: 'device' };
+  }
+  if (centerLat != null && centerLng != null) {
+    return { coords: { lat: centerLat, lng: centerLng }, source: 'tenant' };
+  }
+  return { coords: null, source: 'none' };
 }
 
 function WidgetHeader({
@@ -80,27 +140,43 @@ function useWidgetBundle(tenant: PublicTenant) {
   const [bundle, setBundle] = useState<HomeWidgetsBundle | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
-
-  const widgetLat = tenant.centerLat;
-  const widgetLng = tenant.centerLng;
+  const [locationSource, setLocationSource] = useState<WidgetLocationSource>('none');
+  const { id, centerLat, centerLng } = tenant;
 
   const loadWidgets = useCallback(
     async (signal?: { cancelled: boolean }) => {
-      if (!tenant.id || widgetLat == null || widgetLng == null) {
+      if (!id) {
         setLoading(false);
+        setLocationSource('none');
         return;
       }
+
       setLoading(true);
       try {
-        const b = await fetchHomeWidgets(tenant.id, widgetLat, widgetLng);
-        if (!signal?.cancelled) setBundle(b);
+        const resolved = await resolveWidgetCoords(centerLat, centerLng, refreshKey > 0);
+        if (signal?.cancelled) return;
+        setLocationSource(resolved.source);
+
+        if (!resolved.coords) {
+          setBundle(null);
+          return;
+        }
+
+        const next = await fetchHomeWidgets(id, resolved.coords.lat, resolved.coords.lng);
+        if (!signal?.cancelled) {
+          setBundle(next);
+        }
       } catch {
-        if (!signal?.cancelled) setBundle(null);
+        if (!signal?.cancelled) {
+          setBundle(null);
+        }
       } finally {
-        if (!signal?.cancelled) setLoading(false);
+        if (!signal?.cancelled) {
+          setLoading(false);
+        }
       }
     },
-    [tenant.id, widgetLat, widgetLng],
+    [centerLat, centerLng, id, refreshKey],
   );
 
   useEffect(() => {
@@ -109,13 +185,13 @@ function useWidgetBundle(tenant: PublicTenant) {
     return () => {
       signal.cancelled = true;
     };
-  }, [loadWidgets, refreshKey]);
+  }, [loadWidgets]);
 
-  return { bundle, loading, refresh: () => setRefreshKey((k) => k + 1) };
+  return { bundle, loading, locationSource, refresh: () => setRefreshKey((k) => k + 1) };
 }
 
 export function WeatherWidgetCard({ tenant, lang, isDark }: WidgetBaseProps) {
-  const { bundle, loading, refresh } = useWidgetBundle(tenant);
+  const { bundle, loading, locationSource, refresh } = useWidgetBundle(tenant);
   const weather = bundle?.weather;
   const hasData = weather?.available && weather.temperatureC != null;
   const theme = weatherCardTheme(weather?.weatherCode, isDark);
@@ -124,12 +200,18 @@ export function WeatherWidgetCard({ tenant, lang, isDark }: WidgetBaseProps) {
     <section className={`overflow-hidden rounded-2xl border shadow-sm ${theme}`}>
       <div className="p-4">
         <div className="flex items-start justify-between gap-2">
-          <WidgetHeader
-            icon={<Cloud className="h-4 w-4" />}
-            title={t('home.widgets.weather', lang)}
-            accent="sky"
-            isDark={isDark}
-          />
+          <div className="min-w-0">
+            <WidgetHeader
+              icon={<Cloud className="h-4 w-4" />}
+              title={t('home.widgets.weather', lang)}
+              accent="sky"
+              isDark={isDark}
+            />
+            <p className={`mt-2 text-[11px] font-medium ${isDark ? 'text-sky-200/80' : 'text-slate-600'}`}>
+              {locationSourceLabel(locationSource, lang)}
+              {weather?.dataSource ? ` · ${weather.dataSource}` : ''}
+            </p>
+          </div>
           <button
             type="button"
             onClick={refresh}
@@ -174,7 +256,7 @@ export function WeatherWidgetCard({ tenant, lang, isDark }: WidgetBaseProps) {
                 {weather.windSpeedKmh != null && (
                   <span className="inline-flex items-center gap-1">
                     <Wind className="h-3 w-3" />
-                    {Math.round(weather.windSpeedKmh)} km/s
+                    {Math.round(weather.windSpeedKmh)} km/h
                   </span>
                 )}
               </div>
@@ -191,7 +273,7 @@ export function WeatherWidgetCard({ tenant, lang, isDark }: WidgetBaseProps) {
 }
 
 export function PharmacyWidgetCard({ tenant, lang, isDark }: WidgetBaseProps) {
-  const { bundle, loading, refresh } = useWidgetBundle(tenant);
+  const { bundle, loading, locationSource, refresh } = useWidgetBundle(tenant);
   const pharmacies = bundle?.pharmacies ?? [];
   const hasOnDuty = pharmacies.some((p) => p.onDuty);
 
@@ -210,18 +292,24 @@ export function PharmacyWidgetCard({ tenant, lang, isDark }: WidgetBaseProps) {
     <section className={`rounded-2xl border shadow-sm ${pharmacySurface}`}>
       <div className="p-4">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-3 min-w-0">
-            <div
-              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
-                isDark ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-500/15 text-emerald-600'
-              }`}
-              aria-hidden
-            >
-              <Pill className="h-6 w-6" strokeWidth={1.5} />
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-3">
+              <div
+                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
+                  isDark ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-500/15 text-emerald-600'
+                }`}
+                aria-hidden
+              >
+                <Pill className="h-6 w-6" strokeWidth={1.5} />
+              </div>
+              <h3 className={`truncate text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-800'}`}>
+                {pharmacyTitle}
+              </h3>
             </div>
-            <h3 className={`text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-slate-800'}`}>
-              {pharmacyTitle}
-            </h3>
+            <p className={`mt-2 text-[11px] font-medium ${isDark ? 'text-emerald-100/75' : 'text-slate-600'}`}>
+              {locationSourceLabel(locationSource, lang)}
+              {bundle?.pharmacyDataSource ? ` · ${bundle.pharmacyDataSource}` : ''}
+            </p>
           </div>
           <button
             type="button"
@@ -263,9 +351,9 @@ export function PharmacyWidgetCard({ tenant, lang, isDark }: WidgetBaseProps) {
                 <li key={i} className="py-2.5 first:pt-0 last:pb-0">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>{p.name}</p>
+                      <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{p.name}</p>
                       {p.address && (
-                        <p className={`mt-0.5 text-xs line-clamp-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        <p className={`mt-0.5 line-clamp-2 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                           {p.address}
                         </p>
                       )}

@@ -5,23 +5,27 @@ INSERT INTO municipalities (
     created_at, updated_at
 )
 VALUES (
-    'safranbolu-id-123',
+    'uuid-safranbolu-belediyesi',
     'Safranbolu Belediyesi',
     'DISTRICT',
     41.25,
     32.68,
     13,
     ST_Buffer(ST_SetSRID(ST_MakePoint(32.68, 41.25), 4326)::geography, 10000)::geometry,
-    'safranbolu-dev',
+    'safranbolu',
     'Safranbolu Belediyesi',
     true,
     true,
     true,
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
-) ON CONFLICT (id) DO NOTHING;
+) ON CONFLICT (id) DO UPDATE SET
+    boundaries = EXCLUDED.boundaries,
+    center_lat = EXCLUDED.center_lat,
+    center_lng = EXCLUDED.center_lng,
+    updated_at = CURRENT_TIMESTAMP;
 
-INSERT INTO departments (id, name, description, active, created_at, updated_at, municipality_id)
+INSERT INTO departments (id, name, description, active, created_at, updated_at, municipality_id, slug)
 VALUES (
     'dept-safranbolu-fen',
     'Fen İşleri',
@@ -29,7 +33,8 @@ VALUES (
     true,
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
-    'safranbolu-id-123'
+    'uuid-safranbolu-belediyesi',
+    'fen-isleri'
 ) ON CONFLICT (id) DO NOTHING;
 
 -- Dev şifresi: password
@@ -43,7 +48,7 @@ VALUES (
     '5551112233',
     true,
     'Safranbolu Belediyesi',
-    'safranbolu-id-123',
+    'uuid-safranbolu-belediyesi',
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
 ) ON CONFLICT (email) DO NOTHING;
@@ -63,7 +68,7 @@ VALUES (
     true,
     'dept-safranbolu-fen',
     'Safranbolu Belediyesi',
-    'safranbolu-id-123',
+    'uuid-safranbolu-belediyesi',
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
 ) ON CONFLICT (email) DO NOTHING;

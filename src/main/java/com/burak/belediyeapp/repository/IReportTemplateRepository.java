@@ -21,6 +21,21 @@ public interface IReportTemplateRepository extends JpaRepository<ReportTemplate,
 
     @Query("""
             SELECT t FROM ReportTemplate t
+            JOIN FETCH t.category c
+            WHERE t.active = true
+              AND (t.municipality IS NULL OR t.municipality.id = :municipalityId)
+              AND (:departmentId IS NULL OR c.department IS NULL OR c.department.id = :departmentId)
+            ORDER BY CASE
+                WHEN t.municipality IS NOT NULL AND t.municipality.id = :municipalityId THEN 0
+                ELSE 1
+            END, t.sortOrder ASC, t.title ASC
+            """)
+    List<ReportTemplate> findActiveForCitizenScope(
+            @Param("municipalityId") String municipalityId,
+            @Param("departmentId") String departmentId);
+
+    @Query("""
+            SELECT t FROM ReportTemplate t
             JOIN FETCH t.category
             WHERE t.municipality.id = :municipalityId
             ORDER BY t.sortOrder ASC, t.title ASC

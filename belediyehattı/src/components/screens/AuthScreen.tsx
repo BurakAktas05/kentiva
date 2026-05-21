@@ -19,6 +19,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
   const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [kvkkApproved, setKvkkApproved] = useState(false);
 
   // Şifre sıfırlama
   const [forgotMode, setForgotMode] = useState<'off' | 'phone' | 'otp' | 'newpass'>('off');
@@ -37,7 +38,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
         user = await login(email, password);
         onAuth(user);
       } else {
-        user = await register(firstName, lastName, email, password, phone || undefined);
+        user = await register(firstName, lastName, email, password, phone || undefined, kvkkApproved);
         onAuth(user, { isNewUser: true });
       }
     } catch (err: unknown) {
@@ -180,6 +181,19 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
                       className="w-full bg-white border border-slate-200 rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm"
                     />
                   </div>
+                {/* KVKK onay */}
+                <label className="flex items-start gap-3 cursor-pointer mt-1">
+                  <input
+                    type="checkbox"
+                    checked={kvkkApproved}
+                    onChange={(e) => setKvkkApproved(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                  />
+                  <span className="text-xs text-slate-600 leading-relaxed">
+                    {t('auth.kvkkLabel', lang)}{' '}
+                    <a href="#" className="text-primary font-semibold underline">{t('auth.kvkkLink', lang)}</a>
+                  </span>
+                </label>
               </motion.div>
             )}
           </AnimatePresence>
@@ -223,7 +237,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || (!isLogin && !kvkkApproved)}
             className="kentiva-btn-primary"
           >
             {loading ? (

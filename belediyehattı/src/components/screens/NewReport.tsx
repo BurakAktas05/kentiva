@@ -1,18 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Camera, CheckCircle2, ChevronLeft, ArrowRight, Building2, Navigation } from 'lucide-react';
+import { ArrowRight, Building2, Camera, CheckCircle2, ChevronLeft, Navigation } from 'lucide-react';
 import {
+  analyzeReportDraft,
+  createReport,
+  fetchNearbyReportHints,
   getCategories,
   getReportTemplates,
-  createReport,
-  uploadMedia,
   resolveMediaUrl,
   resolveMunicipalityByGps,
-  fetchNearbyReportHints,
-  analyzeReportDraft,
+  uploadMedia,
   type ApiCategory,
   type ApiReportTemplate,
   type NearbyReportHint,
+  type PublicDepartment,
   type PublicTenant,
   type ReportDraftAnalysis,
 } from '../../api';
@@ -22,6 +23,7 @@ import ReportAiScanOverlay from '../ReportAiScanOverlay';
 
 interface NewReportProps {
   defaultMunicipality?: PublicTenant | null;
+  defaultDepartment?: PublicDepartment | null;
   onSubmit: () => void;
   onCancel: () => void;
   lang: Lang;
@@ -33,10 +35,17 @@ function buildReportTitle(description: string, categoryName: string | undefined,
   if (trimmed.length >= 10) return trimmed.slice(0, 80);
   const prefix = categoryName || (lang === 'tr' ? 'Bildirim' : 'Report');
   const combined = `${prefix}: ${trimmed}`.slice(0, 80);
-  return combined.length >= 10 ? combined : `${prefix} — ${new Date().toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US')}`;
+  return combined.length >= 10 ? combined : `${prefix} - ${new Date().toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US')}`;
 }
 
-export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lang, isDark }: NewReportProps) {
+export default function NewReport({
+  defaultMunicipality,
+  defaultDepartment,
+  onSubmit,
+  onCancel,
+  lang,
+  isDark,
+}: NewReportProps) {
   const [step, setStep] = useState(1);
   const [description, setDescription] = useState('');
   const [categories, setCategories] = useState<ApiCategory[]>([]);
@@ -59,6 +68,15 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
   const [aiAnalysisLoading, setAiAnalysisLoading] = useState(false);
   const [nearbyHints, setNearbyHints] = useState<NearbyReportHint[]>([]);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [kvkkApproved, setKvkkApproved] = useState(false);
+
+  const municipalityLocked = Boolean(defaultMunicipality?.id);
+  const activeDepartment =
+    defaultDepartment &&
+    defaultMunicipality?.id &&
+    resolvedMunicipality?.id === defaultMunicipality.id
+      ? defaultDepartment
+      : null;
 
   useEffect(() => {
     if (defaultMunicipality?.onboarded && defaultMunicipality.id && !resolvedMunicipality) {
@@ -68,39 +86,51 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
 
   useEffect(() => {
     return () => {
-      if (localPhotoPreview) URL.revokeObjectURL(localPhotoPreview);
+      if (localPhotoPreview) {
+        URL.revokeObjectURL(localPhotoPreview);
+      }
     };
   }, [localPhotoPreview]);
 
   const minDescriptionLen = 20;
   const descriptionTooShort = description.trim().length > 0 && description.trim().length < minDescriptionLen;
 
-  // Ekran acilir acilmaz GPS al ve belediyeyi otomatik tespit et
   useEffect(() => {
-    if (navigator.geolocation) {
-      setLocating(true);
-      setError('');
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          setLatitude(lat);
-          setLongitude(lng);
-          setLocationText(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
-          const m = await resolveMunicipalityByGps(lat, lng);
-          setResolvedMunicipality(m);
-          if (!m) setError(t('report.municipality.outside', lang));
-          setLocating(false);
-        },
-        () => {
-          setLocating(false);
-          setError(t('report.location.denied', lang));
-        },
-        { enableHighAccuracy: true, timeout: 15000 },
-      );
+    if (!navigator.geolocation) {
+      return;
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+
+    setLocating(true);
+    setError('');
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setLatitude(lat);
+        setLongitude(lng);
+        setLocationText(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+
+        if (defaultMunicipality?.id) {
+          setResolvedMunicipality(defaultMunicipality);
+          setError('');
+          setLocating(false);
+          return;
+        }
+
+        const municipality = await resolveMunicipalityByGps(lat, lng);
+        setResolvedMunicipality(municipality);
+        if (!municipality) {
+          setError(t('report.municipality.outside', lang));
+        }
+        setLocating(false);
+      },
+      () => {
+        setLocating(false);
+        setError(t('report.location.denied', lang));
+      },
+      { enableHighAccuracy: true, timeout: 15000 },
+    );
+  }, [defaultMunicipality?.id, lang]);
 
   useEffect(() => {
     if (!resolvedMunicipality?.id) {
@@ -108,23 +138,25 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
       setCategoryId('');
       return;
     }
+
     let cancelled = false;
-    getCategories(resolvedMunicipality.id)
+    getCategories(resolvedMunicipality.id, activeDepartment?.id)
       .then((cats) => {
         if (cancelled) return;
         setCategories(cats);
-        const other = cats.find((c) => /diğer|other/i.test(c.name));
+        const other = cats.find((category) => /diger|other/i.test(category.name.toLowerCase()));
         setCategoryId(other?.id ?? cats[0]?.id ?? '');
       })
       .catch(() => {
         if (!cancelled) {
-          setError(lang === 'tr' ? 'Kategoriler yüklenemedi.' : 'Could not load categories.');
+          setError(lang === 'tr' ? 'Kategoriler yuklenemedi.' : 'Could not load categories.');
         }
       });
+
     return () => {
       cancelled = true;
     };
-  }, [lang, resolvedMunicipality?.id]);
+  }, [activeDepartment?.id, lang, resolvedMunicipality?.id]);
 
   useEffect(() => {
     if (!resolvedMunicipality) {
@@ -132,73 +164,93 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
       setSelectedTemplateKey(null);
       return;
     }
+
     let cancelled = false;
     setTemplatesLoading(true);
-    const tenant = resolvedMunicipality.slug
-      ? { slug: resolvedMunicipality.slug }
-      : { id: resolvedMunicipality.id };
-    getReportTemplates(tenant)
+    const tenant = resolvedMunicipality.slug ? { slug: resolvedMunicipality.slug } : { id: resolvedMunicipality.id };
+
+    getReportTemplates(tenant, {
+      departmentSlug: activeDepartment?.slug,
+      departmentId: activeDepartment?.id,
+    })
       .then((rows) => {
-        if (!cancelled) setTemplates(rows);
+        if (!cancelled) {
+          setTemplates(rows);
+        }
       })
       .catch(() => {
-        if (!cancelled) setTemplates([]);
+        if (!cancelled) {
+          setTemplates([]);
+        }
       })
       .finally(() => {
-        if (!cancelled) setTemplatesLoading(false);
+        if (!cancelled) {
+          setTemplatesLoading(false);
+        }
       });
+
     return () => {
       cancelled = true;
     };
-  }, [resolvedMunicipality]);
+  }, [activeDepartment?.id, activeDepartment?.slug, resolvedMunicipality]);
 
-  const applyTemplate = (tpl: ApiReportTemplate) => {
-    setDescription(tpl.descriptionTemplate);
-    setSelectedTemplateKey(tpl.templateKey);
-    if (tpl.categoryId) {
-      setCategoryId(tpl.categoryId);
+  const applyTemplate = (template: ApiReportTemplate) => {
+    setDescription(template.descriptionTemplate);
+    setSelectedTemplateKey(template.templateKey);
+    if (template.categoryId) {
+      setCategoryId(template.categoryId);
     }
   };
 
-  const selectedCategory = categories.find((c) => c.id === categoryId);
+  const selectedCategory = categories.find((category) => category.id === categoryId);
 
   const handleCapturePhoto = async () => {
     if (isUploading) return;
     setError('');
+
     try {
       const file = await captureReportPhotoFile();
-      if (localPhotoPreview) URL.revokeObjectURL(localPhotoPreview);
+      if (localPhotoPreview) {
+        URL.revokeObjectURL(localPhotoPreview);
+      }
       setLocalPhotoPreview(URL.createObjectURL(file));
       setIsUploading(true);
+
       const urls = await uploadMedia(file);
-      if (urls.length > 0) {
-        const url = urls[0];
-        setMediaUrl(url);
-        if (categoryId) {
-          setAiScanOpen(true);
-          setAiAnalysisLoading(true);
-          setAiAnalysis(null);
-          const cat = categories.find((c) => c.id === categoryId);
-          const title = buildReportTitle(description, cat?.name, lang);
-          try {
-            const result = await analyzeReportDraft({
-              categoryId,
-              title,
-              description: description.trim() || undefined,
-              contentLanguage: lang,
-              mediaUrl: url,
-            });
-            setAiAnalysis(result);
-          } catch {
-            setAiScanOpen(false);
-          } finally {
-            setAiAnalysisLoading(false);
-          }
-        }
+      if (urls.length === 0) {
+        return;
+      }
+
+      const url = urls[0];
+      setMediaUrl(url);
+
+      if (!categoryId) {
+        return;
+      }
+
+      setAiScanOpen(true);
+      setAiAnalysisLoading(true);
+      setAiAnalysis(null);
+      const category = categories.find((item) => item.id === categoryId);
+      const title = buildReportTitle(description, category?.name, lang);
+
+      try {
+        const result = await analyzeReportDraft({
+          categoryId,
+          title,
+          description: description.trim() || undefined,
+          contentLanguage: lang,
+          mediaUrl: url,
+        });
+        setAiAnalysis(result);
+      } catch {
+        setAiScanOpen(false);
+      } finally {
+        setAiAnalysisLoading(false);
       }
     } catch (err: unknown) {
       if (err instanceof PhotoCaptureCancelledError) return;
-      setError(err instanceof Error ? err.message : lang === 'tr' ? 'Fotoğraf yüklenemedi' : 'Upload failed');
+      setError(err instanceof Error ? err.message : lang === 'tr' ? 'Fotograf yuklenemedi.' : 'Upload failed.');
       setMediaUrl(null);
     } finally {
       setIsUploading(false);
@@ -206,14 +258,20 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
   };
 
   const resolveMunicipalityAt = async (lat: number, lng: number) => {
-    const m = await resolveMunicipalityByGps(lat, lng);
-    setResolvedMunicipality(m);
-    if (!m) {
+    if (defaultMunicipality?.id) {
+      setResolvedMunicipality(defaultMunicipality);
+      setError('');
+      return defaultMunicipality;
+    }
+
+    const municipality = await resolveMunicipalityByGps(lat, lng);
+    setResolvedMunicipality(municipality);
+    if (!municipality) {
       setError(t('report.municipality.outside', lang));
     } else {
       setError('');
     }
-    return m;
+    return municipality;
   };
 
   const handleGetLocation = () => {
@@ -221,9 +279,13 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
       setError(t('report.location.needGps', lang));
       return;
     }
+
     setLocating(true);
     setError('');
-    setResolvedMunicipality(null);
+    if (!municipalityLocked) {
+      setResolvedMunicipality(null);
+    }
+
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const lat = pos.coords.latitude;
@@ -248,14 +310,16 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
     if (description.trim().length < minDescriptionLen) {
       setError(
         lang === 'tr'
-          ? `Açıklama en az ${minDescriptionLen} karakter olmalıdır.`
+          ? `Aciklama en az ${minDescriptionLen} karakter olmalidir.`
           : `Description must be at least ${minDescriptionLen} characters.`,
       );
       return;
     }
+
     if (step !== 1 || latitude === null || longitude === null || !categoryId || !resolvedMunicipality) {
       return;
     }
+
     try {
       const hints = await fetchNearbyReportHints(latitude, longitude, resolvedMunicipality.id, 75);
       if (hints.length > 0) {
@@ -264,18 +328,22 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
         return;
       }
     } catch {
-      /* devam */
+      // Ignore duplicate lookup issues and continue.
     }
+
     proceedToSummary();
   };
 
   const handleSubmit = async () => {
-    if (latitude === null || longitude === null || !categoryId || !resolvedMunicipality) return;
+    if (latitude === null || longitude === null || !categoryId || !resolvedMunicipality) {
+      return;
+    }
+
     setIsSubmitting(true);
     setError('');
+
     try {
       const finalTitle = buildReportTitle(description, selectedCategory?.name, lang);
-      const urls = mediaUrl ? [mediaUrl] : [];
       await createReport(
         finalTitle,
         description,
@@ -283,29 +351,37 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
         latitude,
         longitude,
         resolvedMunicipality.displayName,
-        urls,
+        mediaUrl ? [mediaUrl] : [],
         resolvedMunicipality.id,
+        kvkkApproved,
       );
       onSubmit();
     } catch (err: unknown) {
-      const msg =
+      const message =
         err instanceof Error
           ? err.message
           : lang === 'tr'
-            ? 'Rapor gönderilemedi. İnternet bağlantınızı kontrol edin.'
+            ? 'Rapor gonderilemedi. Internet baglantinizi kontrol edin.'
             : 'Could not submit. Check your connection.';
-      setError(msg);
+      setError(message);
       setIsSubmitting(false);
     }
   };
 
-  const municipalityLabel = resolvedMunicipality?.displayName ?? '—';
+  const municipalityLabel = resolvedMunicipality?.displayName ?? '-';
+  const departmentLabel = activeDepartment?.name ?? '-';
+  const departmentScopeTitle = lang === 'tr' ? 'Departman kapsami aktif' : 'Department scope active';
+  const departmentScopeDescription =
+    lang === 'tr'
+      ? 'Bu bildirim secili departman akisina gore filtrelenir ve ilgili ekip sablonlari once cikar.'
+      : 'This report is filtered for the selected department and prioritizes that team templates.';
+  const departmentRowLabel = lang === 'tr' ? 'Departman' : 'Department';
 
   const previewRow = (label: string, value: string) => (
     <div className={`flex gap-3 border-b py-3 last:border-0 ${isDark ? 'border-slate-700' : 'border-slate-100'}`}>
       <span className={`w-24 shrink-0 text-xs font-semibold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{label}</span>
       <span className={`min-w-0 flex-1 text-sm font-medium ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{value}</span>
-</div>
+    </div>
   );
 
   const canProceed =
@@ -316,14 +392,14 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
     Boolean(resolvedMunicipality);
 
   return (
-    <div className={`flex flex-col h-full ${isDark ? 'bg-slate-900' : 'bg-white'}`}>
-      <motion.div className={`flex items-center justify-between p-4 border-b ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+    <div className={`flex h-full flex-col ${isDark ? 'bg-slate-900' : 'bg-white'}`}>
+      <motion.div className={`flex items-center justify-between border-b p-4 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
         <button
           type="button"
           onClick={() => (step === 1 ? onCancel() : setStep(1))}
-          className={`p-2 -ml-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}
+          className={`-ml-2 p-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}
         >
-          <ChevronLeft className="w-6 h-6" />
+          <ChevronLeft className="h-6 w-6" />
         </button>
         <div className="text-center">
           <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-800'}`}>
@@ -336,13 +412,39 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
         <div className="w-10" />
       </motion.div>
 
-      <div className={`${isDark ? 'bg-slate-800' : 'bg-slate-100'} h-1 w-full`}>
-        <div className="bg-primary h-full transition-all duration-300 ease-out" style={{ width: `${(step / 2) * 100}%` }} />
+      <div className={`h-1 w-full ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+        <div className="h-full bg-primary transition-all duration-300 ease-out" style={{ width: `${(step / 2) * 100}%` }} />
       </div>
 
-      <div className="p-6 overflow-y-auto flex-1">
+      <div className="flex-1 overflow-y-auto p-6">
         {step === 1 && (
           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-5">
+            {activeDepartment && (
+              <div
+                className={`rounded-2xl border px-4 py-3 ${
+                  isDark ? 'border-slate-700 bg-slate-800/80 text-slate-200' : 'border-slate-200 bg-slate-50 text-slate-700'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`mt-0.5 rounded-xl p-2 ${isDark ? 'bg-primary/15 text-secondary' : 'bg-primary/10 text-primary'}`}>
+                    <Building2 className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">{departmentScopeTitle}</p>
+                    <p className={`mt-1 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{departmentScopeDescription}</p>
+                    <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold">
+                      <span className={`rounded-full px-2.5 py-1 ${isDark ? 'bg-slate-700 text-slate-200' : 'bg-white text-slate-700'}`}>
+                        {resolvedMunicipality?.displayName ?? defaultMunicipality?.displayName}
+                      </span>
+                      <span className={`rounded-full px-2.5 py-1 ${isDark ? 'bg-primary/15 text-secondary' : 'bg-primary/10 text-primary'}`}>
+                        {activeDepartment.name}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {resolvedMunicipality && (templates.length > 0 || templatesLoading) && (
               <div>
                 <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
@@ -351,28 +453,30 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
                 <p className={`mb-2 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{t('report.templates.hint', lang)}</p>
                 {templatesLoading ? (
                   <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                    {lang === 'tr' ? 'Şablonlar yükleniyor…' : 'Loading templates…'}
+                    {lang === 'tr' ? 'Sablonlar yukleniyor...' : 'Loading templates...'}
                   </p>
                 ) : (
                   <div className="flex gap-2 overflow-x-auto pb-1">
-                    {templates.map((tpl) => (
+                    {templates.map((template) => (
                       <button
-                        key={tpl.id}
+                        key={template.id}
                         type="button"
-                        onClick={() => applyTemplate(tpl)}
+                        onClick={() => applyTemplate(template)}
                         className={`shrink-0 rounded-xl border px-3 py-2 text-left text-xs transition-colors ${
-                          selectedTemplateKey === tpl.templateKey
+                          selectedTemplateKey === template.templateKey
                             ? 'border-primary bg-primary text-white'
                             : isDark
                               ? 'border-slate-600 bg-slate-800 text-slate-200 hover:border-primary/50'
                               : 'border-slate-200 bg-white text-slate-700 hover:border-primary/40'
                         }`}
                       >
-                        <span className="block font-bold">{tpl.title}</span>
+                        <span className="block font-bold">{template.title}</span>
                         <span
-                          className={`mt-0.5 block text-[10px] opacity-80 ${selectedTemplateKey === tpl.templateKey ? '' : 'text-slate-500'}`}
+                          className={`mt-0.5 block text-[10px] opacity-80 ${
+                            selectedTemplateKey === template.templateKey ? '' : 'text-slate-500'
+                          }`}
                         >
-                          {tpl.categoryName}
+                          {template.categoryName}
                         </span>
                       </button>
                     ))}
@@ -387,24 +491,24 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
               </label>
               {categories.length === 0 ? (
                 <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                  {lang === 'tr' ? 'Konum alındıktan sonra kategoriler yüklenecek.' : 'Categories load after location is set.'}
+                  {lang === 'tr' ? 'Konum alindiktan sonra kategoriler yuklenecek.' : 'Categories load after location is set.'}
                 </p>
               ) : (
                 <div className="flex flex-wrap gap-2">
-                  {categories.map((cat) => (
+                  {categories.map((category) => (
                     <button
-                      key={cat.id}
+                      key={category.id}
                       type="button"
-                      onClick={() => setCategoryId(cat.id)}
+                      onClick={() => setCategoryId(category.id)}
                       className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
-                        categoryId === cat.id
+                        categoryId === category.id
                           ? 'border-primary bg-primary text-white'
                           : isDark
                             ? 'border-slate-600 bg-slate-800 text-slate-300 hover:border-primary/50'
                             : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-primary/40'
                       }`}
                     >
-                      {cat.name}
+                      {category.name}
                     </button>
                   ))}
                 </div>
@@ -421,32 +525,34 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
                   value={locating ? t('report.location.detecting', lang) : locationText}
                   readOnly
                   placeholder={t('report.location', lang)}
-                  className={`flex-1 border rounded-xl px-4 py-3 text-sm outline-none ${
-                    isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-200'
+                  className={`flex-1 rounded-xl border px-4 py-3 text-sm outline-none ${
+                    isDark ? 'border-slate-700 bg-slate-800 text-white' : 'border-slate-200 bg-slate-50'
                   }`}
                 />
                 <button
                   type="button"
                   onClick={handleGetLocation}
                   disabled={locating}
-                  className="bg-primary text-white px-4 rounded-xl flex items-center gap-2 text-sm font-medium active:scale-95 transition-all disabled:opacity-60"
+                  className="flex items-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-white transition-all active:scale-95 disabled:opacity-60"
                 >
-                  <Navigation className={`w-4 h-4 ${locating ? 'animate-spin' : ''}`} />
+                  <Navigation className={`h-4 w-4 ${locating ? 'animate-spin' : ''}`} />
                 </button>
               </div>
 
               {locating && (
-                <div className={`mt-2 flex items-center gap-2 text-xs px-3 py-2 rounded-lg ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>
-                  <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin shrink-0" />
-                  <span>{lang === 'tr' ? 'Konumunuz tespit ediliyor…' : 'Detecting your location…'}</span>
+                <div className={`mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-xs ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>
+                  <div className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  <span>{lang === 'tr' ? 'Konumunuz tespit ediliyor...' : 'Detecting your location...'}</span>
                 </div>
               )}
 
               {resolvedMunicipality && (
                 <div
-                  className={`mt-2 flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg ${isDark ? 'bg-primary/20 text-secondary' : 'bg-primary/10 text-primary'}`}
+                  className={`mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium ${
+                    isDark ? 'bg-primary/20 text-secondary' : 'bg-primary/10 text-primary'
+                  }`}
                 >
-                  <Building2 className="w-3.5 h-3.5 shrink-0" />
+                  <Building2 className="h-3.5 w-3.5 shrink-0" />
                   <span>
                     {t('report.municipality.resolved', lang)}: <strong>{resolvedMunicipality.displayName}</strong>
                   </span>
@@ -475,37 +581,34 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
                 disabled={isUploading}
                 className={`relative flex aspect-[4/3] max-h-48 w-full flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed transition-colors disabled:opacity-60 ${
                   isDark
-                    ? 'bg-slate-800 border-slate-700 text-slate-500 hover:text-secondary hover:border-primary'
-                    : 'bg-slate-50 border-slate-300 text-slate-400 hover:text-primary hover:border-primary'
+                    ? 'border-slate-700 bg-slate-800 text-slate-500 hover:border-primary hover:text-secondary'
+                    : 'border-slate-300 bg-slate-50 text-slate-400 hover:border-primary hover:text-primary'
                 }`}
               >
                 {isUploading ? (
                   <div className="flex flex-col items-center">
-                    <motion.div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mb-2"></motion.div>
+                    <motion.div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                     <span className="text-sm font-medium">{t('report.uploading', lang)}</span>
                   </div>
                 ) : localPhotoPreview || mediaUrl ? (
                   <>
                     <img
                       src={localPhotoPreview || resolveMediaUrl(mediaUrl!)}
-                      alt={lang === 'tr' ? 'Yüklenen fotoğraf' : 'Uploaded photo'}
+                      alt={lang === 'tr' ? 'Yuklenen fotograf' : 'Uploaded photo'}
                       className="absolute inset-0 h-full w-full object-cover"
                     />
-                    <div
-                      className="pointer-events-none absolute inset-0 grid grid-cols-3 grid-rows-3 border border-white/40"
-                      aria-hidden
-                    >
-                      {Array.from({ length: 9 }).map((_, i) => (
-                        <span key={i} className="border border-white/25" />
+                    <div className="pointer-events-none absolute inset-0 grid grid-cols-3 grid-rows-3 border border-white/40" aria-hidden>
+                      {Array.from({ length: 9 }).map((_, index) => (
+                        <span key={index} className="border border-white/25" />
                       ))}
                     </div>
                     <p className="pointer-events-none absolute bottom-2 left-2 right-2 rounded-lg bg-black/50 px-2 py-1 text-center text-[10px] font-semibold text-white">
-                      {lang === 'tr' ? 'Sorunu çerçevenin içine alın' : 'Frame the issue in view'}
+                      {lang === 'tr' ? 'Sorunu cercevenin icine alin' : 'Frame the issue in view'}
                     </p>
                   </>
                 ) : (
                   <>
-                    <Camera className="w-8 h-8 mb-2" />
+                    <Camera className="mb-2 h-8 w-8" />
                     <span className="text-sm font-medium">{t('report.photo.btn', lang)}</span>
                   </>
                 )}
@@ -518,11 +621,13 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
               </label>
               <textarea
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={(event) => setDescription(event.target.value)}
                 rows={4}
                 placeholder={t('report.description.placeholder', lang)}
-                className={`w-full border rounded-xl px-4 py-3 text-sm outline-none transition-all resize-none ${
-                  isDark ? 'bg-slate-800 border-slate-700 text-white focus:border-primary' : 'bg-slate-50 border-slate-200 focus:ring-2 focus:ring-primary'
+                className={`w-full resize-none rounded-xl border px-4 py-3 text-sm outline-none transition-all ${
+                  isDark
+                    ? 'border-slate-700 bg-slate-800 text-white focus:border-primary'
+                    : 'border-slate-200 bg-slate-50 focus:ring-2 focus:ring-primary'
                 }`}
               />
               {descriptionTooShort && (
@@ -534,7 +639,7 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
               )}
             </div>
 
-            {error && step === 1 && (
+            {error && (
               <motion.div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
                 {error}
               </motion.div>
@@ -559,23 +664,18 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
               <motion.div className="px-4 pb-2">
                 {previewRow(t('report.preview.location', lang), locationText || 'GPS')}
                 {previewRow(t('report.preview.municipality', lang), municipalityLabel)}
+                {activeDepartment && previewRow(departmentRowLabel, departmentLabel)}
                 {previewRow(
                   t('report.preview.photo', lang),
                   mediaUrl || localPhotoPreview
                     ? lang === 'tr'
                       ? 'Eklendi'
-                      : lang === 'ar'
-                        ? 'مضافة'
-                        : 'Attached'
+                      : 'Attached'
                     : t('report.preview.noPhoto', lang),
                 )}
               </motion.div>
               {(localPhotoPreview || mediaUrl) && (
-                <img
-                  src={localPhotoPreview || resolveMediaUrl(mediaUrl!)}
-                  alt=""
-                  className="h-36 w-full object-cover"
-                />
+                <img src={localPhotoPreview || resolveMediaUrl(mediaUrl!)} alt="" className="h-36 w-full object-cover" />
               )}
               <motion.div className={`px-4 py-3 ${isDark ? 'bg-slate-800/80' : 'bg-slate-50'}`}>
                 <p className={`mb-1 text-xs font-semibold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
@@ -586,38 +686,52 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
             </motion.div>
 
             {error && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm p-3 rounded-xl">
+              <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
                 {error}
               </div>
             )}
+
+            {/* KVKK onay */}
+            <label className={`flex items-start gap-3 cursor-pointer rounded-xl border p-3 ${isDark ? 'border-slate-700 bg-slate-800/50' : 'border-slate-200 bg-slate-50'}`}>
+              <input
+                type="checkbox"
+                checked={kvkkApproved}
+                onChange={(e) => setKvkkApproved(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+              />
+              <span className={`text-xs leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                {t('report.kvkkLabel', lang)}
+              </span>
+            </label>
           </motion.div>
         )}
       </div>
 
-      <div className={`p-4 border-t ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+      <div className={`border-t p-4 ${isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white'}`}>
         {step < 2 ? (
           <button
             type="button"
             onClick={handleNext}
             disabled={!canProceed}
-            className="w-full bg-primary text-white rounded-xl py-3.5 font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 shadow-md shadow-primary/20 dark:shadow-none"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-semibold text-white shadow-md shadow-primary/20 disabled:opacity-50 active:scale-95 dark:shadow-none"
           >
-            {t('report.next', lang)} <ArrowRight className="w-4 h-4" />
+            {t('report.next', lang)} <ArrowRight className="h-4 w-4" />
           </button>
         ) : (
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="w-full bg-primary text-white rounded-xl py-3.5 font-semibold text-sm flex items-center justify-center gap-2 active:scale-95 shadow-md shadow-primary/20 dark:shadow-none disabled:opacity-70"
+            disabled={isSubmitting || !kvkkApproved}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-semibold text-white shadow-md shadow-primary/20 active:scale-95 disabled:opacity-70 dark:shadow-none"
           >
             {isSubmitting ? (
               <span className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {t('report.submitting', lang)}
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                {t('report.submitting', lang)}
               </span>
             ) : (
               <span className="flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5" /> {t('report.submit', lang)}
+                <CheckCircle2 className="h-5 w-5" /> {t('report.submit', lang)}
               </span>
             )}
           </button>
@@ -636,18 +750,18 @@ export default function NewReport({ defaultMunicipality, onSubmit, onCancel, lan
         <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
           <div className={`w-full max-w-md rounded-2xl border p-5 shadow-xl ${isDark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-white'}`}>
             <p className="text-sm font-bold text-slate-900 dark:text-white">
-              {lang === 'tr' ? 'Yakında benzer ihbar var' : 'Similar report nearby'}
+              {lang === 'tr' ? 'Yakinda benzer ihbar var' : 'Similar report nearby'}
             </p>
             <p className="mt-1 text-xs text-slate-500">
               {lang === 'tr'
-                ? `Bu konumda yaklaşık ${Math.round(nearbyHints[0].distanceMeters)} m ötede zaten bir ihbar var.`
+                ? `Bu konumda yaklasik ${Math.round(nearbyHints[0].distanceMeters)} m otede zaten bir ihbar var.`
                 : `A report exists about ${Math.round(nearbyHints[0].distanceMeters)} m away.`}
             </p>
             <ul className="mt-3 space-y-2">
-              {nearbyHints.slice(0, 3).map((h) => (
-                <li key={h.id} className="rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-700">
-                  <span className="font-semibold">{h.title}</span>
-                  <span className="text-slate-500"> · {h.categoryName}</span>
+              {nearbyHints.slice(0, 3).map((hint) => (
+                <li key={hint.id} className="rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-700">
+                  <span className="font-semibold">{hint.title}</span>
+                  <span className="text-slate-500"> · {hint.categoryName}</span>
                 </li>
               ))}
             </ul>

@@ -1,5 +1,6 @@
 package com.burak.belediyeapp.dto.request.report;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
@@ -38,5 +39,9 @@ public record CreateReportRequest(
         /**
          * İsteğe bağlı ipucu; sunucu GPS ile çözümlenen belediye ile eşleşmelidir.
          */
-        String targetMunicipalityId
+        String targetMunicipalityId,
+
+        @NotNull(message = "KVKK onayı zorunludur")
+        @AssertTrue(message = "Kişisel verilerin işlenmesine onay vermeniz gerekmektedir")
+        Boolean kvkkApproved
 ) {}

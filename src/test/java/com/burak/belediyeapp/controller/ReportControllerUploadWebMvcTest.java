@@ -40,6 +40,18 @@ class ReportControllerUploadWebMvcTest {
     @MockitoBean JwtAuthenticationSupport jwtAuthenticationSupport;
     @MockitoBean IAppUserRepository userRepository;
     @MockitoBean ApiKeyAuthFilter apiKeyAuthFilter;
+    @MockitoBean com.burak.belediyeapp.service.media.ImageAnonymizationService imageAnonymizationService;
+    @MockitoBean com.burak.belediyeapp.security.SubscriptionInterceptor subscriptionInterceptor;
+
+    @org.junit.jupiter.api.BeforeEach
+    void stubBeans() throws Exception {
+        org.mockito.Mockito.when(subscriptionInterceptor.preHandle(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(true);
+        org.mockito.Mockito.when(imageAnonymizationService.anonymize(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(inv -> inv.getArgument(0));
+    }
 
     @Test
     void imageUploadValidatesMediaAndReturnsStoredUrl() throws Exception {

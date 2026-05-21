@@ -1,15 +1,55 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { resolveMediaUrl } from '../lib/env';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Layers, MapPin, Sparkles, UserPlus, CheckCircle2, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Clock3,
+  ExternalLink,
+  Layers,
+  MapPin,
+  ShieldAlert,
+  Sparkles,
+  UserPlus,
+  X,
+} from 'lucide-react';
 import axios from 'axios';
 import api, { type Report, type ReportListItem, type ReportTimelineEntry, type User } from '../api';
+import { resolveMediaUrl } from '../lib/env';
+import { reportStatusBadgeClass } from '../lib/ui';
 
 type ReportDetailPageProps = {
   reportId?: string;
   embedded?: boolean;
   onClose?: () => void;
 };
+
+const STATUS_LABELS: Record<string, string> = {
+  PENDING: 'Beklemede',
+  PROCESSING: 'Islemde',
+  RESOLVED: 'Cozuldu',
+  REJECTED: 'Reddedildi',
+  FORWARDED: 'Yonlendirildi',
+};
+
+function toStatusLabel(status: string | null | undefined) {
+  if (!status) return 'Bilinmiyor';
+  return STATUS_LABELS[status] ?? status;
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return '—';
+  return new Date(value).toLocaleString('tr-TR');
+}
+
+function errorMessage(err: unknown, fallback: string) {
+  if (!axios.isAxiosError(err)) return fallback;
+  return String((err.response?.data as { message?: string } | undefined)?.message ?? fallback);
+}
+
+function mapUrl(lat: number | null | undefined, lng: number | null | undefined) {
+  if (lat == null || lng == null) return null;
+  return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+}
 
 export default function ReportDetailPage({ reportId: reportIdProp, embedded, onClose }: ReportDetailPageProps = {}) {
   const { id: routeId } = useParams<{ id: string }>();
@@ -18,8 +58,8 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
   const [timeline, setTimeline] = useState<ReportTimelineEntry[]>([]);
   const [officers, setOfficers] = useState<User[]>([]);
   const [departments, setDepartments] = useState<{ id: string; name: string }[]>([]);
-  const [selectedOfficerId, setSelectedOfficerId] = useState<string>('');
-  const [selectedDeptId, setSelectedDeptId] = useState<string>('');
+  const [selectedOfficerId, setSelectedOfficerId] = useState('');
+  const [selectedDeptId, setSelectedDeptId] = useState('');
   const [isAssigning, setIsAssigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -34,36 +74,53 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
+
     (async () => {
       try {
         const [r, tl, u, dup, me, depsRes] = await Promise.all([
-          api.get(`/reports/${id}`), 
+          api.get(`/reports/${id}`),
           api.get(`/reports/${id}/timeline`),
           api.get('/users?role=ROLE_FIELD_OFFICER').catch(() => ({ data: { data: [] } })),
           api.get(`/reports/${id}/duplicate-group`),
           api.get('/auth/me'),
-          api.get('/departments').catch(() => ({ data: { data: [] } }))
+          api.get('/departments').catch(() => ({ data: { data: [] } })),
         ]);
-        if (!cancelled) {
-          const rep = r.data.data as Report;
-          setReport(rep);
-          setTimeline(tl.data.data as ReportTimelineEntry[]);
-          setOfficers(u.data.data as User[]);
-          setDepartments(depsRes.data.data as { id: string; name: string }[]);
-          setDuplicateGroup(dup.data.data as ReportListItem[]);
-          setCurrentUser(me.data.data);
-          if (rep.aiReplyDraft) {
-            setNoteText(rep.aiReplyDraft);
-          }
+
+        if (cancelled) return;
+
+        const rep = r.data.data as Report;
+        setReport(rep);
+        setTimeline(tl.data.data as ReportTimelineEntry[]);
+        setOfficers(u.data.data as User[]);
+        setDepartments(depsRes.data.data as { id: string; name: string }[]);
+        setDuplicateGroup(dup.data.data as ReportListItem[]);
+        setCurrentUser(me.data.data);
+        setStatusValue(rep.status === 'RESOLVED' ? 'RESOLVED' : 'PROCESSING');
+        if (rep.aiReplyDraft) {
+          setNoteText(rep.aiReplyDraft);
         }
       } catch {
-        if (!cancelled) setError('Rapor bulunamadı veya erişim yok.');
+        if (!cancelled) setError('Rapor bulunamadi veya erisim yok.');
       }
     })();
+
     return () => {
       cancelled = true;
     };
   }, [id]);
+
+  const canResolve = currentUser?.departmentId != null;
+  const isWhiteDesk = currentUser?.roles?.includes('ROLE_WHITE_DESK');
+  const resolvedMapUrl = useMemo(() => mapUrl(report?.latitude, report?.longitude), [report?.latitude, report?.longitude]);
+
+  const refreshReport = async () => {
+    if (!id) return;
+    const [r, tl] = await Promise.all([api.get(`/reports/${id}`), api.get(`/reports/${id}/timeline`)]);
+    const next = r.data.data as Report;
+    setReport(next);
+    setTimeline(tl.data.data as ReportTimelineEntry[]);
+    setStatusValue(next.status === 'RESOLVED' ? 'RESOLVED' : 'PROCESSING');
+  };
 
   const bulkCloseDuplicateGroup = async () => {
     if (!id || !report) return;
@@ -73,23 +130,24 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
     ];
     const unique = [...new Set(ids)];
     if (unique.length < 2) return;
-    if (!window.confirm(`${unique.length} ihbarı toplu "çözüldü" olarak işaretlemek istiyor musunuz?`)) return;
+    if (!window.confirm(`${unique.length} ihbari toplu "cozuldu" olarak isaretlemek istiyor musunuz?`)) return;
+
     setBulkBusy('RESOLVED');
     setError(null);
     try {
       const res = await api.patch('/reports/batch/status', {
         reportIds: unique,
         status: 'RESOLVED',
-        note: 'Mükerrer grup — toplu kapatma',
+        note: 'Mukerrer grup - toplu kapatma',
       });
       const result = res.data.data as { successCount: number; failureCount: number };
       if (result.failureCount > 0) {
-        setError(`${result.successCount} güncellendi, ${result.failureCount} başarısız.`);
+        setError(`${result.successCount} guncellendi, ${result.failureCount} basarisiz.`);
       } else {
         window.location.reload();
       }
     } catch {
-      setError('Toplu güncelleme başarısız.');
+      setError('Toplu guncelleme basarisiz.');
     } finally {
       setBulkBusy(null);
     }
@@ -103,18 +161,13 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
       const res = await api.post(`/reports/${id}/ai-analysis`);
       const next = res.data.data as Report;
       setReport(next);
-      // Tek tuşla taslağı üret ve doğrudan "Vatandaşa Not" alanına yerleştir —
-      // ayrı bir "AI Yanıtı Kullan" butonuna gerek kalmaz.
       if (next.aiReplyDraft) {
         setNoteText(next.aiReplyDraft);
       }
-      setSuccessMsg('AI yanıt taslağı oluşturuldu ve nota eklendi.');
-      setTimeout(() => setSuccessMsg(null), 4000);
+      setSuccessMsg('AI yanit taslagi olusturuldu ve vatandas notuna eklendi.');
+      window.setTimeout(() => setSuccessMsg(null), 4000);
     } catch (err: unknown) {
-      const msg = axios.isAxiosError(err)
-        ? String((err.response?.data as { message?: string } | undefined)?.message ?? 'AI analizi başarısız.')
-        : 'AI analizi başarısız.';
-      window.alert(msg);
+      window.alert(errorMessage(err, 'AI analizi basarisiz.'));
     } finally {
       setAiBusy(false);
     }
@@ -124,10 +177,13 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
     if (!id || statusBusy) return;
     setStatusBusy(true);
     try {
-      await api.patch(`/reports/${id}/status`, { status: statusValue, note: noteText });
-      window.location.reload();
+      await api.patch(`/reports/${id}/status`, { status: statusValue, note: noteText.trim() || null });
+      await refreshReport();
+      setSuccessMsg('Durum guncellendi.');
+      window.setTimeout(() => setSuccessMsg(null), 3000);
     } catch {
-      window.alert('Durum güncellenemedi');
+      window.alert('Durum guncellenemedi');
+    } finally {
       setStatusBusy(false);
     }
   };
@@ -138,17 +194,12 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
     setSuccessMsg(null);
     try {
       await api.post(`/reports/${id}/assign`, { assigneeId: selectedOfficerId });
-      const [r, tl] = await Promise.all([api.get(`/reports/${id}`), api.get(`/reports/${id}/timeline`)]);
-      setReport(r.data.data as Report);
-      setTimeline(tl.data.data as ReportTimelineEntry[]);
-      setSuccessMsg('Görevli atandı.');
-      setTimeout(() => setSuccessMsg(null), 3000);
+      await refreshReport();
+      setSelectedOfficerId('');
+      setSuccessMsg('Saha gorevlisi atandi.');
+      window.setTimeout(() => setSuccessMsg(null), 3000);
     } catch (err: unknown) {
-      setError(
-        axios.isAxiosError(err)
-          ? String((err.response?.data as { message?: string } | undefined)?.message ?? 'Atama başarısız.')
-          : 'Atama başarısız.'
-      );
+      setError(errorMessage(err, 'Atama basarisiz.'));
     } finally {
       setIsAssigning(false);
     }
@@ -159,18 +210,13 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
     setIsAssigning(true);
     setSuccessMsg(null);
     try {
-      await api.post(`/reports/${id}/forward`, { departmentId: selectedDeptId, note: noteText });
-      const [r, tl] = await Promise.all([api.get(`/reports/${id}`), api.get(`/reports/${id}/timeline`)]);
-      setReport(r.data.data as Report);
-      setTimeline(tl.data.data as ReportTimelineEntry[]);
-      setSuccessMsg('Departmana yönlendirildi.');
-      setTimeout(() => setSuccessMsg(null), 3000);
+      await api.post(`/reports/${id}/forward`, { departmentId: selectedDeptId, note: noteText.trim() || null });
+      await refreshReport();
+      setSelectedDeptId('');
+      setSuccessMsg('Departmana yonlendirildi.');
+      window.setTimeout(() => setSuccessMsg(null), 3000);
     } catch (err: unknown) {
-      setError(
-        axios.isAxiosError(err)
-          ? String((err.response?.data as { message?: string } | undefined)?.message ?? 'Yönlendirme başarısız.')
-          : 'Yönlendirme başarısız.'
-      );
+      setError(errorMessage(err, 'Yonlendirme basarisiz.'));
     } finally {
       setIsAssigning(false);
     }
@@ -183,12 +229,12 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
       className="inline-flex items-center gap-2 text-sm font-bold text-primary hover:underline"
     >
       <ArrowLeft className="h-4 w-4" />
-      Haritaya dön
+      Haritaya don
     </button>
   ) : (
     <Link to="/reports" className="inline-flex items-center gap-2 text-sm font-bold text-primary hover:underline">
       <ArrowLeft className="h-4 w-4" />
-      Raporlara dön
+      Raporlara don
     </Link>
   );
 
@@ -201,7 +247,7 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
           aria-label="Kapat"
           onClick={onClose}
         />
-        <div className="relative flex h-full w-full max-w-2xl flex-col overflow-hidden bg-slate-50 shadow-2xl dark:bg-slate-950">
+        <div className="relative flex h-full w-full max-w-3xl flex-col overflow-hidden bg-slate-50 shadow-2xl dark:bg-slate-950">
           <button
             type="button"
             onClick={onClose}
@@ -217,7 +263,7 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
       node
     );
 
-  if (error) {
+  if (error && !report) {
     return wrapEmbedded(
       <div className="p-6">
         {backNav}
@@ -229,267 +275,404 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
   }
 
   if (!report) {
-    return wrapEmbedded(<div className="p-6 text-slate-500">Yükleniyor…</div>);
+    return wrapEmbedded(<div className="p-6 text-slate-500">Yukleniyor...</div>);
   }
 
   return wrapEmbedded(
     <div className="space-y-6 p-6">
       {backNav}
 
-      <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
-        <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">{report.title}</h1>
-            <p className="mt-1 text-sm text-slate-500">
-              {report.categoryName} · {report.district}
-            </p>
+      {error && (
+        <div className="flex items-start gap-2 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-200">
+          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {successMsg && (
+        <div className="flex items-start gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{successMsg}</span>
+        </div>
+      )}
+
+      <section className="overflow-hidden rounded-3xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="border-b border-slate-200/80 bg-gradient-to-r from-slate-50 via-white to-sky-50 px-6 py-6 dark:border-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 sm:px-8">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-white dark:bg-slate-100 dark:text-slate-900">
+                  #{report.id.slice(0, 8)}
+                </span>
+                <span className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${reportStatusBadgeClass(report.status)}`}>
+                  {toStatusLabel(report.status)}
+                </span>
+              </div>
+              <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                {report.title}
+              </h1>
+              <p className="mt-2 max-w-4xl whitespace-pre-wrap text-sm leading-7 text-slate-600 dark:text-slate-300">
+                {report.description || 'Bu rapor icin aciklama girilmemis.'}
+              </p>
+            </div>
+            {resolvedMapUrl && (
+              <a
+                href={resolvedMapUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                <MapPin className="h-4 w-4 text-primary" />
+                Haritada ac
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            )}
           </div>
-          <span className="rounded-full bg-primary/10 px-4 py-1.5 text-xs font-bold uppercase text-primary">{report.status}</span>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <DetailStat label="Kategori" value={report.categoryName} helper="Otomatik ya da secili kategori" />
+            <DetailStat label="Vatandas" value={report.reporterFullName ?? 'Anonim / kayitsiz'} helper="Bildiren kisi" />
+            <DetailStat
+              label="Atanan"
+              value={report.assigneeFullName ?? 'Henuz atanmis degil'}
+              helper={report.forwardedDepartmentName ? `Departman: ${report.forwardedDepartmentName}` : 'Saha atamasi bekleniyor'}
+            />
+            <DetailStat label="Olusturulma" value={formatDate(report.createdAt)} helper={report.district || 'Ilce bilgisi yok'} />
+          </div>
         </div>
 
-        {report.description && <p className="mb-6 whitespace-pre-wrap text-slate-700 dark:text-slate-300">{report.description}</p>}
+        {report.mediaUrls && report.mediaUrls.length > 0 && (
+          <div className="px-6 py-6 sm:px-8">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">Medya kanitlari</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Sahadaki ekibin ve vatandasin paylastigi gorseller
+                </p>
+              </div>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                {report.mediaUrls.length} dosya
+              </span>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {report.mediaUrls.map((url, i) => (
+                <a
+                  key={i}
+                  href={resolveMediaUrl(url)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="group overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-700 dark:bg-slate-950"
+                >
+                  <img
+                    src={resolveMediaUrl(url)}
+                    alt={`Rapor gorseli ${i + 1}`}
+                    className="h-44 w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                  />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
 
-        <div className="mb-6 flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-4 dark:border-primary/30 dark:bg-primary/10">
-          <div className="flex min-w-0 flex-1 gap-3">
-            <Sparkles className="h-5 w-5 shrink-0 text-secondary" />
-            <div className="min-w-0 text-sm">
-              {report.aiPriority && (
-                <p className="font-bold text-primary">
-                  AI öncelik: <span className="font-mono">{report.aiPriority}</span>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_380px]">
+        <div className="space-y-6">
+          <section className="rounded-3xl border border-violet-200/80 bg-gradient-to-r from-violet-50 via-white to-slate-50 p-5 shadow-sm dark:border-violet-900/40 dark:from-violet-950/30 dark:via-slate-900 dark:to-slate-950">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-violet-600 dark:text-violet-300" />
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">AI operasyon ozeti</p>
+                </div>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Ozet, oncelik, kategori onerisi ve vatandasa donus notu tek yerde toplandi.
                 </p>
-              )}
-              {report.aiSummary && <p className="mt-1 text-slate-700 dark:text-slate-200">{report.aiSummary}</p>}
-              {report.aiSuggestedCategory && (
-                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Önerilen kategori: {report.aiSuggestedCategory}</p>
-              )}
-              {report.aiDuplicateHint && (
-                <p className="mt-2 text-xs font-medium text-violet-800 dark:text-violet-200">
-                  Mükerrer notu: {report.aiDuplicateHint}
-                </p>
-              )}
-              {!report.aiSummary && !report.aiSuggestedCategory && !report.aiPriority && !report.aiDuplicateHint && (
-                <p className="text-slate-600 dark:text-slate-400">
-                  Henüz AI analizi yok. Sağdaki düğme özet üretir ve aşağıdaki "Vatandaşa Not" alanını otomatik doldurur.
+              </div>
+              <button
+                type="button"
+                disabled={aiBusy}
+                onClick={() => void runAiAnalysis()}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-violet-600 px-3 py-2 text-xs font-bold text-white hover:bg-violet-700 disabled:opacity-50"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                {aiBusy ? 'Uretiliyor...' : 'AI yaniti olustur'}
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <MiniInfo
+                label="Oncelik"
+                value={report.aiPriority ?? 'Henuz yok'}
+                helper={report.aiSuggestedCategory ? `Kategori onerisi: ${report.aiSuggestedCategory}` : 'Oncelik analizi bekleniyor'}
+              />
+              <MiniInfo
+                label="Mukerrer sinyali"
+                value={report.aiDuplicateHint ?? 'Temiz'}
+                helper="Benzer kayitlar kontrol edilir"
+              />
+              <MiniInfo
+                label="Vatandas notu"
+                value={report.aiReplyDraft ? 'Hazir taslak var' : 'Taslak yok'}
+                helper="Durum guncellerken kullanilabilir"
+              />
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-violet-200/70 bg-white/90 p-4 dark:border-violet-900/40 dark:bg-slate-900/70">
+              {report.aiSummary ? (
+                <p className="text-sm leading-7 text-slate-700 dark:text-slate-200">{report.aiSummary}</p>
+              ) : (
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Henuz AI ozeti yok. Buton ile operasyona uygun bir ilk taslak uretebilirsin.
                 </p>
               )}
               {report.aiReplyDraft && (
-                <p className="mt-3 rounded-lg bg-white/80 p-2 text-xs text-slate-700 dark:bg-slate-900/60 dark:text-slate-200">
-                  <span className="font-bold">Yanıt taslağı:</span> {report.aiReplyDraft}
-                </p>
+                <div className="mt-3 rounded-xl bg-violet-50 p-3 text-xs text-violet-900 dark:bg-violet-950/30 dark:text-violet-100">
+                  <span className="font-bold">Taslak yanit:</span> {report.aiReplyDraft}
+                </div>
               )}
             </div>
-          </div>
-          <button
-            type="button"
-            disabled={aiBusy}
-            onClick={() => void runAiAnalysis()}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-violet-600 px-3 py-2 text-xs font-bold text-white hover:bg-violet-700 disabled:opacity-50"
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            {aiBusy ? 'Oluşturuluyor…' : 'AI yanıtı oluştur'}
-          </button>
-        </div>
+          </section>
 
-        {(report.duplicateGroupSize != null && report.duplicateGroupSize > 1) || duplicateGroup.length > 0 ? (
-          <div className="mb-6 rounded-2xl border border-violet-200/90 bg-violet-50/80 p-4 dark:border-violet-900/50 dark:bg-violet-950/30">
-            <div className="mb-3 flex items-center gap-2">
-              <Layers className="h-5 w-5 text-violet-700 dark:text-violet-300" />
-              <p className="text-sm font-bold text-violet-900 dark:text-violet-100">
-                Tek olay — aynı konumdan {report.duplicateGroupSize ?? duplicateGroup.length + 1} ihbar
+          {(report.duplicateGroupSize != null && report.duplicateGroupSize > 1) || duplicateGroup.length > 0 ? (
+            <section className="rounded-3xl border border-violet-200/90 bg-violet-50/80 p-5 shadow-sm dark:border-violet-900/50 dark:bg-violet-950/30">
+              <div className="mb-3 flex items-center gap-2">
+                <Layers className="h-5 w-5 text-violet-700 dark:text-violet-300" />
+                <p className="text-sm font-bold text-violet-900 dark:text-violet-100">
+                  Tek olay - ayni lokasyonda {report.duplicateGroupSize ?? duplicateGroup.length + 1} kayit
+                </p>
+              </div>
+              <p className="mb-4 text-xs text-violet-800/90 dark:text-violet-200/90">
+                Yakindaki bekleyen veya islenen kayitlar ayni olay olabilir. Gerekirse grup halinde kapatabilirsiniz.
               </p>
-            </div>
-            <p className="mb-3 text-xs text-violet-800/90 dark:text-violet-200/90">
-              Yakındaki bekleyen veya işlenen ihbarlar otomatik gruplandı. Çözümü bir kez uygulayıp diğerlerini reddedebilirsiniz.
-            </p>
-            <ul className="space-y-2">
-              {duplicateGroup.map((d) => (
-                <li key={d.id}>
-                  <Link
-                    to={`/reports/${d.id}`}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-violet-200/60 bg-white px-3 py-2 text-sm hover:border-violet-300 dark:border-violet-800 dark:bg-slate-900"
-                  >
-                    <span className="font-medium text-slate-900 dark:text-white">{d.title}</span>
-                    <span className="text-[10px] font-bold uppercase text-slate-500">{d.status}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-            {currentUser?.departmentId != null && (
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={bulkBusy !== null}
-                  onClick={() => bulkCloseDuplicateGroup()}
-                  className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
-                >
-                  {bulkBusy === 'RESOLVED' ? '…' : 'Grubu çözüldü işaretle'}
-                </button>
-              </div>
-            )}
-          </div>
-        ) : null}
-
-          {report.mediaUrls && report.mediaUrls.length > 0 && (
-            <div className="mb-6">
-              <p className="mb-2 text-sm font-semibold text-slate-500">Fotoğraflar</p>
-              <div className="flex flex-wrap gap-3">
-                {report.mediaUrls.map((url, i) => (
-                  <a key={i} href={resolveMediaUrl(url)} target="_blank" rel="noreferrer" className="group">
-                    <img
-                      src={resolveMediaUrl(url)}
-                      alt={`Rapor fotoğrafı ${i + 1}`}
-                      className="h-28 w-28 rounded-xl border border-slate-200 object-cover shadow-sm transition-transform group-hover:scale-105 dark:border-slate-700"
-                    />
-                  </a>
+              <ul className="space-y-2">
+                {duplicateGroup.map((d) => (
+                  <li key={d.id}>
+                    <Link
+                      to={`/reports/${d.id}`}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-violet-200/60 bg-white px-3 py-2 text-sm hover:border-violet-300 dark:border-violet-800 dark:bg-slate-900"
+                    >
+                      <span className="font-medium text-slate-900 dark:text-white">{d.title}</span>
+                      <span className="text-[10px] font-bold uppercase text-slate-500">{toStatusLabel(d.status)}</span>
+                    </Link>
+                  </li>
                 ))}
-              </div>
-            </div>
-          )}
-
-          <dl className="grid gap-4 text-sm sm:grid-cols-2">
-          <div>
-            <dt className="font-semibold text-slate-500">Vatandaş</dt>
-            <dd className="text-slate-900 dark:text-white">{report.reporterFullName ?? '—'}</dd>
-          </div>
-          <div>
-            <dt className="font-semibold text-slate-500">Atanan</dt>
-            <dd className="flex flex-col gap-2">
-              <span className="text-slate-900 dark:text-white font-medium">{report.assigneeFullName ?? 'Henüz atanmamış'}</span>
-              
-              <div className="mt-2 flex items-center gap-2">
-                <select 
-                  value={selectedOfficerId}
-                  onChange={(e) => setSelectedOfficerId(e.target.value)}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                >
-                  <option value="">Saha Görevlisi Seç...</option>
-                  {officers.map(o => (
-                    <option key={o.id} value={o.id}>{o.firstName} {o.lastName}</option>
-                  ))}
-                </select>
-                <button 
-                  onClick={handleAssign}
-                  disabled={!selectedOfficerId || isAssigning}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white transition-all hover:bg-primary-hover disabled:opacity-50"
-                >
-                  {isAssigning ? '...' : <><UserPlus className="h-3 w-3" /> Ata</>}
-                </button>
-              </div>
-
-              {currentUser?.roles?.includes('ROLE_WHITE_DESK') && (
-                <div className="mt-2 border-t border-slate-100 pt-2 dark:border-slate-800 flex items-center gap-2">
-                  <select
-                    value={selectedDeptId}
-                    onChange={(e) => setSelectedDeptId(e.target.value)}
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                  >
-                    <option value="">Departmana Yönlendir...</option>
-                    {departments.map((d) => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
-                    ))}
-                  </select>
+              </ul>
+              {canResolve && (
+                <div className="mt-4 flex flex-wrap gap-2">
                   <button
-                    onClick={handleForward}
-                    disabled={!selectedDeptId || isAssigning}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-bold text-white transition-all hover:bg-violet-700 disabled:opacity-50"
+                    type="button"
+                    disabled={bulkBusy !== null}
+                    onClick={() => bulkCloseDuplicateGroup()}
+                    className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
                   >
-                    {isAssigning ? '...' : 'Yönlendir'}
+                    {bulkBusy === 'RESOLVED' ? 'Isleniyor...' : 'Grubu cozuldu isaretle'}
                   </button>
                 </div>
               )}
+            </section>
+          ) : null}
 
-              {successMsg && (
-                <p className="flex items-center gap-1 text-[11px] font-bold text-green-600 dark:text-green-400">
-                  <CheckCircle2 className="h-3 w-3" /> {successMsg}
+          <section className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-lg font-bold text-slate-900 dark:text-white">Yasam dongusu</p>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  Tum hareketler ve vatandasa giden notlar zaman cizelgesinde gorunur.
                 </p>
-              )}
-            </dd>
-          </div>
-          {report.forwardedDepartmentName && (
-            <div>
-              <dt className="font-semibold text-slate-500">Yönlendirilen Departman</dt>
-              <dd className="text-slate-900 dark:text-white">
-                {report.forwardedDepartmentName}
-                {report.forwardedByName ? ` (${report.forwardedByName})` : ''}
-              </dd>
+              </div>
+              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                <Clock3 className="h-3.5 w-3.5" />
+                {timeline.length} adim
+              </span>
             </div>
-          )}
-          <div>
-            <dt className="font-semibold text-slate-500">Oluşturulma</dt>
-            <dd className="text-slate-900 dark:text-white">{report.createdAt ? new Date(report.createdAt).toLocaleString('tr-TR') : '—'}</dd>
-          </div>
-          <div className="flex items-start gap-2">
-            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-secondary" />
-            <div>
-              <dt className="font-semibold text-slate-500">Konum</dt>
-              <dd className="font-mono text-slate-900 dark:text-white">
-                {report.latitude}, {report.longitude}
-              </dd>
-            </div>
-          </div>
-        </dl>
-      </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
-          <h2 className="mb-6 text-lg font-bold text-slate-900 dark:text-white">Durum Güncelle</h2>
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="statusSelect" className="mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-300">Yeni Durum</label>
-              <select
-                id="statusSelect"
-                value={statusValue}
-                onChange={(e) => setStatusValue(e.target.value as 'PROCESSING' | 'RESOLVED')}
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              >
-                <option value="PROCESSING">İşlemde</option>
-                {currentUser?.departmentId != null && (
-                  <option value="RESOLVED">Çözüldü</option>
-                )}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="statusNote" className="mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-                Vatandaşa Not
-              </label>
-              <textarea
-                id="statusNote"
-                rows={3}
-                value={noteText}
-                onChange={(e) => setNoteText(e.target.value)}
-                placeholder="Vatandaşa iletilecek not (opsiyonel). Üst kısımdaki 'AI yanıtı oluştur' tuşu bu alanı otomatik doldurur."
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              />
-            </div>
-            <button
-              onClick={() => void saveStatus()}
-              disabled={statusBusy}
-              className="w-full rounded-xl bg-primary py-3 text-sm font-bold text-white transition-colors hover:bg-primary-hover disabled:opacity-60"
-            >
-              {statusBusy ? 'Kaydediliyor…' : 'Durumu Kaydet'}
-            </button>
-          </div>
+            {timeline.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 p-5 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                Henuz durum gecmisi bulunmuyor.
+              </div>
+            ) : (
+              <div className="relative space-y-0 border-l-2 border-primary/20 pl-5">
+                {timeline.map((entry, index) => (
+                  <div key={`${entry.at}-${index}`} className="relative pb-7 last:pb-0">
+                    <span className="absolute -left-[26px] top-1.5 h-3 w-3 rounded-full bg-primary ring-4 ring-white dark:ring-slate-900" />
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                      {formatDate(entry.at)}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
+                      {toStatusLabel(entry.oldStatus)} → {toStatusLabel(entry.newStatus)}
+                    </p>
+                    {entry.actorName && <p className="text-xs text-slate-500">{entry.actorName}</p>}
+                    {entry.note && (
+                      <div className="mt-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-600 dark:bg-slate-800/70 dark:text-slate-300">
+                        {entry.note}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
-          <h2 className="mb-6 text-lg font-bold text-slate-900 dark:text-white">Yaşam döngüsü</h2>
-          <div className="relative space-y-0 border-l-2 border-primary/30 pl-5">
-            {timeline.map((e, i) => (
-              <div key={i} className="relative pb-8 last:pb-0">
-                <span className="absolute -left-[26px] top-1 h-2.5 w-2.5 rounded-full bg-primary ring-4 ring-white dark:ring-slate-900" />
-                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                  {e.at ? new Date(e.at).toLocaleString('tr-TR') : ''}
+        <div className="space-y-6 xl:sticky xl:top-6 xl:self-start">
+          <section className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <p className="text-lg font-bold text-slate-900 dark:text-white">Atama ve yonlendirme</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Saha gorevlisi secin, gerekirse beyaz masa uzerinden departmana aktarim yapin.
+            </p>
+
+            <div className="mt-5 space-y-4">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/40">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Saha atamasi</p>
+                <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
+                  {report.assigneeFullName ?? 'Atanmamis'}
                 </p>
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                  {e.oldStatus ?? '—'} → {e.newStatus ?? '—'}
-                </p>
-                <p className="text-xs text-slate-500">{e.actorName}</p>
-                {e.note && <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{e.note}</p>}
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  <select
+                    value={selectedOfficerId}
+                    onChange={(e) => setSelectedOfficerId(e.target.value)}
+                    className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  >
+                    <option value="">Saha gorevlisi sec...</option>
+                    {officers.map((officer) => (
+                      <option key={officer.id} value={officer.id}>
+                        {officer.firstName} {officer.lastName}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleAssign}
+                    disabled={!selectedOfficerId || isAssigning}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-sm font-bold text-white hover:bg-primary-hover disabled:opacity-50"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    {isAssigning ? 'Isleniyor...' : 'Ata'}
+                  </button>
+                </div>
               </div>
-            ))}
-          </div>
+
+              {isWhiteDesk && (
+                <div className="rounded-2xl border border-violet-200 bg-violet-50/70 p-4 dark:border-violet-900/40 dark:bg-violet-950/20">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">Departman aktarimi</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
+                    {report.forwardedDepartmentName ?? 'Henuz departmana aktarilmadi'}
+                  </p>
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                    <select
+                      value={selectedDeptId}
+                      onChange={(e) => setSelectedDeptId(e.target.value)}
+                      className="min-w-0 flex-1 rounded-xl border border-violet-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-violet-300 dark:border-violet-800 dark:bg-slate-900 dark:text-white"
+                    >
+                      <option value="">Departman sec...</option>
+                      {departments.map((department) => (
+                        <option key={department.id} value={department.id}>
+                          {department.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleForward}
+                      disabled={!selectedDeptId || isAssigning}
+                      className="rounded-xl bg-violet-600 px-3 py-2 text-sm font-bold text-white hover:bg-violet-700 disabled:opacity-50"
+                    >
+                      {isAssigning ? 'Isleniyor...' : 'Yonlendir'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <p className="text-lg font-bold text-slate-900 dark:text-white">Durum guncelle</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Vatandasa gidecek not ile birlikte kaydi guncelle.
+            </p>
+
+            <div className="mt-5 space-y-4">
+              <div>
+                <label htmlFor="statusSelect" className="mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  Yeni durum
+                </label>
+                <select
+                  id="statusSelect"
+                  value={statusValue}
+                  onChange={(e) => setStatusValue(e.target.value as 'PROCESSING' | 'RESOLVED')}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                >
+                  <option value="PROCESSING">Islemde</option>
+                  {canResolve && <option value="RESOLVED">Cozuldu</option>}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="statusNote" className="mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  Vatandasa not
+                </label>
+                <textarea
+                  id="statusNote"
+                  rows={6}
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  placeholder="Vatandasa iletilecek acik, nezih ve aksiyon odakli not..."
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                />
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                  AI taslagi uretildiginde bu alan otomatik dolacaktir.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void saveStatus()}
+                disabled={statusBusy}
+                className="w-full rounded-xl bg-primary py-3 text-sm font-bold text-white transition-colors hover:bg-primary-hover disabled:opacity-60"
+              >
+                {statusBusy ? 'Kaydediliyor...' : 'Durumu kaydet'}
+              </button>
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <p className="text-lg font-bold text-slate-900 dark:text-white">Konum ve kayit bilgisi</p>
+            <div className="mt-4 grid gap-3">
+              <MiniInfo label="Koordinat" value={`${report.latitude}, ${report.longitude}`} helper="Saha dogrulamasi icin" />
+              <MiniInfo label="Ilce" value={report.district || 'Belirtilmedi'} helper="Vatandas lokasyonu" />
+              <MiniInfo
+                label="Departman"
+                value={report.forwardedDepartmentName ?? 'Yok'}
+                helper={report.forwardedByName ? `Aktaran: ${report.forwardedByName}` : 'Direkt akista'}
+              />
+            </div>
+          </section>
         </div>
       </div>
     </div>,
+  );
+}
+
+function DetailStat({ label, value, helper }: { label: string; value: string; helper: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200/90 bg-white/90 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+        {label}
+      </p>
+      <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">{value}</p>
+      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{helper}</p>
+    </div>
+  );
+}
+
+function MiniInfo({ label, value, helper }: { label: string; value: string; helper: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/50">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+        {label}
+      </p>
+      <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">{value}</p>
+      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{helper}</p>
+    </div>
   );
 }

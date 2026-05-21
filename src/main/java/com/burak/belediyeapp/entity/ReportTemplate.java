@@ -14,7 +14,7 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ReportTemplate extends BaseEntity {
+public class ReportTemplate extends BaseEntity implements TenantAware {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "municipality_id")

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { MapPin } from 'lucide-react';
-import { fetchPublicStatsOverview, type PublicStatsOverview, type PublicTenant } from '../../api';
+import { fetchPublicStatsOverview, type PublicDepartment, type PublicStatsOverview, type PublicTenant } from '../../api';
 import { Lang, t } from '../../i18n';
 import { screenHeadingClass, screenSubtitleClass } from '../../lib/ui';
 import { PharmacyWidgetCard } from '../home/HomeWidgets';
@@ -9,12 +9,13 @@ import CityCalendar from './CityCalendar';
 
 interface KentScreenProps {
   municipality: PublicTenant | null;
+  department?: PublicDepartment | null;
   lang: Lang;
   isDark: boolean;
   onSelectMunicipality?: () => void;
 }
 
-export default function KentScreen({ municipality, lang, isDark, onSelectMunicipality }: KentScreenProps) {
+export default function KentScreen({ municipality, department, lang, isDark, onSelectMunicipality }: KentScreenProps) {
   const [publicOverview, setPublicOverview] = useState<PublicStatsOverview | null>(null);
   const cardStyle = isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200/80 bg-white';
 
@@ -30,10 +31,17 @@ export default function KentScreen({ municipality, lang, isDark, onSelectMunicip
         <h2 className={screenHeadingClass(isDark)}>{t('tab.kent', lang)}</h2>
         <p className={`mt-0.5 ${screenSubtitleClass()}`}>{t('kent.subtitle', lang)}</p>
         {municipality && (
-          <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
-            <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
-            {municipality.displayName}
-          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <p className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+              <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
+              {municipality.displayName}
+            </p>
+            {department && (
+              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-semibold text-primary dark:bg-primary/15 dark:text-sky-300">
+                {department.name}
+              </span>
+            )}
+          </div>
         )}
       </div>
 

@@ -9,6 +9,7 @@ import OsmBoundaryFetchPanel from '../components/OsmBoundaryFetchPanel';
 import MunicipalityWidgetsPanel from '../components/MunicipalityWidgetsPanel';
 import ReportTemplatesPanel from '../components/ReportTemplatesPanel';
 import ToastBanner, { type ToastState } from '../components/ToastBanner';
+import MunicipalityLocationPanel from '../components/MunicipalityLocationPanel';
 import { emptyBrandingForm, type BrandingFormValues } from '../lib/branding';
 
 type ApiKeyListItem = {
@@ -265,8 +266,44 @@ export default function MunicipalitySettingsPage() {
         </Link>
       </div>
 
+      <div className="mb-6 grid gap-3 md:grid-cols-3">
+        <InfoCard title="Tenant slug" value={municipality.slug} helper="Panel ve kamu URL omurgasi" />
+        <InfoCard
+          title="Workflow"
+          value={municipality.workflowMode === 'DEPARTMENTAL' ? 'Departmanli' : 'Basit'}
+          helper={
+            municipality.workflowMode === 'DEPARTMENTAL'
+              ? 'Beyaz Masa > Departman > Saha'
+              : 'Yonetici veya mudur dogrudan atar'
+          }
+        />
+        <InfoCard
+          title="Harita merkezi"
+          value={`${Number(municipality.centerLat ?? 0).toFixed(4)}, ${Number(municipality.centerLng ?? 0).toFixed(4)}`}
+          helper={`Zoom ${municipality.defaultZoom ?? 12}`}
+        />
+      </div>
+
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0 space-y-6">
+          <MunicipalityLocationPanel
+            municipalityName={municipality.displayName || municipality.name}
+            centerLat={municipality.centerLat}
+            centerLng={municipality.centerLng}
+            defaultZoom={municipality.defaultZoom}
+            onSaved={(next) => {
+              setMunicipality((current) =>
+                current
+                  ? {
+                      ...current,
+                      centerLat: next.centerLat,
+                      centerLng: next.centerLng,
+                      defaultZoom: next.defaultZoom,
+                    }
+                  : current,
+              );
+            }}
+          />
           <MunicipalityBrandingForm
             mode="tenant"
             meta={meta}
@@ -416,6 +453,16 @@ export default function MunicipalitySettingsPage() {
 
         {integrationMsg ? <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">{integrationMsg}</p> : null}
       </section>
+    </div>
+  );
+}
+
+function InfoCard({ title, value, helper }: { title: string; value: string; helper: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200/90 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+      <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">{title}</p>
+      <p className="mt-2 text-lg font-bold text-slate-900 dark:text-white">{value}</p>
+      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{helper}</p>
     </div>
   );
 }

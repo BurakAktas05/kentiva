@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class MunicipalityOutage extends BaseEntity {
+public class MunicipalityOutage extends BaseEntity implements TenantAware {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "municipality_id", nullable = false)

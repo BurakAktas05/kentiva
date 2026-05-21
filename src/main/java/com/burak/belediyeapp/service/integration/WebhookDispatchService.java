@@ -23,6 +23,7 @@ import java.util.HexFormat;
 public class WebhookDispatchService {
 
     private final ObjectMapper objectMapper;
+    private final MisIntegrationService misIntegrationService;
     private final RestClient http = RestClient.builder().build();
 
     public void dispatchReportStatusChanged(
@@ -44,6 +45,8 @@ public class WebhookDispatchService {
         if (ctx != null) {
             dispatchAsync(ctx);
         }
+        // MIS/EBYS entegrasyonu
+        misIntegrationService.sendReportToMis(municipality, report);
     }
 
     public void dispatchReportAssigned(Municipality municipality, Report report, String assigneeId) {

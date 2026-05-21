@@ -3,11 +3,11 @@
 -- Production Flyway yolunda YOK — yalnızca dev profili.
 -- ============================================================
 
-INSERT INTO departments (id, name, description, active, created_at, updated_at) VALUES
-    ('uuid-dept-yol', 'Yol Bakım ve Onarım', 'Yollarla ilgili sorunlar', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-    ('uuid-dept-cevre', 'Çevre Koruma', 'Çevre ve temizlik işleri', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-    ('uuid-dept-su', 'Su ve Kanalizasyon (İSKİ)', 'Su patlağı, kanalizasyon', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-    ('uuid-dept-ulasim', 'Ulaşım Hizmetleri', 'Toplu taşıma ve duraklar', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+INSERT INTO departments (id, name, description, active, created_at, updated_at, slug) VALUES
+    ('uuid-dept-yol', 'Yol Bakım ve Onarım', 'Yollarla ilgili sorunlar', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'yol-bakim-ve-onarim'),
+    ('uuid-dept-cevre', 'Çevre Koruma', 'Çevre ve temizlik işleri', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'cevre-koruma'),
+    ('uuid-dept-su', 'Su ve Kanalizasyon (İSKİ)', 'Su patlağı, kanalizasyon', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'su-ve-kanalizasyon-iski'),
+    ('uuid-dept-ulasim', 'Ulaşım Hizmetleri', 'Toplu taşıma ve duraklar', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'ulasim-hizmetleri')
 ON CONFLICT (id) DO NOTHING;
 
 -- Şifre: admin123 — yalnızca yerel geliştirme

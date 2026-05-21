@@ -4,15 +4,19 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record CreateDepartmentRequest(
-        @NotBlank(message = "Departman adı boş bırakılamaz")
+        @NotBlank(message = "Departman adi bos birakilamaz")
         @Size(min = 2, max = 100)
         String name,
+
+        @Size(max = 120)
+        String slug,
 
         @Size(max = 255)
         String description,
 
         /**
-         * Süper admin: departmanın bağlanacağı belediye (kendi hesabında belediye yokken zorunlu).
+         * Super admin: departmanin baglanacagi belediye
+         * (kendi hesabinda belediye yokken zorunlu).
          */
         String municipalityId
 ) {}

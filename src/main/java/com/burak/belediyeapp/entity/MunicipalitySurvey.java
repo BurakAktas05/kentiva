@@ -10,7 +10,7 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class MunicipalitySurvey extends BaseEntity {
+public class MunicipalitySurvey extends BaseEntity implements TenantAware {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "municipality_id", nullable = false)

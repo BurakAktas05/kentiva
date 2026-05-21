@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class AppUser extends BaseEntity implements UserDetails {
+public class AppUser extends BaseEntity implements UserDetails, TenantAware {
 
     @Column(nullable = false, unique = true, length = 150)
     private String email;
@@ -88,6 +88,13 @@ public class AppUser extends BaseEntity implements UserDetails {
     @JsonIgnore
     @Column(length = 255)
     private String fcmToken;
+
+    /** KVKK açık rıza onayı */
+    @Column(name = "kvkk_approved", nullable = false)
+    private boolean kvkkApproved = false;
+
+    @Column(name = "kvkk_approved_at")
+    private java.time.LocalDateTime kvkkApprovedAt;
 
     /**
      * Kullanıcı rolleri. EAGER yüklenir çünkü her request'te

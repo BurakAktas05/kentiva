@@ -21,7 +21,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Report extends BaseEntity {
+public class Report extends BaseEntity implements TenantAware {
 
     @Column(nullable = false, length = 150)
     private String title;
@@ -123,6 +123,14 @@ public class Report extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "forwarded_by_id")
     private AppUser forwardedBy;
+
+    /** KVKK açık rıza onayı */
+    @Column(name = "kvkk_approved", nullable = false)
+    @Builder.Default
+    private boolean kvkkApproved = false;
+
+    @Column(name = "kvkk_approved_at")
+    private java.time.LocalDateTime kvkkApprovedAt;
 
     /**
      * Durum değişikliği geçmişi — auditability için.

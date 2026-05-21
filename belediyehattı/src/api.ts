@@ -108,6 +108,18 @@ export interface PublicTenant {
   onboarded: boolean;
 }
 
+export interface PublicDepartment {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  active: boolean;
+  municipalityId: string | null;
+  municipalityName: string | null;
+  municipalitySlug: string | null;
+  publicPath: string | null;
+}
+
 export interface ApiCategory {
   id: string;
   name: string;
@@ -384,6 +396,19 @@ export async function fetchPublicMunicipalities(): Promise<PublicTenant[]> {
   return publicFetch('/public/municipalities');
 }
 
+export async function fetchPublicMunicipalityBySlug(slug: string): Promise<PublicTenant> {
+  return publicFetch(`/public/municipalities/${encodeURIComponent(slug)}`);
+}
+
+export async function fetchPublicDepartmentContext(
+  municipalitySlug: string,
+  departmentSlug: string,
+): Promise<PublicDepartment> {
+  return publicFetch(
+    `/public/municipalities/${encodeURIComponent(municipalitySlug)}/departments/${encodeURIComponent(departmentSlug)}`,
+  );
+}
+
 export type PublicStatsOverview = {
   totalReports: number;
   resolvedReports: number;
@@ -440,10 +465,11 @@ export async function register(
   email: string,
   password: string,
   phoneNumber?: string,
+  kvkkApproved: boolean = false,
 ): Promise<AuthUser> {
   const data = await apiFetch<AuthUser>('/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ firstName, lastName, email, password, phoneNumber: phoneNumber || null }),
+    body: JSON.stringify({ firstName, lastName, email, password, phoneNumber: phoneNumber || null, kvkkApproved }),
   });
   setTokens(data.accessToken, data.refreshToken);
   saveUser(data);
@@ -459,17 +485,32 @@ export async function logout() {
   clearTokens();
 }
 
-export async function getCategories(municipalityId?: string): Promise<ApiCategory[]> {
-  const q = municipalityId ? `?municipalityId=${encodeURIComponent(municipalityId)}` : '';
+export async function getCategories(municipalityId?: string, departmentId?: string): Promise<ApiCategory[]> {
+  const params = new URLSearchParams();
+  if (municipalityId) params.set('municipalityId', municipalityId);
+  if (departmentId) params.set('departmentId', departmentId);
+  const q = params.toString() ? `?${params.toString()}` : '';
   return apiFetch<ApiCategory[]>(`/categories${q}`);
 }
 
-export async function getReportTemplates(tenant: { slug: string } | { id: string }): Promise<ApiReportTemplate[]> {
+export async function getReportTemplates(
+  tenant: { slug: string } | { id: string },
+  opts?: { departmentSlug?: string; departmentId?: string },
+): Promise<ApiReportTemplate[]> {
   if ('slug' in tenant && tenant.slug) {
-    return publicFetch(`/public/municipalities/${encodeURIComponent(tenant.slug)}/report-templates`);
+    const params = new URLSearchParams();
+    if (opts?.departmentSlug) {
+      params.set('departmentSlug', opts.departmentSlug);
+    }
+    const suffix = params.toString() ? `?${params.toString()}` : '';
+    return publicFetch(`/public/municipalities/${encodeURIComponent(tenant.slug)}/report-templates${suffix}`);
   }
   const municipalityId = 'id' in tenant ? tenant.id : '';
-  return publicFetch(`/public/municipalities/report-templates?municipalityId=${encodeURIComponent(municipalityId)}`);
+  const params = new URLSearchParams({ municipalityId: municipalityId });
+  if (opts?.departmentId) {
+    params.set('departmentId', opts.departmentId);
+  }
+  return publicFetch(`/public/municipalities/report-templates?${params.toString()}`);
 }
 
 export async function createReport(
@@ -481,6 +522,7 @@ export async function createReport(
   district?: string,
   mediaUrls: string[] = [],
   targetMunicipalityId?: string | null,
+  kvkkApproved: boolean = false,
 ) {
   const body: Record<string, unknown> = {
     title,
@@ -490,6 +532,7 @@ export async function createReport(
     longitude,
     district: district ?? null,
     mediaUrls,
+    kvkkApproved,
   };
   if (targetMunicipalityId) {
     body.targetMunicipalityId = targetMunicipalityId;

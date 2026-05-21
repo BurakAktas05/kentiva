@@ -149,6 +149,15 @@ public class MunicipalityManagementService {
         if (p.slogan() != null) {
             m.setSlogan(p.slogan().isBlank() ? null : p.slogan());
         }
+        if (p.centerLat() != null) {
+            m.setCenterLat(p.centerLat());
+        }
+        if (p.centerLng() != null) {
+            m.setCenterLng(p.centerLng());
+        }
+        if (p.defaultZoom() != null) {
+            m.setDefaultZoom(p.defaultZoom());
+        }
         if (p.contactEmail() != null) {
             m.setContactEmail(p.contactEmail().isBlank() ? null : p.contactEmail());
         }

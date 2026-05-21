@@ -43,6 +43,16 @@ public class CategoryService {
     }
 
     @Transactional(readOnly = true)
+    public List<CategoryResponse> getActiveCategoriesForCitizenScope(String municipalityId, String departmentId) {
+        return categoryRepository.findActiveForCitizenScope(
+                        municipalityId,
+                        departmentId != null && !departmentId.isBlank() ? departmentId.trim() : null)
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public List<CategoryResponse> getAllCategories() {
         return categoryRepository.findAll().stream()
                 .map(this::mapToResponse)

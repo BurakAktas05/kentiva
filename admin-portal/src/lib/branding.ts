@@ -129,11 +129,8 @@ export function isValidUrl(value: string): boolean {
 }
 
 export function publicSiteBase(): string {
-  const fromEnv = import.meta.env.VITE_PUBLIC_SITE_BASE as string | undefined;
-  if (fromEnv?.trim()) return fromEnv.replace(/\/$/, '');
-  return 'https://kentiva.app';
+  return publicSiteBaseUrl().toString();
 }
 
-export function municipalityPublicUrl(slug: string): string {
-  return `${publicSiteBase()}/belediye/${slug}`;
-}
+export { municipalityPublicUrl, departmentPublicUrl };
+import { departmentPublicUrl, municipalityPublicUrl, publicSiteBaseUrl } from './tenantDomains';

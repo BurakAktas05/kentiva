@@ -8,9 +8,12 @@ import com.burak.belediyeapp.entity.MunicipalityAnnouncement;
 import com.burak.belediyeapp.exception.BusinessException;
 import com.burak.belediyeapp.exception.ResourceNotFoundException;
 import com.burak.belediyeapp.repository.IMunicipalityAnnouncementRepository;
+import com.burak.belediyeapp.service.media.MediaGuardClient;
+import com.burak.belediyeapp.service.storage.StorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -20,6 +23,8 @@ import java.util.List;
 public class MunicipalityAnnouncementService {
 
     private final IMunicipalityAnnouncementRepository announcementRepository;
+    private final StorageService storageService;
+    private final MediaGuardClient mediaGuardClient;
 
     @Transactional(readOnly = true)
     public List<MunicipalityAnnouncementDto> listPublic(String municipalityId) {
@@ -74,6 +79,36 @@ public class MunicipalityAnnouncementService {
     @Transactional
     public void delete(AppUser user, String id) {
         announcementRepository.delete(loadOwned(user, id));
+    }
+
+    @Transactional
+    public String uploadImage(AppUser user, MultipartFile file) {
+        Municipality municipality = requireMunicipality(user);
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException("Duyuru gorseli gerekli", "FILE_REQUIRED");
+        }
+
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            throw new BusinessException("Yalnizca goruntu dosyalari yuklenebilir.", "INVALID_MEDIA_TYPE");
+        }
+        if (file.getSize() > 8 * 1024 * 1024) {
+            throw new BusinessException("Duyuru gorseli en fazla 8 MB olabilir.", "FILE_TOO_LARGE");
+        }
+
+        byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (Exception e) {
+            throw new BusinessException("Dosya okunamadi.", "FILE_READ_ERROR");
+        }
+
+        mediaGuardClient.validateImageOrThrow(bytes, contentType);
+        return storageService.uploadBytes(
+                bytes,
+                contentType,
+                "announcements/" + municipality.getId(),
+                file.getOriginalFilename());
     }
 
     private MunicipalityAnnouncement loadOwned(AppUser user, String id) {

@@ -7,9 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONArray;
 import org.json.JSONObject;
-import com.burak.belediyeapp.config.CacheNames;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -41,10 +39,6 @@ public class EczaneApiDutyPharmacyService {
 
     public record PharmacyQueryResult(List<PharmacyWidgetItem> pharmacies, String dataSource, boolean configured) {}
 
-    @Cacheable(
-            value = CacheNames.DUTY_PHARMACY,
-            key = "T(com.burak.belediyeapp.service.widget.DutyPharmacyCacheKeys).key(#municipality.id, #municipality.widgetCitySlug, #municipality.widgetDistrictSlug)",
-            unless = "#result == null || !#result.configured()")
     public PharmacyQueryResult findOnDuty(Municipality municipality, double lat, double lng, int limit) {
         if (apiKey == null || apiKey.isBlank()) {
             return new PharmacyQueryResult(List.of(), null, false);

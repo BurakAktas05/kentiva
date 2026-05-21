@@ -119,7 +119,8 @@ public class GlobalExceptionHandler {
         }
         return switch (code) {
             case "ACCESS_DENIED", "CROSS_MUNICIPALITY_ACCESS", "CROSS_MUNICIPALITY_ASSIGNMENT",
-                 "GLOBAL_CATEGORY_RESTRICTED", "INVALID_PATH" -> true;
+                 "GLOBAL_CATEGORY_RESTRICTED", "INVALID_PATH",
+                 "MUNICIPALITY_SUSPENDED", "MUNICIPALITY_EXPIRED" -> true;
             default -> false;
         };
     }

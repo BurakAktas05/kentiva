@@ -18,6 +18,7 @@ import com.burak.belediyeapp.repository.IReportCategoryRepository;
 import com.burak.belediyeapp.repository.IRoleRepository;
 import com.burak.belediyeapp.config.CacheNames;
 import com.burak.belediyeapp.config.EvictMunicipalityCaches;
+import com.burak.belediyeapp.service.department.DepartmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -41,6 +42,7 @@ public class MunicipalityOnboardingService {
     private final IReportCategoryRepository categoryRepository;
     private final com.burak.belediyeapp.repository.IDepartmentRepository departmentRepository;
     private final PasswordEncoder passwordEncoder;
+    private final DepartmentService departmentService;
 
     @Transactional
     @CacheEvict(value = CacheNames.CATEGORIES, allEntries = true)
@@ -152,6 +154,10 @@ public class MunicipalityOnboardingService {
             
             com.burak.belediyeapp.entity.Department dept = new com.burak.belediyeapp.entity.Department();
             dept.setName(name);
+            dept.setSlug(departmentService.resolveUniqueSlugForSeed(
+                    part.slug(),
+                    name,
+                    municipality.getId()));
             dept.setDescription(part.description());
             dept.setMunicipality(municipality);
             dept.setActive(true);

@@ -4,6 +4,7 @@ import {
   getMyReports,
   getPublicAnnouncements,
   getMyProfile,
+  type PublicDepartment,
   type PublicTenant,
   type ApiAnnouncement,
 } from '../../api';
@@ -22,6 +23,7 @@ interface HomeProps {
   onReputationChange?: (score: number) => void;
   lang: Lang;
   isDark: boolean;
+  department?: PublicDepartment | null;
   homeMunicipality?: PublicTenant | null;
 }
 
@@ -32,6 +34,7 @@ export default function Home({
   onReputationChange,
   lang,
   isDark,
+  department,
   homeMunicipality,
 }: HomeProps) {
   const [totalMyReports, setTotalMyReports] = useState(0);
@@ -89,14 +92,21 @@ export default function Home({
           </h2>
         </div>
         {homeMunicipality && (
-          <button
-            type="button"
-            onClick={onSelectMunicipality}
-            className="flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
-          >
-            <MapPin className="h-3.5 w-3.5 text-primary" />
-            <span className="max-w-[120px] truncate">{homeMunicipality.displayName}</span>
-          </button>
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <button
+              type="button"
+              onClick={onSelectMunicipality}
+              className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+            >
+              <MapPin className="h-3.5 w-3.5 text-primary" />
+              <span className="max-w-[120px] truncate">{homeMunicipality.displayName}</span>
+            </button>
+            {department && (
+              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-semibold text-primary dark:bg-primary/15 dark:text-sky-300">
+                {department.name}
+              </span>
+            )}
+          </div>
         )}
       </div>
 

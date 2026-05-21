@@ -38,6 +38,7 @@ class MediaControllerWebMvcTest {
 
     @MockitoBean JwtAuthenticationSupport jwtAuthenticationSupport;
     @MockitoBean ApiKeyAuthFilter apiKeyAuthFilter;
+    @MockitoBean com.burak.belediyeapp.security.SubscriptionInterceptor subscriptionInterceptor;
 
     @Autowired MediaController mediaController;
 
@@ -51,6 +52,9 @@ class MediaControllerWebMvcTest {
 
     @BeforeEach
     void prepareFile() throws Exception {
+        org.mockito.Mockito.when(subscriptionInterceptor.preHandle(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(true);
         ReflectionTestUtils.setField(mediaController, "localUploadDir", uploadRoot.toString());
         ReflectionTestUtils.setField(mediaSignedUrlService, "publicBaseUrl", "");
         Path file = uploadRoot.resolve("reports").resolve("photo.jpg");

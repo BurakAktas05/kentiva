@@ -18,10 +18,13 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Department extends BaseEntity {
+public class Department extends BaseEntity implements TenantAware {
 
     @Column(nullable = false, length = 100)
     private String name;
+
+    @Column(nullable = false, length = 120)
+    private String slug;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "municipality_id")

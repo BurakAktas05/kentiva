@@ -133,7 +133,8 @@ class ReportServiceTest {
                 32.69,
                 null,
                 List.of(),
-                null);
+                null,
+                true);
 
         Report mapped = new Report();
         mapped.setTitle(request.title());
@@ -178,7 +179,8 @@ class ReportServiceTest {
                 0.0,
                 null,
                 List.of(),
-                null);
+                null,
+                true);
 
         when(categoryRepository.findById("cat-1")).thenReturn(Optional.of(category));
         when(reportMapper.toEntity(request)).thenReturn(new Report());
@@ -207,7 +209,8 @@ class ReportServiceTest {
                 32.69,
                 null,
                 List.of(),
-                "wrong-municipality");
+                "wrong-municipality",
+                true);
 
         when(categoryRepository.findById("cat-1")).thenReturn(Optional.of(category));
         when(reportMapper.toEntity(request)).thenReturn(new Report());

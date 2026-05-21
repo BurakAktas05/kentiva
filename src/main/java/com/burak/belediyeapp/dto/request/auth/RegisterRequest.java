@@ -1,7 +1,9 @@
 package com.burak.belediyeapp.dto.request.auth;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -28,5 +30,9 @@ public record RegisterRequest(
         String password,
 
         @Size(max = 20, message = "Gecerli bir telefon numarasi giriniz")
-        String phoneNumber
+        String phoneNumber,
+
+        @NotNull(message = "KVKK onayı zorunludur")
+        @AssertTrue(message = "Kişisel verilerin işlenmesine onay vermeniz gerekmektedir")
+        Boolean kvkkApproved
 ) {}

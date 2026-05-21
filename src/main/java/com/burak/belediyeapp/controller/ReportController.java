@@ -16,6 +16,7 @@ import com.burak.belediyeapp.dto.response.report.ReportTimelineEntryResponse;
 import com.burak.belediyeapp.entity.AppUser;
 import com.burak.belediyeapp.entity.ReportStatus;
 import com.burak.belediyeapp.exception.BusinessException;
+import com.burak.belediyeapp.service.media.ImageAnonymizationService;
 import com.burak.belediyeapp.service.media.MediaGuardClient;
 import com.burak.belediyeapp.service.report.ReportDraftAnalysisService;
 import com.burak.belediyeapp.service.report.ReportService;
@@ -49,6 +50,7 @@ public class ReportController {
     private final ReportDraftAnalysisService draftAnalysisService;
     private final StorageService storageService;
     private final MediaGuardClient mediaGuardClient;
+    private final ImageAnonymizationService imageAnonymizationService;
 
     @PostMapping("/upload")
     @Operation(summary = "Rapor için fotoğraf yükle (medya doğrulama ile)")
@@ -74,6 +76,8 @@ public class ReportController {
                 throw new BusinessException("Dosya okunamadı.", "FILE_READ_ERROR");
             }
             mediaGuardClient.validateImageOrThrow(bytes, ct);
+            // KVKK: yüz ve plaka pikselleştirme
+            bytes = imageAnonymizationService.anonymize(bytes, ct);
             urls.add(storageService.uploadBytes(bytes, ct, "reports", file.getOriginalFilename()));
         }
 

@@ -1,12 +1,10 @@
 package com.burak.belediyeapp.service.widget;
 
-import com.burak.belediyeapp.config.CacheNames;
 import com.burak.belediyeapp.dto.response.widget.PharmacyWidgetItem;
 import com.burak.belediyeapp.entity.Municipality;
 import com.burak.belediyeapp.service.geo.NominatimReverseGeocodeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -72,9 +70,6 @@ public class EczanelerGenTrService {
             .defaultHeader("Accept-Language", "tr,en;q=0.8")
             .build();
 
-    @Cacheable(
-            value = CacheNames.DUTY_PHARMACY,
-            key = "'gen:' + T(com.burak.belediyeapp.service.widget.DutyPharmacyCacheKeys).key(#municipality.id, #municipality.widgetCitySlug, #municipality.widgetDistrictSlug)")
     public List<PharmacyWidgetItem> fetchOnDuty(
             Municipality municipality, double userLat, double userLng, int limit) {
 

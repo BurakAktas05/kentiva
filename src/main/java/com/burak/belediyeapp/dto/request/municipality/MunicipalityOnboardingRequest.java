@@ -47,6 +47,7 @@ public record MunicipalityOnboardingRequest(
 
     public record DepartmentPart(
             @NotBlank @Size(min = 2, max = 100) String name,
+            @Size(max = 120) String slug,
             @Size(max = 255) String description
     ) {}
 

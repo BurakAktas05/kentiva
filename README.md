@@ -81,6 +81,20 @@ This application is containerized and ready for PaaS providers like Railway, Ren
 *   All API keys, DB passwords, and JWT secrets live in environment variables only (see `.env.example`, `railway.env.example`).
 *   Do not commit `railway.env` or real keys. If a key was ever committed, rotate it immediately in Google Cloud / Railway.
 
+## TODOS & FIXMEs
+
+### 📝 TODOS (Planned Features & Enhancements)
+- [ ] **Production-Ready Image Anonymization:** Replace the placeholder face/license-plate blurring logic in `ImageAnonymizationService` with a real AI service (e.g., Google Cloud Vision, AWS Rekognition, or a local OpenCV pipeline).
+- [ ] **Production MIS Adaptors:** Implement concrete HTTP client adaptors for standard Turkish municipal MIS providers (`SAMPAS`, `NETKENT`, `E_ICISLERI`) under `com.burak.belediyeapp.integration.mis`.
+- [ ] **KVKK Consent Archiving:** Implement secure cryptographic signing for KVKK/GDPR consent records to ensure non-repudiation.
+- [ ] **Automated Multi-Tenant Leakage Tests:** Add integration test suites that specifically attempt cross-tenant access to verify that `TenantIsolationAspect` always blocks unauthorized data leaks.
+- [ ] **Payment Portal & Subscription Webhook:** Implement billing/payment webhook integrations (e.g., Iyzico, Stripe) to dynamically manage tenant `subscription_plan` and `subscription_ends_at` parameters.
+
+### ⚠️ FIXMEs (Technical Debt & Bug Fixes)
+- [ ] **Hardcoded Rate Limiting:** The Bucket4j rate limiting configuration is currently static. Move it to a dynamic tenant-based configuration to allow tailored limits based on subscription tiers.
+- [ ] **GeoJSON Polygon Validation:** Some highly detailed municipality boundaries can contain self-intersections, which cause PostGIS `ST_Contains` to throw exceptions. The boundaries upload handler should be fixed to run `ST_MakeValid` automatically.
+- [ ] **Citizen App Offline Storage:** Implement a local SQLite/IndexedDB queue in the mobile citizen app to buffer reports created offline and sync them once internet connectivity is restored.
+
 ## License
 
 This is a proprietary B2B platform. All rights reserved.

@@ -1,17 +1,15 @@
 import { useEffect } from 'react';
+import { mainSiteUrl } from '../lib/tenantSite';
 
 export type SeoHeadProps = {
   title: string;
   description: string;
   canonicalPath?: string;
+  canonicalUrl?: string;
   ogImage?: string;
   ogType?: 'website' | 'article';
   noIndex?: boolean;
 };
-
-const SITE_ORIGIN =
-  (import.meta.env.VITE_SITE_URL as string | undefined)?.trim().replace(/\/+$/, '') ||
-  (typeof window !== 'undefined' ? window.location.origin : 'https://kentiva.app');
 
 function upsertMeta(attr: 'name' | 'property', key: string, content: string) {
   const selector = `meta[${attr}="${key}"]`;
@@ -39,6 +37,7 @@ export function SeoHead({
   title,
   description,
   canonicalPath = '/',
+  canonicalUrl,
   ogImage,
   ogType = 'website',
   noIndex = false,
@@ -54,7 +53,7 @@ export function SeoHead({
     upsertMeta('name', 'twitter:title', title);
     upsertMeta('name', 'twitter:description', description);
 
-    const canonical = `${SITE_ORIGIN}${canonicalPath.startsWith('/') ? canonicalPath : `/${canonicalPath}`}`;
+    const canonical = canonicalUrl || mainSiteUrl(canonicalPath);
     upsertLink('canonical', canonical);
     upsertMeta('property', 'og:url', canonical);
 
@@ -69,11 +68,11 @@ export function SeoHead({
       const robots = document.head.querySelector('meta[name="robots"]');
       robots?.remove();
     }
-  }, [title, description, canonicalPath, ogImage, ogType, noIndex]);
+  }, [title, description, canonicalPath, canonicalUrl, ogImage, ogType, noIndex]);
 
   return null;
 }
 
 export function siteUrl(path = '/') {
-  return `${SITE_ORIGIN}${path.startsWith('/') ? path : `/${path}`}`;
+  return mainSiteUrl(path);
 }

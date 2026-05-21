@@ -48,10 +48,14 @@ export default function ReportsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialQuery = searchParams.get('q')?.trim() ?? '';
   const initialStatus = searchParams.get('status')?.trim() ?? '';
+  const initialFrom = searchParams.get('from')?.trim() ?? '';
+  const initialTo = searchParams.get('to')?.trim() ?? '';
   const [page, setPage] = useState(0);
   const [size] = useState(15);
   const [status, setStatus] = useState(initialStatus);
   const [searchText, setSearchText] = useState(initialQuery);
+  const [fromDate, setFromDate] = useState(initialFrom);
+  const [toDate, setToDate] = useState(initialTo);
   const [data, setData] = useState<SpringPage<ReportListItem> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -184,14 +188,30 @@ export default function ReportsPage() {
   const rows = data?.content ?? [];
   const filteredRows = useMemo(() => {
     const q = searchText.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) =>
-      [r.title, r.categoryName, r.district, r.id]
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(q)),
-    );
-  }, [rows, searchText]);
+    const fromTs = fromDate ? Date.parse(`${fromDate}T00:00:00`) : null;
+    const toTs = toDate ? Date.parse(`${toDate}T23:59:59`) : null;
+    return rows.filter((r) => {
+      const matchesSearch =
+        !q ||
+        [r.title, r.categoryName, r.district, r.id]
+          .filter(Boolean)
+          .some((v) => String(v).toLowerCase().includes(q));
+      const createdAtTs = r.createdAt ? Date.parse(r.createdAt) : null;
+      const matchesFrom = fromTs == null || (createdAtTs != null && createdAtTs >= fromTs);
+      const matchesTo = toTs == null || (createdAtTs != null && createdAtTs <= toTs);
+      return matchesSearch && matchesFrom && matchesTo;
+    });
+  }, [fromDate, rows, searchText, toDate]);
   const selectedCount = selected.size;
+  const visibleIds = useMemo(() => filteredRows.map((row) => row.id), [filteredRows]);
+  const visiblePending = useMemo(
+    () => filteredRows.filter((row) => row.status === 'PENDING').length,
+    [filteredRows],
+  );
+  const visibleResolved = useMemo(
+    () => filteredRows.filter((row) => row.status === 'RESOLVED').length,
+    [filteredRows],
+  );
 
   const pageIds = useMemo(() => rows.map((r) => r.id), [rows]);
   const allOnPageSelected = rows.length > 0 && pageIds.every((id) => selected.has(id));
@@ -297,6 +317,26 @@ export default function ReportsPage() {
       setModal(null);
     } catch (e: unknown) {
       showToast('error', e instanceof Error ? e.message : 'Dışa aktarma başarısız oldu.');
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const runVisibleExport = async (format: 'excel' | 'pdf') => {
+    if (visibleIds.length === 0) return;
+    setBulkBusy(true);
+    try {
+      const path = format === 'excel' ? '/export/reports/excel' : '/export/reports/pdf';
+      const params = new URLSearchParams();
+      visibleIds.forEach((id) => params.append('reportIds', id));
+      const res = await api.get(`${path}?${params.toString()}`, { responseType: 'blob' });
+      await downloadBlobResponse(
+        res,
+        `kentiva-gorunen-${new Date().toISOString().slice(0, 10)}.${format === 'excel' ? 'xlsx' : 'pdf'}`,
+      );
+      showToast('success', `${visibleIds.length} gorunen rapor disa aktarildi.`);
+    } catch (e: unknown) {
+      showToast('error', e instanceof Error ? e.message : 'Gorunen raporlar disa aktarilamadi.');
     } finally {
       setBulkBusy(false);
     }
@@ -410,6 +450,10 @@ export default function ReportsPage() {
                 setStatus(e.target.value);
                 setPage(0);
                 clearSelection();
+                const next = new URLSearchParams(searchParams);
+                if (e.target.value) next.set('status', e.target.value);
+                else next.delete('status');
+                setSearchParams(next, { replace: true });
               }}
               disabled={bulkBusy}
               className="appearance-none rounded-xl border border-slate-200/90 bg-white py-2.5 pl-10 pr-8 text-sm font-semibold text-slate-800 shadow-sm focus:ring-2 focus:ring-primary disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
@@ -421,6 +465,32 @@ export default function ReportsPage() {
               ))}
             </select>
           </div>
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(e) => {
+              const value = e.target.value;
+              setFromDate(value);
+              const next = new URLSearchParams(searchParams);
+              if (value) next.set('from', value);
+              else next.delete('from');
+              setSearchParams(next, { replace: true });
+            }}
+            className="rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:ring-2 focus:ring-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+          />
+          <input
+            type="date"
+            value={toDate}
+            onChange={(e) => {
+              const value = e.target.value;
+              setToDate(value);
+              const next = new URLSearchParams(searchParams);
+              if (value) next.set('to', value);
+              else next.delete('to');
+              setSearchParams(next, { replace: true });
+            }}
+            className="rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:ring-2 focus:ring-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+          />
           <button
             type="button"
             onClick={() => load()}
@@ -430,6 +500,45 @@ export default function ReportsPage() {
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Yenile
           </button>
+        </div>
+      </div>
+
+      <div className="grid gap-3 xl:grid-cols-[1fr_1fr_1fr_1.45fr]">
+        <MetricCard label="Gorunen kayit" value={String(filteredRows.length)} helper="Bu sayfada filtreye uyanlar" />
+        <MetricCard label="Bekleyen" value={String(visiblePending)} helper="Hizli mudahale gerektirenler" />
+        <MetricCard label="Cozulen" value={String(visibleResolved)} helper="Bu sayfada kapananlar" />
+        <div className="rounded-3xl border border-slate-200/90 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                Hizli export
+              </p>
+              <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">Gorunen raporlari aktar</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Arama ve tarih filtresiyle ekranda kalan kayitlar tek tikla disa aktarilir.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={!canExport || visibleIds.length === 0 || bulkBusy}
+                onClick={() => void runVisibleExport('excel')}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Excel
+              </button>
+              <button
+                type="button"
+                disabled={!canExport || visibleIds.length === 0 || bulkBusy}
+                onClick={() => void runVisibleExport('pdf')}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-white hover:bg-primary-hover disabled:opacity-50"
+              >
+                <Download className="h-3.5 w-3.5" />
+                PDF
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -728,6 +837,16 @@ export default function ReportsPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function MetricCard({ label, value, helper }: { label: string; value: string; helper: string }) {
+  return (
+    <div className="rounded-3xl border border-slate-200/90 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">{label}</p>
+      <p className="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-white">{value}</p>
+      <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">{helper}</p>
     </div>
   );
 }

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useLivePublicStats } from '../hooks/useLivePublicStats';
 import { StatCard } from './StatCard';
+import { municipalityPublicUrl } from '../lib/tenantSite';
 
 function formatTime(d: Date | null) {
   if (!d) return null;
@@ -209,8 +210,8 @@ export function LiveStatsSection() {
                   m.totalReports > 0 ? Math.round((m.resolvedReports / m.totalReports) * 100) : 0;
                 return (
                   <li key={m.slug}>
-                    <Link
-                      to={`/belediye/${m.slug}`}
+                    <a
+                      href={municipalityPublicUrl(m.slug)}
                       className="group flex flex-wrap items-center justify-between gap-3 py-3 transition-colors hover:bg-slate-50/80 -mx-2 px-2 rounded-xl"
                     >
                       <span className="inline-flex items-center gap-2 font-semibold text-slate-900 group-hover:text-primary">
@@ -227,7 +228,7 @@ export function LiveStatsSection() {
                           aria-hidden
                         />
                       </span>
-                    </Link>
+                    </a>
                   </li>
                 );
               })}

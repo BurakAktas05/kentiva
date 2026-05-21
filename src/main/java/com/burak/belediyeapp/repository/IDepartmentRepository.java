@@ -18,11 +18,15 @@ public interface IDepartmentRepository extends JpaRepository<Department, String>
 
     boolean existsByNameAndMunicipalityId(String name, String municipalityId);
 
+    boolean existsBySlugIgnoreCaseAndMunicipalityId(String slug, String municipalityId);
+
     List<Department> findByMunicipalityId(String municipalityId);
 
+    List<Department> findAllByActiveTrueAndMunicipalityIdOrderByNameAsc(String municipalityId);
+
     Optional<Department> findByIdAndMunicipalityId(String id, String municipalityId);
-    
-    List<Department> findAllByActiveTrueAndMunicipalityId(String municipalityId);
-    
+
+    Optional<Department> findByMunicipalityIdAndSlugIgnoreCase(String municipalityId, String slug);
+
     long countByMunicipalityId(String municipalityId);
 }

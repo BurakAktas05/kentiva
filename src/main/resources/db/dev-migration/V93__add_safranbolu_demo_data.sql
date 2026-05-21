@@ -2,11 +2,6 @@
 -- Safranbolu Belediyesi Demo Verisi (yalnızca dev profili)
 -- ============================================================
 
--- 1. Safranbolu Belediyesi'ni Ekle
-INSERT INTO municipalities (id, name, type, center_lat, center_lng, default_zoom, slug, display_name, active, onboarded) 
-VALUES ('safranbolu-bel-id', 'Safranbolu Belediyesi', 'DISTRICT', 41.251, 32.694, 13, 'm-safranbolu-bel-id', 'Safranbolu Belediyesi', true, true)
-ON CONFLICT (id) DO NOTHING;
-
 -- 2. Safranbolu Belediyesi için Müşteri (Vatandaş) Hesabı Ekle
 -- Şifre: password123 (bcrypt hash'i: $2b$10$iaRzpEdcVDPFh7Whh16D2ezjxTqWbhd9yfRWHptkEEsC7BIRm3ztq)
 INSERT INTO app_users (id, email, password, first_name, last_name, phone_number, enabled, municipality_id, created_at, updated_at) 
@@ -18,7 +13,7 @@ VALUES (
     'Safranbolu', 
     '05559998877', 
     true, 
-    'safranbolu-bel-id', 
+    'uuid-safranbolu-belediyesi', 
     NOW(), 
     NOW()
 ) ON CONFLICT (email) DO NOTHING;
@@ -41,7 +36,7 @@ VALUES (
     'Safranbolu', 
     '05559998800', 
     true, 
-    'safranbolu-bel-id', 
+    'uuid-safranbolu-belediyesi', 
     NOW(), 
     NOW()
 ) ON CONFLICT (email) DO NOTHING;

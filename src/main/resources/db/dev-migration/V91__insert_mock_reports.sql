@@ -4,31 +4,31 @@ VALUES
 (
     'mock-rep-1', 'Yol Çukuru - Eski Çarşı', 'Tarihi çarşı girişinde derin bir çukur oluşmuş, turistler zorlanıyor.',
     ST_SetSRID(ST_MakePoint(32.681, 41.251), 4326), 'PENDING',
-    (SELECT id FROM report_categories WHERE name = 'Yol Çukuru' LIMIT 1), 'user-vatandas', 'Safranbolu', 'safranbolu-id-123',
+    (SELECT id FROM report_categories WHERE name = 'Yol Çukuru' LIMIT 1), 'user-vatandas', 'Safranbolu', 'uuid-safranbolu-belediyesi',
     'HIGH', 'Çarşı girişinde ulaşımı engelleyen derin çukur.', NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days'
 ),
 (
     'mock-rep-2', 'Sokak Lambası Arızası', 'Bağlar mahallesinde 3 saattir lambalar yanmıyor, hava karardı.',
     ST_SetSRID(ST_MakePoint(32.685, 41.255), 4326), 'PROCESSING',
-    (SELECT id FROM report_categories WHERE name = 'Sokak Lambası Arızası' LIMIT 1), 'user-vatandas', 'Safranbolu', 'safranbolu-id-123',
+    (SELECT id FROM report_categories WHERE name = 'Sokak Lambası Arızası' LIMIT 1), 'user-vatandas', 'Safranbolu', 'uuid-safranbolu-belediyesi',
     'MEDIUM', 'Mahalle genelinde aydınlatma sorunu.', NOW() - INTERVAL '1 day', NOW() - INTERVAL '5 hours'
 ),
 (
     'mock-rep-3', 'Çöp Birikintisi', 'Park alanında hafta sonundan kalan çöpler toplanmamış.',
     ST_SetSRID(ST_MakePoint(32.683, 41.253), 4326), 'RESOLVED',
-    (SELECT id FROM report_categories WHERE name = 'Çöp/Atık' LIMIT 1), 'user-vatandas', 'Safranbolu', 'safranbolu-id-123',
+    (SELECT id FROM report_categories WHERE name = 'Çöp/Atık' LIMIT 1), 'user-vatandas', 'Safranbolu', 'uuid-safranbolu-belediyesi',
     'LOW', 'Park alanında temizlik ihtiyacı.', NOW() - INTERVAL '3 days', NOW() - INTERVAL '1 day'
 ),
 (
     'mock-rep-4', 'Kaldırım Hasarı', 'Kaymakamlık önündeki kaldırım taşları yerinden oynamış.',
     ST_SetSRID(ST_MakePoint(32.682, 41.252), 4326), 'PENDING',
-    (SELECT id FROM report_categories WHERE name = 'Kaldırım Hasarı' LIMIT 1), 'user-vatandas', 'Safranbolu', 'safranbolu-id-123',
+    (SELECT id FROM report_categories WHERE name = 'Kaldırım Hasarı' LIMIT 1), 'user-vatandas', 'Safranbolu', 'uuid-safranbolu-belediyesi',
     'MEDIUM', 'Yaya yolunda takılma riski oluşturan hasar.', NOW() - INTERVAL '12 hours', NOW() - INTERVAL '12 hours'
 ),
 (
     'mock-rep-5', 'Su Sızıntısı', 'Asfalttan su çıkıyor, boru patlamış olabilir.',
     ST_SetSRID(ST_MakePoint(32.686, 41.256), 4326), 'PROCESSING',
-    (SELECT id FROM report_categories WHERE name = 'Diğer' LIMIT 1), 'user-vatandas', 'Safranbolu', 'safranbolu-id-123',
+    (SELECT id FROM report_categories WHERE name = 'Diğer' LIMIT 1), 'user-vatandas', 'Safranbolu', 'uuid-safranbolu-belediyesi',
     'CRITICAL', 'Şebeke hattında olası patlak ve su kaybı.', NOW() - INTERVAL '4 hours', NOW() - INTERVAL '2 hours'
 );
 

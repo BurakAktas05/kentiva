@@ -1,5 +1,6 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { getApiBase } from './lib/env';
+import { loginPathForCurrentHost } from './lib/auth';
 
 const REFRESH_KEY = 'refresh_token';
 const TOKEN_KEY = 'token';
@@ -42,6 +43,13 @@ function clearAuthStorage() {
   localStorage.removeItem(REFRESH_KEY);
 }
 
+function redirectToLogin() {
+  const path = loginPathForCurrentHost();
+  if (!window.location.pathname.startsWith(path)) {
+    window.location.href = path;
+  }
+}
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem(TOKEN_KEY);
   if (token) {
@@ -60,17 +68,13 @@ api.interceptors.response.use(
     }
     if (config._retry) {
       clearAuthStorage();
-      if (!window.location.pathname.startsWith('/login')) {
-        window.location.href = '/login';
-      }
+      redirectToLogin();
       return Promise.reject(error);
     }
     const ok = await refreshAccessToken();
     if (!ok) {
       clearAuthStorage();
-      if (!window.location.pathname.startsWith('/login')) {
-        window.location.href = '/login';
-      }
+      redirectToLogin();
       return Promise.reject(error);
     }
     config._retry = true;
@@ -164,11 +168,13 @@ export type ExportRunStatus = 'SUCCESS' | 'FAILED';
 
 export interface ExportSchedule {
   id: string;
+  municipalityName: string | null;
   format: ExportFormat;
   frequency: ExportFrequency;
   hourOfDay: number;
   enabled: boolean;
   lastRunAt: string | null;
+  nextRunAt: string | null;
   createdAt: string;
 }
 
@@ -181,9 +187,12 @@ export interface CreateExportScheduleRequest {
 export interface ExportRun {
   id: string;
   scheduleId: string | null;
+  municipalityName: string | null;
+  format: ExportFormat;
   fileName: string;
   byteSize: number;
   status: ExportRunStatus;
+  errorMessage?: string | null;
   createdAt: string;
 }
 

@@ -71,6 +71,10 @@ public class AuthService {
         user.setPassword(passwordEncoder.encode(request.password()));
         user.setPhoneNumber(request.phoneNumber());
         user.setRoles(Set.of(citizenRole));
+        user.setKvkkApproved(Boolean.TRUE.equals(request.kvkkApproved()));
+        if (user.isKvkkApproved()) {
+            user.setKvkkApprovedAt(LocalDateTime.now());
+        }
 
         AppUser savedUser = userRepository.save(user);
         log.info("Yeni vatandaş kaydı: {} ({})", savedUser.getFullName(), savedUser.getEmail());

@@ -14,7 +14,7 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ReportCategory extends BaseEntity {
+public class ReportCategory extends BaseEntity implements TenantAware {
 
     @Column(nullable = false, length = 100)
     private String name;

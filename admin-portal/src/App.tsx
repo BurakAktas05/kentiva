@@ -34,6 +34,16 @@ import { downloadBlobResponse } from './lib/downloadExport';
 import DashboardLoadingSkeleton from './components/DashboardLoadingSkeleton';
 import { reportStatusBadgeClass } from './lib/ui';
 import { ReportLiveProvider, useReportLive } from './context/ReportLiveContext';
+import LoginPage, { LoginLandingPage } from './pages/LoginPage';
+import {
+  buildPortalUser,
+  isPlatformSuperAdmin,
+  loginPathForCurrentHost,
+  loginPathForPortal,
+  loginPathForUser,
+  portalForHostname,
+  type AuthenticatedPortalUser,
+} from './lib/auth';
 
 const LiveMap = lazy(() => import('./LiveMap'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
@@ -78,40 +88,29 @@ const ProtectedRoute = ({
   allow,
   children,
 }: {
-  user: User;
-  allow: (u: User) => boolean;
+  user: AuthenticatedPortalUser;
+  allow: (u: AuthenticatedPortalUser) => boolean;
   children: React.ReactNode;
 }) => (allow(user) ? <>{children}</> : <Navigate to="/" replace />);
 
-// --- Types ---
-interface User {
-  fullName: string;
-  email: string;
-  roles: string[];
-  district?: string;
-  municipality?: {
-    id: string;
-    name: string;
-    slug?: string;
-    displayName?: string | null;
-    centerLat: number;
-    centerLng: number;
-    defaultZoom: number;
-  } | null;
-  departmentId?: string | null;
-  departmentName?: string | null;
-}
+type User = AuthenticatedPortalUser;
 
 // --- Components ---
-const Sidebar = ({ isOpen, setOpen, user }: { isOpen: boolean, setOpen: (o: boolean) => void, user: User }) => {
+const Sidebar = ({
+  isOpen,
+  setOpen,
+  user,
+}: {
+  isOpen: boolean;
+  setOpen: (o: boolean) => void;
+  user: AuthenticatedPortalUser;
+}) => {
   const location = useLocation();
   const { newCount: liveNewReports } = useReportLive();
-  const isPlatformSuperAdmin =
-    user.roles.includes('ROLE_SUPER_ADMIN') && !user.municipality;
 
   type MenuItem = { name: string; icon: typeof LayoutDashboard; path: string };
 
-  const menuItems: MenuItem[] = isPlatformSuperAdmin
+  const menuItems: MenuItem[] = isPlatformSuperAdmin(user)
     ? [
         { name: 'Platform', icon: LayoutDashboard, path: '/' },
         { name: 'Kurulum sihirbazı', icon: Sparkles, path: '/admin/onboarding' },
@@ -201,7 +200,7 @@ const Sidebar = ({ isOpen, setOpen, user }: { isOpen: boolean, setOpen: (o: bool
             onClick={async () => {
               try { await api.post('/auth/logout'); } catch { /* ignore */ }
               clearAuthStorage();
-              window.location.href = '/login';
+              window.location.href = loginPathForUser(user);
             }}
             className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-red-50 hover:text-red-700 dark:text-slate-400 dark:hover:bg-red-950/30 dark:hover:text-red-300"
           >
@@ -296,10 +295,9 @@ const Header = ({
   );
 };
 
-const isSuperAdminOnly = (user: User) =>
-  user.roles.includes('ROLE_SUPER_ADMIN') && !user.municipality;
+const isSuperAdminOnly = (user: AuthenticatedPortalUser) => isPlatformSuperAdmin(user);
 
-const Dashboard = ({ user }: { user: User }) => {
+const Dashboard = ({ user }: { user: AuthenticatedPortalUser }) => {
   if (isSuperAdminOnly(user)) {
     return <SuperAdminHomePage />;
   }
@@ -540,30 +538,23 @@ const Dashboard = ({ user }: { user: User }) => {
 
 // --- Main App ---
 const App = () => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthenticatedPortalUser | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(() => Boolean(localStorage.getItem('token')));
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('kentiva_theme') === 'dark');
+  const hostPortal = typeof window !== 'undefined' ? portalForHostname(window.location.hostname) : null;
+  const loginRedirectPath = loginPathForCurrentHost();
 
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
       api.get('/auth/me').then(res => {
-        const d = res.data.data;
-        const fullName =
-          d.fullName ||
-          [d.firstName, d.lastName].filter(Boolean).join(' ').trim() ||
-          d.email;
-        setUser({
-          fullName,
-          email: d.email,
-          roles: d.roles ? [...d.roles] : [],
-          district: d.district,
-          municipality: d.municipality,
-        });
+        setUser(buildPortalUser(res.data.data));
       }).catch(() => {
         clearAuthStorage();
       }).finally(() => setLoading(false));
+    } else {
+      setLoading(false);
     }
   }, []);
 
@@ -591,10 +582,27 @@ const App = () => {
             </Suspense>
           }
         />
-        <Route path="/login" element={user ? <Navigate to="/" /> : <Login onLogin={setUser} />} />
+        <Route
+          path="/login"
+          element={
+            user ? <Navigate to="/" /> : hostPortal ? <Navigate to={loginPathForPortal(hostPortal)} replace /> : <LoginLandingPage />
+          }
+        />
+        <Route
+          path="/super-admin/login"
+          element={
+            user ? <Navigate to="/" /> : hostPortal === 'municipality' ? <Navigate to="/municipality/login" replace /> : <LoginPage portal="super-admin" onLogin={setUser} />
+          }
+        />
+        <Route
+          path="/municipality/login"
+          element={
+            user ? <Navigate to="/" /> : hostPortal === 'super-admin' ? <Navigate to="/super-admin/login" replace /> : <LoginPage portal="municipality" onLogin={setUser} />
+          }
+        />
         
         <Route path="/*" element={
-          !user ? <Navigate to="/login" /> : (
+          !user ? <Navigate to={loginRedirectPath} replace /> : (
             <ReportLiveProvider municipalityId={user.municipality?.id}>
             <div className="flex min-h-screen bg-slate-100 dark:bg-slate-950">
               <Sidebar isOpen={sidebarOpen} setOpen={setSidebarOpen} user={user} />
@@ -965,5 +973,7 @@ const Login = ({ onLogin }: { onLogin: (u: User) => void }) => {
     </div>
   );
 };
+
+void Login;
 
 export default App;

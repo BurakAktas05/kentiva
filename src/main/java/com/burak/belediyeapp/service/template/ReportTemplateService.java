@@ -35,6 +35,13 @@ public class ReportTemplateService {
     }
 
     @Transactional(readOnly = true)
+    public List<ReportTemplateResponse> listForCitizen(String municipalityId, String departmentId) {
+        return mergeTemplates(templateRepository.findActiveForCitizenScope(
+                municipalityId,
+                departmentId != null && !departmentId.isBlank() ? departmentId.trim() : null));
+    }
+
+    @Transactional(readOnly = true)
     public List<ReportTemplateResponse> listForAdmin(AppUser user) {
         if (user.hasRole("ROLE_SUPER_ADMIN")) {
             List<ReportTemplateResponse> globals = templateRepository.findAllGlobal().stream()

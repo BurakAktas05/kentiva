@@ -3,7 +3,9 @@ package com.burak.belediyeapp.service.report;
 import com.burak.belediyeapp.dto.request.report.CreateReportRequest;
 import com.burak.belediyeapp.dto.response.report.ReportResponse;
 import com.burak.belediyeapp.entity.*;
+import com.burak.belediyeapp.exception.BusinessException;
 import com.burak.belediyeapp.exception.ResourceNotFoundException;
+import com.burak.belediyeapp.service.admin.MembershipStatusResolver;
 import com.burak.belediyeapp.mapper.IReportMapper;
 import com.burak.belediyeapp.repository.IReportCategoryRepository;
 import com.burak.belediyeapp.repository.IReportHistoryRepository;
@@ -61,6 +63,27 @@ public class ReportCreationService {
             tenantAccess.ensureCategoryVisibleToMunicipality(category, target.getId());
             report.setMunicipality(target);
             report.setDistrict(ReportSupport.municipalityDisplayLabel(target));
+        }
+
+        // Abonelik durumu kontrolü
+        if (report.getMunicipality() != null) {
+            MembershipStatus mStatus = MembershipStatusResolver.resolve(report.getMunicipality());
+            if (mStatus == MembershipStatus.SUSPENDED) {
+                throw new BusinessException(
+                        "Bu belediyenin üyeliği askıya alınmıştır. İhbar oluşturulamaz.",
+                        "MUNICIPALITY_SUSPENDED");
+            }
+            if (mStatus == MembershipStatus.EXPIRED) {
+                throw new BusinessException(
+                        "Bu belediyenin abonelik süresi dolmuştur. İhbar oluşturulamaz.",
+                        "MUNICIPALITY_EXPIRED");
+            }
+        }
+
+        // KVKK rıza kaydı
+        report.setKvkkApproved(Boolean.TRUE.equals(request.kvkkApproved()));
+        if (report.isKvkkApproved()) {
+            report.setKvkkApprovedAt(java.time.LocalDateTime.now());
         }
 
         Report saved = reportRepository.save(report);

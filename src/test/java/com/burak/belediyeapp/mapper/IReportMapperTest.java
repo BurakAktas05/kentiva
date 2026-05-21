@@ -24,7 +24,8 @@ class IReportMapperTest {
                 29.123,
                 "Kadıköy",
                 List.of("https://example.com/image.jpg"),
-                null
+                null,
+                true
         );
 
         Report report = mapper.toEntity(request);

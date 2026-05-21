@@ -242,6 +242,9 @@ const translations: Record<Lang, Record<string, string>> = {
     'auth.verifyOtp': 'Doğrula',
     'auth.setNewPassword': 'Şifreyi Değiştir',
     'auth.cancel': 'İptal',
+    'auth.kvkkLabel': 'Kişisel verilerimin işlenmesini kabul ediyorum',
+    'auth.kvkkRequired': 'KVKK onayı zorunludur',
+    'auth.kvkkLink': 'KVKK Aydınlatma Metni',
 
     // Social Ads
     'social.ads.title': 'Sosyal İlanlar',
@@ -332,6 +335,8 @@ const translations: Record<Lang, Record<string, string>> = {
     'notification.prefs.surveys': 'Belediye Anketleri',
     'notification.prefs.save': 'Tercihleri Kaydet',
     'notification.prefs.success': 'Bildirim tercihleriniz başarıyla güncellendi.',
+    'report.kvkkLabel': 'Bu ihbarla paylaştığım kişisel verilerin işlenmesini kabul ediyorum',
+    'report.kvkkRequired': 'İhbar göndermek için KVKK onayı zorunludur',
   },
 
   en: {
@@ -550,6 +555,9 @@ const translations: Record<Lang, Record<string, string>> = {
     'auth.verifyOtp': 'Verify',
     'auth.setNewPassword': 'Set Password',
     'auth.cancel': 'Cancel',
+    'auth.kvkkLabel': 'I agree to the processing of my personal data',
+    'auth.kvkkRequired': 'Data protection consent is required',
+    'auth.kvkkLink': 'Privacy Policy',
 
     // Social Ads
     'social.ads.title': 'Social Alerts',
@@ -640,6 +648,8 @@ const translations: Record<Lang, Record<string, string>> = {
     'notification.prefs.surveys': 'Municipality Surveys',
     'notification.prefs.save': 'Save Preferences',
     'notification.prefs.success': 'Notification preferences updated successfully.',
+    'report.kvkkLabel': 'I agree to the processing of personal data shared with this report',
+    'report.kvkkRequired': 'Data protection consent is required to submit a report',
   },
 
   ar: {
@@ -859,6 +869,9 @@ const translations: Record<Lang, Record<string, string>> = {
     'auth.verifyOtp': 'تحقق',
     'auth.setNewPassword': 'تعيين كلمة المرور',
     'auth.cancel': 'إلغاء',
+    'auth.kvkkLabel': 'أوافق على معالجة بياناتي الشخصية',
+    'auth.kvkkRequired': 'الموافقة على حماية البيانات مطلوبة',
+    'auth.kvkkLink': 'سياسة الخصوصية',
 
     // Social Ads
     'social.ads.title': 'الإعلانات الاجتماعية',
@@ -949,6 +962,8 @@ const translations: Record<Lang, Record<string, string>> = {
     'notification.prefs.surveys': 'استطلاعات البلدية',
     'notification.prefs.save': 'حفظ التفضيلات',
     'notification.prefs.success': 'تم تحديث تفضيلات الإشعارات بنجاح.',
+    'report.kvkkLabel': 'أوافق على معالجة البيانات الشخصية المشتركة في هذا البلاغ',
+    'report.kvkkRequired': 'الموافقة على حماية البيانات مطلوبة لإرسال البلاغ',
   },
 };
 

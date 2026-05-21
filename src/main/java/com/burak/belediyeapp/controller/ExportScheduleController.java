@@ -42,7 +42,9 @@ public class ExportScheduleController {
     public ResponseEntity<ApiResponse<List<ExportScheduleResponse>>> list(
             @AuthenticationPrincipal AppUser user) {
         List<ExportScheduleResponse> data = scheduledExportService.listSchedules(user).stream()
-                .map(ExportScheduleResponse::from)
+                .map(schedule -> ExportScheduleResponse.from(
+                        schedule,
+                        scheduledExportService.calculateNextRunAt(schedule)))
                 .toList();
         return ResponseEntity.ok(ApiResponse.success(data));
     }
@@ -58,7 +60,18 @@ public class ExportScheduleController {
                 request.format(),
                 request.frequency(),
                 request.hourOfDay());
-        return ResponseEntity.ok(ApiResponse.success(ExportScheduleResponse.from(schedule)));
+        return ResponseEntity.ok(ApiResponse.success(
+                ExportScheduleResponse.from(schedule, scheduledExportService.calculateNextRunAt(schedule))));
+    }
+
+    @PostMapping("/{id}/run-now")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @Operation(summary = "Planli exportu hemen calistir")
+    public ResponseEntity<ApiResponse<ExportRunResponse>> runNow(
+            @AuthenticationPrincipal AppUser user,
+            @PathVariable String id) throws Exception {
+        return ResponseEntity.ok(ApiResponse.success(
+                ExportRunResponse.from(scheduledExportService.runNow(id, user))));
     }
 
     @DeleteMapping("/{id}")

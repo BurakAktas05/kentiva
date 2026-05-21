@@ -172,4 +172,16 @@ public class Municipality extends BaseEntity {
     @Column(name = "workflow_mode", nullable = false, length = 20)
     @Builder.Default
     private WorkflowMode workflowMode = WorkflowMode.SIMPLE;
+
+    // ── MIS/EBYS entegrasyonu ───────────────────────
+    @Enumerated(EnumType.STRING)
+    @Column(name = "mis_type", nullable = false, length = 30)
+    @Builder.Default
+    private MisIntegrationType misType = MisIntegrationType.NONE;
+
+    @Column(name = "mis_url", length = 512)
+    private String misUrl;
+
+    @Column(name = "mis_api_key", length = 255)
+    private String misApiKey;
 }

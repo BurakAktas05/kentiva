@@ -41,6 +41,20 @@ public interface IReportCategoryRepository extends JpaRepository<ReportCategory,
 
     List<ReportCategory> findAllByActiveTrueAndMunicipalityIsNullOrMunicipality_Id(String municipalityId);
 
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT c FROM ReportCategory c
+            WHERE c.active = true
+              AND (c.municipality IS NULL OR c.municipality.id = :municipalityId)
+              AND (:departmentId IS NULL OR c.department IS NULL OR c.department.id = :departmentId)
+            ORDER BY CASE
+                WHEN c.municipality IS NOT NULL AND c.municipality.id = :municipalityId THEN 0
+                ELSE 1
+            END, LOWER(c.name)
+            """)
+    List<ReportCategory> findActiveForCitizenScope(
+            @org.springframework.data.repository.query.Param("municipalityId") String municipalityId,
+            @org.springframework.data.repository.query.Param("departmentId") String departmentId);
+
     long countByDepartment_Municipality_Id(String municipalityId);
 
     long countByMunicipality_Id(String municipalityId);

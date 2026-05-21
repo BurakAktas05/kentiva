@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -47,6 +48,16 @@ public class AnnouncementController {
             @Valid @RequestBody MunicipalityAnnouncementRequest request) {
         MunicipalityAnnouncementDto saved = announcementService.create(user, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Duyuru yayınlandı", saved));
+    }
+
+    @PostMapping(value = "/api/v1/municipalities/me/announcements/image", consumes = "multipart/form-data")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Duyuru gorseli yukle")
+    public ResponseEntity<ApiResponse<String>> uploadAnnouncementImage(
+            @AuthenticationPrincipal AppUser user,
+            @RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(
+                ApiResponse.success("Duyuru gorseli yuklendi", announcementService.uploadImage(user, file)));
     }
 
     @PutMapping("/api/v1/municipalities/me/announcements/{id}")

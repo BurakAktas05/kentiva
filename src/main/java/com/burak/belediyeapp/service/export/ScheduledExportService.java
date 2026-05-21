@@ -45,8 +45,33 @@ public class ScheduledExportService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN','ROLE_DEPT_MANAGER')")
     public List<ExportSchedule> listSchedules(AppUser user) {
-        String mid = requireMunicipalityId(user);
-        return scheduleRepository.findByMunicipalityIdOrderByCreatedAtDesc(mid);
+        String municipalityId = requireMunicipalityId(user);
+        return scheduleRepository.findByMunicipalityIdOrderByCreatedAtDesc(municipalityId);
+    }
+
+    public LocalDateTime calculateNextRunAt(ExportSchedule schedule) {
+        if (schedule == null || !schedule.isEnabled()) {
+            return null;
+        }
+
+        LocalDateTime now = LocalDateTime.now(ZONE);
+        LocalDateTime next = now
+                .withHour(schedule.getHourOfDay())
+                .withMinute(0)
+                .withSecond(0)
+                .withNano(0);
+
+        if (!next.isAfter(now)) {
+            next = next.plusDays(1);
+        }
+
+        if (schedule.getFrequency() == ExportSchedule.ExportFrequency.WEEKLY) {
+            while (next.getDayOfWeek() != DayOfWeek.MONDAY) {
+                next = next.plusDays(1);
+            }
+        }
+
+        return next;
     }
 
     @Transactional
@@ -56,12 +81,14 @@ public class ScheduledExportService {
             ExportSchedule.ExportFormat format,
             ExportSchedule.ExportFrequency frequency,
             int hourOfDay) {
-        String mid = requireMunicipalityId(user);
-        Municipality municipality = municipalityRepository.findById(mid)
-                .orElseThrow(() -> new ResourceNotFoundException("Belediye", "id", mid));
+        String municipalityId = requireMunicipalityId(user);
+        Municipality municipality = municipalityRepository.findById(municipalityId)
+                .orElseThrow(() -> new ResourceNotFoundException("Belediye", "id", municipalityId));
+
         if (hourOfDay < 0 || hourOfDay > 23) {
-            throw new BusinessException("Saat 0-23 arasında olmalıdır.", "INVALID_HOUR");
+            throw new BusinessException("Saat 0-23 arasinda olmalidir.", "INVALID_HOUR");
         }
+
         ExportSchedule schedule = ExportSchedule.builder()
                 .municipality(municipality)
                 .createdBy(user)
@@ -80,6 +107,21 @@ public class ScheduledExportService {
         scheduleRepository.delete(schedule);
     }
 
+    @Transactional
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    public ExportRun runNow(String scheduleId, AppUser user) throws IOException {
+        ExportSchedule schedule = findOwnedSchedule(scheduleId, user);
+        try {
+            return executeSchedule(schedule);
+        } catch (IOException e) {
+            recordFailedRun(schedule, e);
+            throw e;
+        } catch (RuntimeException e) {
+            recordFailedRun(schedule, e);
+            throw e;
+        }
+    }
+
     @Transactional(readOnly = true)
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN','ROLE_DEPT_MANAGER')")
     public Page<ExportRun> listRuns(AppUser user, Pageable pageable) {
@@ -96,53 +138,54 @@ public class ScheduledExportService {
         return run;
     }
 
-    /**
-     * storagePath manipülasyonu ile dizin dışı dosya okunmasını engeller.
-     */
     public void validateRunStoragePath(ExportRun run, String municipalityId) {
         if (run.getStoragePath() == null || run.getStoragePath().isBlank()) {
-            throw new BusinessException("Dosya yolu geçersiz.", "INVALID_PATH");
+            throw new BusinessException("Dosya yolu gecersiz.", "INVALID_PATH");
         }
         Path path = Path.of(run.getStoragePath()).normalize().toAbsolutePath();
         Path base = Path.of(uploadDir, "exports", municipalityId).normalize().toAbsolutePath();
         if (!path.startsWith(base)) {
-            throw new BusinessException("Dosya yolu geçersiz.", "INVALID_PATH");
+            throw new BusinessException("Dosya yolu gecersiz.", "INVALID_PATH");
         }
     }
 
     @Scheduled(cron = "0 5 * * * *", zone = "Europe/Istanbul")
     public void runDueSchedules() {
         int hour = LocalDateTime.now(ZONE).getHour();
-        DayOfWeek dow = LocalDateTime.now(ZONE).getDayOfWeek();
+        DayOfWeek dayOfWeek = LocalDateTime.now(ZONE).getDayOfWeek();
+
         for (ExportSchedule schedule : scheduleRepository.findByEnabledTrue()) {
             if (schedule.getHourOfDay() != hour) {
                 continue;
             }
             if (schedule.getFrequency() == ExportSchedule.ExportFrequency.WEEKLY
-                    && dow != DayOfWeek.MONDAY) {
+                    && dayOfWeek != DayOfWeek.MONDAY) {
                 continue;
             }
             if (alreadyRanThisPeriod(schedule)) {
                 continue;
             }
+
             try {
                 executeSchedule(schedule);
             } catch (Exception e) {
-                log.error("Planlı export başarısız schedule={}: {}", schedule.getId(), e.getMessage());
+                recordFailedRun(schedule, e);
+                log.error("Planned export failed schedule={}: {}", schedule.getId(), e.getMessage());
             }
         }
     }
 
     @Transactional
     public ExportRun executeSchedule(ExportSchedule schedule) throws IOException {
-        String mid = schedule.getMunicipality().getId();
-        ExportFilter filter = ExportFilter.forMunicipality(mid);
-        ExportService.ExportScheduleFormat fmt = schedule.getFormat() == ExportSchedule.ExportFormat.PDF
-                ? ExportService.ExportScheduleFormat.PDF
-                : ExportService.ExportScheduleFormat.EXCEL;
+        String municipalityId = schedule.getMunicipality().getId();
+        ExportFilter filter = ExportFilter.forMunicipality(municipalityId);
+        ExportService.ExportScheduleFormat format =
+                schedule.getFormat() == ExportSchedule.ExportFormat.PDF
+                        ? ExportService.ExportScheduleFormat.PDF
+                        : ExportService.ExportScheduleFormat.EXCEL;
 
-        Path dir = Path.of(uploadDir, "exports", mid);
-        Path file = exportService.writeExportFile(filter, fmt, dir);
+        Path dir = Path.of(uploadDir, "exports", municipalityId);
+        Path file = exportService.writeExportFile(filter, format, dir);
 
         ExportRun run = ExportRun.builder()
                 .schedule(schedule)
@@ -152,9 +195,27 @@ public class ScheduledExportService {
                 .byteSize(Files.size(file))
                 .status(ExportRun.RunStatus.SUCCESS)
                 .build();
-        schedule.setLastRunAt(LocalDateTime.now());
+
+        schedule.setLastRunAt(LocalDateTime.now(ZONE));
         scheduleRepository.save(schedule);
         return runRepository.save(run);
+    }
+
+    @Transactional
+    public void recordFailedRun(ExportSchedule schedule, Exception e) {
+        String failedFileName = schedule.getFormat() == ExportSchedule.ExportFormat.PDF
+                ? "kentiva-export-failed.pdf"
+                : "kentiva-export-failed.xlsx";
+
+        runRepository.save(ExportRun.builder()
+                .schedule(schedule)
+                .municipality(schedule.getMunicipality())
+                .fileName(failedFileName)
+                .storagePath(Path.of(uploadDir, "exports", schedule.getMunicipality().getId(), "failed").toString())
+                .byteSize(0)
+                .status(ExportRun.RunStatus.FAILED)
+                .errorMessage(e.getMessage())
+                .build());
     }
 
     private boolean alreadyRanThisPeriod(ExportSchedule schedule) {
@@ -170,18 +231,18 @@ public class ScheduledExportService {
 
     private ExportSchedule findOwnedSchedule(String scheduleId, AppUser user) {
         ExportSchedule schedule = scheduleRepository.findById(scheduleId)
-                .orElseThrow(() -> new ResourceNotFoundException("Export planı", "id", scheduleId));
+                .orElseThrow(() -> new ResourceNotFoundException("Export plani", "id", scheduleId));
         if (!user.hasRole("ROLE_SUPER_ADMIN")
                 && (user.getMunicipality() == null
                 || !user.getMunicipality().getId().equals(schedule.getMunicipality().getId()))) {
-            throw new BusinessException("Bu plana erişim yok.", "ACCESS_DENIED");
+            throw new BusinessException("Bu plana erisim yok.", "ACCESS_DENIED");
         }
         return schedule;
     }
 
     private static String requireMunicipalityId(AppUser user) {
         if (user.getMunicipality() == null) {
-            throw new BusinessException("Belediye kapsamı gerekli.", "MUNICIPALITY_REQUIRED");
+            throw new BusinessException("Belediye kapsami gerekli.", "MUNICIPALITY_REQUIRED");
         }
         return user.getMunicipality().getId();
     }

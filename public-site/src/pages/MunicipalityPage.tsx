@@ -20,27 +20,29 @@ import {
   type PublicMunicipalityStat,
 } from '../lib/api';
 import { resolveMediaUrl } from '../lib/media';
+import { mainSiteUrl, municipalityPublicUrl } from '../lib/tenantSite';
 
-export default function MunicipalityPage() {
+export default function MunicipalityPage({ fixedSlug }: { fixedSlug?: string }) {
   const { slug = '' } = useParams<{ slug: string }>();
+  const activeSlug = fixedSlug || slug;
   const [detail, setDetail] = useState<PublicMunicipalityDetail | null>(null);
   const [stat, setStat] = useState<PublicMunicipalityStat | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!slug) return;
+    if (!activeSlug) return;
     const controller = new AbortController();
     setLoading(true);
     setError('');
 
     Promise.all([
-      fetchPublicMunicipalityBySlug(slug, controller.signal),
+      fetchPublicMunicipalityBySlug(activeSlug, controller.signal),
       fetchPublicMunicipalityStats(controller.signal).catch(() => [] as PublicMunicipalityStat[]),
     ])
       .then(([d, stats]) => {
         setDetail(d);
-        setStat(stats.find((s) => s.slug === slug) ?? null);
+        setStat(stats.find((s) => s.slug === activeSlug) ?? null);
       })
       .catch((e: Error) => {
         if (!controller.signal.aborted) setError(e.message || 'Belediye bulunamadı');
@@ -50,7 +52,7 @@ export default function MunicipalityPage() {
       });
 
     return () => controller.abort();
-  }, [slug]);
+  }, [activeSlug]);
 
   const description = useMemo(() => {
     if (!detail) return '';
@@ -64,7 +66,8 @@ export default function MunicipalityPage() {
     return parts.join(' ').slice(0, 320);
   }, [detail, stat]);
 
-  const canonicalPath = `/belediye/${slug}`;
+  const canonicalPath = fixedSlug ? '/' : `/belediye/${activeSlug}`;
+  const canonicalUrl = activeSlug ? municipalityPublicUrl(activeSlug) : undefined;
   const ogImage = detail?.logoUrl ? resolveMediaUrl(detail.logoUrl) : undefined;
   const brandColor = detail?.primaryColor || '#0b4f9c';
 
@@ -80,6 +83,7 @@ export default function MunicipalityPage() {
           title={`${detail.displayName} | Kentiva`}
           description={description}
           canonicalPath={canonicalPath}
+          canonicalUrl={canonicalUrl}
           ogImage={ogImage}
           ogType="article"
         />
@@ -99,13 +103,23 @@ export default function MunicipalityPage() {
           >
             <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
               <nav aria-label="Sayfa yolu">
-                <Link
-                  to="/"
-                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-primary"
-                >
-                  <ArrowLeft className="h-4 w-4" aria-hidden />
-                  Ana sayfa
-                </Link>
+                {fixedSlug ? (
+                  <a
+                    href={mainSiteUrl('/')}
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-primary"
+                  >
+                    <ArrowLeft className="h-4 w-4" aria-hidden />
+                    Ana sayfa
+                  </a>
+                ) : (
+                  <Link
+                    to="/"
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-primary"
+                  >
+                    <ArrowLeft className="h-4 w-4" aria-hidden />
+                    Ana sayfa
+                  </Link>
+                )}
               </nav>
 
               {loading && (

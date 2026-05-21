@@ -7,6 +7,7 @@ import {
   DEFAULT_ACCENT,
   DEFAULT_PRIMARY,
   DEFAULT_SECONDARY,
+  municipalityPublicUrl,
   type BrandingFormValues,
 } from '../lib/branding';
 
@@ -23,6 +24,7 @@ export default function MunicipalityBrandingPreview({ form, legalName, slug }: P
   const display = form.displayName.trim() || legalName;
   const logoSrc = resolveMediaUrl(form.logoUrl);
   const contrast = contrastLevelOnPrimary(primary);
+  const publicUrl = municipalityPublicUrl(slug || 'belediye');
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
@@ -110,7 +112,7 @@ export default function MunicipalityBrandingPreview({ form, legalName, slug }: P
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/90 dark:border-slate-700">
         <div className="flex items-center gap-1 border-b border-slate-200 px-3 py-1.5 text-[10px] text-slate-500 dark:border-slate-800">
-          <Globe className="h-3 w-3" /> Kamu sitesi /belediye/{slug || '…'}
+          <Globe className="h-3 w-3" /> Kamu sitesi {publicUrl.replace(/^https?:\/\//, '')}
         </div>
         <div className="p-3" style={{ borderTop: `3px solid ${primary}` }}>
           <p className="text-sm font-bold text-slate-900 dark:text-white">{display}</p>

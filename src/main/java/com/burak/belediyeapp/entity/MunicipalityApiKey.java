@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class MunicipalityApiKey extends BaseEntity {
+public class MunicipalityApiKey extends BaseEntity implements TenantAware {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "municipality_id", nullable = false)

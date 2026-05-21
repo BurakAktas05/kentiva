@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { useEdgeSwipeBack } from './lib/useEdgeSwipeBack';
 import { clearStaleApiOverrideIfNeeded } from './lib/apiBase';
 import { initNativeShell, registerNativeBackHandler } from './lib/nativeShell';
+import { inferMunicipalitySlugFromHostname, municipalityAppUrl } from './lib/tenantHost';
 import { toPublicTenant } from './lib/tenantUtils';
 import { Home as HomeIcon, PlusCircle, User, Bell, Building2, Map, Users } from 'lucide-react';
 import {
@@ -9,6 +10,8 @@ import {
   clearTokens,
   getUnreadCount,
   getMyProfile,
+  fetchPublicDepartmentContext,
+  fetchPublicMunicipalityBySlug,
   setPreferredMunicipality,
   AuthUser,
   type ApiAnnouncement,
@@ -44,8 +47,45 @@ export type Tab =
 
 const MAIN_TABS: Tab[] = ['home', 'kent', 'topluluk', 'profile'];
 
+type PublicRouteContext = {
+  municipalitySlug: string;
+  departmentSlug?: string;
+};
+
+function parsePublicRoute(pathname: string, hostname: string): PublicRouteContext | null {
+  const parts = pathname.split('/').filter(Boolean);
+  const hostMunicipalitySlug = inferMunicipalitySlugFromHostname(hostname);
+
+  if (hostMunicipalitySlug) {
+    if (parts[0] === 'departments' && parts[1]) {
+      return {
+        municipalitySlug: hostMunicipalitySlug,
+        departmentSlug: decodeURIComponent(parts[1]),
+      };
+    }
+    return { municipalitySlug: hostMunicipalitySlug };
+  }
+
+  if (parts[0] !== 'belediye' || !parts[1]) {
+    return null;
+  }
+  if (parts[2] === 'departments' && parts[3]) {
+    return {
+      municipalitySlug: decodeURIComponent(parts[1]),
+      departmentSlug: decodeURIComponent(parts[3]),
+    };
+  }
+  return { municipalitySlug: decodeURIComponent(parts[1]) };
+}
+
 export default function App() {
-  const { tenant, setTenant } = useTenant();
+  const { tenant, setTenant, department, setDepartment } = useTenant();
+  const [explicitRoute] = useState<PublicRouteContext | null>(() =>
+    parsePublicRoute(window.location.pathname, window.location.hostname),
+  );
+  const [routeBooting, setRouteBooting] = useState(() =>
+    Boolean(parsePublicRoute(window.location.pathname, window.location.hostname)),
+  );
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [navStack, setNavStack] = useState<Tab[]>([]);
   const navStackRef = useRef(navStack);
@@ -67,6 +107,51 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!explicitRoute) {
+      setRouteBooting(false);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        if (explicitRoute.departmentSlug) {
+          const resolvedDepartment = await fetchPublicDepartmentContext(
+            explicitRoute.municipalitySlug,
+            explicitRoute.departmentSlug,
+          );
+          const resolvedTenant = await fetchPublicMunicipalityBySlug(explicitRoute.municipalitySlug);
+          if (!cancelled) {
+            setTenant(toPublicTenant(resolvedTenant));
+            setDepartment(resolvedDepartment);
+            setPickerMode(null);
+          }
+          return;
+        }
+
+        const resolvedTenant = await fetchPublicMunicipalityBySlug(explicitRoute.municipalitySlug);
+        if (!cancelled) {
+          setTenant(toPublicTenant(resolvedTenant));
+          setDepartment(null);
+          setPickerMode(null);
+        }
+      } catch {
+        if (!cancelled) {
+          setDepartment(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setRouteBooting(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [explicitRoute, setDepartment, setTenant]);
+
+  useEffect(() => {
     const root = document.documentElement;
     if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
       root.classList.add('dark');
@@ -86,6 +171,13 @@ export default function App() {
   /** Giriş sonrası profilden belediye yükle; yoksa seçim ekranı. */
   useEffect(() => {
     if (!user) {
+      setSessionBooting(false);
+      return;
+    }
+    if (explicitRoute && routeBooting) {
+      return;
+    }
+    if (explicitRoute && tenant?.id) {
       setSessionBooting(false);
       return;
     }
@@ -117,7 +209,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps -- yalnızca oturum açılışında
+  }, [explicitRoute, routeBooting, tenant?.id, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (user && localStorage.getItem('belediye_notification_prefs_onboarded') !== 'true') {
@@ -154,15 +246,22 @@ export default function App() {
     async (t: Parameters<typeof setTenant>[0]) => {
       if (!t) return;
       setTenant(t);
+      setDepartment(null);
       setPickerMode(null);
       setKey((k) => k + 1);
+      const targetUrl = t.slug ? municipalityAppUrl(t.slug, '/') : null;
+      const currentHostSlug = inferMunicipalitySlugFromHostname(window.location.hostname);
+      if (targetUrl && currentHostSlug !== t.slug) {
+        window.location.replace(targetUrl);
+        return;
+      }
       try {
         await setPreferredMunicipality(t.id);
       } catch {
         /* offline — yerel seçim yeterli */
       }
     },
-    [setTenant],
+    [setDepartment, setTenant],
   );
 
   const handleAuth = (authUser: AuthUser, meta?: AuthMeta) => {
@@ -178,6 +277,7 @@ export default function App() {
     clearTokens();
     setUser(null);
     setTenant(null);
+    setDepartment(null);
     setPickerMode(null);
     setActiveTab('home');
   };
@@ -187,6 +287,41 @@ export default function App() {
     setActiveTab('home');
     setOpenReportId(null);
   };
+
+  useEffect(() => {
+    if (routeBooting) return;
+
+    const currentHostSlug = inferMunicipalitySlugFromHostname(window.location.hostname);
+
+    if (tenant?.slug && currentHostSlug === tenant.slug) {
+      const nextHostPath = department?.slug ? `/departments/${department.slug}` : '/';
+      if (window.location.pathname !== nextHostPath) {
+        window.history.replaceState({}, '', nextHostPath);
+      }
+      return;
+    }
+
+    if (tenant?.slug) {
+      const nextSubdomainUrl = municipalityAppUrl(
+        tenant.slug,
+        department?.slug ? `/departments/${department.slug}` : '/',
+      );
+      if (nextSubdomainUrl && window.location.pathname.startsWith('/belediye/')) {
+        window.location.replace(nextSubdomainUrl);
+        return;
+      }
+    }
+
+    const nextPath = tenant?.slug
+      ? department?.slug
+        ? `/belediye/${tenant.slug}/departments/${department.slug}`
+        : `/belediye/${tenant.slug}`
+      : '/';
+
+    if (window.location.pathname !== nextPath) {
+      window.history.replaceState({}, '', nextPath);
+    }
+  }, [department?.slug, routeBooting, tenant?.slug]);
 
   const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
@@ -270,7 +405,7 @@ export default function App() {
     return <AuthScreen onAuth={handleAuth} lang={lang} />;
   }
 
-  if (sessionBooting) {
+  if (sessionBooting || routeBooting) {
     return (
       <div
         className={`flex min-h-app items-center justify-center ${isDark ? 'bg-slate-950' : 'bg-slate-100'}`}
@@ -317,7 +452,7 @@ export default function App() {
                   </h1>
                 </div>
                 <p className={`text-[10px] font-medium tracking-wide truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                  {tenant ? t('settings.municipalityLinked', lang) : t('app.slogan', lang)}
+                  {department?.name || (tenant ? t('settings.municipalityLinked', lang) : t('app.slogan', lang))}
                 </p>
               </div>
             </button>
@@ -357,6 +492,7 @@ export default function App() {
                 onOpenAnnouncement={setOpenAnnouncement}
                 onSelectMunicipality={() => setPickerMode('onboarding')}
                 onReputationChange={() => setKey((prev) => prev + 1)}
+                department={department}
                 lang={lang}
                 isDark={isDark}
                 homeMunicipality={tenant}
@@ -366,6 +502,7 @@ export default function App() {
           {activeTab === 'kent' && (
             <KentScreen
               municipality={tenant}
+              department={department}
               lang={lang}
               isDark={isDark}
               onSelectMunicipality={() => setPickerMode('onboarding')}
@@ -385,6 +522,7 @@ export default function App() {
           {activeTab === 'report' && (
             <NewReport
               defaultMunicipality={tenant}
+              defaultDepartment={department}
               onSubmit={handleReportSubmit}
               onCancel={() => goToTab('home')}
               lang={lang}

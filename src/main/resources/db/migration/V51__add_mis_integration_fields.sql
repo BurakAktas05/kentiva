@@ -1,0 +1,4 @@
+-- MIS/EBYS entegrasyon alanları
+ALTER TABLE municipalities ADD COLUMN IF NOT EXISTS mis_type VARCHAR(30) NOT NULL DEFAULT 'NONE';
+ALTER TABLE municipalities ADD COLUMN IF NOT EXISTS mis_url VARCHAR(512);
+ALTER TABLE municipalities ADD COLUMN IF NOT EXISTS mis_api_key VARCHAR(255);
