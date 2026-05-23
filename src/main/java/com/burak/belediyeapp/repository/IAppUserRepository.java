@@ -18,13 +18,13 @@ public interface IAppUserRepository extends JpaRepository<AppUser, String> {
 
     boolean existsByEmail(String email);
 
-    java.util.List<AppUser> findByRoles_Name(String roleName);
+    org.springframework.data.domain.Page<AppUser> findByRoles_Name(String roleName, org.springframework.data.domain.Pageable pageable);
     
-    java.util.List<AppUser> findByMunicipalityId(String municipalityId);
+    org.springframework.data.domain.Page<AppUser> findByMunicipalityId(String municipalityId, org.springframework.data.domain.Pageable pageable);
 
     Optional<AppUser> findByIdAndMunicipalityId(String id, String municipalityId);
     
-    java.util.List<AppUser> findByRoles_NameAndMunicipalityId(String roleName, String municipalityId);
+    org.springframework.data.domain.Page<AppUser> findByRoles_NameAndMunicipalityId(String roleName, String municipalityId, org.springframework.data.domain.Pageable pageable);
 
     long countByMunicipalityId(String municipalityId);
 

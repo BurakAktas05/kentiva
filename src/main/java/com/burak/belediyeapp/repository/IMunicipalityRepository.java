@@ -27,7 +27,7 @@ public interface IMunicipalityRepository extends JpaRepository<Municipality, Str
     List<Municipality> findOnboardedActiveByTypeWithParent(@Param("type") MunicipalityType type);
 
     @org.springframework.data.jpa.repository.Modifying
-    @Query(value = "UPDATE municipalities SET boundaries = ST_SetSRID(ST_GeomFromGeoJSON(:geoJson), 4326) WHERE id = :id", nativeQuery = true)
+    @Query(value = "UPDATE municipalities SET boundaries = ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON(:geoJson), 4326)), 3), 1) WHERE id = :id", nativeQuery = true)
     void updateBoundariesFromGeoJson(@Param("id") String id, @Param("geoJson") String geoJson);
 
     @Query(value = """

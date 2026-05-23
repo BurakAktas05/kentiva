@@ -17,6 +17,8 @@ import java.time.LocalDateTime;
 import com.burak.belediyeapp.dto.response.widget.HomeWidgetsResponse;
 
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 
 @Service
 @RequiredArgsConstructor
@@ -28,6 +30,7 @@ public class MunicipalityWidgetService {
     private final OpenMeteoWeatherService weatherService;
     private final EczaneApiDutyPharmacyService dutyPharmacyService;
     private final EczanelerGenTrService eczanelerGenTrService;
+    private final List<IMunicipalityWidgetProvider> widgetProviders;
 
     /**
      * Home widget aggregator.
@@ -70,14 +73,34 @@ public class MunicipalityWidgetService {
         List<MunicipalityOutageDto> outages = listOutages(municipalityId);
         List<MunicipalityEventDto> events = listEvents(municipalityId);
 
+        // Fetch custom dynamic widgets
+        Map<String, Object> customWidgets = new HashMap<>();
+        if (widgetProviders != null) {
+            for (IMunicipalityWidgetProvider provider : widgetProviders) {
+                try {
+                    provider.fetchWidgetData(m, lat, lng).ifPresent(data -> {
+                        customWidgets.put(provider.getWidgetKey(), Map.of(
+                                "title", provider.getWidgetTitle(),
+                                "data", data
+                        ));
+                    });
+                } catch (Exception e) {
+                    org.slf4j.LoggerFactory.getLogger(MunicipalityWidgetService.class)
+                            .error("Error fetching custom widget {}: {}", provider.getWidgetKey(), e.getMessage());
+                }
+            }
+        }
+
         return new HomeWidgetsResponse(
                 weather,
                 pharmacies,
                 pharmacyConfigured,
                 pharmacyDataSource,
                 outages,
-                events);
+                events,
+                customWidgets);
     }
+
 
     private static boolean hasUsableCoordinates(double lat, double lng) {
         return Double.isFinite(lat)

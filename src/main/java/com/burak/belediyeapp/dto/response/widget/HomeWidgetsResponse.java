@@ -1,6 +1,7 @@
 package com.burak.belediyeapp.dto.response.widget;
 
 import java.util.List;
+import java.util.Map;
 
 public record HomeWidgetsResponse(
         WeatherWidgetResponse weather,
@@ -8,5 +9,7 @@ public record HomeWidgetsResponse(
         boolean pharmacyApiConfigured,
         String pharmacyDataSource,
         List<MunicipalityOutageDto> outages,
-        List<MunicipalityEventDto> events
+        List<MunicipalityEventDto> events,
+        Map<String, Object> customWidgets
 ) {}
+

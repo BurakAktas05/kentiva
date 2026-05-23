@@ -161,7 +161,8 @@ public class SecurityConfig {
                     .hasAnyRole("ADMIN", "SUPER_ADMIN")
 
                 // ── Actuator health — herkese açık ────────────
-                .requestMatchers("/actuator/health/**").permitAll()
+                .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                .requestMatchers("/actuator/**").hasRole("SUPER_ADMIN")
 
                 // Geri kalan her şey kimlik doğrulama gerektirir
                 .anyRequest().authenticated()

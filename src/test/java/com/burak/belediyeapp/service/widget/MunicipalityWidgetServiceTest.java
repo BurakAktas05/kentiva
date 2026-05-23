@@ -41,7 +41,8 @@ class MunicipalityWidgetServiceTest {
                 eventRepository,
                 weatherService,
                 dutyPharmacyService,
-                eczanelerGenTrService);
+                eczanelerGenTrService,
+                List.of());
     }
 
     @Test

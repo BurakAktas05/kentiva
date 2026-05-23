@@ -44,6 +44,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final LoginAttemptService loginAttemptService;
     private final SmsOtpService smsOtpService;
+    private final com.burak.belediyeapp.service.security.KvkkConsentSigningService kvkkConsentSigningService;
 
     @Value("${app.security.jwt.refresh-token-expiration-days}")
     private long refreshTokenExpirationDays;
@@ -74,6 +75,8 @@ public class AuthService {
         user.setKvkkApproved(Boolean.TRUE.equals(request.kvkkApproved()));
         if (user.isKvkkApproved()) {
             user.setKvkkApprovedAt(LocalDateTime.now());
+            user.setKvkkSignature(kvkkConsentSigningService.signUserConsent(
+                    user.getId(), user.getEmail(), user.getKvkkApprovedAt()));
         }
 
         AppUser savedUser = userRepository.save(user);

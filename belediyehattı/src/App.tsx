@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { useEdgeSwipeBack } from './lib/useEdgeSwipeBack';
 import { clearStaleApiOverrideIfNeeded } from './lib/apiBase';
 import { initNativeShell, registerNativeBackHandler } from './lib/nativeShell';
@@ -10,6 +10,7 @@ import {
   clearTokens,
   getUnreadCount,
   getMyProfile,
+  createReport,
   fetchPublicDepartmentContext,
   fetchPublicMunicipalityBySlug,
   setPreferredMunicipality,
@@ -19,21 +20,23 @@ import {
 import { setupCitizenPush } from './lib/pushNotifications';
 import { Lang, t } from './i18n';
 import { useTenant } from './TenantContext';
-import AuthScreen from './components/screens/AuthScreen';
-import Home from './components/screens/Home';
-import MyReports from './components/screens/MyReports';
-import NewReport from './components/screens/NewReport';
-import Profile from './components/screens/Profile';
-import Notifications from './components/screens/Notifications';
-import Settings from './components/screens/Settings';
-import ReportDetailScreen from './components/screens/ReportDetailScreen';
-import MunicipalityPicker, { type MunicipalityPickerMode } from './components/screens/MunicipalityPicker';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import type { AuthMeta } from './lib/authTypes';
+import type { MunicipalityPickerMode } from './components/screens/MunicipalityPicker';
 
-import KentScreen from './components/screens/KentScreen';
-import CommunityScreen from './components/screens/CommunityScreen';
-import NotificationPrefsModal from './components/screens/NotificationPrefsModal';
-import AnnouncementDetailScreen from './components/screens/AnnouncementDetailScreen';
+const AuthScreen = lazy(() => import('./components/screens/AuthScreen'));
+const Home = lazy(() => import('./components/screens/Home'));
+const MyReports = lazy(() => import('./components/screens/MyReports'));
+const NewReport = lazy(() => import('./components/screens/NewReport'));
+const Profile = lazy(() => import('./components/screens/Profile'));
+const Notifications = lazy(() => import('./components/screens/Notifications'));
+const Settings = lazy(() => import('./components/screens/Settings'));
+const ReportDetailScreen = lazy(() => import('./components/screens/ReportDetailScreen'));
+const MunicipalityPicker = lazy(() => import('./components/screens/MunicipalityPicker'));
+const KentScreen = lazy(() => import('./components/screens/KentScreen'));
+const CommunityScreen = lazy(() => import('./components/screens/CommunityScreen'));
+const NotificationPrefsModal = lazy(() => import('./components/screens/NotificationPrefsModal'));
+const AnnouncementDetailScreen = lazy(() => import('./components/screens/AnnouncementDetailScreen'));
 
 export type Tab =
   | 'home'
@@ -78,6 +81,14 @@ function parsePublicRoute(pathname: string, hostname: string): PublicRouteContex
   return { municipalitySlug: decodeURIComponent(parts[1]) };
 }
 
+function LoadingSpinner({ isDark }: { isDark: boolean }) {
+  return (
+    <div className={`flex min-h-app items-center justify-center ${isDark ? 'bg-slate-950' : 'bg-slate-100'}`}>
+      <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+    </div>
+  );
+}
+
 export default function App() {
   const { tenant, setTenant, department, setDepartment } = useTenant();
   const [explicitRoute] = useState<PublicRouteContext | null>(() =>
@@ -101,6 +112,7 @@ export default function App() {
   const [pickerMode, setPickerMode] = useState<MunicipalityPickerMode | null>(null);
   const [sessionBooting, setSessionBooting] = useState(() => Boolean(getSavedUser()));
   const [isPrefsModalOpen, setIsPrefsModalOpen] = useState(false);
+  const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
   useEffect(() => {
     void clearStaleApiOverrideIfNeeded();
@@ -242,6 +254,47 @@ export default function App() {
     try { setUnreadCount(await getUnreadCount()); } catch { /* ignore */ }
   };
 
+  useEffect(() => {
+    const syncOfflineReports = async () => {
+      const raw = localStorage.getItem('belediye_offline_reports');
+      if (!raw) return;
+      const queue = JSON.parse(raw) as Array<{
+        title: string; description: string; categoryId: string;
+        latitude: number; longitude: number; district: string | null;
+        mediaUrl: string | null; targetMunicipalityId: string | null;
+        kvkkApproved: boolean; savedAt: string;
+      }>;
+      if (queue.length === 0) return;
+
+      const remaining = [...queue];
+      let synced = 0;
+      for (let i = 0; i < queue.length; i++) {
+        const r = queue[i];
+        try {
+          await createReport(
+            r.title, r.description, r.categoryId,
+            r.latitude, r.longitude, r.district ?? undefined,
+            r.mediaUrl ? [r.mediaUrl] : [], r.targetMunicipalityId, r.kvkkApproved,
+          );
+          remaining.splice(remaining.indexOf(r), 1);
+          synced++;
+        } catch {
+          // Keep in queue for next attempt
+        }
+      }
+      localStorage.setItem('belediye_offline_reports', JSON.stringify(remaining));
+      if (synced > 0) {
+        console.log(`[Kentiva] ${synced} offline rapor başarıyla gönderildi.`);
+      }
+    };
+
+    const handler = () => { void syncOfflineReports(); };
+    window.addEventListener('online', handler);
+    // Also try on mount in case we're already online with pending reports
+    if (navigator.onLine) handler();
+    return () => window.removeEventListener('online', handler);
+  }, []);
+
   const handleMunicipalitySelect = useCallback(
     async (t: Parameters<typeof setTenant>[0]) => {
       if (!t) return;
@@ -323,8 +376,6 @@ export default function App() {
     }
   }, [department?.slug, routeBooting, tenant?.slug]);
 
-  const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-
   useEffect(() => {
     void initNativeShell(isDark);
   }, [isDark]);
@@ -351,6 +402,10 @@ export default function App() {
   }, []);
 
   const popNavigation = useCallback((): boolean => {
+    if (isPrefsModalOpen) {
+      setIsPrefsModalOpen(false);
+      return true;
+    }
     if (pickerMode === 'change') {
       setPickerMode(null);
       return true;
@@ -384,7 +439,7 @@ export default function App() {
       return true;
     }
     return false;
-  }, [activeTab, openReportId, openAnnouncement, closeReport, pickerMode]);
+  }, [activeTab, openReportId, openAnnouncement, closeReport, pickerMode, isPrefsModalOpen]);
 
   const handleNativeBack = popNavigation;
 
@@ -402,34 +457,39 @@ export default function App() {
   });
 
   if (!user) {
-    return <AuthScreen onAuth={handleAuth} lang={lang} />;
+    return (
+      <ErrorBoundary>
+        <Suspense fallback={<LoadingSpinner isDark={isDark} />}>
+          <AuthScreen onAuth={handleAuth} lang={lang} />
+        </Suspense>
+      </ErrorBoundary>
+    );
   }
 
   if (sessionBooting || routeBooting) {
-    return (
-      <div
-        className={`flex min-h-app items-center justify-center ${isDark ? 'bg-slate-950' : 'bg-slate-100'}`}
-      >
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
-    );
+    return <LoadingSpinner isDark={isDark} />;
   }
 
   if (pickerMode) {
     return (
-      <MunicipalityPicker
-        lang={lang}
-        isDark={isDark}
-        mode={pickerMode}
-        onSelect={(t) => void handleMunicipalitySelect(t)}
-        onCancel={pickerMode === 'change' ? () => setPickerMode(null) : undefined}
-      />
+      <ErrorBoundary>
+        <Suspense fallback={<LoadingSpinner isDark={isDark} />}>
+          <MunicipalityPicker
+            lang={lang}
+            isDark={isDark}
+            mode={pickerMode}
+            onSelect={(t) => void handleMunicipalitySelect(t)}
+            onCancel={pickerMode === 'change' ? () => setPickerMode(null) : undefined}
+          />
+        </Suspense>
+      </ErrorBoundary>
     );
   }
 
   return (
-    <div className={`min-h-app flex justify-center font-sans ${isDark ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-900'}`}>
-      <div className={`w-full max-w-md flex flex-col h-app relative overflow-hidden sm:border-x sm:shadow-kentiva ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200/80'}`}>
+    <ErrorBoundary>
+      <div className={`min-h-app flex justify-center font-sans ${isDark ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-900'}`}>
+        <div className={`w-full max-w-md flex flex-col h-app relative overflow-hidden sm:border-x sm:shadow-kentiva ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200/80'}`}>
 
         {!openReportId && !openAnnouncement && activeTab !== 'reports' && (
           <header className={`px-4 py-3.5 pt-safe z-10 flex justify-between items-center shrink-0 border-b backdrop-blur-md ${isDark ? 'border-slate-800 bg-slate-900/95' : 'border-slate-200/80 bg-white/90'}`}>
@@ -474,99 +534,101 @@ export default function App() {
         )}
 
         <main className={`flex-1 overflow-y-auto overflow-x-hidden relative pb-20 ${isDark ? 'bg-slate-900' : 'bg-slate-50'}`}>
-          {openAnnouncement && (
-            <AnnouncementDetailScreen
-              announcement={openAnnouncement}
-              lang={lang}
-              isDark={isDark}
-              onClose={() => setOpenAnnouncement(null)}
-            />
-          )}
-          {activeTab === 'home' && !openReportId && !openAnnouncement && (
-            <Fragment key={key}>
-              <Home
-                onViewMyReports={() => {
-                  setNavStack((s) => [...s, 'home'].slice(-8));
-                  setActiveTab('reports');
-                }}
-                onOpenAnnouncement={setOpenAnnouncement}
-                onSelectMunicipality={() => setPickerMode('onboarding')}
-                onReputationChange={() => setKey((prev) => prev + 1)}
+          <Suspense fallback={<LoadingSpinner isDark={isDark} />}>
+            {openAnnouncement && (
+              <AnnouncementDetailScreen
+                announcement={openAnnouncement}
+                lang={lang}
+                isDark={isDark}
+                onClose={() => setOpenAnnouncement(null)}
+              />
+            )}
+            {activeTab === 'home' && !openReportId && !openAnnouncement && (
+              <Fragment key={key}>
+                <Home
+                  onViewMyReports={() => {
+                    setNavStack((s) => [...s, 'home'].slice(-8));
+                    setActiveTab('reports');
+                  }}
+                  onOpenAnnouncement={setOpenAnnouncement}
+                  onSelectMunicipality={() => setPickerMode('onboarding')}
+                  onReputationChange={() => setKey((prev) => prev + 1)}
+                  department={department}
+                  lang={lang}
+                  isDark={isDark}
+                  homeMunicipality={tenant}
+                />
+              </Fragment>
+            )}
+            {activeTab === 'kent' && (
+              <KentScreen
+                municipality={tenant}
                 department={department}
                 lang={lang}
                 isDark={isDark}
-                homeMunicipality={tenant}
+                onSelectMunicipality={() => setPickerMode('onboarding')}
               />
-            </Fragment>
-          )}
-          {activeTab === 'kent' && (
-            <KentScreen
-              municipality={tenant}
-              department={department}
-              lang={lang}
-              isDark={isDark}
-              onSelectMunicipality={() => setPickerMode('onboarding')}
-            />
-          )}
-          {activeTab === 'topluluk' && (
-            <CommunityScreen municipality={tenant} lang={lang} isDark={isDark} />
-          )}
-          {openReportId && (
-            <ReportDetailScreen
-              reportId={openReportId}
-              lang={lang}
-              isDark={isDark}
-              onClose={closeReport}
-            />
-          )}
-          {activeTab === 'report' && (
-            <NewReport
-              defaultMunicipality={tenant}
-              defaultDepartment={department}
-              onSubmit={handleReportSubmit}
-              onCancel={() => goToTab('home')}
-              lang={lang}
-              isDark={isDark}
-            />
-          )}
-          {activeTab === 'reports' && !openReportId && (
-            <MyReports
-              onBack={() => goToTab('home')}
-              onOpenReport={openReport}
-              lang={lang}
-              isDark={isDark}
-            />
-          )}
-          {activeTab === 'profile' && (
-            <Profile
-              onLogout={handleLogout}
-              onSettings={() => setActiveTab('settings')}
-              onChangeMunicipality={() => setPickerMode('change')}
-              municipality={tenant}
-              lang={lang}
-              isDark={isDark}
-            />
-          )}
-          {activeTab === 'notifications' && (
-            <Notifications
-              onBadgeUpdate={setUnreadCount}
-              onOpenReport={openReport}
-              lang={lang}
-              isDark={isDark}
-            />
-          )}
-          {activeTab === 'settings' && (
-            <Settings
-              lang={lang}
-              isDark={isDark}
-              theme={theme}
-              municipality={tenant}
-              onLangChange={setLang}
-              onThemeChange={setTheme}
-              onBack={() => setActiveTab('profile')}
-              onChangeMunicipality={() => setPickerMode('change')}
-            />
-          )}
+            )}
+            {activeTab === 'topluluk' && (
+              <CommunityScreen municipality={tenant} lang={lang} isDark={isDark} />
+            )}
+            {openReportId && (
+              <ReportDetailScreen
+                reportId={openReportId}
+                lang={lang}
+                isDark={isDark}
+                onClose={closeReport}
+              />
+            )}
+            {activeTab === 'report' && (
+              <NewReport
+                defaultMunicipality={tenant}
+                defaultDepartment={department}
+                onSubmit={handleReportSubmit}
+                onCancel={() => goToTab('home')}
+                lang={lang}
+                isDark={isDark}
+              />
+            )}
+            {activeTab === 'reports' && !openReportId && (
+              <MyReports
+                onBack={() => goToTab('home')}
+                onOpenReport={openReport}
+                lang={lang}
+                isDark={isDark}
+              />
+            )}
+            {activeTab === 'profile' && (
+              <Profile
+                onLogout={handleLogout}
+                onSettings={() => setActiveTab('settings')}
+                onChangeMunicipality={() => setPickerMode('change')}
+                municipality={tenant}
+                lang={lang}
+                isDark={isDark}
+              />
+            )}
+            {activeTab === 'notifications' && (
+              <Notifications
+                onBadgeUpdate={setUnreadCount}
+                onOpenReport={openReport}
+                lang={lang}
+                isDark={isDark}
+              />
+            )}
+            {activeTab === 'settings' && (
+              <Settings
+                lang={lang}
+                isDark={isDark}
+                theme={theme}
+                municipality={tenant}
+                onLangChange={setLang}
+                onThemeChange={setTheme}
+                onBack={() => setActiveTab('profile')}
+                onChangeMunicipality={() => setPickerMode('change')}
+              />
+            )}
+          </Suspense>
         </main>
 
         {activeTab !== 'settings' && activeTab !== 'reports' && activeTab !== 'report' && activeTab !== 'notifications' && !openReportId && !openAnnouncement && (
@@ -622,13 +684,16 @@ export default function App() {
             </button>
           </nav>
         )}
-        <NotificationPrefsModal
-          lang={lang}
-          isDark={isDark}
-          isOpen={isPrefsModalOpen}
-          onClose={() => setIsPrefsModalOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <NotificationPrefsModal
+            lang={lang}
+            isDark={isDark}
+            isOpen={isPrefsModalOpen}
+            onClose={() => setIsPrefsModalOpen(false)}
+          />
+        </Suspense>
       </div>
     </div>
+    </ErrorBoundary>
   );
 }

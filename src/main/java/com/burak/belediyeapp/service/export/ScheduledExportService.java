@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -150,6 +151,7 @@ public class ScheduledExportService {
     }
 
     @Scheduled(cron = "0 5 * * * *", zone = "Europe/Istanbul")
+    @SchedulerLock(name = "ScheduledExportService_runDueSchedules", lockAtMostFor = "10m", lockAtLeastFor = "1m")
     public void runDueSchedules() {
         int hour = LocalDateTime.now(ZONE).getHour();
         DayOfWeek dayOfWeek = LocalDateTime.now(ZONE).getDayOfWeek();

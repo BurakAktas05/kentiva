@@ -8,12 +8,16 @@ export class PhotoCaptureCancelledError extends Error {
   }
 }
 
+export type CaptureResult = { file: File; previewUrl: string };
+
 /** Rapor fotoğrafı yalnızca kameradan — galeri yok. */
-export async function captureReportPhotoFile(): Promise<File> {
+export async function captureReportPhotoFile(): Promise<CaptureResult> {
   if (Capacitor.isNativePlatform()) {
     try {
       const photo = await Camera.getPhoto({
-        quality: 85,
+        quality: 80,
+        width: 1280,
+        height: 1280,
         allowEditing: false,
         resultType: CameraResultType.Uri,
         source: CameraSource.Camera,
@@ -22,10 +26,12 @@ export async function captureReportPhotoFile(): Promise<File> {
       if (!photo.webPath) {
         throw new PhotoCaptureCancelledError();
       }
+      const previewUrl = photo.webPath;
       const response = await fetch(photo.webPath);
       const blob = await response.blob();
       const type = blob.type && blob.type.startsWith('image/') ? blob.type : 'image/jpeg';
-      return new File([blob], `report-${Date.now()}.jpg`, { type });
+      const file = new File([blob], `report-${Date.now()}.jpg`, { type });
+      return { file, previewUrl };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('cancel') || msg.includes('Cancel') || msg.includes('User')) {
@@ -38,18 +44,79 @@ export async function captureReportPhotoFile(): Promise<File> {
   return pickFromCameraInputOnly();
 }
 
-function pickFromCameraInputOnly(): Promise<File> {
+function pickFromCameraInputOnly(): Promise<CaptureResult> {
   return new Promise((resolve, reject) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
     input.setAttribute('capture', 'environment');
-    input.onchange = () => {
+    input.onchange = async () => {
       const file = input.files?.[0];
-      if (file) resolve(file);
-      else reject(new PhotoCaptureCancelledError());
+      if (file) {
+        try {
+          const compressedFile = await resizeImageWeb(file);
+          resolve({ file: compressedFile, previewUrl: URL.createObjectURL(compressedFile) });
+        } catch {
+          resolve({ file, previewUrl: URL.createObjectURL(file) });
+        }
+      } else {
+        reject(new PhotoCaptureCancelledError());
+      }
     };
     input.oncancel = () => reject(new PhotoCaptureCancelledError());
     input.click();
   });
 }
+
+function resizeImageWeb(file: File, maxDim: number = 1280): Promise<File> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                const resizedFile = new File([blob], file.name, {
+                  type: 'image/jpeg',
+                  lastModified: Date.now(),
+                });
+                resolve(resizedFile);
+              } else {
+                resolve(file);
+              }
+            },
+            'image/jpeg',
+            0.8
+          );
+        } else {
+          resolve(file);
+        }
+      };
+      img.onerror = () => resolve(file);
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => resolve(file);
+    reader.readAsDataURL(file);
+  });
+}
+

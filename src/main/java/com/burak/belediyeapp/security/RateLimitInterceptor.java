@@ -1,11 +1,16 @@
 package com.burak.belediyeapp.security;
 
+import com.burak.belediyeapp.entity.AppUser;
+import com.burak.belediyeapp.entity.Municipality;
+import com.burak.belediyeapp.entity.SubscriptionPlan;
+import com.burak.belediyeapp.repository.IMunicipalityRepository;
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.Bucket4j;
 import io.github.bucket4j.Refill;
 import io.github.bucket4j.Bandwidth;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.core.Authentication;
@@ -18,13 +23,12 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
+@RequiredArgsConstructor
 public class RateLimitInterceptor implements HandlerInterceptor {
 
-    private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
+    private final IMunicipalityRepository municipalityRepository;
 
-    private Bucket createNewBucket() {
-        return createNewBucket(60);
-    }
+    private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
 
     private Bucket createNewBucket(int perMinute) {
         return Bucket4j.builder()
@@ -66,14 +70,21 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        String rateKey = resolveRateLimitKey(request);
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
-        int perMinute = switch (rateKey.split(":", 2)[0]) {
-            case "apikey" -> 120;
-            case "user" -> 300;
-            case "integration" -> 90;
-            default -> 120;
-        };
+        // Super admin bypass
+        if (auth != null && auth.isAuthenticated() && auth.getPrincipal() instanceof AppUser user) {
+            if (user.hasRole("ROLE_SUPER_ADMIN")) {
+                return true;
+            }
+        }
+
+        String rateKey = resolveRateLimitKey(request);
+        String keyType = rateKey.split(":", 2)[0];
+
+        SubscriptionPlan plan = resolveSubscriptionPlan(auth);
+        int perMinute = computeRateLimit(plan, keyType);
+
         Bucket bucket = buckets.computeIfAbsent(rateKey, k -> createNewBucket(perMinute));
 
         if (bucket.tryConsume(1)) {
@@ -84,6 +95,68 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             response.getWriter().write("{\"success\":false,\"message\":\"Çok fazla istek gönderildi. Lütfen bir süre sonra tekrar deneyin.\",\"errorCode\":\"RATE_LIMIT_EXCEEDED\"}");
             return false;
         }
+    }
+
+    /**
+     * Mevcut kimlik doğrulamasından abonelik planını çözümler.
+     */
+    private SubscriptionPlan resolveSubscriptionPlan(Authentication auth) {
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal())) {
+            return null;
+        }
+
+        Object principal = auth.getPrincipal();
+
+        if (principal instanceof AppUser user) {
+            Municipality m = user.getMunicipality();
+            if (m != null) {
+                return m.getSubscriptionPlan();
+            }
+            return null;
+        }
+
+        if (principal instanceof ApiKeyPrincipal apiKey) {
+            String muniId = apiKey.getMunicipalityId();
+            if (muniId != null) {
+                return municipalityRepository.findById(muniId)
+                        .map(Municipality::getSubscriptionPlan)
+                        .orElse(null);
+            }
+            return null;
+        }
+
+        return null;
+    }
+
+    /**
+     * Abonelik planı ve istek türüne göre dakika başı limit hesaplar.
+     */
+    private int computeRateLimit(SubscriptionPlan plan, String keyType) {
+        if (plan == SubscriptionPlan.ENTERPRISE) {
+            return switch (keyType) {
+                case "user"        -> 1000;
+                case "apikey"      -> 300;
+                case "integration" -> 200;
+                default            -> 300;
+            };
+        }
+
+        if (plan == SubscriptionPlan.STANDARD) {
+            return switch (keyType) {
+                case "user"        -> 300;
+                case "apikey"      -> 120;
+                case "integration" -> 90;
+                default            -> 120;
+            };
+        }
+
+        // TRIAL or null
+        return switch (keyType) {
+            case "user"        -> 100;
+            case "apikey"      -> 60;
+            case "integration" -> 45;
+            default            -> 60;
+        };
     }
 
     /**

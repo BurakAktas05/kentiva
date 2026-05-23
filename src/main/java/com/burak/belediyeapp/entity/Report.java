@@ -132,6 +132,9 @@ public class Report extends BaseEntity implements TenantAware {
     @Column(name = "kvkk_approved_at")
     private java.time.LocalDateTime kvkkApprovedAt;
 
+    @Column(name = "kvkk_signature", length = 512)
+    private String kvkkSignature;
+
     /**
      * Durum değişikliği geçmişi — auditability için.
      */

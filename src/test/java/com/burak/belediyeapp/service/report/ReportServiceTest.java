@@ -16,6 +16,7 @@ import com.burak.belediyeapp.service.geo.DistrictResolutionService;
 import com.burak.belediyeapp.service.integration.WebhookDispatchService;
 import com.burak.belediyeapp.service.media.MediaSignedUrlService;
 import com.burak.belediyeapp.service.notification.NotificationService;
+import com.burak.belediyeapp.service.security.KvkkConsentSigningService;
 import com.burak.belediyeapp.tenant.TenantAccessService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -55,6 +56,7 @@ class ReportServiceTest {
     @Mock MediaSignedUrlService mediaSignedUrlService;
     @Mock ReportDuplicateLinkService duplicateLinkService;
     @Mock CitizenReputationService citizenReputationService;
+    @Mock KvkkConsentSigningService kvkkConsentSigningService;
 
     private TenantAccessService tenantAccess;
     private ReportSupport reportSupport;
@@ -82,7 +84,8 @@ class ReportServiceTest {
                 eventPublisher,
                 duplicateLinkService,
                 webhookDispatchService,
-                citizenReputationService);
+                citizenReputationService,
+                kvkkConsentSigningService);
 
         queryService = new ReportQueryService(
                 reportRepository,

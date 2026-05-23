@@ -96,6 +96,9 @@ public class AppUser extends BaseEntity implements UserDetails, TenantAware {
     @Column(name = "kvkk_approved_at")
     private java.time.LocalDateTime kvkkApprovedAt;
 
+    @Column(name = "kvkk_signature", length = 512)
+    private String kvkkSignature;
+
     /**
      * Kullanıcı rolleri. EAGER yüklenir çünkü her request'te
      * yetki kontrolü için gereklidir.

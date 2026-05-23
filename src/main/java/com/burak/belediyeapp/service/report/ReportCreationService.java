@@ -40,6 +40,7 @@ public class ReportCreationService {
     private final ReportDuplicateLinkService duplicateLinkService;
     private final WebhookDispatchService webhookDispatchService;
     private final CitizenReputationService citizenReputationService;
+    private final com.burak.belediyeapp.service.security.KvkkConsentSigningService kvkkConsentSigningService;
 
     @Transactional
     @PreAuthorize("hasAuthority('ROLE_CITIZEN')")
@@ -84,6 +85,8 @@ public class ReportCreationService {
         report.setKvkkApproved(Boolean.TRUE.equals(request.kvkkApproved()));
         if (report.isKvkkApproved()) {
             report.setKvkkApprovedAt(java.time.LocalDateTime.now());
+            report.setKvkkSignature(kvkkConsentSigningService.signReportConsent(
+                    report.getId(), reporter.getEmail(), report.getKvkkApprovedAt()));
         }
 
         Report saved = reportRepository.save(report);

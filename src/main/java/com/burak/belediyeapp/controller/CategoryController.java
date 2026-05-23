@@ -20,6 +20,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 
@@ -52,8 +54,8 @@ public class CategoryController {
     @GetMapping("/all")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     @Operation(summary = "Tum kategorileri listele (Admin)")
-    public ResponseEntity<ApiResponse<List<CategoryResponse>>> getAllCategories() {
-        return ResponseEntity.ok(ApiResponse.success(categoryService.getAllCategories()));
+    public ResponseEntity<ApiResponse<Page<CategoryResponse>>> getAllCategories(Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.success(categoryService.getAllCategories(pageable)));
     }
 
     @PostMapping

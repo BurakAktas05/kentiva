@@ -20,7 +20,7 @@ public interface IDepartmentRepository extends JpaRepository<Department, String>
 
     boolean existsBySlugIgnoreCaseAndMunicipalityId(String slug, String municipalityId);
 
-    List<Department> findByMunicipalityId(String municipalityId);
+    org.springframework.data.domain.Page<Department> findByMunicipalityId(String municipalityId, org.springframework.data.domain.Pageable pageable);
 
     List<Department> findAllByActiveTrueAndMunicipalityIdOrderByNameAsc(String municipalityId);
 

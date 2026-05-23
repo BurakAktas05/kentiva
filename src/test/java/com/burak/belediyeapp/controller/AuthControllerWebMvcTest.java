@@ -34,10 +34,14 @@ class AuthControllerWebMvcTest {
     @MockitoBean IAppUserRepository userRepository;
     @MockitoBean ApiKeyAuthFilter apiKeyAuthFilter;
     @MockitoBean com.burak.belediyeapp.security.SubscriptionInterceptor subscriptionInterceptor;
+    @MockitoBean com.burak.belediyeapp.security.RateLimitInterceptor rateLimitInterceptor;
 
     @org.junit.jupiter.api.BeforeEach
     void stubInterceptor() throws Exception {
         org.mockito.Mockito.when(subscriptionInterceptor.preHandle(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(true);
+        org.mockito.Mockito.when(rateLimitInterceptor.preHandle(
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(true);
     }

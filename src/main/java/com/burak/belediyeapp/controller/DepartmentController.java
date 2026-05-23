@@ -12,6 +12,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 
@@ -26,9 +28,10 @@ public class DepartmentController {
     @GetMapping
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN','ROLE_DEPT_MANAGER')")
     @Operation(summary = "Tüm departmanları listele")
-    public ResponseEntity<ApiResponse<List<DepartmentResponse>>> getAllDepartments(
-            @org.springframework.security.core.annotation.AuthenticationPrincipal com.burak.belediyeapp.entity.AppUser currentUser) {
-        return ResponseEntity.ok(ApiResponse.success(departmentService.getAllDepartments(currentUser)));
+    public ResponseEntity<ApiResponse<Page<DepartmentResponse>>> getAllDepartments(
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.burak.belediyeapp.entity.AppUser currentUser,
+            Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.success(departmentService.getAllDepartments(currentUser, pageable)));
     }
 
     @PostMapping

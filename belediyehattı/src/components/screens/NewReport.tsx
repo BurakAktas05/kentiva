@@ -18,7 +18,7 @@ import {
   type ReportDraftAnalysis,
 } from '../../api';
 import { Lang, t } from '../../i18n';
-import { captureReportPhotoFile, PhotoCaptureCancelledError } from '../../lib/captureReportPhoto';
+import { captureReportPhotoFile, PhotoCaptureCancelledError, type CaptureResult } from '../../lib/captureReportPhoto';
 import ReportAiScanOverlay from '../ReportAiScanOverlay';
 
 interface NewReportProps {
@@ -56,6 +56,7 @@ export default function NewReport({
   const [resolvedMunicipality, setResolvedMunicipality] = useState<PublicTenant | null>(null);
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [localPhotoPreview, setLocalPhotoPreview] = useState<string | null>(null);
+  const [capturedFile, setCapturedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -86,7 +87,7 @@ export default function NewReport({
 
   useEffect(() => {
     return () => {
-      if (localPhotoPreview) {
+      if (localPhotoPreview && localPhotoPreview.startsWith('blob:')) {
         URL.revokeObjectURL(localPhotoPreview);
       }
     };
@@ -209,45 +210,19 @@ export default function NewReport({
     setError('');
 
     try {
-      const file = await captureReportPhotoFile();
-      if (localPhotoPreview) {
+      const { file, previewUrl } = await captureReportPhotoFile();
+      if (localPhotoPreview && !localPhotoPreview.startsWith('http')) {
         URL.revokeObjectURL(localPhotoPreview);
       }
-      setLocalPhotoPreview(URL.createObjectURL(file));
+      setLocalPhotoPreview(previewUrl);
+      setCapturedFile(file);
       setIsUploading(true);
 
       const urls = await uploadMedia(file);
       if (urls.length === 0) {
         return;
       }
-
-      const url = urls[0];
-      setMediaUrl(url);
-
-      if (!categoryId) {
-        return;
-      }
-
-      setAiScanOpen(true);
-      setAiAnalysisLoading(true);
-      setAiAnalysis(null);
-      const category = categories.find((item) => item.id === categoryId);
-      const title = buildReportTitle(description, category?.name, lang);
-
-      try {
-        const result = await analyzeReportDraft({
-          categoryId,
-          title,
-          description: description.trim() || undefined,
-          contentLanguage: lang,
-          mediaUrl: url,
-        });
-        setAiAnalysis(result);
-      } catch {
-        setAiScanOpen(false);
-      } finally {
-        setAiAnalysisLoading(false);
-      }
+      setMediaUrl(urls[0]);
     } catch (err: unknown) {
       if (err instanceof PhotoCaptureCancelledError) return;
       setError(err instanceof Error ? err.message : lang === 'tr' ? 'Fotograf yuklenemedi.' : 'Upload failed.');
@@ -331,7 +306,34 @@ export default function NewReport({
       // Ignore duplicate lookup issues and continue.
     }
 
-    proceedToSummary();
+    // Trigger AI analysis before proceeding
+    if (mediaUrl && categoryId) {
+      setAiScanOpen(true);
+      setAiAnalysisLoading(true);
+      setAiAnalysis(null);
+      const category = categories.find((item) => item.id === categoryId);
+      const title = buildReportTitle(description, category?.name, lang);
+      try {
+        const result = await analyzeReportDraft({
+          categoryId,
+          title,
+          description: description.trim() || undefined,
+          contentLanguage: lang,
+          mediaUrl,
+        });
+        setAiAnalysis(result);
+      } catch {
+        // AI analysis failed — proceed without it
+        setAiScanOpen(false);
+        proceedToSummary();
+        return;
+      } finally {
+        setAiAnalysisLoading(false);
+      }
+      // The overlay's onDone will call proceedToSummary
+    } else {
+      proceedToSummary();
+    }
   };
 
   const handleSubmit = async () => {
@@ -357,6 +359,32 @@ export default function NewReport({
       );
       onSubmit();
     } catch (err: unknown) {
+      // Offline fallback: save to localStorage queue
+      if (!navigator.onLine || (err instanceof TypeError && err.message.includes('fetch'))) {
+        try {
+          const offlineReports = JSON.parse(localStorage.getItem('belediye_offline_reports') || '[]');
+          offlineReports.push({
+            title: buildReportTitle(description, selectedCategory?.name, lang),
+            description,
+            categoryId,
+            latitude,
+            longitude,
+            district: resolvedMunicipality?.displayName ?? null,
+            mediaUrl: mediaUrl || null,
+            targetMunicipalityId: resolvedMunicipality?.id || null,
+            kvkkApproved,
+            savedAt: new Date().toISOString(),
+          });
+          localStorage.setItem('belediye_offline_reports', JSON.stringify(offlineReports));
+          alert(lang === 'tr'
+            ? 'İnternet bağlantınız yok. Raporunuz cihazınıza kaydedildi ve bağlantı sağlandığında otomatik gönderilecek.'
+            : 'You are offline. Your report has been saved locally and will be submitted when you reconnect.');
+          onSubmit();
+          return;
+        } catch {
+          // localStorage failure — fall through to show normal error
+        }
+      }
       const message =
         err instanceof Error
           ? err.message
@@ -597,14 +625,7 @@ export default function NewReport({
                       alt={lang === 'tr' ? 'Yuklenen fotograf' : 'Uploaded photo'}
                       className="absolute inset-0 h-full w-full object-cover"
                     />
-                    <div className="pointer-events-none absolute inset-0 grid grid-cols-3 grid-rows-3 border border-white/40" aria-hidden>
-                      {Array.from({ length: 9 }).map((_, index) => (
-                        <span key={index} className="border border-white/25" />
-                      ))}
-                    </div>
-                    <p className="pointer-events-none absolute bottom-2 left-2 right-2 rounded-lg bg-black/50 px-2 py-1 text-center text-[10px] font-semibold text-white">
-                      {lang === 'tr' ? 'Sorunu cercevenin icine alin' : 'Frame the issue in view'}
-                    </p>
+
                   </>
                 ) : (
                   <>
@@ -743,7 +764,7 @@ export default function NewReport({
         analysis={aiAnalysis}
         loading={aiAnalysisLoading}
         lang={lang}
-        onDone={() => setAiScanOpen(false)}
+        onDone={() => { setAiScanOpen(false); proceedToSummary(); }}
       />
 
       {showDuplicateModal && nearbyHints.length > 0 && (

@@ -21,6 +21,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -38,10 +40,9 @@ public class MunicipalityManagementService {
     private final MunicipalityBoundaryAutoSyncService boundaryAutoSyncService;
 
     @Transactional(readOnly = true)
-    public List<MunicipalityDto> listAll() {
-        return municipalityRepository.findAll().stream()
-                .map(MunicipalityDto::fromEntity)
-                .toList();
+    public Page<MunicipalityDto> listAll(Pageable pageable) {
+        return municipalityRepository.findAll(pageable)
+                .map(MunicipalityDto::fromEntity);
     }
 
     @Transactional(readOnly = true)

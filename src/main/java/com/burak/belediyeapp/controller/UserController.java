@@ -17,6 +17,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 
@@ -92,13 +94,14 @@ public class UserController {
     @GetMapping
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN','ROLE_DEPT_MANAGER')")
     @Operation(summary = "Tüm kullanıcıları listele (Admin/Yönetici)")
-    public ResponseEntity<ApiResponse<List<UserResponse>>> getAllUsers(
+    public ResponseEntity<ApiResponse<Page<UserResponse>>> getAllUsers(
             @AuthenticationPrincipal AppUser currentUser,
-            @RequestParam(required = false) String role) {
+            @RequestParam(required = false) String role,
+            Pageable pageable) {
         if (role != null && !role.isBlank()) {
-            return ResponseEntity.ok(ApiResponse.success(userService.getUsersByRole(role, currentUser)));
+            return ResponseEntity.ok(ApiResponse.success(userService.getUsersByRole(role, currentUser, pageable)));
         }
-        return ResponseEntity.ok(ApiResponse.success(userService.getAllUsers(currentUser)));
+        return ResponseEntity.ok(ApiResponse.success(userService.getAllUsers(currentUser, pageable)));
     }
 
     @PostMapping

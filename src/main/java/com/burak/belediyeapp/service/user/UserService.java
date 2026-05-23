@@ -20,6 +20,8 @@ import com.burak.belediyeapp.service.citizen.CitizenReputationService;
 import com.burak.belediyeapp.entity.Municipality;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,31 +60,27 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public List<UserResponse> getAllUsers(AppUser currentUser) {
+    public Page<UserResponse> getAllUsers(AppUser currentUser, Pageable pageable) {
         if (currentUser.hasRole("ROLE_SUPER_ADMIN")) {
-            return userRepository.findAll().stream()
-                    .map(this::mapToResponse)
-                    .collect(Collectors.toList());
+            return userRepository.findAll(pageable)
+                    .map(this::mapToResponse);
         } else if (currentUser.getMunicipality() != null) {
-            return userRepository.findByMunicipalityId(currentUser.getMunicipality().getId()).stream()
-                    .map(this::mapToResponse)
-                    .collect(Collectors.toList());
+            return userRepository.findByMunicipalityId(currentUser.getMunicipality().getId(), pageable)
+                    .map(this::mapToResponse);
         }
-        return List.of();
+        return Page.empty();
     }
     
     @Transactional(readOnly = true)
-    public List<UserResponse> getUsersByRole(String roleName, AppUser currentUser) {
+    public Page<UserResponse> getUsersByRole(String roleName, AppUser currentUser, Pageable pageable) {
         if (currentUser.hasRole("ROLE_SUPER_ADMIN")) {
-            return userRepository.findByRoles_Name(roleName).stream()
-                    .map(this::mapToResponse)
-                    .collect(Collectors.toList());
+            return userRepository.findByRoles_Name(roleName, pageable)
+                    .map(this::mapToResponse);
         } else if (currentUser.getMunicipality() != null) {
-            return userRepository.findByRoles_NameAndMunicipalityId(roleName, currentUser.getMunicipality().getId()).stream()
-                    .map(this::mapToResponse)
-                    .collect(Collectors.toList());
+            return userRepository.findByRoles_NameAndMunicipalityId(roleName, currentUser.getMunicipality().getId(), pageable)
+                    .map(this::mapToResponse);
         }
-        return List.of();
+        return Page.empty();
     }
 
     /**

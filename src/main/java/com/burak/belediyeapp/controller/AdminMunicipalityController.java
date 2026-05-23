@@ -17,6 +17,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 
@@ -32,8 +34,8 @@ public class AdminMunicipalityController {
     @GetMapping
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     @Operation(summary = "Tüm belediyeler")
-    public ResponseEntity<ApiResponse<List<MunicipalityDto>>> list() {
-        return ResponseEntity.ok(ApiResponse.success(municipalityManagementService.listAll()));
+    public ResponseEntity<ApiResponse<Page<MunicipalityDto>>> list(Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.success(municipalityManagementService.listAll(pageable)));
     }
 
     @GetMapping("/{id}")

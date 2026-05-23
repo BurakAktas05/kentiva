@@ -15,6 +15,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.text.Normalizer;
 import java.util.List;
@@ -28,18 +30,16 @@ public class DepartmentService {
     private final IMunicipalityRepository municipalityRepository;
 
     @Transactional(readOnly = true)
-    public List<DepartmentResponse> getAllDepartments(AppUser currentUser) {
+    public Page<DepartmentResponse> getAllDepartments(AppUser currentUser, Pageable pageable) {
         if (currentUser.hasRole("ROLE_SUPER_ADMIN")) {
-            return departmentRepository.findAll().stream()
-                    .map(this::mapToResponse)
-                    .toList();
+            return departmentRepository.findAll(pageable)
+                    .map(this::mapToResponse);
         }
         if (currentUser.getMunicipality() != null) {
-            return departmentRepository.findByMunicipalityId(currentUser.getMunicipality().getId()).stream()
-                    .map(this::mapToResponse)
-                    .toList();
+            return departmentRepository.findByMunicipalityId(currentUser.getMunicipality().getId(), pageable)
+                    .map(this::mapToResponse);
         }
-        return List.of();
+        return Page.empty();
     }
 
     @Transactional(readOnly = true)

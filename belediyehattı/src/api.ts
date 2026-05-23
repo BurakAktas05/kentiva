@@ -3,6 +3,7 @@
 // ============================================
 
 import { apiOriginFromBase, clearStaleApiOverrideIfNeeded, resolveApiBase } from './lib/apiBase';
+import { getTokenSync, getRefreshTokenSync, getSavedUserRawSync, setTokensSync, clearTokensSync, saveUserSync } from './lib/tokenStorage';
 
 const AUTH_PATHS = [
   '/auth/login',
@@ -50,27 +51,24 @@ export function resolveMediaUrl(url: string | null | undefined): string {
 }
 
 export function getToken(): string | null {
-  return localStorage.getItem('belediye_token');
+  return getTokenSync();
 }
 
 export function getRefreshToken(): string | null {
-  return localStorage.getItem('belediye_refresh_token');
+  return getRefreshTokenSync();
 }
 
 export function setTokens(accessToken: string, refreshToken: string) {
-  localStorage.setItem('belediye_token', accessToken);
-  localStorage.setItem('belediye_refresh_token', refreshToken);
+  setTokensSync(accessToken, refreshToken);
 }
 
 export function clearTokens() {
-  localStorage.removeItem('belediye_token');
-  localStorage.removeItem('belediye_refresh_token');
-  localStorage.removeItem('belediye_user');
+  clearTokensSync();
 }
 
 export function getSavedUser(): AuthUser | null {
   try {
-    const raw = localStorage.getItem('belediye_user');
+    const raw = getSavedUserRawSync();
     return raw ? (JSON.parse(raw) as AuthUser) : null;
   } catch {
     return null;
@@ -78,7 +76,7 @@ export function getSavedUser(): AuthUser | null {
 }
 
 export function saveUser(user: AuthUser) {
-  localStorage.setItem('belediye_user', JSON.stringify(user));
+  saveUserSync(JSON.stringify(user));
 }
 
 export interface AuthUser {
