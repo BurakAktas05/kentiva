@@ -223,7 +223,7 @@ public class GeminiService {
     private static SimpleClientHttpRequestFactory requestFactory() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(3_000);
-        factory.setReadTimeout(12_000);
+        factory.setReadTimeout(30_000);
         return factory;
     }
 }

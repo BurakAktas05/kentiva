@@ -140,6 +140,28 @@
 		</dependency>
 
 		<!-- ================================ -->
+		<!--  RESILIENCE (Resilience4j + AOP) -->
+		<!-- ================================ -->
+		<dependency>
+			<groupId>io.github.resilience4j</groupId>
+			<artifactId>resilience4j-spring-boot3</artifactId>
+			<version>2.2.0</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-aop</artifactId>
+		</dependency>
+
+		<!-- ================================ -->
+		<!--  STRUCTURED LOGGING (Logstash)   -->
+		<!-- ================================ -->
+		<dependency>
+			<groupId>net.logstash.logback</groupId>
+			<artifactId>logstash-logback-encoder</artifactId>
+			<version>8.0</version>
+		</dependency>
+
+		<!-- ================================ -->
 		<!--  DISTRIBUTED LOCK (ShedLock)     -->
 		<!-- ================================ -->
 		<dependency>

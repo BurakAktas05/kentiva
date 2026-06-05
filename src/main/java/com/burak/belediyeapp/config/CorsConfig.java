@@ -22,17 +22,28 @@ public class CorsConfig {
     @Value("${app.cors.allowed-origin-patterns:}")
     private String allowedOriginPatterns;
 
+    @Value("${spring.profiles.active:}")
+    private String activeProfiles;
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         // Credentials açıkken wildcard origin kullanmak prod'da tenant verisi sızıntısına yol açabilir.
         List<String> patterns = parseCsv(allowedOriginPatterns);
         List<String> origins = parseCsv(allowedOrigins);
-        if (!patterns.isEmpty()) {
-            configuration.setAllowedOriginPatterns(patterns);
-        }
-        if (!origins.isEmpty()) {
-            configuration.setAllowedOrigins(origins);
+        
+        boolean isProd = activeProfiles != null && activeProfiles.contains("prod");
+        if (isProd) {
+            if (!origins.isEmpty()) {
+                configuration.setAllowedOrigins(origins);
+            }
+        } else {
+            if (!patterns.isEmpty()) {
+                configuration.setAllowedOriginPatterns(patterns);
+            }
+            if (!origins.isEmpty()) {
+                configuration.setAllowedOrigins(origins);
+            }
         }
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));

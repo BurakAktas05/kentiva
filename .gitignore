@@ -71,3 +71,8 @@ ngrok.log
 scripts/tunnel-url.txt
 scripts/.local-tunnel.state.json
 uploads/
+
+# IDE / Runtime Metadata
+.codex-runtime/
+.cursor/
+

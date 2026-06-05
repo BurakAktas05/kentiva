@@ -28,13 +28,13 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import axios from 'axios';
-import api, { clearAuthStorage, REFRESH_KEY, TOKEN_KEY, type PredictiveInsight, type Stats } from './api';
+import api, { clearAuthStorage, type PredictiveInsight, type Stats } from './api';
 import { downloadBlobResponse } from './lib/downloadExport';
 import DashboardLoadingSkeleton from './components/DashboardLoadingSkeleton';
 import { reportStatusBadgeClass } from './lib/ui';
 import { ReportLiveProvider, useReportLive } from './context/ReportLiveContext';
 import LoginPage, { LoginLandingPage } from './pages/LoginPage';
+import ErrorBoundary from './components/ErrorBoundary';
 import {
   buildPortalUser,
   isPlatformSuperAdmin,
@@ -92,8 +92,6 @@ const ProtectedRoute = ({
   allow: (u: AuthenticatedPortalUser) => boolean;
   children: React.ReactNode;
 }) => (allow(user) ? <>{children}</> : <Navigate to="/" replace />);
-
-type User = AuthenticatedPortalUser;
 
 // --- Components ---
 const Sidebar = ({
@@ -297,10 +295,11 @@ const Header = ({
 
 const isSuperAdminOnly = (user: AuthenticatedPortalUser) => isPlatformSuperAdmin(user);
 
-const Dashboard = ({ user }: { user: AuthenticatedPortalUser }) => {
-  if (isSuperAdminOnly(user)) {
-    return <SuperAdminHomePage />;
-  }
+const SuperAdminDashboard = () => {
+  return <SuperAdminHomePage />;
+};
+
+const MunicipalityDashboard = ({ user }: { user: AuthenticatedPortalUser }) => {
   const [stats, setStats] = useState<Stats | null>(null);
   const [statsError, setStatsError] = useState<string | null>(null);
   const [recentReports, setRecentReports] = useState<{ id: string; title: string; status: string; categoryName: string; createdAt: string; district: string }[]>([]);
@@ -536,6 +535,13 @@ const Dashboard = ({ user }: { user: AuthenticatedPortalUser }) => {
   );
 };
 
+const Dashboard = ({ user }: { user: AuthenticatedPortalUser }) => {
+  if (isSuperAdminOnly(user)) {
+    return <SuperAdminDashboard />;
+  }
+  return <MunicipalityDashboard user={user} />;
+};
+
 // --- Main App ---
 const App = () => {
   const [user, setUser] = useState<AuthenticatedPortalUser | null>(null);
@@ -573,7 +579,8 @@ const App = () => {
 
   return (
     <Router>
-      <Routes>
+      <ErrorBoundary>
+        <Routes>
         <Route
           path="/setup"
           element={
@@ -739,241 +746,9 @@ const App = () => {
           )
         } />
       </Routes>
+      </ErrorBoundary>
     </Router>
   );
 };
-
-const Login = ({ onLogin }: { onLogin: (u: User) => void }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  useEffect(() => {
-    api
-      .get('/setup/status')
-      .then((res) => {
-        if (res.data.data?.needsBootstrap) {
-          window.location.href = '/setup';
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  // Şifre sıfırlama
-  const [forgotStep, setForgotStep] = useState<'off'|'phone'|'otp'|'newpass'>('off');
-  const [resetPhone, setResetPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [newPass, setNewPass] = useState('');
-  const [resetMsg, setResetMsg] = useState('');
-  const [resetLoading, setResetLoading] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await api.post('/auth/login', { email, password });
-      const data = res.data.data;
-      localStorage.setItem(TOKEN_KEY, data.accessToken);
-      if (data.refreshToken) {
-        localStorage.setItem(REFRESH_KEY, data.refreshToken);
-      }
-      const fullName =
-        data.fullName ||
-        [data.firstName, data.lastName].filter(Boolean).join(' ').trim() ||
-        data.email;
-      onLogin({
-        fullName,
-        email: data.email,
-        roles: data.roles ? [...data.roles] : [],
-        district: data.district,
-        municipality: data.municipality,
-      });
-    } catch (err: unknown) {
-      setError(
-        axios.isAxiosError(err)
-          ? String((err.response?.data as { message?: string } | undefined)?.message ?? 'Giriş yapılamadı')
-          : 'Giriş yapılamadı'
-      );
-    }
-  };
-
-  const handleReset = async () => {
-    setResetLoading(true);
-    setResetMsg('');
-    try {
-      if (forgotStep === 'phone') {
-        await api.post('/auth/forgot-password', { phoneNumber: resetPhone });
-        setForgotStep('otp');
-        setResetMsg('Doğrulama kodu gönderildi.');
-      } else if (forgotStep === 'otp') {
-        setForgotStep('newpass');
-      } else if (forgotStep === 'newpass') {
-        await api.post('/auth/reset-password', { phoneNumber: resetPhone, otpCode: otp, newPassword: newPass });
-        setResetMsg('Şifre başarıyla sıfırlandı!');
-        setTimeout(() => { setForgotStep('off'); setResetMsg(''); }, 2000);
-      }
-    } catch (err: unknown) {
-      setResetMsg(
-        axios.isAxiosError(err)
-          ? String((err.response?.data as { message?: string } | undefined)?.message ?? 'Hata')
-          : 'Hata'
-      );
-    } finally {
-      setResetLoading(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen flex">
-      <div className="flex-1 hidden lg:flex bg-gradient-to-br from-primary via-primary to-primary-dark relative overflow-hidden items-center justify-center text-white">
-        <div className="relative z-10 p-20 max-w-2xl">
-          <h1 className="text-6xl font-black mb-6 leading-tight">Yarınları Birlikte<br/>Yönetiyoruz.</h1>
-          <p className="text-xl text-primary-100">Kentiva Yönetim Portalı ile şehrin nabzını tutun, sorunları anında çözüme kavuşturun.</p>
-          
-          <div className="mt-12 grid grid-cols-2 gap-8">
-            <div className="p-6 bg-white/10 rounded-3xl border border-white/20 backdrop-blur-md">
-              <p className="text-3xl font-bold">100%</p>
-              <p className="text-primary-100 text-sm">Gerçek Zamanlı İzleme</p>
-            </div>
-            <div className="p-6 bg-white/10 rounded-3xl border border-white/20 backdrop-blur-md">
-              <p className="text-3xl font-bold">24/7</p>
-              <p className="text-primary-100 text-sm">Aktif Koordinasyon</p>
-            </div>
-          </div>
-        </div>
-        <div className="absolute top-0 right-0 w-96 h-96 bg-accent/20 rounded-full -mr-48 -mt-48 blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-secondary/30 rounded-full -ml-48 -mb-48 blur-3xl"></div>
-      </div>
-
-      <div className="flex w-full items-center justify-center bg-white p-8 dark:bg-slate-900 lg:w-[500px]">
-        <div className="w-full max-w-sm">
-          <div className="mb-12">
-            <div className="w-14 h-14 bg-gradient-to-br from-primary to-primary-dark rounded-2xl flex items-center justify-center text-white mb-6 shadow-xl shadow-primary/30 ring-1 ring-white/15">
-              <Building2 size={30} />
-            </div>
-            <h2 className="mb-2 text-3xl font-bold text-slate-900 dark:text-white">Giriş Yapın</h2>
-            <p className="text-slate-500 dark:text-slate-400">Yönetim yetkilerinizle devam edin.</p>
-          </div>
-
-          {forgotStep === 'off' ? (
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-2">
-                <label className="kentiva-label dark:text-slate-300">E-posta</label>
-                <input 
-                  type="email" 
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="kentiva-input !rounded-2xl !py-3 dark:bg-slate-950"
-                  placeholder="admin@belediye.gov.tr"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="kentiva-label dark:text-slate-300">Şifre</label>
-                <input 
-                  type="password" 
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="kentiva-input !rounded-2xl !py-3 dark:bg-slate-950"
-                  placeholder="••••••••"
-                  required
-                />
-              </div>
-              {error && <p className="kentiva-alert-error !rounded-xl">{error}</p>}
-              <button type="submit" className="kentiva-btn-primary w-full !rounded-2xl !py-4">
-                Devam Et
-              </button>
-              <button
-                type="button"
-                onClick={() => setForgotStep('phone')}
-                className="w-full text-center text-sm font-semibold text-primary hover:underline mt-2"
-              >
-                Şifremi unuttum
-              </button>
-            </form>
-          ) : (
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 text-primary">
-                <Shield size={20} />
-                <h3 className="text-lg font-bold">Şifre Sıfırlama</h3>
-              </div>
-              {forgotStep === 'phone' && (
-                <div className="space-y-3">
-                  <p className="text-sm text-slate-500">Hesabınıza kayıtlı telefon numarasını girin.</p>
-                  <input
-                    type="tel"
-                    value={resetPhone}
-                    onChange={(e) => setResetPhone(e.target.value)}
-                    className="w-full bg-slate-50 border-slate-200 rounded-2xl py-3 px-4 focus:ring-2 focus:ring-primary outline-none"
-                    placeholder="05XX XXX XX XX"
-                  />
-                </div>
-              )}
-              {forgotStep === 'otp' && (
-                <div className="space-y-3">
-                  <p className="text-sm text-slate-500">Telefonunuza gelen 6 haneli doğrulama kodunu girin.</p>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                    className="w-full bg-slate-50 border-slate-200 rounded-2xl py-3 px-4 text-center text-2xl tracking-[0.5em] font-bold focus:ring-2 focus:ring-primary outline-none"
-                    placeholder="000000"
-                  />
-                </div>
-              )}
-              {forgotStep === 'newpass' && (
-                <div className="space-y-3">
-                  <p className="text-sm text-slate-500">Yeni şifrenizi belirleyin (en az 8 karakter).</p>
-                  <input
-                    type="password"
-                    value={newPass}
-                    onChange={(e) => setNewPass(e.target.value)}
-                    className="w-full bg-slate-50 border-slate-200 rounded-2xl py-3 px-4 focus:ring-2 focus:ring-primary outline-none"
-                    placeholder="Yeni şifre"
-                    minLength={8}
-                  />
-                </div>
-              )}
-              {resetMsg && (
-                <p className="text-sm font-semibold text-primary bg-primary/5 rounded-xl px-4 py-3">{resetMsg}</p>
-              )}
-              <div className="flex gap-3">
-                <button
-                  onClick={() => { setForgotStep('off'); setResetMsg(''); }}
-                  className="flex-1 border border-slate-200 rounded-2xl py-3 font-semibold text-slate-600 hover:bg-slate-50 transition-all"
-                >
-                  İptal
-                </button>
-                <button
-                  onClick={handleReset}
-                  disabled={resetLoading}
-                  className="flex-1 bg-primary text-white font-semibold rounded-2xl py-3 hover:bg-primary-hover shadow-lg shadow-primary/20 transition-all disabled:opacity-60"
-                >
-                  {resetLoading ? '...' :
-                    forgotStep === 'phone' ? 'Kod Gönder' :
-                    forgotStep === 'otp' ? 'Doğrula' :
-                    'Şifreyi Değiştir'
-                  }
-                </button>
-              </div>
-            </div>
-          )}
-
-          <p className="mt-8 text-center text-sm text-slate-500">
-            İlk kurulum mu?{' '}
-            <Link to="/setup" className="font-semibold text-primary hover:underline">
-              Süper admin oluştur
-            </Link>
-          </p>
-          <p className="mt-12 text-center text-slate-400 text-sm font-medium">
-            © 2026 Kentiva — Belediye Bildirim ve Takip Platformu
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-void Login;
 
 export default App;

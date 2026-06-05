@@ -55,6 +55,18 @@ public class SecurityConfig {
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
+            // Güvenlik Header'ları (Production-ready hardening)
+            .headers(headers -> headers
+                .frameOptions(frameOptions -> frameOptions.deny())
+                .httpStrictTransportSecurity(hsts -> hsts
+                    .includeSubDomains(true)
+                    .maxAgeInSeconds(31536000))
+                .xssProtection(xss -> xss.headerValue(org.springframework.security.web.header.writers.XXssProtectionHeaderWriter.HeaderValue.DISABLED))
+                .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'"))
+                .referrerPolicy(referrer -> referrer.policy(org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+                .permissionsPolicy(permissions -> permissions.policy("camera=(), microphone=(), geolocation=()"))
+            )
+
             // URL erişim kuralları
             .authorizeHttpRequests(auth -> auth
 

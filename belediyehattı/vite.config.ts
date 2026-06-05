@@ -21,5 +21,13 @@ export default defineConfig(() => {
       },
       hmr: process.env.DISABLE_HMR !== 'true',
     },
+    build: {
+      sourcemap: false,
+      rollupOptions: {
+        output: {
+          manualChunks: undefined,
+        },
+      },
+    },
   };
 });

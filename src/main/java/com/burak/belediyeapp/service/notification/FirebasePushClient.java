@@ -16,6 +16,7 @@ import java.util.Map;
 @Slf4j
 public class FirebasePushClient {
 
+    @io.github.resilience4j.retry.annotation.Retry(name = "firebasePush", fallbackMethod = "fallbackSend")
     public void send(String fcmToken, String title, String body, Map<String, String> data) {
         if (fcmToken == null || fcmToken.isBlank()) {
             log.debug("FCM token yok, push atlandı");
@@ -26,20 +27,24 @@ public class FirebasePushClient {
             return;
         }
 
-        try {
-            Message.Builder builder = Message.builder()
-                    .setToken(fcmToken)
-                    .setNotification(Notification.builder()
-                            .setTitle(title)
-                            .setBody(body)
-                            .build());
-            if (data != null && !data.isEmpty()) {
-                builder.putAllData(data);
-            }
-            FirebaseMessaging.getInstance().sendAsync(builder.build());
-            log.info("Push bildirimi kuyruğa alındı");
-        } catch (Exception e) {
-            log.warn("Push bildirimi gönderilemedi: {}", e.getMessage());
+        Message.Builder builder = Message.builder()
+                .setToken(fcmToken)
+                .setNotification(Notification.builder()
+                        .setTitle(title)
+                        .setBody(body)
+                        .build());
+        if (data != null && !data.isEmpty()) {
+            builder.putAllData(data);
         }
+        try {
+            String messageId = FirebaseMessaging.getInstance().send(builder.build());
+            log.info("Push bildirimi başarıyla gönderildi: {}", messageId);
+        } catch (com.google.firebase.messaging.FirebaseMessagingException e) {
+            throw new RuntimeException("Firebase sending failed", e);
+        }
+    }
+
+    public void fallbackSend(String fcmToken, String title, String body, Map<String, String> data, Throwable t) {
+        log.warn("Push bildirimi 3 denemeden sonra da gönderilemedi: {}", t.getMessage());
     }
 }

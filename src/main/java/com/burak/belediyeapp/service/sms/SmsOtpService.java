@@ -113,7 +113,14 @@ public class SmsOtpService {
                 ? msgHeaderOverride.trim()
                 : netgsmHeader;
         return switch (provider.toLowerCase()) {
-            case "netgsm" -> sendViaNetgsm(formatted, message, header, otpBody);
+            case "netgsm" -> {
+                try {
+                    yield sendViaNetgsm(formatted, message, header, otpBody);
+                } catch (Exception e) {
+                    log.error("NetGSM SMS gönderim hatası (tüm denemeler bitti): {}", e.getMessage());
+                    yield false;
+                }
+            }
             case "twilio" -> sendViaTwilio(formatted, message, otpBody);
             default -> {
                 // OTP yi log'a YAZMA — sadece teslimat olayını kaydet.
@@ -210,48 +217,53 @@ public class SmsOtpService {
         return "***" + phone.substring(phone.length() - last);
     }
 
-    private boolean sendViaNetgsm(String phone, String message, String msgHeader, boolean otpBody) {
-        try {
-            String xml = """
-                <?xml version="1.0" encoding="UTF-8"?>
-                <mainbody>
-                  <header>
-                    <company dession="0">Netgsm</company>
-                    <usercode>%s</usercode>
-                    <password>%s</password>
-                    <type>1:n</type>
-                    <msgheader>%s</msgheader>
-                  </header>
-                  <body>
-                    <msg><![CDATA[%s]]></msg>
-                    <no>%s</no>
-                  </body>
-                </mainbody>
-                """.formatted(netgsmUsercode, netgsmPassword, msgHeader, message, phone);
+    @io.github.resilience4j.retry.annotation.Retry(name = "sms")
+    @io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker(name = "sms", fallbackMethod = "fallbackSms")
+    boolean sendViaNetgsm(String phone, String message, String msgHeader, boolean otpBody) throws Exception {
+        String xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <mainbody>
+              <header>
+                <company dession="0">Netgsm</company>
+                <usercode>%s</usercode>
+                <password>%s</password>
+                <type>1:n</type>
+                <msgheader>%s</msgheader>
+              </header>
+              <body>
+                <msg><![CDATA[%s]]></msg>
+                <no>%s</no>
+              </body>
+            </mainbody>
+            """.formatted(netgsmUsercode, netgsmPassword, msgHeader, message, phone);
 
-            HttpClient client = HttpClient.newHttpClient();
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("https://api.netgsm.com.tr/sms/send/xml"))
-                    .header("Content-Type", "application/xml; charset=UTF-8")
-                    .POST(HttpRequest.BodyPublishers.ofString(xml, StandardCharsets.UTF_8))
-                    .build();
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.netgsm.com.tr/sms/send/xml"))
+                .header("Content-Type", "application/xml; charset=UTF-8")
+                .POST(HttpRequest.BodyPublishers.ofString(xml, StandardCharsets.UTF_8))
+                .build();
 
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            // NetGSM bazı durumlarda yanıt gövdesi olarak yanlış kullanılırsa OTP'yi geri yansıtabilir;
-            // gövde değil, yalnızca durum kodunu ve kısa bir özet logla.
-            String snippet = truncateForLog(response.body() != null ? response.body() : "");
-            if (otpBody) {
-                log.info("NetGSM yanıt {} (OTP gönderimi — gövde gizli) → {}",
-                        response.statusCode(), maskPhone(phone));
-            } else {
-                log.info("NetGSM yanıt {} → {} | snippet={}",
-                        response.statusCode(), maskPhone(phone), snippet);
-            }
-            return response.statusCode() == 200;
-        } catch (Exception e) {
-            log.error("NetGSM SMS gönderimi başarısız: {}", e.getMessage());
-            return false;
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        // NetGSM bazı durumlarda yanıt gövdesi olarak yanlış kullanılırsa OTP'yi geri yansıtabilir;
+        // gövde değil, yalnızca durum kodunu ve kısa bir özet logla.
+        String snippet = truncateForLog(response.body() != null ? response.body() : "");
+        if (otpBody) {
+            log.info("NetGSM yanıt {} (OTP gönderimi — gövde gizli) → {}",
+                    response.statusCode(), maskPhone(phone));
+        } else {
+            log.info("NetGSM yanıt {} → {} | snippet={}",
+                    response.statusCode(), maskPhone(phone), snippet);
         }
+        if (response.statusCode() != 200) {
+            throw new RuntimeException("NetGSM HTTP error code: " + response.statusCode());
+        }
+        return true;
+    }
+
+    boolean fallbackSms(String phone, String message, String msgHeader, boolean otpBody, Throwable t) {
+        log.warn("NetGSM SMS gönderimi circuit breaker veya hata nedeniyle engellendi/başarısız oldu. Hata: {}", t.getMessage());
+        return false;
     }
 
     private boolean sendViaTwilio(String phone, String message, boolean otpBody) {
