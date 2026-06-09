@@ -224,7 +224,7 @@ export default function App() {
       try {
         const p = await getMyProfile();
         const pref = p.preferredMunicipality;
-        if (pref?.id && pref.onboarded) {
+        if (pref?.id) {
           if (!cancelled) {
             setTenant(toPublicTenant(pref as Parameters<typeof toPublicTenant>[0]));
             setPickerMode(null);
