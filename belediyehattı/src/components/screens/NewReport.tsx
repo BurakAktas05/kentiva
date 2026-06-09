@@ -615,7 +615,6 @@ export default function NewReport({
               >
                 {isUploading ? (
                   <div className="flex flex-col items-center">
-                    <motion.div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                     <span className="text-sm font-medium">{t('report.uploading', lang)}</span>
                   </div>
                 ) : localPhotoPreview || mediaUrl ? (
