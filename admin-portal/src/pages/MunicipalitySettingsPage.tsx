@@ -11,6 +11,8 @@ import ReportTemplatesPanel from '../components/ReportTemplatesPanel';
 import ToastBanner, { type ToastState } from '../components/ToastBanner';
 import MunicipalityLocationPanel from '../components/MunicipalityLocationPanel';
 import { emptyBrandingForm, type BrandingFormValues } from '../lib/branding';
+import BusRoutesPanel from '../components/BusRoutesPanel';
+
 
 type ApiKeyListItem = {
   id: string;
@@ -316,6 +318,7 @@ export default function MunicipalitySettingsPage() {
           />
           <ReportTemplatesPanel />
           <MunicipalityWidgetsPanel />
+          <BusRoutesPanel municipalityId={municipality.id} />
           <OsmBoundaryFetchPanel />
         </div>
 

@@ -220,6 +220,88 @@ public class GeminiService {
             String priorityRationale
     ) {}
 
+    public String parseBusRoutes(String combinedText) {
+        if (apiKey == null || apiKey.isBlank() || apiKey.equals("your-gemini-api-key")) {
+            log.warn("Gemini API Key eksik. AI ile otobüs hatları ayrıştırma atlanıyor. Boş veri döndürülüyor.");
+            return "[]";
+        }
+
+        String prompt = String.format(
+                """
+                Sen Kentiva belediye ulaşım asistanısın. Sana verilen metinler, bir belediyenin otobüs hatları, durakları ve kalkış saatleri bilgilerini içerir.
+                Bu metinlerden otobüs hatlarını (bus routes) analiz et ve aşağıdaki JSON şemasına uygun bir JSON dizisi oluştur.
+                
+                Her hat (route) için:
+                - code: Kısa hat kodu (örn: "Şİ", "SK", "100-A", "KYK")
+                - name: Hat adı (örn: "Şehir İçi Hattı", "Safranbolu - Karabük")
+                - color: Hat için görsel bir hex rengi (örn: "#10B981", "#3B82F6", "#F59E0B"). Renkler uyumlu ve canlı olmalıdır.
+                - icon: 'bus' veya 'graduation-cap' veya 'home' değerlerinden biri (hattın amacına göre seç, varsayılan 'bus')
+                - stops: Durakların sıralı listesi (başlangıç durağından bitiş durağına doğru sıralı dizin, örn: ["Durak A", "Durak B", "Durak C"])
+                - schedule: Kalkış saatleri. "weekday" (hafta içi) mutlaka dolu olmalıdır. "weekend", "saturday", "sunday" alanları isteğe bağlıdır. Her biri departuresFromStart (başlangıç durağından kalkış saatleri örn: ["07:00", "07:30"]) ve departuresFromEnd (bitiş durağından kalkış saatleri örn: ["07:30", "08:00"]) içermelidir.
+                
+                JSON formatı kesinlikle şu şekilde olmalıdır (Başka hiçbir açıklama, markdown bloğu veya metin ekleme, yalnızca geçerli JSON döndür):
+                [
+                  {
+                    "code": "Şİ",
+                    "name": "Şehir İçi Hattı",
+                    "color": "#10B981",
+                    "icon": "bus",
+                    "stops": ["Kıranköy", "Sadri Artunç Caddesi", "Eski Çarşı"],
+                    "schedule": {
+                      "weekday": {
+                        "departuresFromStart": ["07:00", "08:00"],
+                        "departuresFromEnd": ["07:30", "08:30"]
+                      },
+                      "weekend": {
+                        "departuresFromStart": ["09:00", "10:00"],
+                        "departuresFromEnd": ["09:30", "10:30"]
+                      }
+                    }
+                  }
+                ]
+                
+                Analiz edilecek veriler:
+                %s
+                """,
+                combinedText
+        );
+
+        String requestBody = new JSONObject()
+                .put("contents", new JSONArray().put(
+                        new JSONObject().put("parts", new JSONArray().put(
+                                new JSONObject().put("text", prompt)
+                        ))
+                ))
+                .put("generationConfig", new JSONObject().put("response_mime_type", "application/json"))
+                .toString();
+
+        try {
+            String response = restClient.post()
+                    .uri(geminiGenerateContentUrl() + "?key=" + apiKey)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(requestBody)
+                    .retrieve()
+                    .body(String.class);
+
+            JSONObject json = new JSONObject(response);
+            String text = json.getJSONArray("candidates")
+                    .getJSONObject(0)
+                    .getJSONObject("content")
+                    .getJSONArray("parts")
+                    .getJSONObject(0)
+                    .getString("text")
+                    .trim();
+
+            if (text.startsWith("```")) {
+                text = text.replaceAll("```json|```", "").trim();
+            }
+            return text;
+        } catch (Exception e) {
+            log.error("Gemini otobüs hatları ayrıştırma hatası: ", e);
+            return "[]";
+        }
+    }
+
     private static SimpleClientHttpRequestFactory requestFactory() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(3_000);

@@ -46,6 +46,12 @@ public class ReportCreationService {
     @PreAuthorize("hasAuthority('ROLE_CITIZEN')")
     @com.burak.belediyeapp.audit.AuditAction(action = "REPORT_CREATE", description = "Yeni bir vatandaş raporu oluşturuldu")
     public ReportResponse createReport(CreateReportRequest request, AppUser reporter) {
+        if (reporter.getReputationScore() < 30) {
+            throw new BusinessException(
+                    "Güven puanınız çok düşük olduğundan yeni ihbar oluşturamazsınız.",
+                    "LOW_REPUTATION_BLOCKED");
+        }
+
         ReportCategory category = categoryRepository.findById(request.categoryId())
                 .filter(ReportCategory::isActive)
                 .orElseThrow(() -> new ResourceNotFoundException("Kategori", "id", request.categoryId()));

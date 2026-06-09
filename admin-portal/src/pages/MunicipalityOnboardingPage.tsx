@@ -53,6 +53,7 @@ const stepLabels = {
   operations: 'Beyaz Masa',
   departments: 'Departmanlar',
   categories: 'Kategoriler',
+  transit: 'Ulasim',
   review: 'Ozet',
 } as const;
 
@@ -115,6 +116,7 @@ export default function MunicipalityOnboardingPage() {
 
   const [categories, setCategories] = useState<CategoryRow[]>(newCategoryRows);
   const [departments, setDepartments] = useState<DepartmentRow[]>(newDepartmentRows);
+  const [transitFiles, setTransitFiles] = useState<File[]>([]);
 
   useEffect(() => {
     if (workflowMode !== 'DEPARTMENTAL') {
@@ -128,8 +130,8 @@ export default function MunicipalityOnboardingPage() {
   const steps = useMemo<StepId[]>(
     () =>
       workflowMode === 'DEPARTMENTAL'
-        ? ['municipality', 'admin', 'operations', 'departments', 'categories', 'review']
-        : ['municipality', 'admin', 'categories', 'review'],
+        ? ['municipality', 'admin', 'operations', 'departments', 'categories', 'transit', 'review']
+        : ['municipality', 'admin', 'categories', 'transit', 'review'],
     [workflowMode],
   );
 
@@ -173,6 +175,8 @@ export default function MunicipalityOnboardingPage() {
         return enabledDepartments.length > 0;
       case 'categories':
         return enabledCategories.length > 0;
+      case 'transit':
+        return true;
       case 'review':
       default:
         return true;
@@ -287,6 +291,17 @@ export default function MunicipalityOnboardingPage() {
         municipality: { id: string; displayName: string | null; name: string };
         categoriesSkipped?: string[];
       };
+
+      if (transitFiles.length > 0) {
+        const formData = new FormData();
+        transitFiles.forEach((file) => {
+          formData.append('files', file);
+        });
+        await api.post(`/admin/municipalities/${data.municipality.id}/bus-routes/import`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+      }
+
       const label = data.municipality.displayName || data.municipality.name;
       const skipped = data.categoriesSkipped?.length ? ` ${data.categoriesSkipped.length} kategori zaten vardi.` : '';
       const deptInfo =
@@ -652,6 +667,48 @@ export default function MunicipalityOnboardingPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {currentStep === 'transit' && (
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Otobus Hatlari ve Sefer Saatleri (Istege bagli)</h3>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                    Belediye kurulumu sirasinda otobus sefer saatleri ve hat guzergahlarini iceren PDF veya Excel dosyalarini yukleyebilirsiniz.
+                    Yapay Zekamiz (Gemini) bu dosyalardan hatlari otomatik olarak olusturacaktir.
+                  </p>
+                </div>
+
+                <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/10">
+                  <Sparkles className="h-10 w-10 text-primary mb-2 animate-pulse" />
+                  <label className="cursor-pointer text-xs font-semibold text-primary hover:underline">
+                    Dosyalari Secin (PDF, Excel, TXT)
+                    <input
+                      type="file"
+                      multiple
+                      accept=".pdf,.xlsx,.xls,.txt,.csv"
+                      onChange={(e) => {
+                        if (e.target.files) {
+                          setTransitFiles(Array.from(e.target.files));
+                        }
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                  <p className="mt-1 text-[11px] text-slate-500">Birden fazla dosya secebilirsiniz.</p>
+
+                  {transitFiles.length > 0 && (
+                    <div className="mt-4 w-full max-w-xs space-y-1.5 text-left">
+                      <p className="text-xs font-bold text-slate-700 dark:text-slate-350">Secilen Dosyalar:</p>
+                      {transitFiles.map((file, i) => (
+                        <div key={i} className="text-xs text-slate-600 dark:text-slate-400 truncate">
+                          • {file.name} ({(file.size / 1024).toFixed(0)} KB)
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

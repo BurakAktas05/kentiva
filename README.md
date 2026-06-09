@@ -1,100 +1,97 @@
-# Kentiva - Smart City and Municipality Management Platform
+# 🏙️ Kentiva - Akıllı Kent ve Belediye Yönetim Platformu
 
-Kentiva is a B2B SaaS platform designed to modernize municipal operations, streamline citizen reporting, and provide advanced geographical and analytical insights for city administrators. It operates on a multi-tenant architecture, allowing multiple municipalities to use the platform in complete isolation while sharing a single infrastructure.
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2-brightgreen.svg?style=flat-square&logo=springboot)](https://spring.io/projects/spring-boot)
+[![React](https://img.shields.io/badge/React-18-blue.svg?style=flat-square&logo=react)](https://react.dev)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%2B-blue.svg?style=flat-square&logo=postgresql)](https://www.postgresql.org)
+[![PostGIS](https://img.shields.io/badge/PostGIS-Spatial-blue.svg?style=flat-square&logo=postgis)](https://postgis.net)
+[![Docker](https://img.shields.io/badge/Docker-Compatible-blue.svg?style=flat-square&logo=docker)](https://www.docker.com)
+[![Gemini AI](https://img.shields.io/badge/Gemini%20AI-2.5%20Flash-orange.svg?style=flat-square)](https://deepmind.google/technologies/gemini/)
 
-## Platform Components
+Kentiva; belediye operasyonlarını modernize etmek, vatandaş ihbar süreçlerini hızlandırmak, saha yönetimini optimize etmek ve belediye yöneticilerine gelişmiş coğrafi ve analitik raporlar sunmak üzere tasarlanmış **çok kiracılı (multi-tenant) B2B SaaS** akıllı şehir yönetim platformudur. 
 
-1.  **Backend API (Spring Boot)**
-    *   Java 21, Spring Boot 3
-    *   PostgreSQL & PostGIS (Spatial queries, ST_Contains)
-    *   Stateless architecture with JWT authentication
-    *   Bucket4j Rate Limiting, Brute-force protection
-    *   Integration with NetGSM/Twilio for SMS OTP
-    *   AWS S3 / Cloudflare R2 object storage for media
+Platform, tek bir altyapı üzerinde birden fazla belediyenin tamamen izole bir şekilde güvenle hizmet almasını sağlar.
 
-2.  **Citizen Application (Mobile & Web)**
-    *   React / Ionic for cross-platform availability
-    *   Location-based reporting (requires GPS verification)
-    *   Live camera photo requirement (MediaGuard integration) to prevent fake reports
-    *   Push notifications (Firebase)
+---
 
-3.  **Admin Portal (Web)**
-    *   React, Vite, TailwindCSS
-    *   Executive Dashboard for KPI tracking
-    *   Live Heatmap and Geographic reporting
-    *   Role-Based Access Control (Admin, Dept Manager, Field Officer)
-    *   AI-assisted report summarization and auto-reply drafts
+## 🚀 Öne Çıkan Özellikler
 
-## Key Features
+- **Çok Kiracılılık (Multi-Tenancy):** Tek bir veritabanı şeması ve kod tabanı üzerinde sınırsız belediye desteği. Her kiracı `municipality_id` üzerinden veri düzeyinde tam izoledir.
+- **Dinamik Markalama (Custom Branding):** Belediyeler kendi birincil renklerini, logolarını ve sloganlarını admin paneli üzerinden kod yazmadan veya yeniden canlıya almadan anında güncelleyebilir.
+- **Coğrafi Çit (Geofencing):** GeoJSON yüklemeleri sayesinde PostGIS mekansal analizleri (`ST_Contains`) kullanılarak belediye sınırları dışından gelen sahte/geçersiz ihbarlar otomatik olarak engellenir.
+- **Yapay Zeka Destekli Analiz (Gemini AI):** İhbarlar yapay zeka tarafından özetlenir, kategorisi kontrol edilir, öncelik derecesi atanır ve vatandaşlara iletilecek SMS/Push şablonları otomatik olarak oluşturulur.
+- **Güven Puanı (Reputation Score) Modeli:** Vatandaşların ihbar kalitesine göre dinamik olarak hesaplanan puanlama algoritması sayesinde sistem suistimalleri otomatik olarak engellenir.
 
-*   **Multi-Tenancy:** Single codebase handles unlimited municipalities. Each tenant is isolated at the database level using `municipality_id`.
-*   **Custom Branding:** Municipalities can configure their primary color, logo, and slogan from the admin portal without code deployment.
-*   **Geographic Boundaries:** Supports GeoJSON uploads. The system automatically rejects reports that fall outside the municipal borders using PostGIS spatial algorithms.
-*   **Enterprise Security:** Hardened against DDoS, brute-force, and SQL injection. Swagger is disabled in production environments.
+---
 
-## Docker (yerel tam yığın)
+## 🛠️ Sistem Mimarisi ve Bileşenler
 
-Arkadaşınıza veya yerel test için tek komutla API + PostgreSQL + Admin + Vatandaş web:
+### 1. Backend API (Spring Boot)
+*   **Teknoloji:** Java 21, Spring Boot 3
+*   **Veritabanı:** PostgreSQL & PostGIS (Coğrafi sorgular, mekansal indeksleme)
+*   **Güvenlik:** JWT tabanlı durumsuz (stateless) kimlik doğrulama, Bucket4j Rate Limiting, Brute-force koruması
+*   **Entegrasyonlar:** NetGSM / Twilio SMS OTP, Cloudflare R2 / AWS S3 medya depolama alanları
+*   **Raporlama:** Zebra desenli, durum ve öncelik bazında pastel renk kodlu premium PDF & Excel veri dışa aktarma
 
+### 2. Yönetici Portalı (Admin Portal)
+*   **Teknoloji:** React 18, Vite, TailwindCSS
+*   **Özellikler:** KPI izleme ekranları, canlı ısı haritası (Live Heatmap), departman bazlı saha görevlisi atama ve AI destekli SMS şablon editörü.
+
+### 3. Vatandaş Mobil Uygulaması (Citizen Mobile)
+*   **Teknoloji:** React / Ionic (Cross-platform)
+*   **Özellikler:** GPS doğrulamalı konum tabanlı ihbar, canlı kamera fotoğraf yükleme zorunluluğu, Firebase push bildirimleri ve favori otobüs hatları/durakları paneli.
+
+---
+
+## 🎯 Yayın Öncesi & Kötüye Kullanım Kontrol Listesi
+
+Uygulamayı canlı ortama (production) almadan önce sistemin güvenliğini ve kararlılığını sağlamak için tasarlanan tüm kurallar detaylı kılavuzda yer almaktadır:
+
+> [!TIP]
+> Kötüye kullanım koruma kuralları, görsel müstehcenlik analizleri, itibar puanlama sınırları ve yayın öncesi teknik kontrol adımları için mutlaka **[todo.md](todo.md)** dosyasını inceleyin.
+
+### Özet Kontrol Maddeleri:
+- [x] **İhbar Denetim PDF Görsel İyileştirmesi:** Zebra desenli satırlar, durum ve öncelik alanları için özel pastel badge tasarımları ve başlık çizgisi eklendi.
+- [x] **Düşük İtibar Bloklama:** Güven puanı **30** puanın altına düşen kullanıcıların yeni ihbar oluşturması engellendi.
+- [x] **Otobüs Hatları AI İmport:** PDF/Excel hat şemalarının Gemini ile taranıp mobil haritaya basılması sağlandı.
+- [x] **Mobil Favori Desteği:** Durak ve hat yıldızlama entegrasyonu tamamlandı.
+
+---
+
+## 💻 Yerel Geliştirme Ortamı Kurulumu
+
+### Docker ile Tek Komutla Çalıştırma (Full Stack)
+Yerel testler veya sunum için API, PostgreSQL, Admin Portal ve Web sitelerini tek hamlede ayağa kaldırabilirsiniz:
 ```bash
 cp .env.docker.example .env.docker
 docker compose --env-file .env.docker up --build
 ```
+*Detaylar için bkz: [`DOCKER.md`](DOCKER.md)*
 
-Ayrıntılar: [`DOCKER.md`](DOCKER.md)
+### Manuel Kurulum Adımları
+1. **Veritabanı:** PostgreSQL ve PostGIS eklentisinin kurulu ve aktif olduğundan emin olun.
+2. **Çevre Değişkenleri:** `.env.example` dosyasını `.env` adıyla kopyalayın ve JWT secret, veritabanı şifrelerini doldurun.
+3. **Backend Çalıştırma:**
+   ```bash
+   ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+   ```
+4. **Varsayılan Yönetici Bilgileri:** Geliştirme profilinde (`dev`) süper yönetici hesabı: `admin@kentiva.app` / `admin123`
+5. **Mobil Uygulama Başlatma:**
+   ```bash
+   cd belediyehattı
+   npm install
+   npm run dev
+   ```
 
-## Deployment Instructions (Railway / Cloud)
+---
 
-This application is containerized and ready for PaaS providers like Railway, Render, or AWS AppRunner.
+## 📂 Yardımcı Belgeler ve Kaynaklar
+- 📝 **Yayınlama ve APK Oluşturma Rehberi:** [`deployment/YAYINLAMA.md`](deployment/YAYINLAMA.md)
+- 🧪 **Yerel Manuel Test ve ngrok Rehberi:** [`scripts/YEREL-MANUEL-TEST.md`](scripts/YEREL-MANUEL-TEST.md)
+- 🗝️ **Çevre Değişkenleri Şablonu:** [`deployment/ANAHTARLAR.template.env`](deployment/ANAHTARLAR.template.env)
+- 🛡️ **Kötüye Kullanımı Önleme Kılavuzu:** [`todo.md`](todo.md)
 
-1.  Provision a PostgreSQL database with the `PostGIS` extension enabled.
-2.  Set up an S3-compatible storage bucket for media uploads.
-3.  Configure the environment variables based on `.env.example`.
-4.  Deploy using the provided `Dockerfile`.
-5.  Generate a secure JWT secret: `openssl rand -base64 64`
+---
 
-### Required Environment Variables
-*   `DATABASE_URL` or `BELEDIYE_DB_URL`
-*   `DB_USERNAME` and `DB_PASSWORD`
-*   `JWT_SECRET`
-*   `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`
-*   `APP_PUBLIC_URL`
+## 📄 Lisans
 
-## Development Setup
-
-1.  Clone the repository.
-2.  Copy environment templates (never commit real `.env` files):
-    *   Backend: `cp .env.example .env` and set `DB_PASSWORD`, `JWT_SECRET` (`openssl rand -base64 64`).
-    *   Alternatively: `cp src/main/resources/application-dev.properties.example src/main/resources/application-dev.properties`
-    *   Citizen app: `cp belediyehattı/.env.example belediyehattı/.env`
-    *   Admin portal: `cp admin-portal/.env.example admin-portal/.env`
-    *   Public site: `cp public-site/.env.example public-site/.env`
-3.  Ensure PostgreSQL is running (Docker or local install).
-4.  Run `mvn spring-boot:run -Dspring-boot.run.profiles=dev`.
-5.  Dev profilde süper admin (dev-migration): `admin@kentiva.app` / `admin123` — production'da bu hesap otomatik oluşturulmaz; kurulum sihirbazı kullanın.
-
-### Secrets & deployment
-
-*   **Yayınlama rehberi (TR):** [`deployment/YAYINLAMA.md`](deployment/YAYINLAMA.md) — Railway, Vercel, APK, süper admin `/setup`.
-*   **Yerel manuel test (ngrok, APK en sonda):** [`scripts/YEREL-MANUEL-TEST.md`](scripts/YEREL-MANUEL-TEST.md) — `start-local.ps1` → doğrula → `build-apk-local.ps1`.
-*   **Tüm anahtarlar (şablon):** [`deployment/ANAHTARLAR.template.env`](deployment/ANAHTARLAR.template.env) → kopyalayın: `deployment/ANAHTARLAR.local.env` (gitignore).
-*   All API keys, DB passwords, and JWT secrets live in environment variables only (see `.env.example`, `railway.env.example`).
-*   Do not commit `railway.env` or real keys. If a key was ever committed, rotate it immediately in Google Cloud / Railway.
-
-## TODOS & FIXMEs
-
-### 📝 TODOS (Planned Features & Enhancements)
-- [ ] **Production-Ready Image Anonymization:** Replace the placeholder face/license-plate blurring logic in `ImageAnonymizationService` with a real AI service (e.g., Google Cloud Vision, AWS Rekognition, or a local OpenCV pipeline).
-- [ ] **Production MIS Adaptors:** Implement concrete HTTP client adaptors for standard Turkish municipal MIS providers (`SAMPAS`, `NETKENT`, `E_ICISLERI`) under `com.burak.belediyeapp.integration.mis`.
-- [ ] **KVKK Consent Archiving:** Implement secure cryptographic signing for KVKK/GDPR consent records to ensure non-repudiation.
-- [ ] **Automated Multi-Tenant Leakage Tests:** Add integration test suites that specifically attempt cross-tenant access to verify that `TenantIsolationAspect` always blocks unauthorized data leaks.
-- [ ] **Payment Portal & Subscription Webhook:** Implement billing/payment webhook integrations (e.g., Iyzico, Stripe) to dynamically manage tenant `subscription_plan` and `subscription_ends_at` parameters.
-
-### ⚠️ FIXMEs (Technical Debt & Bug Fixes)
-- [ ] **Hardcoded Rate Limiting:** The Bucket4j rate limiting configuration is currently static. Move it to a dynamic tenant-based configuration to allow tailored limits based on subscription tiers.
-- [ ] **GeoJSON Polygon Validation:** Some highly detailed municipality boundaries can contain self-intersections, which cause PostGIS `ST_Contains` to throw exceptions. The boundaries upload handler should be fixed to run `ST_MakeValid` automatically.
-- [ ] **Citizen App Offline Storage:** Implement a local SQLite/IndexedDB queue in the mobile citizen app to buffer reports created offline and sync them once internet connectivity is restored.
-
-## License
-
-This is a proprietary B2B platform. All rights reserved.
+Bu proje tescilli bir B2B SaaS yazılımıdır. Tüm hakları saklıdır.

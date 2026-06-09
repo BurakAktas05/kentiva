@@ -580,6 +580,7 @@ export default function App() {
               <BusScheduleScreen
                 lang={lang}
                 isDark={isDark}
+                municipality={tenant}
                 onBack={() => setActiveTab('kent')}
               />
             )}

@@ -925,3 +925,79 @@ export async function updateNotificationPreferences(payload: {
     body: JSON.stringify(payload),
   });
 }
+
+// ============================================
+// Ulaşım / Otobüs Hatları APIs
+// ============================================
+
+export interface RouteScheduleInfo {
+  departuresFromStart: string[];
+  departuresFromEnd: string[];
+}
+
+export interface BusRoute {
+  id: string;
+  name: string;
+  code: string;
+  stops: string[];
+  color: string;
+  icon: string;
+  schedule: {
+    weekday?: RouteScheduleInfo | null;
+    weekend?: RouteScheduleInfo | null;
+    saturday?: RouteScheduleInfo | null;
+    sunday?: RouteScheduleInfo | null;
+  };
+  starred?: boolean;
+}
+
+export async function fetchBusRoutes(municipalityId: string): Promise<BusRoute[]> {
+  try {
+    return await apiFetch<BusRoute[]>(`/public/municipalities/${encodeURIComponent(municipalityId)}/bus-routes`);
+  } catch {
+    return []; // Return empty or handle gracefully
+  }
+}
+
+export async function starRoute(routeId: string): Promise<void> {
+  await apiFetch(`/bus-routes/${encodeURIComponent(routeId)}/star`, {
+    method: 'POST',
+  });
+}
+
+export async function unstarRoute(routeId: string): Promise<void> {
+  await apiFetch(`/bus-routes/${encodeURIComponent(routeId)}/unstar`, {
+    method: 'POST',
+  });
+}
+
+export async function starStop(stopName: string, municipalityId: string): Promise<void> {
+  await apiFetch('/bus-stops/star', {
+    method: 'POST',
+    body: JSON.stringify({ stopName, municipalityId }),
+  });
+}
+
+export async function unstarStop(stopName: string, municipalityId: string): Promise<void> {
+  await apiFetch('/bus-stops/unstar', {
+    method: 'POST',
+    body: JSON.stringify({ stopName, municipalityId }),
+  });
+}
+
+export async function fetchStarredRoutes(): Promise<BusRoute[]> {
+  try {
+    return await apiFetch<BusRoute[]>('/bus-routes/starred');
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchStarredStops(municipalityId: string): Promise<string[]> {
+  try {
+    return await apiFetch<string[]>(`/bus-stops/starred?municipalityId=${encodeURIComponent(municipalityId)}`);
+  } catch {
+    return [];
+  }
+}
+
