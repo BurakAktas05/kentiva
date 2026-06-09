@@ -2,7 +2,9 @@ package com.burak.belediyeapp.service.citizen;
 
 import com.burak.belediyeapp.entity.AppUser;
 import com.burak.belediyeapp.entity.Report;
+import com.burak.belediyeapp.entity.ReportStatus;
 import com.burak.belediyeapp.repository.IAppUserRepository;
+import com.burak.belediyeapp.repository.IReportRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,6 +28,7 @@ public class CitizenReputationService {
     public static final int DELTA_SELFIE_REJECTED = -70;
 
     private final IAppUserRepository userRepository;
+    private final IReportRepository reportRepository;
 
     @Transactional
     public void onReportCreated(AppUser reporter) {
@@ -47,6 +50,18 @@ public class CitizenReputationService {
         }
         int delta = selfieRelated ? DELTA_SELFIE_REJECTED : DELTA_REPORT_REJECTED;
         applyDelta(report.getReporter().getId(), delta, selfieRelated ? "SELFIE_REJECTED" : "REPORT_REJECTED");
+
+        // Ban check: count rejected reports for the user
+        long rejectedCount = reportRepository.countByReporterIdAndReportStatus(report.getReporter().getId(), ReportStatus.REJECTED);
+        if (rejectedCount >= 5) {
+            userRepository.findById(report.getReporter().getId()).ifPresent(user -> {
+                if (isCitizen(user) && user.isEnabled()) {
+                    user.setEnabled(false);
+                    userRepository.save(user);
+                    log.warn("Kullanıcı çok sayıda asılsız ihbar nedeniyle otomatik banlandı: userId={}, email={}", user.getId(), user.getEmail());
+                }
+            });
+        }
     }
 
     @Transactional

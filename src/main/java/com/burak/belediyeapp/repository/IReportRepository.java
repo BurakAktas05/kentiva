@@ -196,6 +196,8 @@ public interface IReportRepository extends JpaRepository<Report, String> {
 
     long countByMunicipalityId(String municipalityId);
 
+    long countByReporterIdAndReportStatus(String reporterId, ReportStatus status);
+
     /**
      * Tüm belediyeler için rapor sayısını TEK SQL ile getirir (dashboard N+1 önleme).
      * Çıktı: Object[]{municipalityId, count}
