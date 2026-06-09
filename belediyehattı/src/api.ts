@@ -757,9 +757,11 @@ export interface ApiSurvey {
   option2: string;
   option3: string | null;
   option4: string | null;
+  category: string;
   active: boolean;
   voted: boolean;
   votedOption: number | null;
+  recommended: boolean;
   option1Count: number;
   option2Count: number;
   option3Count: number;

@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Sun,
   Wind,
+  MapPin,
 } from 'lucide-react';
 import {
   fetchHomeWidgets,
@@ -20,6 +21,7 @@ import {
 } from '../../api';
 import { getDevicePosition, isDeviceLocationFailure, openMapsNavigation, type DeviceCoords } from '../../lib/deviceLocation';
 import { Lang, t } from '../../i18n';
+import PharmacyMapModal from './PharmacyMapModal';
 
 const OFFICIAL_PHARMACY_URL = 'https://www.turkiye.gov.tr/saglik-nobetci-eczane-arama';
 const LOCATION_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -141,6 +143,7 @@ function useWidgetBundle(tenant: PublicTenant) {
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [locationSource, setLocationSource] = useState<WidgetLocationSource>('none');
+  const [resolvedCoords, setResolvedCoords] = useState<DeviceCoords | null>(null);
   const { id, centerLat, centerLng } = tenant;
 
   const loadWidgets = useCallback(
@@ -156,6 +159,7 @@ function useWidgetBundle(tenant: PublicTenant) {
         const resolved = await resolveWidgetCoords(centerLat, centerLng, refreshKey > 0);
         if (signal?.cancelled) return;
         setLocationSource(resolved.source);
+        setResolvedCoords(resolved.coords);
 
         if (!resolved.coords) {
           setBundle(null);
@@ -187,7 +191,7 @@ function useWidgetBundle(tenant: PublicTenant) {
     };
   }, [loadWidgets]);
 
-  return { bundle, loading, locationSource, refresh: () => setRefreshKey((k) => k + 1) };
+  return { bundle, loading, locationSource, resolvedCoords, refresh: () => setRefreshKey((k) => k + 1) };
 }
 
 export function WeatherWidgetCard({ tenant, lang, isDark }: WidgetBaseProps) {
@@ -273,9 +277,10 @@ export function WeatherWidgetCard({ tenant, lang, isDark }: WidgetBaseProps) {
 }
 
 export function PharmacyWidgetCard({ tenant, lang, isDark }: WidgetBaseProps) {
-  const { bundle, loading, locationSource, refresh } = useWidgetBundle(tenant);
+  const { bundle, loading, locationSource, resolvedCoords, refresh } = useWidgetBundle(tenant);
   const pharmacies = bundle?.pharmacies ?? [];
   const hasOnDuty = pharmacies.some((p) => p.onDuty);
+  const [isMapOpen, setIsMapOpen] = useState(false);
 
   const pharmacyTitle =
     pharmacies.length === 0
@@ -346,49 +351,62 @@ export function PharmacyWidgetCard({ tenant, lang, isDark }: WidgetBaseProps) {
               </a>
             </div>
           ) : (
-            <ul className="divide-y divide-emerald-100/80 dark:divide-emerald-900/40">
-              {pharmacies.slice(0, 3).map((p, i) => (
-                <li key={i} className="py-2.5 first:pt-0 last:pb-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{p.name}</p>
-                      {p.address && (
-                        <p className={`mt-0.5 line-clamp-2 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                          {p.address}
-                        </p>
+            <>
+              <ul className="divide-y divide-emerald-100/80 dark:divide-emerald-900/40">
+                {pharmacies.slice(0, 3).map((p, i) => (
+                  <li key={i} className="py-2.5 first:pt-0 last:pb-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{p.name}</p>
+                        {p.address && (
+                          <p className={`mt-0.5 line-clamp-2 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            {p.address}
+                          </p>
+                        )}
+                      </div>
+                      {p.distanceMeters != null && (
+                        <span className="shrink-0 rounded-lg bg-emerald-500/15 px-2 py-1 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+                          {p.distanceMeters < 1000
+                            ? `${Math.round(p.distanceMeters)} m`
+                            : `${(p.distanceMeters / 1000).toFixed(1)} km`}
+                        </span>
                       )}
                     </div>
-                    {p.distanceMeters != null && (
-                      <span className="shrink-0 rounded-lg bg-emerald-500/15 px-2 py-1 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
-                        {p.distanceMeters < 1000
-                          ? `${Math.round(p.distanceMeters)} m`
-                          : `${(p.distanceMeters / 1000).toFixed(1)} km`}
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-1.5 flex flex-wrap gap-3">
-                    {p.phone && (
-                      <a
-                        href={`tel:${p.phone.replace(/\s/g, '')}`}
-                        className="text-xs font-semibold text-emerald-700 dark:text-emerald-300"
-                      >
-                        {p.phone}
-                      </a>
-                    )}
-                    {p.lat != null && p.lng != null && (
-                      <button
-                        type="button"
-                        onClick={() => openMapsNavigation(p.lat!, p.lng!, p.name)}
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-primary"
-                      >
-                        <Navigation className="h-3.5 w-3.5" />
-                        {t('home.widgets.directions', lang)}
-                      </button>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
+                    <div className="mt-1.5 flex flex-wrap gap-3">
+                      {p.phone && (
+                        <a
+                          href={`tel:${p.phone.replace(/\s/g, '')}`}
+                          className="text-xs font-semibold text-emerald-700 dark:text-emerald-300"
+                        >
+                          {p.phone}
+                        </a>
+                      )}
+                      {p.lat != null && p.lng != null && (
+                        <button
+                          type="button"
+                          onClick={() => openMapsNavigation(p.lat!, p.lng!, p.name)}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-primary"
+                        >
+                          <Navigation className="h-3.5 w-3.5" />
+                          {t('home.widgets.directions', lang)}
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-3 pt-3 border-t border-emerald-100/60 dark:border-emerald-900/40">
+                <button
+                  type="button"
+                  onClick={() => setIsMapOpen(true)}
+                  className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] text-white shadow-sm transition"
+                >
+                  <MapPin className="h-4 w-4" />
+                  {t('home.widgets.showOnMap', lang) || 'Haritada Göster'}
+                </button>
+              </div>
+            </>
           )}
           {!loading && !hasOnDuty && pharmacies.length > 0 && (
             <a
@@ -403,6 +421,16 @@ export function PharmacyWidgetCard({ tenant, lang, isDark }: WidgetBaseProps) {
           )}
         </div>
       </div>
+
+      <PharmacyMapModal
+        isOpen={isMapOpen}
+        onClose={() => setIsMapOpen(false)}
+        pharmacies={pharmacies}
+        userLat={resolvedCoords?.lat}
+        userLng={resolvedCoords?.lng}
+        lang={lang}
+        isDark={isDark}
+      />
     </section>
   );
 }

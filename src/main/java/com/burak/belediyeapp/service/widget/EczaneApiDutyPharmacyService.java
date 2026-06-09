@@ -17,6 +17,11 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.beans.factory.annotation.Autowired;
+import com.burak.belediyeapp.config.CacheNames;
+
 /**
  * Türkiye nöbetçi eczane verisi — EczaneAPI (eczane odaları kaynaklı, doğrulanmış nöbet kayıtları).
  * API anahtarı yoksa liste boş döner; OSM / tahmini eczane gösterilmez.
@@ -36,6 +41,10 @@ public class EczaneApiDutyPharmacyService {
             .requestFactory(factory())
             .defaultHeader("Accept", "application/json")
             .build();
+
+    @Lazy
+    @Autowired
+    private EczaneApiDutyPharmacyService self;
 
     public record PharmacyQueryResult(List<PharmacyWidgetItem> pharmacies, String dataSource, boolean configured) {}
 
@@ -59,8 +68,21 @@ public class EczaneApiDutyPharmacyService {
         if (resolvedCity == null || resolvedCity.isBlank()) {
             return new PharmacyQueryResult(List.of(), "EczaneAPI", true);
         }
-        List<PharmacyWidgetItem> byDistrict =
-                fetchOnDutyByDistrict(resolvedCity, resolvedDistrict, lat, lng, limit);
+        List<PharmacyWidgetItem> cachedList = self.fetchOnDutyByDistrictCached(municipality.getId(), resolvedCity, resolvedDistrict);
+        List<PharmacyWidgetItem> byDistrict = cachedList.stream()
+                .map(p -> new PharmacyWidgetItem(
+                        p.name(),
+                        p.address(),
+                        (p.lat() == null || p.lng() == null) ? null : haversineMeters(lat, lng, p.lat(), p.lng()),
+                        p.lat(),
+                        p.lng(),
+                        p.onDuty(),
+                        p.phone(),
+                        p.dutyVerified()
+                ))
+                .sorted(Comparator.comparingDouble(p -> p.distanceMeters() != null ? p.distanceMeters() : 1e9))
+                .limit(limit)
+                .toList();
         return new PharmacyQueryResult(byDistrict, "EczaneAPI — nöbetçi eczane (il/ilçe)", true);
     }
 
@@ -77,8 +99,12 @@ public class EczaneApiDutyPharmacyService {
         }
     }
 
-    private List<PharmacyWidgetItem> fetchOnDutyByDistrict(
-            String citySlug, String districtSlug, double lat, double lng, int limit) {
+    @Cacheable(
+            value = CacheNames.DUTY_PHARMACY,
+            key = "T(com.burak.belediyeapp.service.widget.DutyPharmacyCacheKeys).key(#municipalityId, #citySlug, #districtSlug)"
+    )
+    public List<PharmacyWidgetItem> fetchOnDutyByDistrictCached(
+            String municipalityId, String citySlug, String districtSlug) {
         try {
             StringBuilder url = new StringBuilder(BASE)
                     .append("/pharmacies/on-duty?city=")
@@ -87,9 +113,9 @@ public class EczaneApiDutyPharmacyService {
                 url.append("&district=").append(districtSlug);
             }
             String body = get(url.toString());
-            return parsePharmacyList(body, lat, lng, limit, true);
+            return parsePharmacyList(body, 0, 0, Integer.MAX_VALUE, true);
         } catch (Exception e) {
-            log.warn("EczaneAPI on-duty sorgusu başarısız: {}", e.getMessage());
+            log.warn("EczaneAPI cached on-duty fetch failed: {}", e.getMessage());
             return List.of();
         }
     }

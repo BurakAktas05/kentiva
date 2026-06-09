@@ -20,6 +20,11 @@ public class MunicipalityMessageService {
     private static final String DEFAULT_PUSH_REJECTED_BODY =
             "\"{baslik}\" başlıklı bildiriminiz değerlendirilmiş ve reddedilmiştir.{not}";
 
+    private static final String DEFAULT_PUSH_RESOLVED_TITLE = "{belediye} — Bildiriminiz Çözüldü";
+    private static final String DEFAULT_PUSH_RESOLVED_BODY =
+            "\"{baslik}\" başlıklı bildiriminiz çözüme kavuşturulmuştur.{not}";
+
+
     private static final String DEFAULT_SMS_PROCESSING =
             "{belediye}: \"{baslik}\" başlıklı bildiriminiz incelemeye alınmıştır.{not}{slogan}";
 
@@ -124,6 +129,30 @@ public class MunicipalityMessageService {
                 render(titleTpl, municipality, reportTitle, staffNote),
                 render(bodyTpl, municipality, reportTitle, staffNote));
     }
+
+    public PushMessage buildResolvedPush(Municipality municipality, String reportTitle, String staffNote) {
+        return buildResolvedPush(municipality, reportTitle, staffNote, "tr");
+    }
+
+    public PushMessage buildResolvedPush(
+            Municipality municipality, String reportTitle, String staffNote, String contentLanguage) {
+        if (!"tr".equals(ReportLanguageMessages.normalizeLang(contentLanguage))) {
+            String name = resolveLabel(municipality);
+            return new PushMessage(
+                    ReportLanguageMessages.resolvedPushTitle(contentLanguage, name),
+                    ReportLanguageMessages.resolvedPushBody(contentLanguage, truncate(reportTitle, 70), staffNote));
+        }
+        String titleTpl = pickTemplate(
+                municipality != null ? municipality.getPushResolvedTitleTemplate() : null,
+                DEFAULT_PUSH_RESOLVED_TITLE);
+        String bodyTpl = pickTemplate(
+                municipality != null ? municipality.getPushResolvedBodyTemplate() : null,
+                DEFAULT_PUSH_RESOLVED_BODY);
+        return new PushMessage(
+                render(titleTpl, municipality, reportTitle, staffNote),
+                render(bodyTpl, municipality, reportTitle, staffNote));
+    }
+
 
     public String resolveSmsSenderHeader(Municipality municipality) {
         if (municipality != null

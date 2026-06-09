@@ -92,3 +92,18 @@ export function fetchPublicMonthlyStats(signal?: AbortSignal) {
 export function fetchPublicMunicipalityBySlug(slug: string, signal?: AbortSignal) {
   return publicGet<PublicMunicipalityDetail>(`/public/municipalities/${encodeURIComponent(slug)}`, signal);
 }
+
+export type PublicResolvedReport = {
+  id: string;
+  title: string;
+  description: string;
+  categoryName: string;
+  district: string;
+  createdAt: string;
+  resolvedAt: string;
+  officialResolutionNote: string;
+};
+
+export function fetchPublicMunicipalityResolvedReports(slug: string, signal?: AbortSignal) {
+  return publicGet<PublicResolvedReport[]>(`/public/municipalities/${encodeURIComponent(slug)}/resolved-reports`, signal);
+}

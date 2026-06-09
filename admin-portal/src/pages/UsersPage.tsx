@@ -43,8 +43,8 @@ export default function UsersPage() {
         api.get('/users'),
         api.get('/departments')
       ]);
-      setUsers(usersRes.data.data);
-      setDepartments(deptsRes.data.data);
+      setUsers(usersRes.data.data?.content ?? []);
+      setDepartments(deptsRes.data.data?.content ?? []);
     } catch (err) {
       console.error('Failed to fetch data', err);
       setLoadError('Personel listesi yüklenemedi.');

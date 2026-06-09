@@ -302,6 +302,157 @@ public class GeminiService {
         }
     }
 
+    public java.util.List<String> findDuplicateReports(Report newReport, java.util.List<Report> nearbyReports) {
+        if (apiKey == null || apiKey.isBlank() || apiKey.equals("your-gemini-api-key")) {
+            log.warn("Gemini API Key eksik. Semantik duplicate analizi atlanıyor.");
+            return null;
+        }
+        if (nearbyReports == null || nearbyReports.isEmpty()) {
+            return java.util.List.of();
+        }
+
+        // Build prompt
+        StringBuilder promptBuilder = new StringBuilder();
+        promptBuilder.append("Yeni bir ihbar kaydı oluşturuldu. Bu yeni ihbarın bilgileri şöyledir:\n");
+        promptBuilder.append("ID: ").append(newReport.getId()).append("\n");
+        promptBuilder.append("Başlık: ").append(newReport.getTitle()).append("\n");
+        promptBuilder.append("Açıklama: ").append(newReport.getDescription()).append("\n");
+        if (newReport.getCategory() != null) {
+            promptBuilder.append("Kategori: ").append(newReport.getCategory().getName()).append("\n");
+        }
+        promptBuilder.append("\nKonum olarak bu yeni ihbarın yakınında bulunan aktif ihbarların listesi:\n");
+        for (int i = 0; i < nearbyReports.size(); i++) {
+            Report r = nearbyReports.get(i);
+            promptBuilder.append(i + 1).append(". İhbar:\n");
+            promptBuilder.append("  ID: ").append(r.getId()).append("\n");
+            promptBuilder.append("  Başlık: ").append(r.getTitle()).append("\n");
+            promptBuilder.append("  Açıklama: ").append(r.getDescription()).append("\n");
+            if (r.getCategory() != null) {
+                promptBuilder.append("  Kategori: ").append(r.getCategory().getName()).append("\n");
+            }
+            promptBuilder.append("\n");
+        }
+        promptBuilder.append("Soru: Yakındaki ihbarlardan hangileri bu yeni ihbar ile aynı fiziksel problemi (örneğin aynı çukuru, aynı sönmüş sokak lambasını, aynı çöp yığınını) bildirmektedir? Lütfen sadece kesin olarak aynı probleme ait olan ihbarları seçin.\n");
+        promptBuilder.append("Yanıtınızı kesinlikle sadece JSON formatında, aynı probleme ait olan ihbarların ID'lerini içeren bir dizi olarak dönün. Örneğin: [\"id1\", \"id2\"]. Eğer hiçbiri aynı probleme ait değilse boş bir dizi dönün: []. Başka hiçbir açıklama, markdown veya metin eklemeyin.");
+
+        String prompt = promptBuilder.toString();
+
+        String requestBody = new JSONObject()
+                .put("contents", new JSONArray().put(
+                        new JSONObject().put("parts", new JSONArray().put(
+                                new JSONObject().put("text", prompt)
+                        ))
+                ))
+                .put("generationConfig", new JSONObject().put("response_mime_type", "application/json"))
+                .toString();
+
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            try {
+                String response = restClient.post()
+                        .uri(geminiGenerateContentUrl() + "?key=" + apiKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(requestBody)
+                        .retrieve()
+                        .body(String.class);
+
+                JSONObject json = new JSONObject(response);
+                String text = json.getJSONArray("candidates")
+                        .getJSONObject(0)
+                        .getJSONObject("content")
+                        .getJSONArray("parts")
+                        .getJSONObject(0)
+                        .getString("text")
+                        .trim();
+
+                if (text.startsWith("```")) {
+                    text = text.replaceAll("```json|```", "").trim();
+                }
+
+                JSONArray array = new JSONArray(text);
+                java.util.List<String> duplicateIds = new java.util.ArrayList<>();
+                for (int i = 0; i < array.length(); i++) {
+                    duplicateIds.add(array.getString(i));
+                }
+                return duplicateIds;
+            } catch (Exception e) {
+                log.warn("Gemini duplicate analizi hatası (deneme {}): {}", attempt, e.getMessage());
+            }
+        }
+        return null;
+    }
+
+    public java.util.List<String> selectBestResolvedReports(java.util.List<Report> resolvedReports) {
+        if (apiKey == null || apiKey.isBlank() || apiKey.equals("your-gemini-api-key")) {
+            log.warn("Gemini API Key eksik. Örnek rapor seçimi atlanıyor.");
+            return null;
+        }
+        if (resolvedReports == null || resolvedReports.isEmpty()) {
+            return java.util.List.of();
+        }
+
+        StringBuilder promptBuilder = new StringBuilder();
+        promptBuilder.append("Aşağıda bir belediyeye ait çözülen vatandaş ihbarlarının listesi verilmiştir. ")
+                .append("Bu ihbarlardan, belediyenin başarısını/hizmet kalitesini halka en iyi gösteren ve kamu yararı taşıyan ")
+                .append("(örneğin yol onarımı, park temizliği, aydınlatma tamiri gibi olumlu sonuçlar barındıran) en iyi 3 tanesini seç.\n\n");
+
+        for (int i = 0; i < resolvedReports.size(); i++) {
+            Report r = resolvedReports.get(i);
+            promptBuilder.append("İhbar ").append(i + 1).append(":\n");
+            promptBuilder.append("  ID: ").append(r.getId()).append("\n");
+            promptBuilder.append("  Başlık: ").append(r.getTitle()).append("\n");
+            promptBuilder.append("  Açıklama: ").append(r.getDescription()).append("\n");
+            promptBuilder.append("  Kategori: ").append(r.getCategory() != null ? r.getCategory().getName() : "Genel").append("\n\n");
+        }
+
+        promptBuilder.append("Kesinlikle sadece seçtiğin en fazla 3 ihbarın ID'sini içeren bir JSON dizi formatında yanıt dön. ")
+                .append("Örneğin: [\"id1\", \"id2\"]. Başka hiçbir kelime, açıklama veya markdown biçimlendirmesi ekleme.");
+
+        String prompt = promptBuilder.toString();
+
+        String requestBody = new JSONObject()
+                .put("contents", new JSONArray().put(
+                        new JSONObject().put("parts", new JSONArray().put(
+                                new JSONObject().put("text", prompt)
+                        ))
+                ))
+                .put("generationConfig", new JSONObject().put("response_mime_type", "application/json"))
+                .toString();
+
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            try {
+                String response = restClient.post()
+                        .uri(geminiGenerateContentUrl() + "?key=" + apiKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(requestBody)
+                        .retrieve()
+                        .body(String.class);
+
+                JSONObject json = new JSONObject(response);
+                String text = json.getJSONArray("candidates")
+                        .getJSONObject(0)
+                        .getJSONObject("content")
+                        .getJSONArray("parts")
+                        .getJSONObject(0)
+                        .getString("text")
+                        .trim();
+
+                if (text.startsWith("```")) {
+                    text = text.replaceAll("```json|```", "").trim();
+                }
+
+                JSONArray array = new JSONArray(text);
+                java.util.List<String> selectedIds = new java.util.ArrayList<>();
+                for (int i = 0; i < array.length(); i++) {
+                    selectedIds.add(array.getString(i));
+                }
+                return selectedIds;
+            } catch (Exception e) {
+                log.warn("Gemini örnek rapor seçimi hatası (deneme {}): {}", attempt, e.getMessage());
+            }
+        }
+        return null;
+    }
+
     private static SimpleClientHttpRequestFactory requestFactory() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(3_000);

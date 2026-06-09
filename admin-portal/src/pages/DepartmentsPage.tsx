@@ -60,7 +60,7 @@ export default function DepartmentsPage() {
   async function fetchDepartments() {
     try {
       const res = await api.get('/departments');
-      setDepartments(res.data.data);
+      setDepartments(res.data.data?.content ?? []);
     } catch (err) {
       console.error('Failed to fetch departments', err);
     } finally {
@@ -83,7 +83,7 @@ export default function DepartmentsPage() {
           api
             .get('/admin/municipalities')
             .then((m) => {
-              const rows = (m.data.data as { id: string; displayName?: string | null; name: string; slug: string }[]).map((row) => ({
+              const rows = ((m.data.data?.content ?? []) as { id: string; displayName?: string | null; name: string; slug: string }[]).map((row) => ({
                 id: row.id,
                 name: (row.displayName && String(row.displayName).trim()) || row.name,
                 slug: row.slug,

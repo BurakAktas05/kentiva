@@ -144,4 +144,30 @@ public class StorageService {
             throw new RuntimeException("Dosya yüklenemedi", e);
         }
     }
+
+    public byte[] downloadFile(String fileUrl) {
+        if (fileUrl == null || fileUrl.isBlank()) {
+            return null;
+        }
+        String key = mediaSignedUrlService.persistableStoragePath(fileUrl);
+        if ("local".equals(storageType) || s3Client == null) {
+            try {
+                Path path = Paths.get(localUploadDir, key);
+                if (Files.exists(path)) {
+                    return Files.readAllBytes(path);
+                }
+                return null;
+            } catch (IOException e) {
+                log.error("Failed to read local file: {}", key, e);
+                return null;
+            }
+        } else {
+            try {
+                return s3Client.getObjectAsBytes(builder -> builder.bucket(bucketName).key(key)).asByteArray();
+            } catch (Exception e) {
+                log.error("Failed to read S3 file: {}", key, e);
+                return null;
+            }
+        }
+    }
 }

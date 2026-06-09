@@ -132,7 +132,7 @@ export default function ReportsPage() {
     if (!canAssign) return;
     api
       .get('/users', { params: { role: 'ROLE_FIELD_OFFICER' } })
-      .then((res) => setOfficers(res.data.data as User[]))
+      .then((res) => setOfficers((res.data.data?.content ?? []) as User[]))
       .catch(() => setOfficers([]));
   }, [canAssign]);
 

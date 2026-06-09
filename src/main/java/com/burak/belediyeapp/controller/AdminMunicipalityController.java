@@ -101,4 +101,14 @@ public class AdminMunicipalityController {
         }
         return ResponseEntity.ok(ApiResponse.success("Cografi sinir OpenStreetMap'ten alindi ve kaydedildi.", (String) null));
     }
+
+    @PutMapping("/{id}/boundaries")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Belediye sınırını GeoJSON olarak güncelle (süper admin)")
+    public ResponseEntity<ApiResponse<Void>> updateBoundaries(
+            @PathVariable String id,
+            @RequestBody String geoJson) {
+        municipalityManagementService.updateBoundaries(id, geoJson);
+        return ResponseEntity.ok(ApiResponse.success("Coğrafi sınır güncellendi", null));
+    }
 }

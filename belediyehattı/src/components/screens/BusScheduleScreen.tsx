@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, 
@@ -68,10 +68,37 @@ export default function BusScheduleScreen({ lang, isDark, municipality, onBack }
     setSelectedDayType(currentDayType);
   }, [currentDayType]);
 
-  // Load routes and starred stops
+  // Load routes and starred stops (with offline caching)
   const loadData = useCallback(async () => {
     if (!municipality) return;
-    setLoading(true);
+
+    const cacheRoutesKey = `belediye_offline_bus_routes_${municipality.id}`;
+    const cacheStopsKey = `belediye_offline_starred_stops_${municipality.id}`;
+
+    // Read from cache immediately
+    const cachedRoutes = localStorage.getItem(cacheRoutesKey);
+    const cachedStops = localStorage.getItem(cacheStopsKey);
+
+    if (cachedRoutes) {
+      try {
+        setRoutes(JSON.parse(cachedRoutes));
+      } catch (e) {
+        console.error("Failed to parse cached routes:", e);
+      }
+    }
+    if (cachedStops) {
+      try {
+        setStarredStops(JSON.parse(cachedStops));
+      } catch (e) {
+        console.error("Failed to parse cached stops:", e);
+      }
+    }
+
+    // If we don't have cached routes, show loading spinner immediately
+    if (!cachedRoutes) {
+      setLoading(true);
+    }
+
     try {
       const [fetchedRoutes, fetchedStops] = await Promise.all([
         fetchBusRoutes(municipality.id),
@@ -79,8 +106,12 @@ export default function BusScheduleScreen({ lang, isDark, municipality, onBack }
       ]);
       setRoutes(fetchedRoutes);
       setStarredStops(fetchedStops);
+
+      // Save to cache
+      localStorage.setItem(cacheRoutesKey, JSON.stringify(fetchedRoutes));
+      localStorage.setItem(cacheStopsKey, JSON.stringify(fetchedStops));
     } catch (e) {
-      console.error("Ulaşım verileri yüklenemedi:", e);
+      console.error("Ulaşım verileri güncellenemedi, çevrimdışı önbellek kullanılıyor:", e);
     } finally {
       setLoading(false);
     }

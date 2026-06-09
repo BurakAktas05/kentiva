@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.burak.belediyeapp.service.ai.GeminiService;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -22,6 +23,7 @@ import java.util.UUID;
 public class ReportDuplicateLinkService {
 
     private final IReportRepository reportRepository;
+    private final GeminiService geminiService;
 
     @Value("${app.report.duplicate-radius-meters:75}")
     private double radiusMeters;
@@ -35,16 +37,36 @@ public class ReportDuplicateLinkService {
         double lng = report.getLocation().getX();
         String municipalityId = report.getMunicipality().getId();
 
-        // Duplicate kümeleme için bir aşamada en fazla 50 yakın aktif kayıt yeterli;
-        // sayfa boyutu büyütülmek istenirse property ile değiştirilebilir.
+        // Duplicate kümeleme için bir aşamada en fazla 15 yakın aktif kayıt yeterlidir.
         List<Report> nearby = reportRepository.findActiveNearbyInMunicipality(
-                lat, lng, radiusMeters, municipalityId, report.getId(), 50);
+                lat, lng, radiusMeters, municipalityId, report.getId(), 15);
         if (nearby.isEmpty()) {
             return;
         }
 
-        String groupId = resolveGroupId(nearby, report.getDuplicateGroupId());
-        Set<Report> toUpdate = new LinkedHashSet<>(nearby);
+        List<Report> duplicatesToLink;
+        List<String> duplicateIds = geminiService.findDuplicateReports(report, nearby);
+
+        if (duplicateIds == null) {
+            // Hata veya API key eksikliği durumunda mesafe tabanlı (fail-safe) fallback
+            log.info("Semantik analiz yapilamadi veya atlandi. Konum tabanli varsayilan birlestirme uygulaniyor.");
+            duplicatesToLink = nearby;
+        } else {
+            // Gemini tarafından aynı probleme ait olduğu doğrulananları filtrele
+            duplicatesToLink = new java.util.ArrayList<>();
+            for (Report r : nearby) {
+                if (duplicateIds.contains(r.getId())) {
+                    duplicatesToLink.add(r);
+                }
+            }
+        }
+
+        if (duplicatesToLink.isEmpty()) {
+            return;
+        }
+
+        String groupId = resolveGroupId(duplicatesToLink, report.getDuplicateGroupId());
+        Set<Report> toUpdate = new LinkedHashSet<>(duplicatesToLink);
         toUpdate.add(report);
 
         // Save-in-loop yerine tek saveAll: flush sayısını azaltır, JDBC batch çalışır.

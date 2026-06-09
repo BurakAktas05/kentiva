@@ -15,4 +15,6 @@ public interface IMunicipalitySurveyVoteRepository extends JpaRepository<Municip
     List<MunicipalitySurveyVote> findBySurveyId(String surveyId);
 
     Optional<MunicipalitySurveyVote> findBySurveyIdAndUserId(String surveyId, String userId);
+    
+    List<MunicipalitySurveyVote> findByUserId(String userId);
 }

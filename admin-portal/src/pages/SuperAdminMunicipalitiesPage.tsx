@@ -32,7 +32,7 @@ export default function SuperAdminMunicipalitiesPage() {
     setLoading(true);
     api
       .get('/admin/municipalities')
-      .then((res) => setRows(res.data.data as MunicipalityRow[]))
+      .then((res) => setRows((res.data.data?.content ?? []) as MunicipalityRow[]))
       .catch(() => setMsg('Liste yüklenemedi.'))
       .finally(() => setLoading(false));
   }, []);

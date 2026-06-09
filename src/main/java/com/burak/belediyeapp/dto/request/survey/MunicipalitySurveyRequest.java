@@ -10,5 +10,6 @@ public record MunicipalitySurveyRequest(
         @NotBlank @Size(max = 150) String option2,
         @Size(max = 150) String option3,
         @Size(max = 150) String option4,
+        @Size(max = 50) String category,
         Boolean active
 ) {}

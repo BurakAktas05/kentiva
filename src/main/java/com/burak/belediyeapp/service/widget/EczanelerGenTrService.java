@@ -18,6 +18,12 @@ import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.beans.factory.annotation.Autowired;
+import com.burak.belediyeapp.config.CacheNames;
+import java.util.Comparator;
+
 /**
  * Free, no-key on-duty pharmacy source backed by eczaneler.gen.tr.
  * We only surface the currently active on-duty list and ignore nearby fallback rows.
@@ -70,6 +76,10 @@ public class EczanelerGenTrService {
             .defaultHeader("Accept-Language", "tr,en;q=0.8")
             .build();
 
+    @Lazy
+    @Autowired
+    private EczanelerGenTrService self;
+
     public List<PharmacyWidgetItem> fetchOnDuty(
             Municipality municipality, double userLat, double userLng, int limit) {
 
@@ -93,7 +103,51 @@ public class EczanelerGenTrService {
         if (resolvedCity == null || resolvedCity.isBlank()) {
             return List.of();
         }
-        return fetch(resolvedCity, resolvedDistrict, limit);
+        List<PharmacyWidgetItem> cachedList = self.fetchOnDutyCached(municipality.getId(), resolvedCity, resolvedDistrict);
+        return cachedList.stream()
+                .map(p -> new PharmacyWidgetItem(
+                        p.name(),
+                        p.address(),
+                        (p.lat() == null || p.lng() == null) ? null : haversineMeters(userLat, userLng, p.lat(), p.lng()),
+                        p.lat(),
+                        p.lng(),
+                        p.onDuty(),
+                        p.phone(),
+                        p.dutyVerified()
+                ))
+                .sorted(Comparator.comparingDouble(p -> p.distanceMeters() != null ? p.distanceMeters() : 1e9))
+                .limit(limit)
+                .toList();
+    }
+
+    @Cacheable(
+            value = CacheNames.DUTY_PHARMACY,
+            key = "T(com.burak.belediyeapp.service.widget.DutyPharmacyCacheKeys).key(#municipalityId, #citySlug, #districtSlug)"
+    )
+    public List<PharmacyWidgetItem> fetchOnDutyCached(String municipalityId, String citySlug, String districtSlug) {
+        List<PharmacyWidgetItem> rawList = fetch(citySlug, districtSlug, Integer.MAX_VALUE);
+        List<PharmacyWidgetItem> geocoded = new ArrayList<>();
+        for (PharmacyWidgetItem p : rawList) {
+            Optional<NominatimReverseGeocodeService.Coords> coords = geocodeService.geocode(p.address());
+            if (coords.isPresent()) {
+                geocoded.add(new PharmacyWidgetItem(
+                        p.name(),
+                        p.address(),
+                        null,
+                        coords.get().lat(),
+                        coords.get().lng(),
+                        p.onDuty(),
+                        p.phone(),
+                        p.dutyVerified()
+                ));
+            } else {
+                geocoded.add(p);
+            }
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException ignored) {}
+        }
+        return geocoded;
     }
 
     private List<PharmacyWidgetItem> fetch(String citySlug, String districtSlug, int limit) {
@@ -111,6 +165,16 @@ public class EczanelerGenTrService {
             log.warn("Eczaneler.gen.tr call failed ({}): {}", uri, e.getMessage());
             return List.of();
         }
+    }
+
+    private static double haversineMeters(double lat1, double lon1, double lat2, double lon2) {
+        double r = 6371000;
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        return r * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 
     List<PharmacyWidgetItem> parse(String html, int limit) {

@@ -60,6 +60,24 @@ public final class ReportLanguageMessages {
         };
     }
 
+    public static String resolvedPushTitle(String lang, String municipalityName) {
+        return switch (normalizeLang(lang)) {
+            case "en" -> municipalityName + " — Report resolved";
+            case "ar" -> municipalityName + " — تم حل بلاغك";
+            default -> municipalityName + " — Bildiriminiz Çözüldü";
+        };
+    }
+
+    public static String resolvedPushBody(String lang, String title, String staffNote) {
+        String note = formatNote(lang, staffNote);
+        return switch (normalizeLang(lang)) {
+            case "en" -> "Your report \"" + title + "\" has been resolved." + note;
+            case "ar" -> "تم حل بلاغك \"" + title + "\"." + note;
+            default -> "\"" + title + "\" başlıklı bildiriminiz çözüme kavuşturulmuştur." + note;
+        };
+    }
+
+
     public static String municipalActorLabel(String lang) {
         return switch (normalizeLang(lang)) {
             case "en" -> "Municipality";

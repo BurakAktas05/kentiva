@@ -451,19 +451,21 @@ const MunicipalityDashboard = ({ user }: { user: AuthenticatedPortalUser }) => {
         </section>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {statCards.map((stat) => (
           <div
             key={stat.name}
-            className="group rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm transition-all hover:border-primary/20 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-primary/25"
+            className="group flex items-center gap-3 rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm transition-all hover:border-primary/20 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-primary/25"
           >
             <div
-              className={`mb-4 flex h-11 w-11 items-center justify-center rounded-xl ${stat.iconWrap}`}
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${stat.iconWrap}`}
             >
-              <stat.icon size={22} strokeWidth={2} />
+              <stat.icon size={18} strokeWidth={2.2} />
             </div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{stat.name}</p>
-            <p className="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-white">{stat.value}</p>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">{stat.name}</p>
+              <p className="text-xl font-extrabold tabular-nums text-slate-900 dark:text-white leading-none mt-0.5">{stat.value}</p>
+            </div>
           </div>
         ))}
       </div>

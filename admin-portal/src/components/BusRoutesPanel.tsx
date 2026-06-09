@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Bus, FileSpreadsheet, FileText, Loader2, Star, UploadCloud } from 'lucide-react';
+import { Bus, FileSpreadsheet, FileText, Loader2, UploadCloud } from 'lucide-react';
 import api from '../api';
 
 type RouteScheduleInfo = {

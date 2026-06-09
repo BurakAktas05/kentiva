@@ -87,6 +87,13 @@ public class Municipality extends BaseEntity {
     @Column(name = "push_rejected_body_template", columnDefinition = "TEXT")
     private String pushRejectedBodyTemplate;
 
+    @Column(name = "push_resolved_title_template", length = 200)
+    private String pushResolvedTitleTemplate;
+
+    @Column(name = "push_resolved_body_template", columnDefinition = "TEXT")
+    private String pushResolvedBodyTemplate;
+
+
     /** NetGSM gönderici adı (belediye markası) */
     @Column(name = "sms_sender_header", length = 11)
     private String smsSenderHeader;

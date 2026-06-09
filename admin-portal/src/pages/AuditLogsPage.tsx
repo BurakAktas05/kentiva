@@ -71,7 +71,7 @@ export default function AuditLogsPage() {
     api
       .get('/admin/municipalities')
       .then((res) => {
-        const list = (res.data.data ?? []) as { id: string; name: string }[];
+        const list = (res.data.data?.content ?? []) as { id: string; name: string }[];
         setMunicipalities(list);
       })
       .catch(() => {});

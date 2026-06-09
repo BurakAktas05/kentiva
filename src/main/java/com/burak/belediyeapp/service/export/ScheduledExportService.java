@@ -9,6 +9,8 @@ import com.burak.belediyeapp.exception.ResourceNotFoundException;
 import com.burak.belediyeapp.repository.IExportRunRepository;
 import com.burak.belediyeapp.repository.IExportScheduleRepository;
 import com.burak.belediyeapp.repository.IMunicipalityRepository;
+import com.burak.belediyeapp.repository.IAppUserRepository;
+import com.burak.belediyeapp.service.email.EmailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -39,6 +41,8 @@ public class ScheduledExportService {
     private final IExportRunRepository runRepository;
     private final IMunicipalityRepository municipalityRepository;
     private final ExportService exportService;
+    private final IAppUserRepository userRepository;
+    private final EmailService emailService;
 
     @Value("${app.storage.local.upload-dir:uploads}")
     private String uploadDir;
@@ -68,6 +72,10 @@ public class ScheduledExportService {
 
         if (schedule.getFrequency() == ExportSchedule.ExportFrequency.WEEKLY) {
             while (next.getDayOfWeek() != DayOfWeek.MONDAY) {
+                next = next.plusDays(1);
+            }
+        } else if (schedule.getFrequency() == ExportSchedule.ExportFrequency.MONTHLY) {
+            while (next.getDayOfMonth() != 1) {
                 next = next.plusDays(1);
             }
         }
@@ -153,8 +161,10 @@ public class ScheduledExportService {
     @Scheduled(cron = "0 5 * * * *", zone = "Europe/Istanbul")
     @SchedulerLock(name = "ScheduledExportService_runDueSchedules", lockAtMostFor = "10m", lockAtLeastFor = "1m")
     public void runDueSchedules() {
-        int hour = LocalDateTime.now(ZONE).getHour();
-        DayOfWeek dayOfWeek = LocalDateTime.now(ZONE).getDayOfWeek();
+        LocalDateTime now = LocalDateTime.now(ZONE);
+        int hour = now.getHour();
+        DayOfWeek dayOfWeek = now.getDayOfWeek();
+        int dayOfMonth = now.getDayOfMonth();
 
         for (ExportSchedule schedule : scheduleRepository.findByEnabledTrue()) {
             if (schedule.getHourOfDay() != hour) {
@@ -162,6 +172,10 @@ public class ScheduledExportService {
             }
             if (schedule.getFrequency() == ExportSchedule.ExportFrequency.WEEKLY
                     && dayOfWeek != DayOfWeek.MONDAY) {
+                continue;
+            }
+            if (schedule.getFrequency() == ExportSchedule.ExportFrequency.MONTHLY
+                    && dayOfMonth != 1) {
                 continue;
             }
             if (alreadyRanThisPeriod(schedule)) {
@@ -200,6 +214,13 @@ public class ScheduledExportService {
 
         schedule.setLastRunAt(LocalDateTime.now(ZONE));
         scheduleRepository.save(schedule);
+
+        try {
+            sendEmailToManagers(schedule, file.toFile());
+        } catch (Exception e) {
+            log.error("Failed to send scheduled export email: {}", e.getMessage(), e);
+        }
+
         return runRepository.save(run);
     }
 
@@ -228,7 +249,46 @@ public class ScheduledExportService {
         if (schedule.getFrequency() == ExportSchedule.ExportFrequency.WEEKLY) {
             return schedule.getLastRunAt().isAfter(now.minusDays(6));
         }
+        if (schedule.getFrequency() == ExportSchedule.ExportFrequency.MONTHLY) {
+            return schedule.getLastRunAt().isAfter(now.minusDays(27));
+        }
         return schedule.getLastRunAt().toLocalDate().equals(now.toLocalDate());
+    }
+
+    private void sendEmailToManagers(ExportSchedule schedule, java.io.File file) {
+        String municipalityId = schedule.getMunicipality().getId();
+        List<AppUser> managers = userRepository.findAllByRoles_NameAndMunicipalityId("ROLE_DEPT_MANAGER", municipalityId);
+
+        if (managers.isEmpty()) {
+            log.warn("No department managers found for municipality ID: {}. Export email notification skipped.", municipalityId);
+            return;
+        }
+
+        String municipalityName = schedule.getMunicipality().getName();
+        String freqName = schedule.getFrequency() == ExportSchedule.ExportFrequency.DAILY ? "Günlük" :
+                schedule.getFrequency() == ExportSchedule.ExportFrequency.WEEKLY ? "Haftalık" : "Aylık";
+        String formatName = schedule.getFormat() == ExportSchedule.ExportFormat.PDF ? "PDF" : "Excel";
+
+        String subject = String.format("Kentiva - %s Planlı Rapor Dışa Aktarımı (%s)", municipalityName, freqName);
+        String text = String.format(
+                "Merhaba,\n\n%s Belediyesi için planlanmış olan %s rapor dışa aktarımı (%s formatında) başarıyla tamamlanmıştır.\n" +
+                "Ekli dosyada güncel rapor verilerini bulabilirsiniz.\n\n" +
+                "Sistem: Kentiva Akıllı Şehir Yönetim Platformu\nTarih: %s",
+                municipalityName,
+                freqName.toLowerCase(),
+                formatName,
+                LocalDateTime.now(ZONE).toString().substring(0, 19).replace('T', ' ')
+        );
+
+        for (AppUser manager : managers) {
+            if (manager.getEmail() != null && !manager.getEmail().isBlank()) {
+                try {
+                    emailService.sendEmailWithAttachment(manager.getEmail(), subject, text, file);
+                } catch (Exception e) {
+                    log.error("Failed to send report email to manager {}: {}", manager.getEmail(), e.getMessage());
+                }
+            }
+        }
     }
 
     private ExportSchedule findOwnedSchedule(String scheduleId, AppUser user) {

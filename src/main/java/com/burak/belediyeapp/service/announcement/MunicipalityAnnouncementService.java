@@ -10,6 +10,7 @@ import com.burak.belediyeapp.exception.ResourceNotFoundException;
 import com.burak.belediyeapp.repository.IMunicipalityAnnouncementRepository;
 import com.burak.belediyeapp.service.media.MediaGuardClient;
 import com.burak.belediyeapp.service.storage.StorageService;
+import com.burak.belediyeapp.service.notification.AnnouncementNotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +26,7 @@ public class MunicipalityAnnouncementService {
     private final IMunicipalityAnnouncementRepository announcementRepository;
     private final StorageService storageService;
     private final MediaGuardClient mediaGuardClient;
+    private final AnnouncementNotificationService announcementNotificationService;
 
     @Transactional(readOnly = true)
     public List<MunicipalityAnnouncementDto> listPublic(String municipalityId) {
@@ -57,7 +59,11 @@ public class MunicipalityAnnouncementService {
                 .endsAt(request.endsAt())
                 .active(request.active() == null || request.active())
                 .build();
-        return toDto(announcementRepository.save(announcement));
+        MunicipalityAnnouncement saved = announcementRepository.save(announcement);
+        if (saved.isActive()) {
+            announcementNotificationService.broadcast(saved.getId());
+        }
+        return toDto(saved);
     }
 
     @Transactional
@@ -70,10 +76,15 @@ public class MunicipalityAnnouncementService {
             announcement.setStartsAt(request.startsAt());
         }
         announcement.setEndsAt(request.endsAt());
+        boolean wasActive = announcement.isActive();
         if (request.active() != null) {
             announcement.setActive(request.active());
         }
-        return toDto(announcementRepository.save(announcement));
+        MunicipalityAnnouncement saved = announcementRepository.save(announcement);
+        if (saved.isActive() && !wasActive) {
+            announcementNotificationService.broadcast(saved.getId());
+        }
+        return toDto(saved);
     }
 
     @Transactional

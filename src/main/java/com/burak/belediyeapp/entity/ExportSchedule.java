@@ -47,6 +47,6 @@ public class ExportSchedule extends BaseEntity implements TenantAware {
     }
 
     public enum ExportFrequency {
-        DAILY, WEEKLY
+        DAILY, WEEKLY, MONTHLY
     }
 }

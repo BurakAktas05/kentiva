@@ -288,6 +288,15 @@ public class MunicipalityManagementService {
         return new NotificationTemplateAiResponse(text.trim());
     }
 
+    @Transactional
+    @EvictMunicipalityCaches
+    public void updateBoundaries(String id, String geoJson) {
+        if (!municipalityRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Belediye", "id", id);
+        }
+        municipalityRepository.updateBoundariesFromGeoJson(id, geoJson);
+    }
+
     private String resolveUniqueSlug(String requestedSlug, String name) {
         String base = requestedSlug != null && !requestedSlug.isBlank()
                 ? requestedSlug.trim().toLowerCase()

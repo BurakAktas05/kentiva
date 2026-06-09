@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Building2, ChevronRight, ClipboardList, MapPin, Info } from 'lucide-react';
+import { Building2, ChevronRight, ClipboardList, MapPin, Info, ArrowLeftRight } from 'lucide-react';
 import {
   getMyReports,
   getPublicAnnouncements,
@@ -110,76 +110,108 @@ export default function Home({
         )}
       </div>
 
-      {homeMunicipality?.id ? (
-        <div className="px-4 pb-4">
-          <WeatherWidgetCard tenant={homeMunicipality} lang={lang} isDark={isDark} />
-        </div>
-      ) : null}
-
-      {homeMunicipality && (
-        <div className="pb-4">
-          <div className="px-4 mb-2">
-            <h3 className={sectionTitleClass()}>{t('home.announcements.title', lang)}</h3>
-          </div>
-          {announcementsLoading ? (
-            <div className="mx-auto w-[78%] max-w-[320px] aspect-[16/9] animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800/40" />
-          ) : announcements.length === 0 ? (
-            <div className="mx-4 rounded-2xl border border-slate-200 bg-white p-5 text-center dark:border-slate-800 dark:bg-slate-900">
-              <Info className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-              <p className="text-xs text-slate-500">{t('home.announcements.empty', lang)}</p>
+      {homeMunicipality && !homeMunicipality.onboarded ? (
+        <div className="px-5 py-6">
+          <div className={`rounded-3xl border p-6 text-center shadow-lg transition-all ${
+            isDark 
+              ? 'border-amber-500/20 bg-gradient-to-br from-slate-900 to-amber-950/10' 
+              : 'border-amber-250 bg-gradient-to-br from-white to-amber-50/20'
+          }`}>
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500 shadow-inner">
+              <Building2 className="h-7 w-7" />
             </div>
-          ) : (
-            <AnnouncementCarousel
-              announcements={announcements}
-              lang={lang}
-              isDark={isDark}
-              onOpen={onOpenAnnouncement}
-            />
-          )}
-        </div>
-      )}
-
-      {!homeMunicipality?.id ? (
-        <div className="px-4">
-          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 dark:border-primary/30 dark:bg-primary/10">
-            <div className="flex gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
-                <Building2 className="h-5 w-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                  {t('home.municipalityBanner.title', lang)}
-                </p>
-                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                  {t('home.municipalityBanner.desc', lang)}
-                </p>
-                {onSelectMunicipality && (
-                  <button
-                    type="button"
-                    onClick={onSelectMunicipality}
-                    className="mt-3 inline-flex items-center gap-1 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-white"
-                  >
-                    {t('home.selectMunicipality', lang)}
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-            </div>
+            <h3 className={`text-base font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              {t('tenant.notOnboardedTitle', lang)}
+            </h3>
+            <p className="mt-2.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400 font-medium font-sans">
+              {t('tenant.notOnboardedDesc', lang)}
+            </p>
+            {onSelectMunicipality && (
+              <button
+                type="button"
+                onClick={onSelectMunicipality}
+                className="mt-6 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all"
+              >
+                <ArrowLeftRight className="h-4 w-4" />
+                {t('settings.changeMunicipality', lang)}
+              </button>
+            )}
           </div>
         </div>
       ) : (
         <>
-          <div className="pb-4">
-            <Surveys
-              municipality={homeMunicipality}
-              lang={lang}
-              isDark={isDark}
-              embedded
-              homeSection
-              onReputationChange={onReputationChange}
-            />
-          </div>
-          <div className="px-4">{reportsCard()}</div>
+          {homeMunicipality?.id ? (
+            <div className="px-4 pb-4">
+              <WeatherWidgetCard tenant={homeMunicipality} lang={lang} isDark={isDark} />
+            </div>
+          ) : null}
+
+          {homeMunicipality && (
+            <div className="pb-4">
+              <div className="px-4 mb-2">
+                <h3 className={sectionTitleClass()}>{t('home.announcements.title', lang)}</h3>
+              </div>
+              {announcementsLoading ? (
+                <div className="mx-auto w-[78%] max-w-[320px] aspect-[16/9] animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800/40" />
+              ) : announcements.length === 0 ? (
+                <div className="mx-4 rounded-2xl border border-slate-200 bg-white p-5 text-center dark:border-slate-800 dark:bg-slate-900">
+                  <Info className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-xs text-slate-500">{t('home.announcements.empty', lang)}</p>
+                </div>
+              ) : (
+                <AnnouncementCarousel
+                  announcements={announcements}
+                  lang={lang}
+                  isDark={isDark}
+                  onOpen={onOpenAnnouncement}
+                />
+              )}
+            </div>
+          )}
+
+          {!homeMunicipality?.id ? (
+            <div className="px-4">
+              <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 dark:border-primary/30 dark:bg-primary/10">
+                <div className="flex gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                    <Building2 className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                      {t('home.municipalityBanner.title', lang)}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                      {t('home.municipalityBanner.desc', lang)}
+                    </p>
+                    {onSelectMunicipality && (
+                      <button
+                        type="button"
+                        onClick={onSelectMunicipality}
+                        className="mt-3 inline-flex items-center gap-1 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-white"
+                      >
+                        {t('home.selectMunicipality', lang)}
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="pb-4">
+                <Surveys
+                  municipality={homeMunicipality}
+                  lang={lang}
+                  isDark={isDark}
+                  embedded
+                  homeSection
+                  onReputationChange={onReputationChange}
+                />
+              </div>
+              <div className="px-4">{reportsCard()}</div>
+            </>
+          )}
         </>
       )}
     </div>

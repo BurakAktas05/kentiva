@@ -89,7 +89,16 @@ export default function Surveys({
     }
   };
 
-  const displaySurveys = homeSection ? surveys.slice(0, 2) : surveys;
+  const displaySurveys = useMemo(() => {
+    const sorted = [...surveys].sort((a, b) => {
+      const aRec = a.recommended && !a.voted;
+      const bRec = b.recommended && !b.voted;
+      if (aRec && !bRec) return -1;
+      if (!aRec && bRec) return 1;
+      return 0;
+    });
+    return homeSection ? sorted.slice(0, 2) : sorted;
+  }, [surveys, homeSection]);
 
   return (
     <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className={homeSection ? 'pb-2' : 'pb-8'}>
@@ -166,13 +175,30 @@ export default function Surveys({
                 <motion.div
                   key={survey.id}
                   layout
-                  className={kentivaCard(isDark, hasVoted ? 'opacity-90' : '')}
+                  className={kentivaCard(
+                    isDark,
+                    hasVoted
+                      ? 'opacity-90'
+                      : survey.recommended
+                      ? 'ring-2 ring-amber-500/50 dark:ring-amber-400/50 bg-amber-50/5 dark:bg-amber-950/5 shadow-md shadow-amber-500/5'
+                      : ''
+                  )}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                      <BarChart3 className="h-3 w-3" />
-                      {hasVoted ? t('surveys.voted', lang) : t('surveys.municipality.badge', lang)}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                        <BarChart3 className="h-3 w-3" />
+                        {hasVoted ? t('surveys.voted', lang) : t('surveys.municipality.badge', lang)}
+                      </span>
+                      <span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-900 px-2.5 py-0.5 text-[10px] font-bold text-slate-700 dark:text-slate-300">
+                        {survey.category || 'Genel'}
+                      </span>
+                      {survey.recommended && !survey.voted && (
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 dark:bg-amber-500/20 px-2.5 py-0.5 text-[10px] font-extrabold text-amber-600 dark:text-amber-400 border border-amber-500/20 animate-pulse">
+                          ✨ Önerilen
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-1 text-[11px] font-bold text-slate-500">
                       <Users className="h-3.5 w-3.5" />
                       <span>{t('surveys.total.votes', lang).replace('{n}', String(totalVotes))}</span>

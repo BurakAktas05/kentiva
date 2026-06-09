@@ -41,4 +41,10 @@ public class PublicMunicipalityController {
     public ResponseEntity<ApiResponse<PublicMunicipalityDetailDto>> bySlug(@PathVariable String slug) {
         return ResponseEntity.ok(ApiResponse.success(publicMunicipalityService.getBySlug(slug)));
     }
+
+    @GetMapping("/{slug}/resolved-reports")
+    @Operation(summary = "Belediyenin çözülen örnek ihbarları (AI Seçimli)")
+    public ResponseEntity<ApiResponse<List<com.burak.belediyeapp.dto.response.publicapi.PublicResolvedReportDto>>> getResolvedReports(@PathVariable String slug) {
+        return ResponseEntity.ok(ApiResponse.success(publicMunicipalityService.getResolvedReportsForPublic(slug)));
+    }
 }

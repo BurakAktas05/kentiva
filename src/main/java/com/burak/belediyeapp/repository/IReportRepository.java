@@ -256,4 +256,15 @@ public interface IReportRepository extends JpaRepository<Report, String> {
             LIMIT 15
             """, nativeQuery = true)
     List<Object[]> findPredictiveHotspots(@Param("municipalityId") String municipalityId);
+
+    @Query("""
+            SELECT r FROM Report r
+            LEFT JOIN FETCH r.category
+            WHERE r.municipality.slug = :municipalitySlug
+              AND r.reportStatus = com.burak.belediyeapp.entity.ReportStatus.RESOLVED
+            ORDER BY r.updatedAt DESC
+            """)
+    List<Report> findRecentResolvedReportsByMunicipalitySlug(
+            @Param("municipalitySlug") String municipalitySlug,
+            org.springframework.data.domain.Pageable pageable);
 }

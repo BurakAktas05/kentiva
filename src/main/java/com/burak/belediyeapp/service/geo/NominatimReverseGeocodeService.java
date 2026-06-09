@@ -26,6 +26,37 @@ public class NominatimReverseGeocodeService {
 
     public record AdminArea(String provinceName, String districtName, String provinceSlug, String districtSlug) {}
 
+    public record Coords(double lat, double lng) {}
+
+    public Optional<Coords> geocode(String address) {
+        if (address == null || address.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            String url = String.format(
+                    "https://nominatim.openstreetmap.org/search?q=%s&format=json&limit=1",
+                    java.net.URLEncoder.encode(address.trim(), java.nio.charset.StandardCharsets.UTF_8.name()));
+            String body = client.get().uri(url).retrieve().body(String.class);
+            if (body == null || body.isBlank()) {
+                return Optional.empty();
+            }
+            org.json.JSONArray root = new org.json.JSONArray(body);
+            if (root.length() == 0) {
+                return Optional.empty();
+            }
+            JSONObject first = root.getJSONObject(0);
+            double lat = first.optDouble("lat", Double.NaN);
+            double lng = first.optDouble("lon", Double.NaN);
+            if (Double.isNaN(lat) || Double.isNaN(lng)) {
+                return Optional.empty();
+            }
+            return Optional.of(new Coords(lat, lng));
+        } catch (Exception e) {
+            log.warn("Nominatim geocode failed for address: {}. Error: {}", address, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
     public Optional<AdminArea> resolve(double lat, double lng) {
         try {
             String url = String.format(

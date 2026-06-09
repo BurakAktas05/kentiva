@@ -12,4 +12,5 @@ public interface IStarredRouteRepository extends JpaRepository<StarredRoute, Str
     List<StarredRoute> findAllByUserId(String userId);
     Optional<StarredRoute> findByUserIdAndRouteId(String userId, String routeId);
     boolean existsByUserIdAndRouteId(String userId, String routeId);
+    List<StarredRoute> findAllByRouteId(String routeId);
 }

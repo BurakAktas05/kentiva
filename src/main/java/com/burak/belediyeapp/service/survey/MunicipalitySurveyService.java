@@ -1,7 +1,9 @@
 package com.burak.belediyeapp.service.survey;
 
 import com.burak.belediyeapp.dto.request.survey.MunicipalitySurveyRequest;
+import com.burak.belediyeapp.dto.response.survey.CategoryStatsDto;
 import com.burak.belediyeapp.dto.response.survey.MunicipalitySurveyDetailDto;
+import com.burak.belediyeapp.dto.response.survey.SurveyAnalyticsDto;
 import com.burak.belediyeapp.entity.AppUser;
 import com.burak.belediyeapp.entity.Municipality;
 import com.burak.belediyeapp.entity.MunicipalitySurvey;
@@ -12,14 +14,16 @@ import com.burak.belediyeapp.repository.IAppUserRepository;
 import com.burak.belediyeapp.repository.IMunicipalitySurveyRepository;
 import com.burak.belediyeapp.repository.IMunicipalitySurveyVoteRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class MunicipalitySurveyService {
 
     private final IMunicipalitySurveyRepository surveyRepository;
@@ -28,8 +32,16 @@ public class MunicipalitySurveyService {
 
     @Transactional(readOnly = true)
     public List<MunicipalitySurveyDetailDto> listPublic(String municipalityId, AppUser user) {
-        return surveyRepository.findByMunicipalityIdAndActiveTrueOrderByCreatedAtDesc(municipalityId).stream()
-                .map(s -> toDetailDto(s, user, false, null))
+        List<MunicipalitySurvey> activeSurveys = surveyRepository.findByMunicipalityIdAndActiveTrueOrderByCreatedAtDesc(municipalityId);
+        String recommendedId = null;
+
+        if (user != null && !activeSurveys.isEmpty()) {
+            recommendedId = calculateRecommendedSurveyId(activeSurveys, user);
+        }
+
+        final String finalRecId = recommendedId;
+        return activeSurveys.stream()
+                .map(s -> toDetailDto(s, user, false, null, s.getId().equals(finalRecId)))
                 .toList();
     }
 
@@ -37,7 +49,7 @@ public class MunicipalitySurveyService {
     public List<MunicipalitySurveyDetailDto> listForAdmin(AppUser user) {
         String mid = requireMunicipality(user).getId();
         return surveyRepository.findByMunicipalityIdOrderByCreatedAtDesc(mid).stream()
-                .map(s -> toDetailDto(s, null, false, null))
+                .map(s -> toDetailDto(s, null, false, null, false))
                 .toList();
     }
 
@@ -66,7 +78,7 @@ public class MunicipalitySurveyService {
         user.setReputationScore(user.getReputationScore() + 15);
         userRepository.save(user);
 
-        return toDetailDto(survey, user, true, selectedOption);
+        return toDetailDto(survey, user, true, selectedOption, false);
     }
 
     @Transactional
@@ -80,10 +92,11 @@ public class MunicipalitySurveyService {
                 .option2(request.option2().trim())
                 .option3(normalizeOptionalOption(request.option3()))
                 .option4(normalizeOptionalOption(request.option4()))
+                .category(request.category() == null || request.category().isBlank() ? "Genel" : request.category().trim())
                 .active(request.active() == null || request.active())
                 .build();
         MunicipalitySurvey saved = surveyRepository.save(survey);
-        return toDetailDto(saved, null, false, null);
+        return toDetailDto(saved, null, false, null, false);
     }
 
     @Transactional
@@ -93,6 +106,10 @@ public class MunicipalitySurveyService {
 
         survey.setTitle(request.title().trim());
         survey.setDescription(blankToNull(request.description()));
+
+        if (request.category() != null) {
+            survey.setCategory(request.category().isBlank() ? "Genel" : request.category().trim());
+        }
 
         if (hasVotes) {
             if (optionTextChanged(survey.getOption1(), request.option1())
@@ -114,7 +131,39 @@ public class MunicipalitySurveyService {
             survey.setActive(request.active());
         }
 
-        return toDetailDto(surveyRepository.save(survey), null, false, null);
+        return toDetailDto(surveyRepository.save(survey), null, false, null, false);
+    }
+
+    @Transactional(readOnly = true)
+    public SurveyAnalyticsDto getAnalytics(AppUser user) {
+        String mid = requireMunicipality(user).getId();
+        List<MunicipalitySurvey> allSurveys = surveyRepository.findByMunicipalityIdOrderByCreatedAtDesc(mid);
+
+        long totalSurveys = allSurveys.size();
+        long activeSurveys = allSurveys.stream().filter(MunicipalitySurvey::isActive).count();
+        long totalVotes = 0;
+
+        Map<String, long[]> statsMap = new HashMap<>(); // category -> [surveyCount, voteCount]
+
+        for (MunicipalitySurvey s : allSurveys) {
+            long o1 = surveyVoteRepository.countBySurveyIdAndSelectedOption(s.getId(), 1);
+            long o2 = surveyVoteRepository.countBySurveyIdAndSelectedOption(s.getId(), 2);
+            long o3 = surveyVoteRepository.countBySurveyIdAndSelectedOption(s.getId(), 3);
+            long o4 = surveyVoteRepository.countBySurveyIdAndSelectedOption(s.getId(), 4);
+            long votes = o1 + o2 + o3 + o4;
+            totalVotes += votes;
+
+            String cat = s.getCategory() != null ? s.getCategory() : "Genel";
+            long[] current = statsMap.computeIfAbsent(cat, k -> new long[2]);
+            current[0]++; // survey count
+            current[1] += votes; // vote count
+        }
+
+        List<CategoryStatsDto> catStats = statsMap.entrySet().stream()
+                .map(e -> new CategoryStatsDto(e.getKey(), e.getValue()[0], e.getValue()[1]))
+                .toList();
+
+        return new SurveyAnalyticsDto(totalSurveys, activeSurveys, totalVotes, catStats);
     }
 
     @Transactional
@@ -131,8 +180,65 @@ public class MunicipalitySurveyService {
         return survey;
     }
 
+    private String calculateRecommendedSurveyId(List<MunicipalitySurvey> activeSurveys, AppUser user) {
+        List<MunicipalitySurvey> unvotedActive = activeSurveys.stream()
+                .filter(s -> !surveyVoteRepository.existsBySurveyIdAndUserId(s.getId(), user.getId()))
+                .toList();
+
+        if (unvotedActive.isEmpty()) {
+            return null;
+        }
+
+        List<MunicipalitySurveyVote> userVotes = surveyVoteRepository.findByUserId(user.getId());
+
+        if (userVotes.isEmpty()) {
+            return findMostVotedSurveyId(unvotedActive);
+        }
+
+        Map<String, Long> categoryCounts = userVotes.stream()
+                .map(v -> v.getSurvey().getCategory())
+                .filter(Objects::nonNull)
+                .collect(Collectors.groupingBy(c -> c, Collectors.counting()));
+
+        if (categoryCounts.isEmpty()) {
+            return findMostVotedSurveyId(unvotedActive);
+        }
+
+        String topCategory = categoryCounts.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse("Genel");
+
+        Optional<MunicipalitySurvey> recommendedOpt = unvotedActive.stream()
+                .filter(s -> topCategory.equalsIgnoreCase(s.getCategory()))
+                .findFirst();
+
+        if (recommendedOpt.isPresent()) {
+            return recommendedOpt.get().getId();
+        }
+
+        return findMostVotedSurveyId(unvotedActive);
+    }
+
+    private String findMostVotedSurveyId(List<MunicipalitySurvey> surveys) {
+        String mostVotedId = null;
+        long maxVotes = -1;
+        for (MunicipalitySurvey s : surveys) {
+            long o1 = surveyVoteRepository.countBySurveyIdAndSelectedOption(s.getId(), 1);
+            long o2 = surveyVoteRepository.countBySurveyIdAndSelectedOption(s.getId(), 2);
+            long o3 = surveyVoteRepository.countBySurveyIdAndSelectedOption(s.getId(), 3);
+            long o4 = surveyVoteRepository.countBySurveyIdAndSelectedOption(s.getId(), 4);
+            long total = o1 + o2 + o3 + o4;
+            if (total > maxVotes) {
+                maxVotes = total;
+                mostVotedId = s.getId();
+            }
+        }
+        return mostVotedId;
+    }
+
     private MunicipalitySurveyDetailDto toDetailDto(
-            MunicipalitySurvey s, AppUser user, boolean forceVoted, Integer votedOptionOverride) {
+            MunicipalitySurvey s, AppUser user, boolean forceVoted, Integer votedOptionOverride, boolean recommended) {
         long o1 = surveyVoteRepository.countBySurveyIdAndSelectedOption(s.getId(), 1);
         long o2 = surveyVoteRepository.countBySurveyIdAndSelectedOption(s.getId(), 2);
         long o3 = surveyVoteRepository.countBySurveyIdAndSelectedOption(s.getId(), 3);
@@ -156,7 +262,8 @@ public class MunicipalitySurveyService {
         return new MunicipalitySurveyDetailDto(
                 s.getId(), s.getTitle(), s.getDescription(),
                 s.getOption1(), s.getOption2(), s.getOption3(), s.getOption4(),
-                s.isActive(), voted, votedOption, o1, o2, o3, o4, total
+                s.getCategory() != null ? s.getCategory() : "Genel",
+                s.isActive(), voted, votedOption, recommended, o1, o2, o3, o4, total
         );
     }
 
@@ -178,7 +285,7 @@ public class MunicipalitySurveyService {
         if (normalizedCurrent == null || normalizedCurrent.isBlank()) {
             normalizedCurrent = null;
         }
-        return !java.util.Objects.equals(normalizedCurrent, normalizedIncoming);
+        return !Objects.equals(normalizedCurrent, normalizedIncoming);
     }
 
     private static String normalizeOptionalOption(String value) {

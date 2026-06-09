@@ -6,6 +6,7 @@ import com.burak.belediyeapp.mapper.IReportMapper;
 import com.burak.belediyeapp.repository.IReportRepository;
 import com.burak.belediyeapp.service.media.MediaGuardClient;
 import com.burak.belediyeapp.service.media.MediaGuardClient.ScanResult;
+import com.burak.belediyeapp.service.media.MediaValidationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +39,7 @@ public class ReportCreatedEventListener {
     private final IReportMapper reportMapper;
     private final ReportService reportService;
     private final MediaGuardClient mediaGuardClient;
+    private final MediaValidationService mediaValidationService;
 
     /** WebSocket opsiyonel — Railway gibi ortamlarda olmayabilir. */
     @Autowired(required = false)
@@ -136,6 +138,16 @@ public class ReportCreatedEventListener {
                         : "Uygunsuz fotoğraf içeriği (selfie veya yüz tespiti).";
                 log.warn("Media-guard reddi: reportId={}, reason={}", reportId, reason);
                 reportService.systemRejectReport(reportId, reason);
+                return;
+            }
+
+            MediaValidationService.ValidationResult geminiResult = mediaValidationService.validateImage(bytes, "image/jpeg");
+            if (!geminiResult.safe()) {
+                String reason = geminiResult.reason() != null && !geminiResult.reason().isBlank()
+                        ? geminiResult.reason()
+                        : "Görsel güvenlik kuralları ihlali (" + geminiResult.code() + ").";
+                log.warn("Gemini Safe Search reddi: reportId={}, reason={}, code={}", reportId, reason, geminiResult.code());
+                reportService.systemRejectReport(reportId, "[Görsel Güvenlik] " + reason);
                 return;
             }
         }

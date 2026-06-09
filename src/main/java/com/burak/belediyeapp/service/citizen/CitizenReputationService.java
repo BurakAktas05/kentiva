@@ -84,7 +84,10 @@ public class CitizenReputationService {
             return false;
         }
         String r = reason.toLowerCase();
-        return r.contains("selfie") || r.contains("yüz") || r.contains("yuz") || r.contains("face");
+        return r.contains("selfie") || r.contains("yüz") || r.contains("yuz") || r.contains("face")
+                || r.contains("müstehcen") || r.contains("çıplak") || r.contains("violence")
+                || r.contains("şiddet") || r.contains("uygunsuz") || r.contains("güvenlik")
+                || r.contains("obscenity") || r.contains("illegal");
     }
 
     private static boolean isCitizen(AppUser user) {

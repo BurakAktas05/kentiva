@@ -335,22 +335,22 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
             </div>
 
             {/* Visual Stepper */}
-            <div className={`rounded-2xl border p-4 mb-4 ${
-              isDark ? 'border-slate-800 bg-slate-950/40' : 'border-slate-100 bg-slate-50/40'
+            <div className={`rounded-2xl border p-4.5 mb-5 ${
+              isDark ? 'border-slate-800 bg-slate-950/20' : 'border-slate-100 bg-slate-50/25'
             }`}>
-              <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-4">
+              <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-4.5">
                 <TrendingUp className="h-3.5 w-3.5 text-primary" />
                 {ui.stageTitle}
               </div>
-              <div className="relative flex items-center justify-between">
+              <div className="relative flex items-center justify-between px-2">
                 {/* Stepper progress track background */}
-                <div className="absolute left-0 right-0 top-[18px] h-0.5 bg-slate-200 dark:bg-slate-800 -z-10" />
+                <div className="absolute left-4 right-4 top-[18px] h-0.5 bg-slate-200 dark:bg-slate-800 -z-10" />
                 {/* Stepper active track */}
                 <div
-                  className={`absolute left-0 top-[18px] h-0.5 transition-all duration-500 -z-10 ${
-                    stepperInfo.isRejected ? 'bg-red-500' : 'bg-primary'
+                  className={`absolute left-4 top-[18px] h-0.5 transition-all duration-500 -z-10 ${
+                    stepperInfo.isRejected ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]' : 'bg-primary shadow-[0_0_8px_rgba(14,165,233,0.5)]'
                   }`}
-                  style={{ width: `${(stepperInfo.activeStep / 2) * 100}%` }}
+                  style={{ width: stepperInfo.activeStep === 0 ? '0%' : stepperInfo.activeStep === 1 ? 'calc(50% - 1rem)' : 'calc(100% - 2rem)' }}
                 />
 
                 {/* Stepper items */}
@@ -369,30 +369,30 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
                         className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs border-2 transition-all duration-300 ${
                           isActive
                             ? stepperInfo.isRejected
-                              ? 'bg-red-500 border-red-500 text-white shadow-lg shadow-red-500/20 scale-110'
-                              : 'bg-primary border-primary text-white shadow-lg shadow-primary/20 scale-110'
+                              ? 'bg-red-500 border-red-500 text-white shadow-md shadow-red-500/25 scale-110'
+                              : 'bg-primary border-primary text-white shadow-md shadow-primary/25 scale-110'
                             : isCompleted
                             ? stepperInfo.isRejected && idx === 2
                               ? 'bg-red-100 border-red-500 text-red-600 dark:bg-red-950/20'
-                              : 'bg-primary/10 border-primary text-primary dark:bg-primary/20 dark:text-primary-light'
-                            : 'bg-white border-slate-200 text-slate-400 dark:bg-slate-900 dark:border-slate-800'
+                              : 'bg-primary/10 border-primary text-primary dark:bg-primary/20 dark:text-sky-300'
+                            : 'bg-white border-slate-250 text-slate-400 dark:bg-slate-900 dark:border-slate-800'
                         }`}
                       >
                         {isCompleted ? (
-                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3.2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                           </svg>
                         ) : isActive ? (
-                          <span className="relative flex h-2.5 w-2.5">
+                          <span className="relative flex h-2 w-2">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
                           </span>
                         ) : (
                           idx + 1
                         )}
                       </div>
                       <span
-                        className={`mt-2.5 text-[10px] font-bold text-center tracking-wide ${
+                        className={`mt-2 text-[10px] font-black tracking-wide text-center ${
                           isActive
                             ? stepperInfo.isRejected
                               ? 'text-red-500'
@@ -422,22 +422,26 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`rounded-2xl border p-4 mb-4 border-l-4 ${
+                className={`rounded-2xl border p-4.5 mb-4 border-l-4 shadow-sm relative overflow-hidden ${
                   isDark
-                    ? 'border-emerald-500/80 bg-emerald-950/15 text-emerald-200 border-l-emerald-500'
-                    : 'border-emerald-200 bg-emerald-50/35 text-emerald-900 border-l-emerald-500'
+                    ? 'border-emerald-500/30 bg-gradient-to-br from-slate-900 to-emerald-950/10 text-slate-150 border-l-emerald-500'
+                    : 'border-emerald-150 bg-gradient-to-br from-white to-emerald-50/20 text-slate-800 border-l-emerald-500'
                 }`}
               >
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                  </span>
-                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                    {ui.officialResponse}
-                  </h4>
+                <CheckCircle2 className="absolute -right-3 -bottom-3 h-20 w-20 text-emerald-500/5 pointer-events-none" />
+                
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-5.5 w-5.5 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm shadow-emerald-500/20">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                    </span>
+                    <h4 className="text-xs font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                      {ui.officialResponse}
+                    </h4>
+                  </div>
                   {officialResponse.actorName && (
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold">
-                      • {officialResponse.actorName}
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">
+                      {officialResponse.actorName}
                     </span>
                   )}
                 </div>
@@ -445,7 +449,7 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
                   {officialResponse.note}
                 </p>
                 {officialResponse.at && (
-                  <div className="mt-2.5 text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">
+                  <div className="mt-3 text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">
                     {new Date(officialResponse.at).toLocaleString(locale)}
                   </div>
                 )}
@@ -626,20 +630,22 @@ function QuickInfoTile({
   isDark: boolean;
 }) {
   return (
-    <div className={`rounded-2xl border p-3.5 transition-all duration-200 ${
+    <div className={`rounded-xl border p-3.5 transition-all duration-200 flex items-center gap-3 ${
       isDark 
-        ? 'border-slate-800 bg-slate-900/40 hover:bg-slate-900/60' 
-        : 'border-slate-150 bg-slate-50/40 hover:bg-slate-50'
+        ? 'border-slate-800 bg-slate-900/30 hover:bg-slate-900/50 hover:border-slate-700/80' 
+        : 'border-slate-150 bg-slate-50/30 hover:bg-slate-50 hover:border-slate-200'
     }`}>
-      <div className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-        <span className="text-primary dark:text-primary-light">
-          {icon}
-        </span>
-        {label}
+      <div className="p-2 rounded-lg bg-primary/5 text-primary dark:bg-primary/20 dark:text-sky-300 shrink-0">
+        {icon}
       </div>
-      <p className={`mt-2 text-xs font-bold leading-normal truncate ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-        {value}
-      </p>
+      <div className="min-w-0 flex-1">
+        <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
+          {label}
+        </span>
+        <p className={`mt-0.5 text-xs font-bold leading-normal truncate ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+          {value}
+        </p>
+      </div>
     </div>
   );
 }

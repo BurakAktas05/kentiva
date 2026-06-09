@@ -46,11 +46,14 @@ public class CitizenNotificationDispatcher {
                 .map(h -> h.getNote())
                 .orElse("");
 
-        statusHandlers.stream()
+        List<ReportStatusNotificationHandler> matched = statusHandlers.stream()
                 .filter(h -> h.supports(status))
-                .findFirst()
-                .ifPresentOrElse(
-                        h -> h.deliver(reporter, loaded, note),
-                        () -> log.warn("Durum için handler yok: {}", status));
+                .toList();
+
+        if (matched.isEmpty()) {
+            log.warn("Durum için handler yok: {}", status);
+        } else {
+            matched.forEach(h -> h.deliver(reporter, loaded, note));
+        }
     }
 }

@@ -16,8 +16,10 @@ import { StatCard } from '../components/StatCard';
 import {
   fetchPublicMunicipalityBySlug,
   fetchPublicMunicipalityStats,
+  fetchPublicMunicipalityResolvedReports,
   type PublicMunicipalityDetail,
   type PublicMunicipalityStat,
+  type PublicResolvedReport,
 } from '../lib/api';
 import { resolveMediaUrl } from '../lib/media';
 import { mainSiteUrl, municipalityPublicUrl } from '../lib/tenantSite';
@@ -27,6 +29,7 @@ export default function MunicipalityPage({ fixedSlug }: { fixedSlug?: string }) 
   const activeSlug = fixedSlug || slug;
   const [detail, setDetail] = useState<PublicMunicipalityDetail | null>(null);
   const [stat, setStat] = useState<PublicMunicipalityStat | null>(null);
+  const [resolvedReports, setResolvedReports] = useState<PublicResolvedReport[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -39,10 +42,12 @@ export default function MunicipalityPage({ fixedSlug }: { fixedSlug?: string }) 
     Promise.all([
       fetchPublicMunicipalityBySlug(activeSlug, controller.signal),
       fetchPublicMunicipalityStats(controller.signal).catch(() => [] as PublicMunicipalityStat[]),
+      fetchPublicMunicipalityResolvedReports(activeSlug, controller.signal).catch(() => [] as PublicResolvedReport[]),
     ])
-      .then(([d, stats]) => {
+      .then(([d, stats, reports]) => {
         setDetail(d);
         setStat(stats.find((s) => s.slug === activeSlug) ?? null);
+        setResolvedReports(reports);
       })
       .catch((e: Error) => {
         if (!controller.signal.aborted) setError(e.message || 'Belediye bulunamadı');
@@ -228,6 +233,61 @@ export default function MunicipalityPage({ fixedSlug }: { fixedSlug?: string }) 
                           value={resolutionRate ?? 0}
                           suffix="%"
                         />
+                      </div>
+                    </section>
+                  )}
+
+                  {detail.publicStatsEnabled && resolvedReports.length > 0 && (
+                    <section className="mt-12" aria-labelledby="resolved-reports-heading">
+                      <div className="flex items-center gap-2 mb-4">
+                        <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                        <h2
+                          id="resolved-reports-heading"
+                          className="font-sans text-xl font-bold text-slate-900"
+                        >
+                          Örnek Çözülen İhbarlar (AI Seçimi)
+                        </h2>
+                      </div>
+                      <p className="text-sm font-medium text-slate-500 mb-6">
+                        Bu örnekler, çözümlenmiş ihbarlar arasından yapay zeka tarafından kamu yararı ve başarılı çözüm örnekleri olarak otomatik seçilmiştir.
+                      </p>
+                      <div className="space-y-4">
+                        {resolvedReports.map((report) => (
+                          <div
+                            key={report.id}
+                            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:border-slate-350"
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                              <div>
+                                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 ring-1 ring-inset ring-emerald-600/20">
+                                  {report.categoryName}
+                                </span>
+                                {report.district && (
+                                  <span className="ml-2 text-xs font-semibold text-slate-500">
+                                    {report.district}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-xs text-slate-400 font-medium">
+                                {new Date(report.createdAt).toLocaleDateString('tr-TR')}
+                              </span>
+                            </div>
+                            <h3 className="font-bold text-slate-900 text-base mb-2">
+                              {report.title}
+                            </h3>
+                            <p className="text-sm text-slate-600 leading-relaxed mb-4">
+                              {report.description}
+                            </p>
+                            <div className="rounded-xl bg-slate-50 border border-slate-100 p-4">
+                              <h4 className="text-xs font-bold text-emerald-800 uppercase tracking-wider mb-1">
+                                Belediye Çözüm Notu
+                              </h4>
+                              <p className="text-xs font-medium text-slate-700 leading-relaxed">
+                                {report.officialResolutionNote}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </section>
                   )}

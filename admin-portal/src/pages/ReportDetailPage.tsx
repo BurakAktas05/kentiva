@@ -91,8 +91,8 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
         const rep = r.data.data as Report;
         setReport(rep);
         setTimeline(tl.data.data as ReportTimelineEntry[]);
-        setOfficers(u.data.data as User[]);
-        setDepartments(depsRes.data.data as { id: string; name: string }[]);
+        setOfficers((u.data.data?.content ?? []) as User[]);
+        setDepartments((depsRes.data.data?.content ?? []) as { id: string; name: string }[]);
         setDuplicateGroup(dup.data.data as ReportListItem[]);
         setCurrentUser(me.data.data);
         setStatusValue(rep.status === 'RESOLVED' ? 'RESOLVED' : 'PROCESSING');

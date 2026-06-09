@@ -85,7 +85,7 @@ export default function MunicipalityPicker({
     if (result.ok) {
       try {
         const resolved = await resolveMunicipalityByGps(result.coords.lat, result.coords.lng);
-        if (resolved?.onboarded) {
+        if (resolved) {
           onSelect(resolved);
         } else {
           setErr(t('tenant.gpsNoMatch', lang));

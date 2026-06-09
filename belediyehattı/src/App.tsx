@@ -91,8 +91,31 @@ function LoadingSpinner({ isDark }: { isDark: boolean }) {
   );
 }
 
+function NotOnboardedBlockedView({ lang, isDark }: { lang: Lang; isDark: boolean }) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center p-6 text-center min-h-[60vh]">
+      <div className={`rounded-3xl border p-8 max-w-sm shadow-xl transition-all ${
+        isDark 
+          ? 'border-amber-500/20 bg-slate-900/60 text-slate-150' 
+          : 'border-amber-250 bg-white text-slate-800'
+      }`}>
+        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500 shadow-inner">
+          <Building2 className="h-7 w-7" />
+        </div>
+        <h3 className="text-base font-bold tracking-tight">
+          {t('tenant.notOnboardedTitle', lang)}
+        </h3>
+        <p className="mt-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400 font-medium font-sans">
+          {t('tenant.notOnboardedDesc', lang)}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const { tenant, setTenant, department, setDepartment } = useTenant();
+  const isMuniNotOnboarded = Boolean(tenant && tenant.onboarded === false);
   const [explicitRoute] = useState<PublicRouteContext | null>(() =>
     parsePublicRoute(window.location.pathname, window.location.hostname),
   );
@@ -567,25 +590,37 @@ export default function App() {
               </Fragment>
             )}
             {activeTab === 'kent' && (
-              <KentScreen
-                municipality={tenant}
-                department={department}
-                lang={lang}
-                isDark={isDark}
-                onSelectMunicipality={() => setPickerMode('onboarding')}
-                onOpenBusSchedules={() => setActiveTab('bus')}
-              />
+              isMuniNotOnboarded ? (
+                <NotOnboardedBlockedView lang={lang} isDark={isDark} />
+              ) : (
+                <KentScreen
+                  municipality={tenant}
+                  department={department}
+                  lang={lang}
+                  isDark={isDark}
+                  onSelectMunicipality={() => setPickerMode('onboarding')}
+                  onOpenBusSchedules={() => setActiveTab('bus')}
+                />
+              )
             )}
             {activeTab === 'bus' && (
-              <BusScheduleScreen
-                lang={lang}
-                isDark={isDark}
-                municipality={tenant}
-                onBack={() => setActiveTab('kent')}
-              />
+              isMuniNotOnboarded ? (
+                <NotOnboardedBlockedView lang={lang} isDark={isDark} />
+              ) : (
+                <BusScheduleScreen
+                  lang={lang}
+                  isDark={isDark}
+                  municipality={tenant}
+                  onBack={() => setActiveTab('kent')}
+                />
+              )
             )}
             {activeTab === 'topluluk' && (
-              <CommunityScreen municipality={tenant} lang={lang} isDark={isDark} />
+              isMuniNotOnboarded ? (
+                <NotOnboardedBlockedView lang={lang} isDark={isDark} />
+              ) : (
+                <CommunityScreen municipality={tenant} lang={lang} isDark={isDark} />
+              )
             )}
             {openReportId && (
               <ReportDetailScreen
@@ -596,22 +631,30 @@ export default function App() {
               />
             )}
             {activeTab === 'report' && (
-              <NewReport
-                defaultMunicipality={tenant}
-                defaultDepartment={department}
-                onSubmit={handleReportSubmit}
-                onCancel={() => goToTab('home')}
-                lang={lang}
-                isDark={isDark}
-              />
+              isMuniNotOnboarded ? (
+                <NotOnboardedBlockedView lang={lang} isDark={isDark} />
+              ) : (
+                <NewReport
+                  defaultMunicipality={tenant}
+                  defaultDepartment={department}
+                  onSubmit={handleReportSubmit}
+                  onCancel={() => goToTab('home')}
+                  lang={lang}
+                  isDark={isDark}
+                />
+              )
             )}
             {activeTab === 'reports' && !openReportId && (
-              <MyReports
-                onBack={() => goToTab('home')}
-                onOpenReport={openReport}
-                lang={lang}
-                isDark={isDark}
-              />
+              isMuniNotOnboarded ? (
+                <NotOnboardedBlockedView lang={lang} isDark={isDark} />
+              ) : (
+                <MyReports
+                  onBack={() => goToTab('home')}
+                  onOpenReport={openReport}
+                  lang={lang}
+                  isDark={isDark}
+                />
+              )
             )}
             {activeTab === 'profile' && (
               <Profile
@@ -624,12 +667,16 @@ export default function App() {
               />
             )}
             {activeTab === 'notifications' && (
-              <Notifications
-                onBadgeUpdate={setUnreadCount}
-                onOpenReport={openReport}
-                lang={lang}
-                isDark={isDark}
-              />
+              isMuniNotOnboarded ? (
+                <NotOnboardedBlockedView lang={lang} isDark={isDark} />
+              ) : (
+                <Notifications
+                  onBadgeUpdate={setUnreadCount}
+                  onOpenReport={openReport}
+                  lang={lang}
+                  isDark={isDark}
+                />
+              )
             )}
             {activeTab === 'settings' && (
               <Settings

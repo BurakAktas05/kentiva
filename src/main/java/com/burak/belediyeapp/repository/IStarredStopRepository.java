@@ -12,4 +12,5 @@ public interface IStarredStopRepository extends JpaRepository<StarredStop, Strin
     List<StarredStop> findAllByUserIdAndMunicipalityId(String userId, String municipalityId);
     Optional<StarredStop> findByUserIdAndStopNameAndMunicipalityId(String userId, String stopName, String municipalityId);
     boolean existsByUserIdAndStopNameAndMunicipalityId(String userId, String stopName, String municipalityId);
+    List<StarredStop> findAllByStopNameAndMunicipalityId(String stopName, String municipalityId);
 }

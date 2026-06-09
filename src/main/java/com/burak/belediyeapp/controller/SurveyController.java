@@ -83,4 +83,12 @@ public class SurveyController {
         surveyService.delete(user, id);
         return ResponseEntity.ok(ApiResponse.success("Anket silindi", null));
     }
+
+    @GetMapping("/api/v1/municipalities/me/surveys/analytics")
+    @PreAuthorize("hasAnyRole('ADMIN','DEPT_MANAGER')")
+    @Operation(summary = "Kategori bazlı anket katılım analizleri (Yönetici)")
+    public ResponseEntity<ApiResponse<com.burak.belediyeapp.dto.response.survey.SurveyAnalyticsDto>> getAnalytics(
+            @AuthenticationPrincipal AppUser user) {
+        return ResponseEntity.ok(ApiResponse.success(surveyService.getAnalytics(user)));
+    }
 }

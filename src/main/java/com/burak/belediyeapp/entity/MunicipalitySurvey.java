@@ -35,6 +35,10 @@ public class MunicipalitySurvey extends BaseEntity implements TenantAware {
     private String option4;
 
     @Builder.Default
+    @Column(nullable = false, length = 50)
+    private String category = "Genel";
+
+    @Builder.Default
     @Column(nullable = false)
     private boolean active = true;
 }

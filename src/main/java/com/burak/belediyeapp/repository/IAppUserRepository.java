@@ -25,6 +25,8 @@ public interface IAppUserRepository extends JpaRepository<AppUser, String> {
     Optional<AppUser> findByIdAndMunicipalityId(String id, String municipalityId);
     
     org.springframework.data.domain.Page<AppUser> findByRoles_NameAndMunicipalityId(String roleName, String municipalityId, org.springframework.data.domain.Pageable pageable);
+    
+    java.util.List<AppUser> findAllByRoles_NameAndMunicipalityId(String roleName, String municipalityId);
 
     long countByMunicipalityId(String municipalityId);
 

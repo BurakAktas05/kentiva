@@ -3,6 +3,7 @@ import { BarChart3, Pencil, Plus, Search, Trash2, ShieldAlert } from 'lucide-rea
 import axios from 'axios';
 import api from '../api';
 import ContentWorkspaceTabs from '../components/ContentWorkspaceTabs';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
 
 export interface SurveyDetail {
   id: string;
@@ -12,6 +13,7 @@ export interface SurveyDetail {
   option2: string;
   option3?: string | null;
   option4?: string | null;
+  category?: string;
   active: boolean;
   voted: boolean;
   votedOption?: number | null;
@@ -39,9 +41,14 @@ export default function SurveysPage({ canManage }: SurveysPageProps) {
   const [option2, setOption2] = useState('');
   const [option3, setOption3] = useState('');
   const [option4, setOption4] = useState('');
+  const [category, setCategory] = useState('Genel');
   const [active, setActive] = useState(true);
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+
+  const [activeTab, setActiveTab] = useState<'list' | 'analytics'>('list');
+  const [analyticsData, setAnalyticsData] = useState<any | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   async function fetchSurveys() {
     try {
@@ -51,6 +58,18 @@ export default function SurveysPage({ canManage }: SurveysPageProps) {
       console.error('Failed to fetch surveys', err);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchAnalytics() {
+    setAnalyticsLoading(true);
+    try {
+      const res = await api.get('/municipalities/me/surveys/analytics');
+      setAnalyticsData(res.data.data);
+    } catch (err) {
+      console.error('Failed to fetch analytics', err);
+    } finally {
+      setAnalyticsLoading(false);
     }
   }
 
@@ -69,6 +88,7 @@ export default function SurveysPage({ canManage }: SurveysPageProps) {
     setOption2('');
     setOption3('');
     setOption4('');
+    setCategory('Genel');
     setActive(true);
     setFormError('');
     setIsModalOpen(true);
@@ -83,6 +103,7 @@ export default function SurveysPage({ canManage }: SurveysPageProps) {
     setOption2(s.option2);
     setOption3(s.option3 ?? '');
     setOption4(s.option4 ?? '');
+    setCategory(s.category ?? 'Genel');
     setActive(s.active);
     setFormError('');
     setIsModalOpen(true);
@@ -95,6 +116,7 @@ export default function SurveysPage({ canManage }: SurveysPageProps) {
     option2,
     option3: option3.trim() || null,
     option4: option4.trim() || null,
+    category,
     active,
   });
 
@@ -115,6 +137,9 @@ export default function SurveysPage({ canManage }: SurveysPageProps) {
         await api.post('/municipalities/me/surveys', buildPayload());
       }
       await fetchSurveys();
+      if (activeTab === 'analytics') {
+        void fetchAnalytics();
+      }
       setIsModalOpen(false);
     } catch (err: unknown) {
       setFormError(
@@ -137,9 +162,13 @@ export default function SurveysPage({ canManage }: SurveysPageProps) {
         option2: s.option2,
         option3: s.option3 ?? null,
         option4: s.option4 ?? null,
+        category: s.category ?? 'Genel',
         active: !s.active,
       });
       await fetchSurveys();
+      if (activeTab === 'analytics') {
+        void fetchAnalytics();
+      }
     } catch {
       alert('Durum güncellenemedi');
     }
@@ -151,6 +180,9 @@ export default function SurveysPage({ canManage }: SurveysPageProps) {
       try {
         await api.delete(`/municipalities/me/surveys/${id}`);
         fetchSurveys();
+        if (activeTab === 'analytics') {
+          void fetchAnalytics();
+        }
       } catch {
         alert('Silme işlemi başarısız oldu');
       }
@@ -160,7 +192,8 @@ export default function SurveysPage({ canManage }: SurveysPageProps) {
   const filtered = surveys.filter(
     (s) =>
       s.title.toLowerCase().includes(search.toLowerCase()) ||
-      s.description.toLowerCase().includes(search.toLowerCase())
+      (s.description && s.description.toLowerCase().includes(search.toLowerCase())) ||
+      (s.category && s.category.toLowerCase().includes(search.toLowerCase()))
   );
 
   const getPercent = (count: number, total: number) => {
@@ -171,6 +204,8 @@ export default function SurveysPage({ canManage }: SurveysPageProps) {
   if (loading) {
     return <div className="p-8 text-center text-slate-500">Yükleniyor...</div>;
   }
+
+  const CHART_COLORS = ['#3b82f6', '#10b981', '#6366f1', '#f59e0b', '#ec4899', '#8b5cf6'];
 
   return (
     <div className="p-6">
@@ -183,7 +218,7 @@ export default function SurveysPage({ canManage }: SurveysPageProps) {
             {!canManage && ' (Salt okunur — yalnızca belediye admini düzenleyebilir.)'}
           </p>
         </div>
-        {canManage && (
+        {canManage && activeTab === 'list' && (
           <button
             onClick={openNewModal}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
@@ -197,136 +232,253 @@ export default function SurveysPage({ canManage }: SurveysPageProps) {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200/90 bg-gradient-to-r from-white via-slate-50 to-emerald-50 p-4 shadow-sm dark:border-slate-700 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950">
         <ContentWorkspaceTabs />
         <div className="grid min-w-[220px] flex-1 gap-3 sm:grid-cols-2 xl:max-w-xl">
-          <SurveyStat label="Toplam anket" value={String(surveys.length)} helper="Tum kayitlar" />
+          <SurveyStat label="Toplam anket" value={String(surveys.length)} helper="Tüm kayıtlar" />
           <SurveyStat
-            label="Yayinda"
+            label="Yayında"
             value={String(surveys.filter((survey) => survey.active).length)}
             helper="Aktif oylamalar"
           />
         </div>
       </div>
 
-      <div className="mb-6 max-w-md relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-        <input
-          type="text"
-          placeholder="Anket ara..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-9 pr-4 py-2 rounded-lg border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-        />
+      {/* Tabs */}
+      <div className="mb-6 flex border-b border-slate-200 dark:border-slate-700">
+        <button
+          onClick={() => setActiveTab('list')}
+          className={`px-4 py-2.5 text-sm font-bold border-b-2 transition-all -mb-px ${
+            activeTab === 'list'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+          }`}
+        >
+          Anket Listesi
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab('analytics');
+            void fetchAnalytics();
+          }}
+          className={`px-4 py-2.5 text-sm font-bold border-b-2 transition-all -mb-px ${
+            activeTab === 'analytics'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+          }`}
+        >
+          Analitik Raporlar
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        {filtered.map((s) => (
-          <div
-            key={s.id}
-            className="flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800 transition-all hover:shadow-md"
-          >
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <button
-                  type="button"
-                  disabled={!canManage}
-                  onClick={() => handleToggleActive(s)}
-                  className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${
-                    s.active
-                      ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-400/10 dark:text-emerald-400'
-                      : 'bg-slate-50 text-slate-700 ring-1 ring-inset ring-slate-600/20 dark:bg-slate-700 dark:text-slate-400'
-                  } ${canManage ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
-                >
-                  {s.active ? 'Aktif' : 'Pasif'}
-                </button>
-
-                {canManage && (
-                  <div className="inline-flex items-center gap-1">
-                    <button
-                      onClick={() => openEditModal(s)}
-                      className="p-1.5 text-slate-400 hover:text-primary transition-colors"
-                      title="Düzenle"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(s.id, s.title)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors"
-                      title="Sil"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1 leading-snug">{s.title}</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">{s.description}</p>
-
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between text-xs font-semibold mb-1">
-                    <span className="text-slate-700 dark:text-slate-300">{s.option1}</span>
-                    <span className="text-slate-900 dark:text-white">
-                      {s.option1Count} Oy ({getPercent(s.option1Count, s.totalVotes)}%)
-                    </span>
-                  </div>
-                  <div className="w-full bg-slate-100 dark:bg-slate-900 h-2.5 rounded-full overflow-hidden">
-                    <div className="bg-primary h-full rounded-full transition-all duration-500" style={{ width: `${getPercent(s.option1Count, s.totalVotes)}%` }} />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between text-xs font-semibold mb-1">
-                    <span className="text-slate-700 dark:text-slate-300">{s.option2}</span>
-                    <span className="text-slate-900 dark:text-white">
-                      {s.option2Count} Oy ({getPercent(s.option2Count, s.totalVotes)}%)
-                    </span>
-                  </div>
-                  <div className="w-full bg-slate-100 dark:bg-slate-900 h-2.5 rounded-full overflow-hidden">
-                    <div className="bg-sky-500 h-full rounded-full transition-all duration-500" style={{ width: `${getPercent(s.option2Count, s.totalVotes)}%` }} />
-                  </div>
-                </div>
-                {s.option3 && (
-                  <div>
-                    <div className="flex items-center justify-between text-xs font-semibold mb-1">
-                      <span className="text-slate-700 dark:text-slate-300">{s.option3}</span>
-                      <span className="text-slate-900 dark:text-white">
-                        {s.option3Count} Oy ({getPercent(s.option3Count, s.totalVotes)}%)
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-100 dark:bg-slate-900 h-2.5 rounded-full overflow-hidden">
-                      <div className="bg-indigo-500 h-full rounded-full transition-all duration-500" style={{ width: `${getPercent(s.option3Count, s.totalVotes)}%` }} />
-                    </div>
-                  </div>
-                )}
-                {s.option4 && (
-                  <div>
-                    <div className="flex items-center justify-between text-xs font-semibold mb-1">
-                      <span className="text-slate-700 dark:text-slate-300">{s.option4}</span>
-                      <span className="text-slate-900 dark:text-white">
-                        {s.option4Count} Oy ({getPercent(s.option4Count, s.totalVotes)}%)
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-100 dark:bg-slate-900 h-2.5 rounded-full overflow-hidden">
-                      <div className="bg-teal-500 h-full rounded-full transition-all duration-500" style={{ width: `${getPercent(s.option4Count, s.totalVotes)}%` }} />
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between text-xs font-medium text-slate-400">
-              <div className="flex items-center gap-1">
-                <BarChart3 className="h-4 w-4" />
-                <span>Toplam Katılım</span>
-              </div>
-              <span className="font-bold text-slate-700 dark:text-slate-300 text-sm">{s.totalVotes} Vatandaş</span>
-            </div>
+      {activeTab === 'list' ? (
+        <>
+          <div className="mb-6 max-w-md relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Anket ara (başlık, açıklama veya kategori)..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 rounded-lg border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+            />
           </div>
-        ))}
 
-        {filtered.length === 0 && (
-          <div className="col-span-full py-12 text-center text-slate-500">Kayıt bulunamadı.</div>
-        )}
-      </div>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            {filtered.map((s) => (
+              <div
+                key={s.id}
+                className="flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800 transition-all hover:shadow-md"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-900 px-2.5 py-0.5 text-xs font-semibold text-slate-800 dark:text-slate-200">
+                        {s.category || 'Genel'}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={!canManage}
+                        onClick={() => handleToggleActive(s)}
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          s.active
+                            ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-400/10 dark:text-emerald-400'
+                            : 'bg-slate-50 text-slate-700 ring-1 ring-inset ring-slate-600/20 dark:bg-slate-700 dark:text-slate-400'
+                        } ${canManage ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
+                      >
+                        {s.active ? 'Aktif' : 'Pasif'}
+                      </button>
+                    </div>
+
+                    {canManage && (
+                      <div className="inline-flex items-center gap-1">
+                        <button
+                          onClick={() => openEditModal(s)}
+                          className="p-1.5 text-slate-400 hover:text-primary transition-colors"
+                          title="Düzenle"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(s.id, s.title)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors"
+                          title="Sil"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1 leading-snug">{s.title}</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">{s.description}</p>
+
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex items-center justify-between text-xs font-semibold mb-1">
+                        <span className="text-slate-700 dark:text-slate-300">{s.option1}</span>
+                        <span className="text-slate-900 dark:text-white">
+                          {s.option1Count} Oy ({getPercent(s.option1Count, s.totalVotes)}%)
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 dark:bg-slate-900 h-2.5 rounded-full overflow-hidden">
+                        <div className="bg-primary h-full rounded-full transition-all duration-500" style={{ width: `${getPercent(s.option1Count, s.totalVotes)}%` }} />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between text-xs font-semibold mb-1">
+                        <span className="text-slate-700 dark:text-slate-300">{s.option2}</span>
+                        <span className="text-slate-900 dark:text-white">
+                          {s.option2Count} Oy ({getPercent(s.option2Count, s.totalVotes)}%)
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 dark:bg-slate-900 h-2.5 rounded-full overflow-hidden">
+                        <div className="bg-sky-500 h-full rounded-full transition-all duration-500" style={{ width: `${getPercent(s.option2Count, s.totalVotes)}%` }} />
+                      </div>
+                    </div>
+                    {s.option3 && (
+                      <div>
+                        <div className="flex items-center justify-between text-xs font-semibold mb-1">
+                          <span className="text-slate-700 dark:text-slate-300">{s.option3}</span>
+                          <span className="text-slate-900 dark:text-white">
+                            {s.option3Count} Oy ({getPercent(s.option3Count, s.totalVotes)}%)
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-100 dark:bg-slate-900 h-2.5 rounded-full overflow-hidden">
+                          <div className="bg-indigo-500 h-full rounded-full transition-all duration-500" style={{ width: `${getPercent(s.option3Count, s.totalVotes)}%` }} />
+                        </div>
+                      </div>
+                    )}
+                    {s.option4 && (
+                      <div>
+                        <div className="flex items-center justify-between text-xs font-semibold mb-1">
+                          <span className="text-slate-700 dark:text-slate-300">{s.option4}</span>
+                          <span className="text-slate-900 dark:text-white">
+                            {s.option4Count} Oy ({getPercent(s.option4Count, s.totalVotes)}%)
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-100 dark:bg-slate-900 h-2.5 rounded-full overflow-hidden">
+                          <div className="bg-teal-500 h-full rounded-full transition-all duration-500" style={{ width: `${getPercent(s.option4Count, s.totalVotes)}%` }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between text-xs font-medium text-slate-400">
+                  <div className="flex items-center gap-1">
+                    <BarChart3 className="h-4 w-4" />
+                    <span>Toplam Katılım</span>
+                  </div>
+                  <span className="font-bold text-slate-700 dark:text-slate-300 text-sm">{s.totalVotes} Vatandaş</span>
+                </div>
+              </div>
+            ))}
+
+            {filtered.length === 0 && (
+              <div className="col-span-full py-12 text-center text-slate-500">Kayıt bulunamadı.</div>
+            )}
+          </div>
+        </>
+      ) : (
+        /* Analytics View */
+        <div>
+          {analyticsLoading ? (
+            <div className="p-8 text-center text-slate-500">Analizler yükleniyor...</div>
+          ) : !analyticsData ? (
+            <div className="p-8 text-center text-slate-500">İstatistik verisi bulunamadı.</div>
+          ) : (
+            <div>
+              {/* KPI Cards */}
+              <div className="grid gap-4 md:grid-cols-3 mb-8">
+                <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Toplam Anket</p>
+                  <h3 className="mt-2 text-3xl font-extrabold text-slate-900 dark:text-white">{analyticsData.totalSurveys}</h3>
+                </div>
+                <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Aktif Oylamalar</p>
+                  <h3 className="mt-2 text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">{analyticsData.activeSurveys}</h3>
+                </div>
+                <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Toplam Oy Sayısı</p>
+                  <h3 className="mt-2 text-3xl font-extrabold text-sky-600 dark:text-sky-400">{analyticsData.totalVotes}</h3>
+                </div>
+              </div>
+
+              {/* Charts Section */}
+              <div className="grid gap-6 md:grid-cols-2">
+                {/* Bar Chart */}
+                <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+                  <h4 className="text-base font-bold text-slate-900 dark:text-white mb-4">Kategoriye Göre Toplam Oy Dağılımı</h4>
+                  <div className="h-80 w-full">
+                    {analyticsData.categoryStats.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-slate-400 text-sm">Veri bulunamadı.</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={analyticsData.categoryStats}>
+                          <XAxis dataKey="category" stroke="#888888" fontSize={11} tickLine={false} axisLine={false} />
+                          <YAxis stroke="#888888" fontSize={11} tickLine={false} axisLine={false} />
+                          <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
+                          <Bar dataKey="voteCount" name="Toplam Oy" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                </div>
+
+                {/* Pie Chart */}
+                <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+                  <h4 className="text-base font-bold text-slate-900 dark:text-white mb-4">Kategoriye Göre Anket Dağılımı</h4>
+                  <div className="h-80 w-full flex flex-col items-center justify-center">
+                    {analyticsData.categoryStats.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-slate-400 text-sm">Veri bulunamadı.</div>
+                    ) : (
+                      <div className="h-64 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={analyticsData.categoryStats}
+                              dataKey="surveyCount"
+                              nameKey="category"
+                              cx="50%"
+                              cy="50%"
+                              outerRadius={80}
+                              label={(props: any) => `${props.category || ''} (${((props.percent || 0) * 100).toFixed(0)}%)`}
+                              style={{ fontSize: '11px', fontWeight: 'bold' }}
+                            >
+                              {analyticsData.categoryStats.map((_entry: any, index: number) => (
+                                <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
@@ -350,7 +502,7 @@ export default function SurveysPage({ canManage }: SurveysPageProps) {
 
               {optionsLocked && (
                 <p className="mb-4 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3">
-                  Bu ankete oy verildiği için seçenek metinleri değiştirilemez. Başlık, açıklama ve yayın durumu güncellenebilir.
+                  Bu ankete oy verildiği için seçenek metinleri değiştirilemez. Başlık, açıklama, kategori ve yayın durumu güncellenebilir.
                 </p>
               )}
 
@@ -371,11 +523,29 @@ export default function SurveysPage({ canManage }: SurveysPageProps) {
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Açıklama</label>
                   <textarea
-                    rows={3}
+                    rows={2}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary dark:bg-slate-900 dark:border-slate-700 dark:text-white"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Anket Kategorisi *
+                  </label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-primary dark:bg-slate-900 dark:border-slate-700 dark:text-white"
+                  >
+                    <option value="Ulaşım">Ulaşım</option>
+                    <option value="Çevre">Çevre</option>
+                    <option value="Altyapı">Altyapı</option>
+                    <option value="Sosyal Hizmetler">Sosyal Hizmetler</option>
+                    <option value="Kültür & Sanat">Kültür & Sanat</option>
+                    <option value="Genel">Genel</option>
+                  </select>
                 </div>
 
                 <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
