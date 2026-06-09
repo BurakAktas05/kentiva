@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { MapPin } from 'lucide-react';
+import { MapPin, Bus, ChevronRight } from 'lucide-react';
 import { fetchPublicStatsOverview, type PublicDepartment, type PublicStatsOverview, type PublicTenant } from '../../api';
 import { Lang, t } from '../../i18n';
 import { screenHeadingClass, screenSubtitleClass } from '../../lib/ui';
@@ -13,9 +13,10 @@ interface KentScreenProps {
   lang: Lang;
   isDark: boolean;
   onSelectMunicipality?: () => void;
+  onOpenBusSchedules?: () => void;
 }
 
-export default function KentScreen({ municipality, department, lang, isDark, onSelectMunicipality }: KentScreenProps) {
+export default function KentScreen({ municipality, department, lang, isDark, onSelectMunicipality, onOpenBusSchedules }: KentScreenProps) {
   const [publicOverview, setPublicOverview] = useState<PublicStatsOverview | null>(null);
   const cardStyle = isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200/80 bg-white';
 
@@ -68,6 +69,35 @@ export default function KentScreen({ municipality, department, lang, isDark, onS
       ) : (
         <div className="space-y-4 px-4">
           <PharmacyWidgetCard tenant={municipality} lang={lang} isDark={isDark} />
+
+          {/* Otobüs Seferleri Kartı */}
+          <section 
+            onClick={onOpenBusSchedules}
+            className={`rounded-2xl border shadow-sm p-4 cursor-pointer transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-between ${
+              isDark
+                ? 'border-slate-800 bg-slate-900/60 hover:bg-slate-900'
+                : 'border-slate-200/80 bg-white hover:bg-slate-50/50'
+            }`}
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div 
+                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
+                  isDark ? 'bg-primary/20 text-sky-400' : 'bg-primary/15 text-primary'
+                }`}
+              >
+                <Bus className="h-6 w-6" strokeWidth={1.5} />
+              </div>
+              <div className="min-w-0">
+                <h3 className={`truncate text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-800'}`}>
+                  {t('bus.title', lang)}
+                </h3>
+                <p className={`mt-0.5 text-xs truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  {t('bus.subtitle', lang)}
+                </p>
+              </div>
+            </div>
+            <ChevronRight className={`w-5 h-5 shrink-0 ${isDark ? 'text-slate-605' : 'text-slate-350'}`} />
+          </section>
         </div>
       )}
 

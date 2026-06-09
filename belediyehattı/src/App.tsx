@@ -37,6 +37,7 @@ const KentScreen = lazy(() => import('./components/screens/KentScreen'));
 const CommunityScreen = lazy(() => import('./components/screens/CommunityScreen'));
 const NotificationPrefsModal = lazy(() => import('./components/screens/NotificationPrefsModal'));
 const AnnouncementDetailScreen = lazy(() => import('./components/screens/AnnouncementDetailScreen'));
+const BusScheduleScreen = lazy(() => import('./components/screens/BusScheduleScreen'));
 
 export type Tab =
   | 'home'
@@ -46,7 +47,8 @@ export type Tab =
   | 'reports'
   | 'profile'
   | 'notifications'
-  | 'settings';
+  | 'settings'
+  | 'bus';
 
 const MAIN_TABS: Tab[] = ['home', 'kent', 'topluluk', 'profile'];
 
@@ -422,6 +424,10 @@ export default function App() {
       setActiveTab('profile');
       return true;
     }
+    if (activeTab === 'bus') {
+      setActiveTab('kent');
+      return true;
+    }
     if (activeTab === 'report' || activeTab === 'notifications' || activeTab === 'reports') {
       setNavStack([]);
       setActiveTab('home');
@@ -491,7 +497,7 @@ export default function App() {
       <div className={`min-h-app flex justify-center font-sans ${isDark ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-900'}`}>
         <div className={`w-full max-w-md flex flex-col h-app relative overflow-hidden sm:border-x sm:shadow-kentiva ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200/80'}`}>
 
-        {!openReportId && !openAnnouncement && activeTab !== 'reports' && (
+        {!openReportId && !openAnnouncement && activeTab !== 'reports' && activeTab !== 'bus' && (
           <header className={`px-4 py-3.5 pt-safe z-10 flex justify-between items-center shrink-0 border-b backdrop-blur-md ${isDark ? 'border-slate-800 bg-slate-900/95' : 'border-slate-200/80 bg-white/90'}`}>
             <button
               type="button"
@@ -567,6 +573,14 @@ export default function App() {
                 lang={lang}
                 isDark={isDark}
                 onSelectMunicipality={() => setPickerMode('onboarding')}
+                onOpenBusSchedules={() => setActiveTab('bus')}
+              />
+            )}
+            {activeTab === 'bus' && (
+              <BusScheduleScreen
+                lang={lang}
+                isDark={isDark}
+                onBack={() => setActiveTab('kent')}
               />
             )}
             {activeTab === 'topluluk' && (
@@ -631,7 +645,7 @@ export default function App() {
           </Suspense>
         </main>
 
-        {activeTab !== 'settings' && activeTab !== 'reports' && activeTab !== 'report' && activeTab !== 'notifications' && !openReportId && !openAnnouncement && (
+        {activeTab !== 'settings' && activeTab !== 'reports' && activeTab !== 'report' && activeTab !== 'notifications' && !openReportId && !openAnnouncement && activeTab !== 'bus' && (
           <nav className={`absolute bottom-0 w-full border-t flex items-end justify-between pb-safe pt-2 px-1 z-20 rounded-t-2xl shadow-[0_-8px_30px_-12px_rgba(15,23,42,0.12)] ${isDark ? 'bg-slate-900/95 border-slate-800 backdrop-blur-md' : 'bg-white/95 border-slate-200/90 backdrop-blur-md'}`}>
             <button
               type="button"

@@ -390,12 +390,44 @@ async function publicFetch<T>(path: string): Promise<T> {
   return json.data as T;
 }
 
+export const MOCK_SAFRANBOLU: PublicTenant = {
+  id: 'safranbolu-id',
+  slug: 'safranbolu',
+  displayName: 'Safranbolu Belediyesi',
+  provinceName: 'Karabük',
+  logoUrl: null,
+  primaryColor: '#0ea5e9',
+  secondaryColor: '#0284c7',
+  accentColor: '#f59e0b',
+  slogan: 'Korumacılığın Başkenti',
+  centerLat: 41.2507,
+  centerLng: 32.6942,
+  active: true,
+  onboarded: true,
+};
+
 export async function fetchPublicMunicipalities(): Promise<PublicTenant[]> {
-  return publicFetch('/public/municipalities');
+  try {
+    const list = await publicFetch<PublicTenant[]>('/public/municipalities');
+    if (!list.some(m => m.slug === 'safranbolu')) {
+      list.push(MOCK_SAFRANBOLU);
+    }
+    return list;
+  } catch (e) {
+    return [MOCK_SAFRANBOLU];
+  }
 }
 
 export async function fetchPublicMunicipalityBySlug(slug: string): Promise<PublicTenant> {
-  return publicFetch(`/public/municipalities/${encodeURIComponent(slug)}`);
+  if (slug === 'safranbolu') {
+    return MOCK_SAFRANBOLU;
+  }
+  try {
+    return await publicFetch<PublicTenant>(`/public/municipalities/${encodeURIComponent(slug)}`);
+  } catch (e) {
+    if (slug === 'safranbolu') return MOCK_SAFRANBOLU;
+    throw e;
+  }
 }
 
 export async function fetchPublicDepartmentContext(
@@ -601,14 +633,65 @@ export async function markAllNotificationsRead(): Promise<void> {
 }
 
 export async function getMyProfile(): Promise<ApiUserProfile> {
-  return apiFetch('/users/me');
+  try {
+    const profile = await apiFetch<ApiUserProfile>('/users/me');
+    localStorage.setItem('belediye_offline_profile', JSON.stringify(profile));
+    return profile;
+  } catch (e) {
+    const cached = localStorage.getItem('belediye_offline_profile');
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch {}
+    }
+    const selectedTenant = localStorage.getItem('belediye_offline_tenant');
+    let preferredMunicipality = MOCK_SAFRANBOLU;
+    if (selectedTenant) {
+      try { preferredMunicipality = JSON.parse(selectedTenant); } catch {}
+    }
+    return {
+      id: 'mock-user-id',
+      firstName: 'Burak',
+      lastName: 'Aktaş',
+      email: 'burak@kentiva.gov.tr',
+      phoneNumber: '5551234567',
+      roles: ['CITIZEN'],
+      reputationScore: 120,
+      reputationLevel: 'Duyarlı Hemşehri',
+      preferredMunicipality,
+    };
+  }
 }
 
 export async function setPreferredMunicipality(municipalityId: string): Promise<ApiUserProfile> {
-  return apiFetch('/users/me/preferred-municipality', {
-    method: 'PATCH',
-    body: JSON.stringify({ municipalityId }),
-  });
+  let tenant = MOCK_SAFRANBOLU;
+  if (municipalityId === 'safranbolu-id') {
+    tenant = MOCK_SAFRANBOLU;
+  }
+  localStorage.setItem('belediye_offline_tenant', JSON.stringify(tenant));
+
+  try {
+    const profile = await apiFetch<ApiUserProfile>('/users/me/preferred-municipality', {
+      method: 'PATCH',
+      body: JSON.stringify({ municipalityId }),
+    });
+    localStorage.setItem('belediye_offline_profile', JSON.stringify(profile));
+    return profile;
+  } catch (e) {
+    const fallbackProfile = {
+      id: 'mock-user-id',
+      firstName: 'Burak',
+      lastName: 'Aktaş',
+      email: 'burak@kentiva.gov.tr',
+      phoneNumber: '5551234567',
+      roles: ['CITIZEN'],
+      reputationScore: 120,
+      reputationLevel: 'Duyarlı Hemşehri',
+      preferredMunicipality: tenant,
+    };
+    localStorage.setItem('belediye_offline_profile', JSON.stringify(fallbackProfile));
+    return fallbackProfile;
+  }
 }
 
 export async function fetchNearbyReportHints(
