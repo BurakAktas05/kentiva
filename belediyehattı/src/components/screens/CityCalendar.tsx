@@ -209,13 +209,13 @@ export default function CityCalendar({ municipality, lang, isDark, onBack, embed
                       {item.title}
                     </h3>
 
-                    {item.message && (
+                    {item.type === 'outage' && item.message && (
                       <p className="mt-2 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                         {item.message}
                       </p>
                     )}
 
-                    {item.description && (
+                    {item.type === 'event' && item.description && (
                       <p className="mt-2 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                         {item.description}
                       </p>

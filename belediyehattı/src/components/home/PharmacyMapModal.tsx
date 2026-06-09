@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { X, Navigation, Phone, MapPin } from 'lucide-react';
-import { type PharmacyWidgetItem } from '../../api';
+import { type PharmacyWidget } from '../../api';
 import { openMapsNavigation } from '../../lib/deviceLocation';
 import { Lang, t } from '../../i18n';
 
@@ -41,7 +41,7 @@ const blueIcon = new L.Icon({
 interface PharmacyMapModalProps {
   isOpen: boolean;
   onClose: () => void;
-  pharmacies: PharmacyWidgetItem[];
+  pharmacies: PharmacyWidget[];
   userLat?: number | null;
   userLng?: number | null;
   lang: Lang;

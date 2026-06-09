@@ -576,7 +576,7 @@ export default function App() {
               <Fragment key={key}>
                 <Home
                   onViewMyReports={() => {
-                    setNavStack((s) => [...s, 'home'].slice(-8));
+                    setNavStack((s) => [...s, 'home' as Tab].slice(-8));
                     setActiveTab('reports');
                   }}
                   onOpenAnnouncement={setOpenAnnouncement}
@@ -722,7 +722,7 @@ export default function App() {
               className="flex flex-col items-center justify-center -mt-6 px-2 shrink-0"
               aria-label={t('tab.report', lang)}
             >
-              <div className={`p-3.5 rounded-full shadow-lg shadow-primary/30 transition-transform active:scale-95 ${activeTab === 'report' ? 'bg-primary-hover' : 'bg-primary'}`}>
+              <div className="p-3.5 rounded-full shadow-lg shadow-primary/30 transition-transform active:scale-95 bg-primary">
                 <PlusCircle className="w-7 h-7 text-white" strokeWidth={2} />
               </div>
             </button>

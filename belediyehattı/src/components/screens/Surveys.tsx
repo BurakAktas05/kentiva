@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, BarChart3, CheckCircle2, Award, Users, Check, Loader2 } from 'lucide-react';
 import { getPublicSurveys, voteSurvey, type ApiSurvey, type PublicTenant, getMyProfile } from '../../api';
