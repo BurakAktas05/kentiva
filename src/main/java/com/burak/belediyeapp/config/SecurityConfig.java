@@ -62,7 +62,7 @@ public class SecurityConfig {
                     .includeSubDomains(true)
                     .maxAgeInSeconds(31536000))
                 .xssProtection(xss -> xss.headerValue(org.springframework.security.web.header.writers.XXssProtectionHeaderWriter.HeaderValue.DISABLED))
-                .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'"))
+                .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'; img-src 'self' data: blob: https://*.r2.dev https://*.amazonaws.com; connect-src 'self' ws: wss:;"))
                 .referrerPolicy(referrer -> referrer.policy(org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
                 .permissionsPolicy(permissions -> permissions.policy("camera=(), microphone=(), geolocation=()"))
             )

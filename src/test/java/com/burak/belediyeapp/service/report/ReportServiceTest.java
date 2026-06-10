@@ -226,6 +226,50 @@ class ReportServiceTest {
     }
 
     @Test
+    void citizenCreateReportRejectsLocationOutsideSelectedMunicipalityBoundaries() {
+        AppUser citizen = user("citizen-4", "ROLE_CITIZEN", null);
+        ReportCategory category = ReportCategory.builder().name("Yol").active(true).build();
+        category.setId("cat-1");
+        Municipality resolved = municipality("safranbolu", "Safranbolu Belediyesi", true, true);
+
+        CreateReportRequest request = new CreateReportRequest(
+                "Başlık yeterince uzun",
+                "Açıklama en az yirmi karakter olmalıdır burada.",
+                "cat-1",
+                52.52,
+                13.40,
+                null,
+                List.of(),
+                "safranbolu",
+                true);
+
+        when(categoryRepository.findById("cat-1")).thenReturn(Optional.of(category));
+        when(reportMapper.toEntity(request)).thenReturn(new Report());
+        when(municipalityRepository.findById("safranbolu")).thenReturn(Optional.of(resolved));
+        when(municipalityRepository.isWithinBoundaries("safranbolu", 52.52, 13.40)).thenReturn(false);
+
+        assertThatThrownBy(() -> creationService.createReport(request, citizen))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("sınırları dışındadır");
+
+        verify(reportRepository, never()).save(any());
+    }
+
+    @Test
+    void suspendReporterOfReportSetsEnabledToFalse() {
+        Report report = report("report-suspend", "municipality-a", ReportStatus.PENDING);
+        AppUser reporter = report.getReporter();
+        reporter.setEnabled(true);
+
+        when(reportRepository.findById("report-suspend")).thenReturn(Optional.of(report));
+
+        commandService.suspendReporterOfReport("report-suspend");
+
+        assertThat(reporter.isEnabled()).isFalse();
+        verify(userRepository).save(reporter);
+    }
+
+    @Test
     void staffCannotReadReportFromAnotherMunicipality() {
         Report report = report("report-1", "municipality-a", ReportStatus.PENDING);
         AppUser admin = user("admin-1", "ROLE_ADMIN", "municipality-b");

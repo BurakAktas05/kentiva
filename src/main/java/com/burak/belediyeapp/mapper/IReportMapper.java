@@ -75,6 +75,9 @@ public interface IReportMapper {
     @Mapping(target = "forwardedDepartment", ignore = true)
     @Mapping(target = "forwardedAt", ignore = true)
     @Mapping(target = "forwardedBy", ignore = true)
+    @Mapping(target = "duplicateGroupId", ignore = true)
+    @Mapping(target = "kvkkApprovedAt", ignore = true)
+    @Mapping(target = "kvkkSignature", ignore = true)
     @BeanMapping(ignoreUnmappedSourceProperties = {"categoryId", "mediaUrls", "latitude", "longitude", "targetMunicipalityId"})
     @Mapping(target = "location", source = "request", qualifiedByName = "coordinatesToPoint")
     Report toEntity(CreateReportRequest request);

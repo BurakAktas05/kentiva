@@ -594,8 +594,6 @@ const App = () => {
       }).catch(() => {
         clearAuthStorage();
       }).finally(() => setLoading(false));
-    } else {
-      setLoading(false);
     }
   }, []);
 

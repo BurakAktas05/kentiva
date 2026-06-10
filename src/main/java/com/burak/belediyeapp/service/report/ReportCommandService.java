@@ -102,8 +102,6 @@ public class ReportCommandService {
         Report saved = reportRepository.save(report);
         if (request.status() == ReportStatus.RESOLVED) {
             citizenReputationService.onReportResolved(saved);
-        } else if (request.status() == ReportStatus.REJECTED) {
-            citizenReputationService.onReportRejected(saved, false);
         }
         notificationService.notifyReportStatusChanged(saved);
 
@@ -148,6 +146,18 @@ public class ReportCommandService {
                 log.warn("Sistem reddi bildirimi gönderilemedi: {}", ex.getMessage());
             }
             log.warn("Rapor sistem tarafından reddedildi: {} — sebep: {}", reportId, reason);
+        });
+    }
+
+    @Transactional
+    public void suspendReporterOfReport(String reportId) {
+        reportRepository.findById(reportId).ifPresent(report -> {
+            AppUser reporter = report.getReporter();
+            if (reporter != null) {
+                reporter.setEnabled(false);
+                userRepository.save(reporter);
+                log.warn("Kullanıcı hesabı askıya alındı (müstehcen/uygunsuz görsel yükleme nedeniyle): {}", reporter.getEmail());
+            }
         });
     }
 

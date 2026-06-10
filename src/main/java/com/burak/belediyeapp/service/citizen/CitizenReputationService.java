@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.burak.belediyeapp.security.JwtAuthenticationSupport;
 
 /**
  * Vatandaş güven puanı — gerçek veritabanı skoru (0–1000 arası önerilen).
@@ -29,6 +30,7 @@ public class CitizenReputationService {
 
     private final IAppUserRepository userRepository;
     private final IReportRepository reportRepository;
+    private final JwtAuthenticationSupport jwtAuthenticationSupport;
 
     @Transactional
     public void onReportCreated(AppUser reporter) {
@@ -58,6 +60,7 @@ public class CitizenReputationService {
                 if (isCitizen(user) && user.isEnabled()) {
                     user.setEnabled(false);
                     userRepository.save(user);
+                    jwtAuthenticationSupport.evictCache(user.getEmail());
                     log.warn("Kullanıcı çok sayıda asılsız ihbar nedeniyle otomatik banlandı: userId={}, email={}", user.getId(), user.getEmail());
                 }
             });
@@ -73,6 +76,7 @@ public class CitizenReputationService {
             int next = clamp(user.getReputationScore() + delta);
             user.setReputationScore(next);
             userRepository.save(user);
+            jwtAuthenticationSupport.evictCache(user.getEmail());
             log.info("Vatandaş puanı güncellendi: user={} delta={} reason={} yeni={}",
                     userId, delta, reason, next);
         });

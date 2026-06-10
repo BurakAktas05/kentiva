@@ -133,12 +133,10 @@ const LiveMap = ({
 
   useEffect(() => {
     if (!municipalityId) {
-      setWsConnected(false);
       return;
     }
     const token = localStorage.getItem(TOKEN_KEY);
     if (!token) {
-      setWsConnected(false);
       return;
     }
     const wsUrl = `${getSockJsUrl()}?token=${encodeURIComponent(token)}`;

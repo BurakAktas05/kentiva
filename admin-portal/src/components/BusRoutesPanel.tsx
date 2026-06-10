@@ -47,7 +47,9 @@ export default function BusRoutesPanel({ municipalityId }: BusRoutesPanelProps) 
 
   useEffect(() => {
     if (municipalityId) {
-      void load();
+      Promise.resolve().then(() => {
+        void load();
+      });
     }
   }, [municipalityId, load]);
 

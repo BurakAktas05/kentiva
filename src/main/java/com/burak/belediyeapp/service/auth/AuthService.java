@@ -26,6 +26,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import com.burak.belediyeapp.security.LoginAttemptService;
+import com.burak.belediyeapp.security.JwtAuthenticationSupport;
+import com.burak.belediyeapp.security.TokenBlacklistService;
 import com.burak.belediyeapp.service.sms.SmsOtpService;
 
 /**
@@ -45,6 +47,8 @@ public class AuthService {
     private final LoginAttemptService loginAttemptService;
     private final SmsOtpService smsOtpService;
     private final com.burak.belediyeapp.service.security.KvkkConsentSigningService kvkkConsentSigningService;
+    private final JwtAuthenticationSupport jwtAuthenticationSupport;
+    private final TokenBlacklistService tokenBlacklistService;
 
     @Value("${app.security.jwt.refresh-token-expiration-days}")
     private long refreshTokenExpirationDays;
@@ -80,6 +84,7 @@ public class AuthService {
         }
 
         AppUser savedUser = userRepository.save(user);
+        jwtAuthenticationSupport.evictCache(savedUser.getEmail());
         log.info("Yeni vatandaş kaydı: {} ({})", savedUser.getFullName(), savedUser.getEmail());
 
         return buildAuthResponse(savedUser);
@@ -148,8 +153,19 @@ public class AuthService {
     // ===================================================
 
     @Transactional
-    public void logout(String userId) {
+    public void logout(String userId, String authHeader) {
         refreshTokenRepository.revokeAllByUserId(userId);
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            try {
+                String token = authHeader.substring(7).trim();
+                long remainingMs = jwtService.extractExpiration(token).getTime() - System.currentTimeMillis();
+                if (remainingMs > 0) {
+                    tokenBlacklistService.blacklistToken(token, remainingMs);
+                }
+            } catch (Exception e) {
+                log.warn("Access token blacklist failed during logout: {}", e.getMessage());
+            }
+        }
         log.info("Kullanıcı çıkış yaptı: {}", userId);
     }
 
@@ -197,6 +213,7 @@ public class AuthService {
 
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
+        jwtAuthenticationSupport.evictCache(user.getEmail());
 
         // Tüm mevcut oturumları kapat
         refreshTokenRepository.revokeAllByUserId(user.getId());

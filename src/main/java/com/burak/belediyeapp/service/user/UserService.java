@@ -25,6 +25,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.burak.belediyeapp.security.JwtAuthenticationSupport;
+import com.burak.belediyeapp.security.TokenBlacklistService;
 
 import java.util.HashSet;
 import java.util.List;
@@ -42,6 +44,8 @@ public class UserService {
     private final IRefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final IMunicipalityRepository municipalityRepository;
+    private final JwtAuthenticationSupport jwtAuthenticationSupport;
+    private final TokenBlacklistService tokenBlacklistService;
 
     @Transactional(readOnly = true)
     public UserResponse getUserProfile(AppUser currentUser) {
@@ -56,7 +60,9 @@ public class UserService {
             throw new BusinessException("Bu belediye henüz aktif değil.", "MUNICIPALITY_NOT_AVAILABLE");
         }
         currentUser.setPreferredMunicipality(m);
-        return mapToResponse(userRepository.save(currentUser));
+        AppUser saved = userRepository.save(currentUser);
+        jwtAuthenticationSupport.evictCache(saved.getEmail());
+        return mapToResponse(saved);
     }
 
     @Transactional(readOnly = true)
@@ -143,6 +149,7 @@ public class UserService {
         }
 
         AppUser saved = userRepository.save(user);
+        jwtAuthenticationSupport.evictCache(saved.getEmail());
         log.info("Yeni personel oluşturuldu: {} ({})", saved.getFullName(), saved.getEmail());
         return mapToResponse(saved);
     }
@@ -169,6 +176,7 @@ public class UserService {
         user.setRoles(roles);
 
         AppUser saved = userRepository.save(user);
+        jwtAuthenticationSupport.evictCache(saved.getEmail());
         log.info("Kullanıcı rolleri güncellendi: {} → {}", userId, request.roleNames());
         return mapToResponse(saved);
     }
@@ -190,6 +198,7 @@ public class UserService {
 
         user.setEnabled(!user.isEnabled());
         AppUser saved = userRepository.save(user);
+        jwtAuthenticationSupport.evictCache(saved.getEmail());
         log.info("Kullanıcı durumu değiştirildi: {} → enabled={}", userId, saved.isEnabled());
         return mapToResponse(saved);
     }
@@ -199,7 +208,8 @@ public class UserService {
         AppUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı", "id", userId));
         user.setFcmToken(token);
-        userRepository.save(user);
+        AppUser saved = userRepository.save(user);
+        jwtAuthenticationSupport.evictCache(saved.getEmail());
     }
 
     // =====================================================
@@ -227,6 +237,7 @@ public class UserService {
         }
 
         AppUser saved = userRepository.save(user);
+        jwtAuthenticationSupport.evictCache(saved.getEmail());
         log.info("Profil güncellendi: {}", saved.getEmail());
         return mapToResponse(saved);
     }
@@ -254,6 +265,8 @@ public class UserService {
 
         user.setPassword(passwordEncoder.encode(request.newPassword()));
         userRepository.save(user);
+        jwtAuthenticationSupport.evictCache(user.getEmail());
+        tokenBlacklistService.blacklistCurrentToken();
 
         // Güvenlik: tüm refresh tokenları iptal et — kullanıcı yeniden giriş yapmalı
         refreshTokenRepository.revokeAllByUserId(userId);

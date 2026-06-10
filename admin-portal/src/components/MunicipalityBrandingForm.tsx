@@ -63,11 +63,13 @@ export default function MunicipalityBrandingForm({
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setForm(initial);
-    setSlug(meta.slug);
-    setSavedSnapshot(JSON.stringify(initial));
-    onFormChangeRef.current?.(initial);
-    onSlugChange?.(meta.slug);
+    Promise.resolve().then(() => {
+      setForm(initial);
+      setSlug(meta.slug);
+      setSavedSnapshot(JSON.stringify(initial));
+      onFormChangeRef.current?.(initial);
+      onSlugChange?.(meta.slug);
+    });
   }, [initial, meta.slug, onSlugChange]);
 
   useEffect(() => {
@@ -79,14 +81,16 @@ export default function MunicipalityBrandingForm({
   }, [slug, onSlugChange]);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(draftKey(meta.municipalityId));
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as BrandingFormValues;
-      setForm(parsed);
-    } catch {
-      /* ignore */
-    }
+    Promise.resolve().then(() => {
+      try {
+        const raw = localStorage.getItem(draftKey(meta.municipalityId));
+        if (!raw) return;
+        const parsed = JSON.parse(raw) as BrandingFormValues;
+        setForm(parsed);
+      } catch {
+        /* ignore */
+      }
+    });
   }, [meta.municipalityId]);
 
   const isDirty = JSON.stringify(form) !== savedSnapshot || (slugEditable && slug !== meta.slug);

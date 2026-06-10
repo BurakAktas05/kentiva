@@ -11,7 +11,9 @@ export function useMunicipalityReportFeed(
 ) {
   const [connected, setConnected] = useState(false);
   const handlerRef = useRef(onReport);
-  handlerRef.current = onReport;
+  useEffect(() => {
+    handlerRef.current = onReport;
+  }, [onReport]);
 
   useEffect(() => {
     if (!municipalityId) {

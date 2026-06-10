@@ -56,9 +56,11 @@ public class AuthController {
     @PostMapping("/logout")
     @Operation(summary = "Çıkış — tüm refresh tokenlar iptal edilir")
     public ResponseEntity<ApiResponse<Void>> logout(
-            @AuthenticationPrincipal AppUser currentUser) {
+            @AuthenticationPrincipal AppUser currentUser,
+            jakarta.servlet.http.HttpServletRequest request) {
 
-        authService.logout(currentUser.getId());
+        String authHeader = request.getHeader("Authorization");
+        authService.logout(currentUser.getId(), authHeader);
         return ResponseEntity.ok(ApiResponse.success("Çıkış yapıldı", null));
     }
 

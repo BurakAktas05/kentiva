@@ -6,6 +6,7 @@ import org.json.JSONObject;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import com.burak.belediyeapp.security.SsrfProtectionInterceptor;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
@@ -32,6 +33,7 @@ public class OsmBoundaryService {
             .defaultHeader("User-Agent", USER_AGENT)
             .defaultHeader("Accept", "application/json")
             .defaultHeader("Accept-Language", "tr")
+            .requestInterceptor(new SsrfProtectionInterceptor())
             .build();
 
     /**

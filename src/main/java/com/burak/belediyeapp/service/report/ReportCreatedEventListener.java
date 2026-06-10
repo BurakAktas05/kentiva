@@ -7,6 +7,7 @@ import com.burak.belediyeapp.repository.IReportRepository;
 import com.burak.belediyeapp.service.media.MediaGuardClient;
 import com.burak.belediyeapp.service.media.MediaGuardClient.ScanResult;
 import com.burak.belediyeapp.service.media.MediaValidationService;
+import com.burak.belediyeapp.service.storage.StorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.client.RestClient;
+import com.burak.belediyeapp.security.SsrfProtectionInterceptor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,6 +42,7 @@ public class ReportCreatedEventListener {
     private final ReportService reportService;
     private final MediaGuardClient mediaGuardClient;
     private final MediaValidationService mediaValidationService;
+    private final StorageService storageService;
 
     /** WebSocket opsiyonel — Railway gibi ortamlarda olmayabilir. */
     @Autowired(required = false)
@@ -53,6 +56,7 @@ public class ReportCreatedEventListener {
     /** Medya indirmek için basit HTTP istemci — Storage URL'lerinden byte[] çeker. */
     private final RestClient mediaFetcher = RestClient.builder()
             .requestFactory(fetcherFactory())
+            .requestInterceptor(new SsrfProtectionInterceptor())
             .build();
 
     @Async
@@ -148,25 +152,34 @@ public class ReportCreatedEventListener {
                         : "Görsel güvenlik kuralları ihlali (" + geminiResult.code() + ").";
                 log.warn("Gemini Safe Search reddi: reportId={}, reason={}, code={}", reportId, reason, geminiResult.code());
                 reportService.systemRejectReport(reportId, "[Görsel Güvenlik] " + reason);
+                
+                if ("OBSCENITY".equalsIgnoreCase(geminiResult.code()) 
+                        || "VIOLENCE".equalsIgnoreCase(geminiResult.code()) 
+                        || "ILLEGAL".equalsIgnoreCase(geminiResult.code())) {
+                    try {
+                        reportService.suspendReporterOfReport(reportId);
+                    } catch (Exception ex) {
+                        log.error("Kullanıcı hesabı askıya alınamadı: reportId={}, err={}", reportId, ex.getMessage());
+                    }
+                }
                 return;
             }
         }
-    }
-
-    /** Görüntü URL'sinden byte[] çeker; hata varsa null döner. */
+    }    /** Görüntü URL'sinden veya yerel yoldan/S3'ten byte[] okur; hata varsa null döner. */
     private byte[] fetchImageBytes(String url) {
         try {
-            // Yerel path ise (http ile başlamıyorsa) atlıyoruz — doğrudan disk erişimi gerekir
-            if (!url.startsWith("http://") && !url.startsWith("https://")) {
-                log.debug("Yerel dosya yolu media-guard tarafından atlandı: {}", url);
+            if (url == null || url.isBlank()) {
                 return null;
             }
-            return mediaFetcher.get()
-                    .uri(url)
-                    .retrieve()
-                    .body(byte[].class);
+            if (url.startsWith("http://") || url.startsWith("https://")) {
+                return mediaFetcher.get()
+                        .uri(url)
+                        .retrieve()
+                        .body(byte[].class);
+            }
+            return storageService.downloadFile(url);
         } catch (Exception e) {
-            log.warn("Medya indirilemedi (guard atlandı): url={}, err={}", url, e.getMessage());
+            log.warn("Medya indirilemedi veya okunamadı (guard atlandı): url={}, err={}", url, e.getMessage());
             return null;
         }
     }

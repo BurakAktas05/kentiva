@@ -113,4 +113,8 @@ public class ReportService {
     public void systemRejectReport(String reportId, String reason) {
         commandService.systemRejectReport(reportId, reason);
     }
+
+    public void suspendReporterOfReport(String reportId) {
+        commandService.suspendReporterOfReport(reportId);
+    }
 }

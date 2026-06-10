@@ -40,13 +40,18 @@ public class ReportSupport {
     public Municipality resolveMunicipalityForCoordinates(
             double latitude, double longitude, String targetMunicipalityIdHint) {
 
-        // Kullanici belirli bir belediye sectiyse — sinir eslesme kontrolu YOK.
-        // Belediye siniri icinde olmak zorunda degil; secim yeterli.
+        // Kullanici belirli bir belediye sectiyse — koordinatlar belediye sınırları içinde olmalıdır.
         if (targetMunicipalityIdHint != null && !targetMunicipalityIdHint.isBlank()) {
             Municipality target = municipalityRepository.findById(targetMunicipalityIdHint.trim())
                     .orElseThrow(() -> new BusinessException("Secilen belediye bulunamadi.", "MUNICIPALITY_NOT_FOUND"));
             if (!target.isActive() || !target.isOnboarded()) {
                 throw new BusinessException("Bu belediye platformda aktif degil.", "MUNICIPALITY_NOT_AVAILABLE");
+            }
+            boolean inside = municipalityRepository.isWithinBoundaries(target.getId(), latitude, longitude);
+            if (!inside) {
+                throw new BusinessException(
+                        "İhbar konumunuz seçtiğiniz belediyenin sınırları dışındadır.",
+                        "LOCATION_OUTSIDE_MUNICIPALITY");
             }
             return target;
         }

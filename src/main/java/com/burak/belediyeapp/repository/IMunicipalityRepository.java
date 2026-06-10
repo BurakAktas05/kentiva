@@ -38,4 +38,15 @@ public interface IMunicipalityRepository extends JpaRepository<Municipality, Str
             LIMIT 1
             """, nativeQuery = true)
     Optional<Municipality> findMunicipalityByCoordinate(@Param("latitude") double latitude, @Param("longitude") double longitude);
+
+    @Query(value = """
+            SELECT EXISTS(
+                SELECT 1 FROM municipalities
+                WHERE id = :id
+                  AND active = true
+                  AND boundaries IS NOT NULL
+                  AND ST_Contains(boundaries, ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326))
+            )
+            """, nativeQuery = true)
+    boolean isWithinBoundaries(@Param("id") String id, @Param("latitude") double latitude, @Param("longitude") double longitude);
 }

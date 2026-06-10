@@ -5,6 +5,7 @@ import org.json.JSONObject;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import com.burak.belediyeapp.security.SsrfProtectionInterceptor;
 
 import java.util.Locale;
 import java.util.Optional;
@@ -22,6 +23,7 @@ public class NominatimReverseGeocodeService {
             .requestFactory(factory())
             .defaultHeader("User-Agent", USER_AGENT)
             .defaultHeader("Accept-Language", "tr")
+            .requestInterceptor(new SsrfProtectionInterceptor())
             .build();
 
     public record AdminArea(String provinceName, String districtName, String provinceSlug, String districtSlug) {}
