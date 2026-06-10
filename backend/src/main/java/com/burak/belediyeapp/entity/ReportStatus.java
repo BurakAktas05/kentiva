@@ -36,5 +36,10 @@ public enum ReportStatus {
      * Rapor geçersiz, mükerrer veya yanlış kategoride.
      * Reddedildi.
      */
-    REJECTED
+    REJECTED,
+
+    /**
+     * Rapor belediye yetki alanının dışındadır.
+     */
+    OUT_OF_JURISDICTION
 }

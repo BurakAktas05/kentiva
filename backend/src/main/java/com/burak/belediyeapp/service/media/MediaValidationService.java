@@ -79,8 +79,33 @@ public class MediaValidationService {
                     .body(String.class);
 
             JSONObject json = new JSONObject(response);
-            String text = json.getJSONArray("candidates")
-                    .getJSONObject(0)
+            
+            if (json.has("promptFeedback")) {
+                JSONObject feedback = json.getJSONObject("promptFeedback");
+                if (feedback.has("blockReason") && !"NONE".equalsIgnoreCase(feedback.getString("blockReason"))) {
+                    log.warn("Gemini API promptFeedback engeli tetiklendi: {}", feedback.getString("blockReason"));
+                    return new ValidationResult(false, "Görsel güvenlik kuralları ihlali (Prompt blocked).", "SAFETY");
+                }
+            }
+
+            if (!json.has("candidates") || json.getJSONArray("candidates").length() == 0) {
+                log.warn("Gemini API candidates boş döndü (Güvenlik engeli tetiklenmiş olabilir).");
+                return new ValidationResult(false, "Müstehcenlik, şiddet veya yasa dışı içerik tespit edildi.", "SAFETY");
+            }
+
+            JSONObject candidate = json.getJSONArray("candidates").getJSONObject(0);
+            if (candidate.has("finishReason") && "SAFETY".equalsIgnoreCase(candidate.getString("finishReason"))) {
+                log.warn("Gemini analiz finishReason SAFETY olarak belirlendi.");
+                return new ValidationResult(false, "Görsel güvenlik kuralları ihlali (Safety finish reason).", "SAFETY");
+            }
+
+            if (!candidate.has("content") || !candidate.getJSONObject("content").has("parts") ||
+                    candidate.getJSONObject("content").getJSONArray("parts").length() == 0) {
+                log.warn("Gemini API candidate content veya parts boş döndü.");
+                return new ValidationResult(false, "Görsel güvenlik kuralları ihlali.", "SAFETY");
+            }
+
+            String text = candidate
                     .getJSONObject("content")
                     .getJSONArray("parts")
                     .getJSONObject(0)

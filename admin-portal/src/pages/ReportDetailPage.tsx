@@ -35,10 +35,11 @@ type ReportDetailPageProps = {
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: 'Beklemede',
-  PROCESSING: 'Islemde',
-  RESOLVED: 'Cozuldu',
+  PROCESSING: 'İşlemde',
+  RESOLVED: 'Çözüldü',
   REJECTED: 'Reddedildi',
-  FORWARDED: 'Yonlendirildi',
+  FORWARDED: 'Yönlendirildi',
+  OUT_OF_JURISDICTION: 'Yetki Alanı Dışı',
 };
 
 function toStatusLabel(status: string | null | undefined) {
@@ -76,7 +77,7 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
   const [duplicateGroup, setDuplicateGroup] = useState<ReportListItem[]>([]);
   const [bulkBusy, setBulkBusy] = useState<'RESOLVED' | null>(null);
   const [aiBusy, setAiBusy] = useState(false);
-  const [statusValue, setStatusValue] = useState<'PROCESSING' | 'RESOLVED'>('PROCESSING');
+  const [statusValue, setStatusValue] = useState<'PROCESSING' | 'RESOLVED' | 'OUT_OF_JURISDICTION'>('PROCESSING');
   const [noteText, setNoteText] = useState('');
   const [statusBusy, setStatusBusy] = useState(false);
   const [currentUser, setCurrentUser] = useState<any | null>(null);
@@ -105,7 +106,7 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
         setDepartments((depsRes.data.data?.content ?? []) as { id: string; name: string }[]);
         setDuplicateGroup(dup.data.data as ReportListItem[]);
         setCurrentUser(me.data.data);
-        setStatusValue(rep.status === 'RESOLVED' ? 'RESOLVED' : 'PROCESSING');
+        setStatusValue(rep.status === 'RESOLVED' ? 'RESOLVED' : rep.status === 'OUT_OF_JURISDICTION' ? 'OUT_OF_JURISDICTION' : 'PROCESSING');
         if (rep.aiReplyDraft) {
           setNoteText(rep.aiReplyDraft);
         }
@@ -129,7 +130,7 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
     const next = r.data.data as Report;
     setReport(next);
     setTimeline(tl.data.data as ReportTimelineEntry[]);
-    setStatusValue(next.status === 'RESOLVED' ? 'RESOLVED' : 'PROCESSING');
+    setStatusValue(next.status === 'RESOLVED' ? 'RESOLVED' : next.status === 'OUT_OF_JURISDICTION' ? 'OUT_OF_JURISDICTION' : 'PROCESSING');
   };
 
   const bulkCloseDuplicateGroup = async () => {
@@ -297,6 +298,7 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
                   if (report.status === 'PROCESSING') dotColor = 'bg-sky-500';
                   if (report.status === 'RESOLVED') dotColor = 'bg-emerald-500';
                   if (report.status === 'REJECTED') dotColor = 'bg-red-500';
+                  if (report.status === 'OUT_OF_JURISDICTION') dotColor = 'bg-purple-500';
                   return (
                     <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold uppercase shadow-xs ${reportStatusBadgeClass(report.status)}`}>
                       <span className={`h-1.5 w-1.5 rounded-full ${dotColor} ${report.status === 'PENDING' || report.status === 'PROCESSING' ? 'animate-pulse' : ''}`} />
@@ -503,6 +505,7 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
                   if (entry.newStatus === 'PENDING') badgeDot = 'bg-amber-500';
                   if (entry.newStatus === 'PROCESSING') badgeDot = 'bg-sky-500';
                   if (entry.newStatus === 'REJECTED') badgeDot = 'bg-red-500';
+                  if (entry.newStatus === 'OUT_OF_JURISDICTION') badgeDot = 'bg-purple-500';
 
                   return (
                     <div key={`${entry.at}-${index}`} className="relative pb-8 last:pb-0">
@@ -627,11 +630,12 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
                 <select
                   id="statusSelect"
                   value={statusValue}
-                  onChange={(e) => setStatusValue(e.target.value as 'PROCESSING' | 'RESOLVED')}
+                  onChange={(e) => setStatusValue(e.target.value as 'PROCESSING' | 'RESOLVED' | 'OUT_OF_JURISDICTION')}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 >
                   <option value="PROCESSING">İşlemde</option>
                   {canResolve && <option value="RESOLVED">Çözüldü</option>}
+                  <option value="OUT_OF_JURISDICTION">Yetki Alanı Dışı</option>
                 </select>
               </div>
 

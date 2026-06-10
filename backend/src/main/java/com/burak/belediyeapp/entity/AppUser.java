@@ -99,6 +99,12 @@ public class AppUser extends BaseEntity implements UserDetails, TenantAware {
     @Column(name = "kvkk_signature", length = 512)
     private String kvkkSignature;
 
+    @Column(name = "suspended_until")
+    private java.time.LocalDateTime suspendedUntil;
+
+    @Column(name = "suspension_reason", length = 500)
+    private String suspensionReason;
+
     /**
      * Kullanıcı rolleri. EAGER yüklenir çünkü her request'te
      * yetki kontrolü için gereklidir.

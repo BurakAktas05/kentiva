@@ -64,35 +64,59 @@ public class BusRouteService {
                 throw new BusinessException("Dosya okunamadı: " + filename, "FILE_READ_ERROR");
             }
         }
-
         String parsedJson = geminiService.parseBusRoutes(combinedText.toString());
-
-        busRouteRepository.deleteAllByMunicipalityId(municipalityId);
 
         if (parsedJson == null || parsedJson.isBlank() || parsedJson.equals("[]")) {
             log.warn("AI hatları çözümleyemedi veya API anahtarı eksik. Varsayılan hatlar yükleniyor.");
+            busRouteRepository.deleteAllByMunicipalityId(municipalityId);
             saveFallbackSeedData(municipality);
             return;
         }
 
         try {
             JSONArray jsonArray = new JSONArray(parsedJson);
+            List<BusRoute> existingRoutes = busRouteRepository.findAllByMunicipalityId(municipalityId);
+            Map<String, BusRoute> codeToRoute = new HashMap<>();
+            for (BusRoute r : existingRoutes) {
+                if (r.getCode() != null) {
+                    codeToRoute.put(r.getCode().trim().toUpperCase(), r);
+                }
+            }
+
+            Set<String> processedCodes = new HashSet<>();
+
             for (int i = 0; i < jsonArray.length(); i++) {
                 JSONObject obj = jsonArray.getJSONObject(i);
-                BusRoute route = BusRoute.builder()
-                        .name(obj.getString("name"))
-                        .code(obj.getString("code"))
-                        .color(obj.getString("color"))
-                        .icon(obj.optString("icon", "bus"))
-                        .stopsJson(obj.getJSONArray("stops").toString())
-                        .scheduleJson(obj.getJSONObject("schedule").toString())
-                        .active(true)
-                        .municipality(municipality)
-                        .build();
+                String code = obj.getString("code");
+                String codeKey = code.trim().toUpperCase();
+
+                BusRoute route = codeToRoute.get(codeKey);
+                if (route == null) {
+                    route = new BusRoute();
+                    route.setMunicipality(municipality);
+                    route.setCode(code);
+                }
+
+                route.setName(obj.getString("name"));
+                route.setColor(obj.getString("color"));
+                route.setIcon(obj.optString("icon", "bus"));
+                route.setStopsJson(obj.getJSONArray("stops").toString());
+                route.setScheduleJson(obj.getJSONObject("schedule").toString());
+                route.setActive(true);
+
                 busRouteRepository.save(route);
+                processedCodes.add(codeKey);
+            }
+
+            // Delete only obsolete routes
+            for (BusRoute r : existingRoutes) {
+                if (r.getCode() != null && !processedCodes.contains(r.getCode().trim().toUpperCase())) {
+                    busRouteRepository.delete(r);
+                }
             }
         } catch (Exception e) {
             log.error("AI yanıtını ayrıştırma hatası, fallback yükleniyor", e);
+            busRouteRepository.deleteAllByMunicipalityId(municipalityId);
             saveFallbackSeedData(municipality);
         }
     }

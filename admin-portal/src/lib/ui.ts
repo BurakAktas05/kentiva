@@ -21,6 +21,7 @@ export const REPORT_STATUS_CHART_COLORS: Record<string, string> = {
   PROCESSING: themeHex.secondary,
   RESOLVED: themeHex.success,
   REJECTED: themeHex.danger,
+  OUT_OF_JURISDICTION: themeHex.muted,
 };
 
 export function reportStatusBadgeClass(status: string): string {
@@ -33,6 +34,8 @@ export function reportStatusBadgeClass(status: string): string {
       return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200';
     case 'REJECTED':
       return 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200';
+    case 'OUT_OF_JURISDICTION':
+      return 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200';
     default:
       return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200';
   }

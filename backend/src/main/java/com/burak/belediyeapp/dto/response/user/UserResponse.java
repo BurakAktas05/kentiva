@@ -13,5 +13,7 @@ public record UserResponse(
         com.burak.belediyeapp.dto.response.municipality.MunicipalityDto municipality,
         com.burak.belediyeapp.dto.response.municipality.MunicipalityDto preferredMunicipality,
         int reputationScore,
-        String reputationLevel
+        String reputationLevel,
+        java.time.LocalDateTime suspendedUntil,
+        String suspensionReason
 ) {}

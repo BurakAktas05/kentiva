@@ -26,15 +26,18 @@ import type { Report } from '../api';
 const STATUS_OPTIONS = [
   { value: '', label: 'Tüm durumlar' },
   { value: 'PENDING', label: 'Bekleyen' },
+  { value: 'FORWARDED', label: 'Yönlendirildi' },
   { value: 'PROCESSING', label: 'İşleniyor' },
   { value: 'RESOLVED', label: 'Çözüldü' },
   { value: 'REJECTED', label: 'Reddedildi' },
+  { value: 'OUT_OF_JURISDICTION', label: 'Yetki Alanı Dışı' },
 ];
 
 const BULK_STATUS_OPTIONS = [
   { value: 'PROCESSING', label: 'İşleniyor' },
   { value: 'RESOLVED', label: 'Çözüldü' },
   { value: 'REJECTED', label: 'Reddedildi' },
+  { value: 'OUT_OF_JURISDICTION', label: 'Yetki Alanı Dışı' },
 ];
 
 type BulkModal = 'assign' | 'status' | 'export' | null;

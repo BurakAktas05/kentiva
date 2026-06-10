@@ -67,7 +67,8 @@ public class ReportCommandService {
         tenantAccess.ensureCanViewReport(report, currentUser);
 
         if (report.getReportStatus() == ReportStatus.RESOLVED
-                || report.getReportStatus() == ReportStatus.REJECTED) {
+                || report.getReportStatus() == ReportStatus.REJECTED
+                || report.getReportStatus() == ReportStatus.OUT_OF_JURISDICTION) {
             throw new BusinessException(
                     "Kapatılmış bir raporun durumu değiştirilemez",
                     "REPORT_ALREADY_CLOSED");
@@ -123,7 +124,8 @@ public class ReportCommandService {
     public void systemRejectReport(String reportId, String reason) {
         reportRepository.findById(reportId).ifPresent(report -> {
             if (report.getReportStatus() == ReportStatus.RESOLVED
-                    || report.getReportStatus() == ReportStatus.REJECTED) {
+                    || report.getReportStatus() == ReportStatus.REJECTED
+                    || report.getReportStatus() == ReportStatus.OUT_OF_JURISDICTION) {
                 log.info("Sistem reddi atlandı — rapor zaten kapalı: {}", reportId);
                 return;
             }

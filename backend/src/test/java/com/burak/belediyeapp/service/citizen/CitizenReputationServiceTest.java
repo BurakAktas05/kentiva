@@ -59,7 +59,11 @@ class CitizenReputationServiceTest {
     @Test
     void onReportRejected_whenCountIsLessThanFive_doesNotBanUser() {
         // Given
-        when(reportRepository.countByReporterIdAndReportStatus("user-1", ReportStatus.REJECTED)).thenReturn(4L);
+        when(reportRepository.countByReporterIdAndReportStatusAndCreatedAtAfter(
+                org.mockito.ArgumentMatchers.eq("user-1"),
+                org.mockito.ArgumentMatchers.eq(ReportStatus.REJECTED),
+                org.mockito.ArgumentMatchers.any(java.time.LocalDateTime.class)
+        )).thenReturn(4L);
         when(userRepository.findById("user-1")).thenReturn(Optional.of(reporter));
 
         // When
@@ -74,7 +78,11 @@ class CitizenReputationServiceTest {
     @Test
     void onReportRejected_whenCountIsFiveOrMore_bansUser() {
         // Given
-        when(reportRepository.countByReporterIdAndReportStatus("user-1", ReportStatus.REJECTED)).thenReturn(5L);
+        when(reportRepository.countByReporterIdAndReportStatusAndCreatedAtAfter(
+                org.mockito.ArgumentMatchers.eq("user-1"),
+                org.mockito.ArgumentMatchers.eq(ReportStatus.REJECTED),
+                org.mockito.ArgumentMatchers.any(java.time.LocalDateTime.class)
+        )).thenReturn(5L);
         when(userRepository.findById("user-1")).thenReturn(Optional.of(reporter));
 
         // When

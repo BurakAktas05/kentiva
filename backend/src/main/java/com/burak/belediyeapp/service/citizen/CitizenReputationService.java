@@ -53,8 +53,10 @@ public class CitizenReputationService {
         int delta = selfieRelated ? DELTA_SELFIE_REJECTED : DELTA_REPORT_REJECTED;
         applyDelta(report.getReporter().getId(), delta, selfieRelated ? "SELFIE_REJECTED" : "REPORT_REJECTED");
 
-        // Ban check: count rejected reports for the user
-        long rejectedCount = reportRepository.countByReporterIdAndReportStatus(report.getReporter().getId(), ReportStatus.REJECTED);
+        // Ban check: count rejected reports for the user in the last 30 days
+        java.time.LocalDateTime since = java.time.LocalDateTime.now().minusDays(30);
+        long rejectedCount = reportRepository.countByReporterIdAndReportStatusAndCreatedAtAfter(
+                report.getReporter().getId(), ReportStatus.REJECTED, since);
         if (rejectedCount >= 5) {
             userRepository.findById(report.getReporter().getId()).ifPresent(user -> {
                 if (isCitizen(user) && user.isEnabled()) {

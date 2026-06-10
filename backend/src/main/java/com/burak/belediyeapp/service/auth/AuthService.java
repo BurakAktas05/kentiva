@@ -68,8 +68,8 @@ public class AuthService {
         Role citizenRole = roleRepository.findByName("ROLE_CITIZEN")
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Sistem rolü bulunamadı. Yöneticinizle iletişime geçin."));
-
         AppUser user = new AppUser();
+        user.setId(UUID.randomUUID().toString());
         user.setFirstName(request.firstName());
         user.setLastName(request.lastName());
         user.setEmail(request.email());

@@ -43,6 +43,7 @@ public class ReportCreatedEventListener {
     private final MediaGuardClient mediaGuardClient;
     private final MediaValidationService mediaValidationService;
     private final StorageService storageService;
+    private final ReportDuplicateLinkService duplicateLinkService;
 
     /** WebSocket opsiyonel — Railway gibi ortamlarda olmayabilir. */
     @Autowired(required = false)
@@ -90,6 +91,13 @@ public class ReportCreatedEventListener {
             reportService.performAiAnalysisAsSystem(event.reportId());
         } catch (Exception e) {
             log.warn("Rapor AI analizi tamamlanamadı: reportId={}, reason={}", event.reportId(), e.getMessage());
+        }
+
+        // 4. Mükerrer ihbar analizi — asenkron, db txn dışında.
+        try {
+            duplicateLinkService.linkNearbyDuplicates(event.reportId());
+        } catch (Exception e) {
+            log.warn("Mükerrer ihbar analizi tamamlanamadı: reportId={}, err={}", event.reportId(), e.getMessage());
         }
     }
 

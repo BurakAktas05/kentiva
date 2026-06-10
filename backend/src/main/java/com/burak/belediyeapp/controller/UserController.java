@@ -135,5 +135,16 @@ public class UserController {
         UserResponse response = userService.toggleUserEnabled(userId, currentUser);
         return ResponseEntity.ok(ApiResponse.success("Kullanıcı durumu güncellendi", response));
     }
+
+    @PostMapping("/{userId}/suspend")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @Operation(summary = "Kullanıcıyı askıya al (Admin)")
+    public ResponseEntity<ApiResponse<UserResponse>> suspendUser(
+            @PathVariable String userId,
+            @Valid @RequestBody com.burak.belediyeapp.dto.request.user.SuspendUserRequest request,
+            @AuthenticationPrincipal AppUser currentUser) {
+        UserResponse response = userService.suspendUser(userId, request, currentUser);
+        return ResponseEntity.ok(ApiResponse.success("Kullanıcı askıya alındı", response));
+    }
 }
 

@@ -102,7 +102,7 @@ export interface Report {
   id: string;
   title: string;
   description?: string;
-  status: 'PENDING' | 'PROCESSING' | 'RESOLVED' | 'REJECTED' | 'FORWARDED';
+  status: 'PENDING' | 'PROCESSING' | 'RESOLVED' | 'REJECTED' | 'FORWARDED' | 'OUT_OF_JURISDICTION';
   categoryName: string;
   reporterFullName?: string;
   assigneeFullName?: string | null;
@@ -160,6 +160,10 @@ export interface User {
   lastName: string;
   email: string;
   roles: string[];
+  reputationScore?: number;
+  reputationLevel?: string;
+  suspendedUntil?: string | null;
+  suspensionReason?: string | null;
 }
 
 export type ExportFormat = 'EXCEL' | 'PDF';

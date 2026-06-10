@@ -46,6 +46,7 @@ public class UserService {
     private final IMunicipalityRepository municipalityRepository;
     private final JwtAuthenticationSupport jwtAuthenticationSupport;
     private final TokenBlacklistService tokenBlacklistService;
+    private final com.burak.belediyeapp.service.notification.NotificationService notificationService;
 
     @Transactional(readOnly = true)
     public UserResponse getUserProfile(AppUser currentUser) {
@@ -203,6 +204,54 @@ public class UserService {
         return mapToResponse(saved);
     }
 
+    /**
+     * Kullanıcıyı askıya al (sadece vatandaş).
+     */
+    @Transactional
+    @AuditAction(action = "USER_SUSPEND", description = "Kullanıcı hesabı askıya alındı")
+    public UserResponse suspendUser(String userId, com.burak.belediyeapp.dto.request.user.SuspendUserRequest request, AppUser currentUser) {
+        AppUser user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı", "id", userId));
+        
+        // Sadece vatandaş rolü olan kullanıcılar askıya alınabilir
+        if (!user.hasRole("ROLE_CITIZEN") || user.hasRole("ROLE_ADMIN") || user.hasRole("ROLE_SUPER_ADMIN")) {
+            throw new BusinessException("Sadece vatandaş rollü kullanıcılar askıya alınabilir.", "SUSPEND_NOT_ALLOWED");
+        }
+
+        // Belediye adminleri sadece kendi belediyelerindeki vatandaşları askıya alabilsin
+        if (!currentUser.hasRole("ROLE_SUPER_ADMIN")) {
+            if (currentUser.getMunicipality() == null) {
+                throw new BusinessException("Bu işlem için belediye kapsamı gerekli", "MUNICIPALITY_REQUIRED");
+            }
+            boolean sameMuni = (user.getMunicipality() != null && user.getMunicipality().getId().equals(currentUser.getMunicipality().getId()))
+                    || (user.getPreferredMunicipality() != null && user.getPreferredMunicipality().getId().equals(currentUser.getMunicipality().getId()));
+            if (!sameMuni) {
+                throw new BusinessException("Yalnızca kendi belediyenize bağlı vatandaşları askıya alabilirsiniz.", "CROSS_MUNICIPALITY_ACCESS");
+            }
+        }
+
+        java.time.LocalDateTime suspendedUntil = java.time.LocalDateTime.now().plusDays(request.durationDays());
+        user.setSuspendedUntil(suspendedUntil);
+        user.setSuspensionReason(request.reason());
+
+        AppUser saved = userRepository.save(user);
+        jwtAuthenticationSupport.evictCache(saved.getEmail());
+
+        // Refresh tokenları sil
+        refreshTokenRepository.revokeAllByUserId(userId);
+
+        // Bildirim gönder
+        try {
+            notificationService.notifyUserSuspended(saved, request.reason(), request.durationDays());
+        } catch (Exception e) {
+            log.warn("Askıya alma bildirimi gönderilemedi: {}", e.getMessage());
+        }
+
+        log.info("Kullanıcı askıya alındı: {} -> {} tarihine kadar. Gerekçe: {}", saved.getEmail(), suspendedUntil, request.reason());
+        return mapToResponse(saved);
+    }
+
+
     @Transactional
     public void updateFcmToken(String userId, String token) {
         AppUser user = userRepository.findById(userId)
@@ -320,7 +369,9 @@ public class UserService {
                 municipalityDto,
                 preferredDto,
                 score,
-                CitizenReputationService.levelForScore(score)
+                CitizenReputationService.levelForScore(score),
+                user.getSuspendedUntil(),
+                user.getSuspensionReason()
         );
     }
 }

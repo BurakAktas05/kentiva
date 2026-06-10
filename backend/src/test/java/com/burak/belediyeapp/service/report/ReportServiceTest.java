@@ -85,7 +85,8 @@ class ReportServiceTest {
                 duplicateLinkService,
                 webhookDispatchService,
                 citizenReputationService,
-                kvkkConsentSigningService);
+                kvkkConsentSigningService,
+                userRepository);
 
         queryService = new ReportQueryService(
                 reportRepository,

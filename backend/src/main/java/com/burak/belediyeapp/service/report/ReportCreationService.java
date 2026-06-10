@@ -41,12 +41,25 @@ public class ReportCreationService {
     private final WebhookDispatchService webhookDispatchService;
     private final CitizenReputationService citizenReputationService;
     private final com.burak.belediyeapp.service.security.KvkkConsentSigningService kvkkConsentSigningService;
+    private final com.burak.belediyeapp.repository.IAppUserRepository userRepository;
+
 
     @Transactional
     @PreAuthorize("hasAuthority('ROLE_CITIZEN')")
     @com.burak.belediyeapp.audit.AuditAction(action = "REPORT_CREATE", description = "Yeni bir vatandaş raporu oluşturuldu")
     public ReportResponse createReport(CreateReportRequest request, AppUser reporter) {
-        if (reporter.getReputationScore() < 30) {
+        AppUser freshReporter = userRepository.findById(reporter.getId())
+                .orElse(reporter);
+
+        if (freshReporter.getSuspendedUntil() != null && freshReporter.getSuspendedUntil().isAfter(java.time.LocalDateTime.now())) {
+            java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
+            String dateStr = freshReporter.getSuspendedUntil().format(formatter);
+            throw new BusinessException(
+                    "Hesabınız " + dateStr + " tarihine kadar askıya alınmıştır. Gerekçe: " + freshReporter.getSuspensionReason(),
+                    "USER_SUSPENDED");
+        }
+
+        if (freshReporter.getReputationScore() < 30) {
             throw new BusinessException(
                     "Güven puanınız çok düşük olduğundan yeni ihbar oluşturamazsınız.",
                     "LOW_REPUTATION_BLOCKED");
@@ -58,12 +71,12 @@ public class ReportCreationService {
 
         Report report = reportMapper.toEntity(request);
         report.setCategory(category);
-        report.setReporter(reporter);
+        report.setReporter(freshReporter);
         report.setContentLanguage(ContentLanguageDetector.detect(request.title(), request.description()));
 
-        if (reporter.getMunicipality() != null && !tenantAccess.isCitizenOnly(reporter)) {
-            report.setMunicipality(reporter.getMunicipality());
-            report.setDistrict(reporter.getMunicipality().getName());
+        if (freshReporter.getMunicipality() != null && !tenantAccess.isCitizenOnly(freshReporter)) {
+            report.setMunicipality(freshReporter.getMunicipality());
+            report.setDistrict(freshReporter.getMunicipality().getName());
         } else {
             Municipality target = reportSupport.resolveMunicipalityForCoordinates(
                     request.latitude(), request.longitude(), request.targetMunicipalityId());
@@ -90,6 +103,9 @@ public class ReportCreationService {
         // KVKK rıza kaydı
         report.setKvkkApproved(Boolean.TRUE.equals(request.kvkkApproved()));
         if (report.isKvkkApproved()) {
+            if (report.getId() == null) {
+                report.setId(java.util.UUID.randomUUID().toString());
+            }
             report.setKvkkApprovedAt(java.time.LocalDateTime.now());
             report.setKvkkSignature(kvkkConsentSigningService.signReportConsent(
                     report.getId(), reporter.getEmail(), report.getKvkkApprovedAt()));
@@ -116,16 +132,16 @@ public class ReportCreationService {
                 .note("İhbar oluşturuldu · ilçe: " + report.getDistrict())
                 .build());
 
-        duplicateLinkService.linkNearbyDuplicates(saved);
+
 
         if (saved.getMunicipality() != null) {
             webhookDispatchService.dispatchReportCreated(saved.getMunicipality(), saved);
         }
 
         eventPublisher.publishEvent(new ReportCreatedEvent(saved.getId()));
-        citizenReputationService.onReportCreated(reporter);
+        citizenReputationService.onReportCreated(freshReporter);
 
-        log.info("Yeni rapor oluşturuldu: {} — {} — ilçe={}", saved.getId(), reporter.getEmail(), report.getDistrict());
+        log.info("Yeni rapor oluşturuldu: {} — {} — ilçe={}", saved.getId(), freshReporter.getEmail(), report.getDistrict());
 
         Report refreshed = reportSupport.findReportOrThrow(saved.getId());
         return reportSupport.finalizeResponse(refreshed, reportMapper.toResponse(refreshed), true);

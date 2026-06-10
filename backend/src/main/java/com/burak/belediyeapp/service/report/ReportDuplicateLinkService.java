@@ -28,33 +28,27 @@ public class ReportDuplicateLinkService {
     @Value("${app.report.duplicate-radius-meters:75}")
     private double radiusMeters;
 
-    @Transactional
-    public void linkNearbyDuplicates(Report report) {
-        if (report.getLocation() == null || report.getMunicipality() == null) {
-            return;
-        }
-        double lat = report.getLocation().getY();
-        double lng = report.getLocation().getX();
-        String municipalityId = report.getMunicipality().getId();
+    @org.springframework.beans.factory.annotation.Autowired
+    @org.springframework.context.annotation.Lazy
+    private ReportDuplicateLinkService self;
 
-        // Duplicate kümeleme için bir aşamada en fazla 15 yakın aktif kayıt yeterlidir.
-        List<Report> nearby = reportRepository.findActiveNearbyInMunicipality(
-                lat, lng, radiusMeters, municipalityId, report.getId(), 15);
-        if (nearby.isEmpty()) {
+    public void linkNearbyDuplicates(String reportId) {
+        DuplicateContext ctx = self.loadDuplicateContext(reportId);
+        if (ctx == null || ctx.nearby().isEmpty()) {
             return;
         }
 
         List<Report> duplicatesToLink;
-        List<String> duplicateIds = geminiService.findDuplicateReports(report, nearby);
+        List<String> duplicateIds = geminiService.findDuplicateReports(ctx.report(), ctx.nearby());
 
         if (duplicateIds == null) {
             // Hata veya API key eksikliği durumunda mesafe tabanlı (fail-safe) fallback
-            log.info("Semantik analiz yapilamadi veya atlandi. Konum tabanli varsayilan birlestirme uygulaniyor.");
-            duplicatesToLink = nearby;
+            log.info("Semantik analiz yapılamadı veya atlandı. Konum tabanlı varsayılan birleştirme uygulanıyor.");
+            duplicatesToLink = ctx.nearby();
         } else {
             // Gemini tarafından aynı probleme ait olduğu doğrulananları filtrele
             duplicatesToLink = new java.util.ArrayList<>();
-            for (Report r : nearby) {
+            for (Report r : ctx.nearby()) {
                 if (duplicateIds.contains(r.getId())) {
                     duplicatesToLink.add(r);
                 }
@@ -65,25 +59,68 @@ public class ReportDuplicateLinkService {
             return;
         }
 
-        String groupId = resolveGroupId(duplicatesToLink, report.getDuplicateGroupId());
-        Set<Report> toUpdate = new LinkedHashSet<>(duplicatesToLink);
-        toUpdate.add(report);
+        String currentGroupId = ctx.report().getDuplicateGroupId();
+        String groupId = resolveGroupId(duplicatesToLink, currentGroupId);
 
-        // Save-in-loop yerine tek saveAll: flush sayısını azaltır, JDBC batch çalışır.
-        java.util.List<Report> dirty = new java.util.ArrayList<>();
-        for (Report r : toUpdate) {
+        List<String> reportIdsToUpdate = new java.util.ArrayList<>();
+        for (Report r : duplicatesToLink) {
             if (!groupId.equals(r.getDuplicateGroupId())) {
-                r.setDuplicateGroupId(groupId);
-                dirty.add(r);
+                reportIdsToUpdate.add(r.getId());
             }
         }
-        if (!dirty.isEmpty()) {
-            reportRepository.saveAll(dirty);
+        if (!groupId.equals(currentGroupId)) {
+            reportIdsToUpdate.add(reportId);
         }
+
+        if (!reportIdsToUpdate.isEmpty()) {
+            self.persistDuplicateGroupId(reportIdsToUpdate, groupId);
+        }
+    }
+
+    public record DuplicateContext(Report report, List<Report> nearby) {}
+
+    @Transactional(readOnly = true)
+    public DuplicateContext loadDuplicateContext(String reportId) {
+        Report report = reportRepository.findById(reportId).orElse(null);
+        if (report == null || report.getLocation() == null || report.getMunicipality() == null) {
+            return null;
+        }
+
+        // Force initialize lazy proxies required by duplicate check prompt building
+        if (report.getCategory() != null) {
+            report.getCategory().getName();
+        }
+        if (report.getMunicipality() != null) {
+            report.getMunicipality().getName();
+        }
+
+        double lat = report.getLocation().getY();
+        double lng = report.getLocation().getX();
+        String municipalityId = report.getMunicipality().getId();
+
+        List<Report> nearby = reportRepository.findActiveNearbyInMunicipality(
+                lat, lng, radiusMeters, municipalityId, report.getId(), 15);
+
+        for (Report r : nearby) {
+            if (r.getCategory() != null) {
+                r.getCategory().getName();
+            }
+        }
+
+        return new DuplicateContext(report, nearby);
+    }
+
+    @Transactional
+    public void persistDuplicateGroupId(List<String> reportIds, String groupId) {
+        List<Report> reports = reportRepository.findAllById(reportIds);
+        for (Report r : reports) {
+            r.setDuplicateGroupId(groupId);
+        }
+        reportRepository.saveAll(reports);
 
         int size = reportRepository.countByDuplicateGroupId(groupId);
         if (size > 1) {
-            log.info("Duplicate group {} now has {} reports (triggered by {})", groupId, size, report.getId());
+            log.info("Duplicate group {} now has {} reports", groupId, size);
         }
     }
 

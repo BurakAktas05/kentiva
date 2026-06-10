@@ -225,6 +225,8 @@ public class MunicipalityOnboardingService {
                 municipalityDto,
                 com.burak.belediyeapp.dto.response.municipality.MunicipalityDto.fromEntity(user.getPreferredMunicipality()),
                 score,
-                com.burak.belediyeapp.service.citizen.CitizenReputationService.levelForScore(score));
+                com.burak.belediyeapp.service.citizen.CitizenReputationService.levelForScore(score),
+                user.getSuspendedUntil(),
+                user.getSuspensionReason());
     }
 }

@@ -130,6 +130,25 @@ public class MunicipalityMessageService {
                 render(bodyTpl, municipality, reportTitle, staffNote));
     }
 
+    public PushMessage buildOutOfJurisdictionPush(Municipality municipality, String reportTitle, String staffNote) {
+        return buildOutOfJurisdictionPush(municipality, reportTitle, staffNote, "tr");
+    }
+
+    public PushMessage buildOutOfJurisdictionPush(
+            Municipality municipality, String reportTitle, String staffNote, String contentLanguage) {
+        if (!"tr".equals(ReportLanguageMessages.normalizeLang(contentLanguage))) {
+            String name = resolveLabel(municipality);
+            return new PushMessage(
+                    name + " — Out of Jurisdiction",
+                    "Your report \"" + truncate(reportTitle, 70) + "\" is outside our jurisdiction and has been closed." + ((staffNote != null && !staffNote.isBlank()) ? " Note: " + truncate(staffNote, 100) : ""));
+        }
+        String titleTpl = "{belediye} — Yetki Alanı Dışı";
+        String bodyTpl = "\"{baslik}\" başlıklı bildiriminiz belediyemizin yetki alanı dışında olduğu için kapatılmıştır.{not}";
+        return new PushMessage(
+                render(titleTpl, municipality, reportTitle, staffNote),
+                render(bodyTpl, municipality, reportTitle, staffNote));
+    }
+
     public PushMessage buildResolvedPush(Municipality municipality, String reportTitle, String staffNote) {
         return buildResolvedPush(municipality, reportTitle, staffNote, "tr");
     }

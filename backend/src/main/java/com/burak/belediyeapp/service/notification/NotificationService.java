@@ -110,4 +110,31 @@ public class NotificationService {
     public void markAllAsRead(String userId) {
         notificationRepository.markAllAsReadByUserId(userId);
     }
+
+    @Transactional
+    public void notifyUserSuspended(AppUser user, String reason, int durationDays) {
+        String title = "Hesabınız Askıya Alındı";
+        String body = String.format("Hesabınız %d gün süreyle askıya alınmıştır. Gerekçe: %s", durationDays, reason);
+
+        Notification notification = Notification.builder()
+                .user(user)
+                .title(title)
+                .body(body)
+                .type("USER_SUSPENDED")
+                .build();
+
+        notificationRepository.save(notification);
+
+        if (user.getFcmToken() != null && !user.getFcmToken().isBlank()) {
+            try {
+                firebasePushClient.send(
+                        user.getFcmToken(),
+                        title,
+                        body,
+                        java.util.Map.of("type", "USER_SUSPENDED"));
+            } catch (Exception e) {
+                log.warn("Askıya alma push bildirimi gönderilemedi: {}", e.getMessage());
+            }
+        }
+    }
 }

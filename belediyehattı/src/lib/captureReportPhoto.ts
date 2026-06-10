@@ -10,7 +10,7 @@ export class PhotoCaptureCancelledError extends Error {
 
 export type CaptureResult = { file: File; previewUrl: string };
 
-/** Rapor fotoğrafı yalnızca kameradan — galeri yok. */
+/** Rapor fotoğrafı hem kamera hem de galeriden yüklenebilir. */
 export async function captureReportPhotoFile(): Promise<CaptureResult> {
   if (Capacitor.isNativePlatform()) {
     try {
@@ -20,7 +20,7 @@ export async function captureReportPhotoFile(): Promise<CaptureResult> {
         height: 1280,
         allowEditing: false,
         resultType: CameraResultType.Uri,
-        source: CameraSource.Camera,
+        source: CameraSource.Prompt,
         saveToGallery: false,
       });
       if (!photo.webPath) {
@@ -49,7 +49,6 @@ function pickFromCameraInputOnly(): Promise<CaptureResult> {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
-    input.setAttribute('capture', 'environment');
     input.onchange = async () => {
       const file = input.files?.[0];
       if (file) {

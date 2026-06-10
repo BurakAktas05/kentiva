@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Search, ShieldAlert } from 'lucide-react';
+import { Plus, Search, ShieldAlert, UserX } from 'lucide-react';
 import axios from 'axios';
 import api from '../api';
 import type { Department } from './DepartmentsPage';
@@ -12,6 +12,10 @@ interface UserResponse {
   phoneNumber: string;
   roles: string[];
   district: string;
+  reputationScore?: number;
+  reputationLevel?: string;
+  suspendedUntil?: string | null;
+  suspensionReason?: string | null;
 }
 
 export default function UsersPage() {
@@ -34,6 +38,46 @@ export default function UsersPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [departmentId, setDepartmentId] = useState('');
   const [role, setRole] = useState('ROLE_FIELD_OFFICER');
+
+  // Suspension modal states
+  const [isSuspendModalOpen, setIsSuspendModalOpen] = useState(false);
+  const [suspendingUser, setSuspendingUser] = useState<UserResponse | null>(null);
+  const [suspendDuration, setSuspendDuration] = useState(30);
+  const [suspendReason, setSuspendReason] = useState('');
+  const [suspendError, setSuspendError] = useState('');
+  const [suspending, setSuspending] = useState(false);
+
+  const openSuspendModal = (user: UserResponse) => {
+    setSuspendingUser(user);
+    setSuspendDuration(30);
+    setSuspendReason('');
+    setSuspendError('');
+    setIsSuspendModalOpen(true);
+  };
+
+  const handleSuspendSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!suspendingUser) return;
+    setSuspendError('');
+    setSuspending(true);
+
+    try {
+      await api.post(`/users/${suspendingUser.id}/suspend`, {
+        durationDays: suspendDuration,
+        reason: suspendReason.trim()
+      });
+      await fetchData();
+      setIsSuspendModalOpen(false);
+    } catch (err: unknown) {
+      setSuspendError(
+        axios.isAxiosError(err)
+          ? String((err.response?.data as { message?: string } | undefined)?.message ?? 'Askıya alma işlemi başarısız oldu.')
+          : 'Askıya alma işlemi başarısız oldu.'
+      );
+    } finally {
+      setSuspending(false);
+    }
+  };
 
   async function fetchData() {
     setLoading(true);
@@ -192,9 +236,16 @@ export default function UsersPage() {
                       <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary dark:bg-primary/20 dark:text-sky-300 font-bold uppercase">
                         {user.firstName[0]}{user.lastName[0]}
                       </div>
-                      <span className="font-medium text-slate-900 dark:text-white">
-                        {user.firstName} {user.lastName}
-                      </span>
+                      <div>
+                        <span className="font-medium text-slate-900 dark:text-white block">
+                          {user.firstName} {user.lastName}
+                        </span>
+                        {user.roles.includes('ROLE_CITIZEN') && (
+                          <span className="text-xs text-slate-500 dark:text-slate-400 block mt-0.5">
+                            Puan: {user.reputationScore ?? 100} · {user.reputationLevel ?? 'Yeni Üye'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-slate-500">
@@ -202,12 +253,20 @@ export default function UsersPage() {
                     <div className="text-xs">{user.phoneNumber || '-'}</div>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex gap-1 flex-wrap">
+                    <div className="flex gap-1.5 flex-wrap items-center">
                       {user.roles.map(r => (
                         <span key={r} className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-800 dark:bg-slate-700 dark:text-slate-300">
                           {roleLabels[r] || r}
                         </span>
                       ))}
+                      {user.suspendedUntil && new Date(user.suspendedUntil) > new Date() && (
+                        <span 
+                          className="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-bold text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200/50"
+                          title={`Gerekçe: ${user.suspensionReason}`}
+                        >
+                          Askıya Alındı ({new Date(user.suspendedUntil).toLocaleDateString('tr-TR')})
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right">
@@ -217,6 +276,14 @@ export default function UsersPage() {
                     >
                       <ShieldAlert className="h-4 w-4" />
                     </button>
+                    {user.roles.includes('ROLE_CITIZEN') && (
+                      <button 
+                        onClick={() => openSuspendModal(user)}
+                        className="p-1.5 text-slate-400 hover:text-amber-600 transition-colors ml-1" title="Vatandaşı Askıya Al"
+                      >
+                        <UserX className="h-4 w-4" />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -303,6 +370,67 @@ export default function UsersPage() {
               <div className="mt-6 flex justify-end gap-3 pt-4">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="kentiva-btn kentiva-btn-secondary">İptal</button>
                 <button type="submit" disabled={saving} className="kentiva-btn kentiva-btn-primary">{saving ? 'Ekleniyor...' : 'Ekle'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Suspend Modal */}
+      {isSuspendModalOpen && suspendingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md overflow-hidden transform transition-all">
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Vatandaşı Askıya Al</h3>
+              <button onClick={() => setIsSuspendModalOpen(false)} className="text-slate-400 hover:text-slate-500">
+                &times;
+              </button>
+            </div>
+            
+            <form onSubmit={handleSuspendSubmit} className="p-6 space-y-4">
+              {suspendError && (
+                <div className="p-3 bg-rose-50 text-rose-600 rounded-lg text-sm flex items-start gap-2">
+                  <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>{suspendError}</span>
+                </div>
+              )}
+
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                <strong>{suspendingUser.firstName} {suspendingUser.lastName}</strong> ({suspendingUser.email}) adlı vatandaşın ihbar gönderme yetkisini geçici olarak askıya alıyorsunuz.
+              </p>
+              
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Süre (Gün) *</label>
+                <select 
+                  value={suspendDuration} 
+                  onChange={e => setSuspendDuration(Number(e.target.value))} 
+                  className="w-full rounded-lg border border-slate-200 bg-white p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:bg-slate-800 dark:border-slate-700"
+                >
+                  <option value={7}>7 Gün (1 Hafta)</option>
+                  <option value={15}>15 Gün</option>
+                  <option value={30}>30 Gün (1 Ay)</option>
+                  <option value={90}>90 Gün (3 Ay)</option>
+                  <option value={180}>180 Gün (6 Ay)</option>
+                  <option value={365}>365 Gün (1 Yıl)</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Askıya Alma Gerekçesi *</label>
+                <textarea 
+                  required 
+                  value={suspendReason} 
+                  onChange={e => setSuspendReason(e.target.value)} 
+                  rows={4}
+                  placeholder="Kötü niyetli kullanım gerekçesini detaylandırın (vatandaşa bildirim olarak gidecektir)..."
+                  className="w-full rounded-lg border border-slate-200 bg-white p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:bg-slate-800 dark:border-slate-700 leading-relaxed resize-none"
+                />
+              </div>
+
+              <div className="mt-6 flex justify-end gap-3 pt-4">
+                <button type="button" onClick={() => setIsSuspendModalOpen(false)} className="kentiva-btn kentiva-btn-secondary">İptal</button>
+                <button type="submit" disabled={suspending || !suspendReason.trim()} className="kentiva-btn kentiva-btn-primary bg-amber-600 hover:bg-amber-700 focus:ring-amber-500">
+                  {suspending ? 'İşleniyor...' : 'Askıya Al'}
+                </button>
               </div>
             </form>
           </div>
