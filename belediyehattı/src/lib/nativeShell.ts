@@ -19,7 +19,7 @@ export async function initNativeShell(isDark: boolean): Promise<void> {
   try {
     await StatusBar.setOverlaysWebView({ overlay: false });
     await StatusBar.setBackgroundColor({ color: isDark ? STATUS_BAR_DARK : STATUS_BAR_LIGHT });
-    await StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light });
+    await StatusBar.setStyle({ style: Style.Dark });
   } catch {
     /* Web or unsupported */
   }

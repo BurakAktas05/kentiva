@@ -3,14 +3,24 @@ import { Link, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   CheckCircle2,
-  Clock3,
   ExternalLink,
   Layers,
   MapPin,
   ShieldAlert,
   Sparkles,
   UserPlus,
-  X,
+  Tag,
+  User as UserIcon,
+  UserCheck,
+  Calendar,
+  Copy,
+  MessageSquare,
+  CornerDownRight,
+  Flame,
+  Activity,
+  Briefcase,
+  Clock,
+  ChevronRight,
 } from 'lucide-react';
 import axios from 'axios';
 import api, { type Report, type ReportListItem, type ReportTimelineEntry, type User } from '../api';
@@ -238,30 +248,7 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
     </Link>
   );
 
-  const wrapEmbedded = (node: ReactNode) =>
-    embedded ? (
-      <div className="fixed inset-0 z-[2000] flex">
-        <button
-          type="button"
-          className="flex-1 bg-slate-900/50 backdrop-blur-sm"
-          aria-label="Kapat"
-          onClick={onClose}
-        />
-        <div className="relative flex h-full w-full max-w-3xl flex-col overflow-hidden bg-slate-50 shadow-2xl dark:bg-slate-950">
-          <button
-            type="button"
-            onClick={onClose}
-            className="absolute right-4 top-4 z-10 rounded-lg border border-slate-200 bg-white p-2 text-slate-600 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
-            aria-label="Kapat"
-          >
-            <X className="h-4 w-4" />
-          </button>
-          <div className="flex-1 overflow-y-auto">{node}</div>
-        </div>
-      </div>
-    ) : (
-      node
-    );
+  const wrapEmbedded = (node: ReactNode) => node;
 
   if (error && !report) {
     return wrapEmbedded(
@@ -301,18 +288,28 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-white dark:bg-slate-100 dark:text-slate-900">
+                <span className="rounded-full bg-slate-900/90 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-white dark:bg-slate-100 dark:text-slate-900 shadow-sm">
                   #{report.id.slice(0, 8)}
                 </span>
-                <span className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${reportStatusBadgeClass(report.status)}`}>
-                  {toStatusLabel(report.status)}
-                </span>
+                {(() => {
+                  let dotColor = 'bg-slate-400';
+                  if (report.status === 'PENDING') dotColor = 'bg-amber-500';
+                  if (report.status === 'PROCESSING') dotColor = 'bg-sky-500';
+                  if (report.status === 'RESOLVED') dotColor = 'bg-emerald-500';
+                  if (report.status === 'REJECTED') dotColor = 'bg-red-500';
+                  return (
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold uppercase shadow-xs ${reportStatusBadgeClass(report.status)}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${dotColor} ${report.status === 'PENDING' || report.status === 'PROCESSING' ? 'animate-pulse' : ''}`} />
+                      {toStatusLabel(report.status)}
+                    </span>
+                  );
+                })()}
               </div>
-              <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+              <h1 className="mt-4 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight">
                 {report.title}
               </h1>
-              <p className="mt-2 max-w-4xl whitespace-pre-wrap text-sm leading-7 text-slate-600 dark:text-slate-300">
-                {report.description || 'Bu rapor icin aciklama girilmemis.'}
+              <p className="mt-3 max-w-4xl whitespace-pre-wrap text-sm leading-7 text-slate-600 dark:text-slate-300">
+                {report.description || 'Bu rapor için açıklama girilmemiş.'}
               </p>
             </div>
             {resolvedMapUrl && (
@@ -320,54 +317,61 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
                 href={resolvedMapUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:border-slate-300 hover:shadow active:scale-[0.98] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
               >
-                <MapPin className="h-4 w-4 text-primary" />
-                Haritada ac
-                <ExternalLink className="h-3.5 w-3.5" />
+                <MapPin className="h-4 w-4 text-primary animate-bounce" />
+                Haritada Aç
+                <ExternalLink className="h-3.5 w-3.5 opacity-60" />
               </a>
             )}
           </div>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <DetailStat label="Kategori" value={report.categoryName} helper="Otomatik ya da secili kategori" />
-            <DetailStat label="Vatandas" value={report.reporterFullName ?? 'Anonim / kayitsiz'} helper="Bildiren kisi" />
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <DetailStat label="Kategori" value={report.categoryName} helper="Otomatik veya seçili kategori" icon={Tag} />
+            <DetailStat label="Vatandaş" value={report.reporterFullName ?? 'Anonim / Kayıtsız'} helper="İhbarı oluşturan kişi" icon={UserIcon} />
             <DetailStat
-              label="Atanan"
-              value={report.assigneeFullName ?? 'Henuz atanmis degil'}
-              helper={report.forwardedDepartmentName ? `Departman: ${report.forwardedDepartmentName}` : 'Saha atamasi bekleniyor'}
+              label="Atanan Yetkili"
+              value={report.assigneeFullName ?? 'Atanmamış'}
+              helper={report.forwardedDepartmentName ? `Departman: ${report.forwardedDepartmentName}` : 'Saha ataması bekleniyor'}
+              icon={UserCheck}
             />
-            <DetailStat label="Olusturulma" value={formatDate(report.createdAt)} helper={report.district || 'Ilce bilgisi yok'} />
+            <DetailStat label="Oluşturulma" value={formatDate(report.createdAt)} helper={report.district || 'İlçe bilgisi yok'} icon={Calendar} />
           </div>
         </div>
 
         {report.mediaUrls && report.mediaUrls.length > 0 && (
-          <div className="px-6 py-6 sm:px-8">
-            <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="px-6 py-6 border-t border-slate-100 bg-slate-50/20 dark:border-slate-800 dark:bg-slate-900/10 sm:px-8">
+            <div className="mb-4 flex items-center justify-between gap-2">
               <div>
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">Medya kanitlari</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Sahadaki ekibin ve vatandasin paylastigi gorseller
+                <p className="text-sm font-bold text-slate-900 dark:text-white">Ek kanıtlar ve fotoğraflar</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Sahadan veya vatandaştan gelen medya ekleri
                 </p>
               </div>
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                 {report.mediaUrls.length} dosya
               </span>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {report.mediaUrls.map((url, i) => (
                 <a
                   key={i}
                   href={resolveMediaUrl(url)}
                   target="_blank"
                   rel="noreferrer"
-                  className="group overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-700 dark:bg-slate-950"
+                  className="group relative overflow-hidden rounded-2xl border border-slate-200/90 bg-slate-100 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-950 block"
                 >
                   <img
                     src={resolveMediaUrl(url)}
-                    alt={`Rapor gorseli ${i + 1}`}
-                    className="h-44 w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                    alt={`Rapor görseli ${i + 1}`}
+                    className="h-44 w-full object-cover transition duration-300 group-hover:scale-[1.04]"
                   />
+                  <div className="absolute inset-0 bg-slate-900/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <span className="rounded-xl bg-white/90 p-2 text-slate-900 text-xs font-bold flex items-center gap-1.5 backdrop-blur-xs shadow-sm">
+                      <ExternalLink size={14} />
+                      Görüntüle
+                    </span>
+                  </div>
                 </a>
               ))}
             </div>
@@ -377,95 +381,96 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_380px]">
         <div className="space-y-6">
-          <section className="rounded-3xl border border-violet-200/80 bg-gradient-to-r from-violet-50 via-white to-slate-50 p-5 shadow-sm dark:border-violet-900/40 dark:from-violet-950/30 dark:via-slate-900 dark:to-slate-950">
+          <section className="rounded-3xl border border-violet-200/80 bg-gradient-to-br from-violet-50/70 via-white to-slate-50/70 p-6 shadow-sm dark:border-violet-900/40 dark:from-violet-950/20 dark:via-slate-900/50 dark:to-slate-950/50">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-violet-600 dark:text-violet-300" />
-                  <p className="text-sm font-bold text-slate-900 dark:text-white">AI operasyon ozeti</p>
+                  <Sparkles className="h-4 w-4 text-violet-600 dark:text-violet-400 animate-pulse" />
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">Yapay Zeka Analiz Raporu</p>
                 </div>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  Ozet, oncelik, kategori onerisi ve vatandasa donus notu tek yerde toplandi.
+                  Kentiva AI tarafından otomatik oluşturulmuş operasyonel analiz özeti.
                 </p>
               </div>
-              <button
-                type="button"
-                disabled={aiBusy}
-                onClick={() => void runAiAnalysis()}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-violet-600 px-3 py-2 text-xs font-bold text-white hover:bg-violet-700 disabled:opacity-50"
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                {aiBusy ? 'Uretiliyor...' : 'AI yaniti olustur'}
-              </button>
             </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
               <MiniInfo
-                label="Oncelik"
-                value={report.aiPriority ?? 'Henuz yok'}
-                helper={report.aiSuggestedCategory ? `Kategori onerisi: ${report.aiSuggestedCategory}` : 'Oncelik analizi bekleniyor'}
+                label="Öncelik Seviyesi"
+                value={report.aiPriority ?? 'Analiz Edilmedi'}
+                helper={report.aiSuggestedCategory ? `Öneri: ${report.aiSuggestedCategory}` : 'Kategori tahmini yapılmadı'}
+                icon={Flame}
               />
               <MiniInfo
-                label="Mukerrer sinyali"
+                label="Mükerrer Sinyali"
                 value={report.aiDuplicateHint ?? 'Temiz'}
-                helper="Benzer kayitlar kontrol edilir"
+                helper="Benzer bildirim kontrolü"
+                icon={Copy}
               />
               <MiniInfo
-                label="Vatandas notu"
-                value={report.aiReplyDraft ? 'Hazir taslak var' : 'Taslak yok'}
-                helper="Durum guncellerken kullanilabilir"
+                label="Vatandaş Yanıtı"
+                value={report.aiReplyDraft ? 'Taslak Hazır' : 'Taslak Yok'}
+                helper="Vatandaşa dönülecek taslak not"
+                icon={MessageSquare}
               />
             </div>
 
-            <div className="mt-4 rounded-2xl border border-violet-200/70 bg-white/90 p-4 dark:border-violet-900/40 dark:bg-slate-900/70">
+            <div className="mt-5 rounded-2xl border border-violet-100 bg-white p-4 shadow-xs dark:border-violet-900/30 dark:bg-slate-900/80">
+              <div className="text-xs font-bold uppercase tracking-wider text-violet-600 dark:text-violet-400 mb-2">Operasyon Özeti</div>
               {report.aiSummary ? (
-                <p className="text-sm leading-7 text-slate-700 dark:text-slate-200">{report.aiSummary}</p>
+                <p className="text-sm leading-7 text-slate-700 dark:text-slate-300">{report.aiSummary}</p>
               ) : (
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Henuz AI ozeti yok. Buton ile operasyona uygun bir ilk taslak uretebilirsin.
+                <p className="text-sm text-slate-500 dark:text-slate-400 italic">
+                  Henüz yapay zeka özeti bulunmuyor. Sağ taraftaki "AI Yanıtı Oluştur" butonu ile analiz üretebilirsiniz.
                 </p>
               )}
               {report.aiReplyDraft && (
-                <div className="mt-3 rounded-xl bg-violet-50 p-3 text-xs text-violet-900 dark:bg-violet-950/30 dark:text-violet-100">
-                  <span className="font-bold">Taslak yanit:</span> {report.aiReplyDraft}
+                <div className="mt-4 rounded-xl border border-violet-100/80 bg-violet-50/40 p-4 text-xs text-violet-950 dark:border-violet-900/30 dark:bg-violet-950/20 dark:text-violet-200">
+                  <div className="font-bold flex items-center gap-1 text-violet-700 dark:text-violet-300 mb-1.5">
+                    <MessageSquare size={13} />
+                    Önerilen Vatandaş Yanıtı Taslağı:
+                  </div>
+                  <p className="leading-relaxed whitespace-pre-wrap">{report.aiReplyDraft}</p>
                 </div>
               )}
             </div>
           </section>
 
           {(report.duplicateGroupSize != null && report.duplicateGroupSize > 1) || duplicateGroup.length > 0 ? (
-            <section className="rounded-3xl border border-violet-200/90 bg-violet-50/80 p-5 shadow-sm dark:border-violet-900/50 dark:bg-violet-950/30">
+            <section className="rounded-3xl border border-amber-200/90 bg-amber-50/40 p-6 shadow-sm dark:border-amber-900/30 dark:bg-amber-950/10">
               <div className="mb-3 flex items-center gap-2">
-                <Layers className="h-5 w-5 text-violet-700 dark:text-violet-300" />
-                <p className="text-sm font-bold text-violet-900 dark:text-violet-100">
-                  Tek olay - ayni lokasyonda {report.duplicateGroupSize ?? duplicateGroup.length + 1} kayit
+                <Layers className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                <p className="text-sm font-bold text-amber-900 dark:text-amber-200">
+                  Tek Olay Grubu ({report.duplicateGroupSize ?? duplicateGroup.length + 1} Rapor)
                 </p>
               </div>
-              <p className="mb-4 text-xs text-violet-800/90 dark:text-violet-200/90">
-                Yakindaki bekleyen veya islenen kayitlar ayni olay olabilir. Gerekirse grup halinde kapatabilirsiniz.
+              <p className="mb-4 text-xs text-amber-800/90 dark:text-amber-400">
+                Aynı veya yakın lokasyondan gelen bu bildirimler mükerrer ihbar olabilir. Tek seferde toplu olarak kapatabilirsiniz.
               </p>
-              <ul className="space-y-2">
+              <ul className="space-y-2.5">
                 {duplicateGroup.map((d) => (
                   <li key={d.id}>
                     <Link
                       to={`/reports/${d.id}`}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-violet-200/60 bg-white px-3 py-2 text-sm hover:border-violet-300 dark:border-violet-800 dark:bg-slate-900"
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200/40 bg-white px-4 py-3 text-sm hover:border-amber-300 transition-colors shadow-2xs dark:border-slate-800 dark:bg-slate-900"
                     >
-                      <span className="font-medium text-slate-900 dark:text-white">{d.title}</span>
-                      <span className="text-[10px] font-bold uppercase text-slate-500">{toStatusLabel(d.status)}</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">{d.title}</span>
+                      <span className={`kentiva-status-badge ${reportStatusBadgeClass(d.status)}`}>
+                        {toStatusLabel(d.status)}
+                      </span>
                     </Link>
                   </li>
                 ))}
               </ul>
               {canResolve && (
-                <div className="mt-4 flex flex-wrap gap-2">
+                <div className="mt-4">
                   <button
                     type="button"
                     disabled={bulkBusy !== null}
                     onClick={() => bulkCloseDuplicateGroup()}
-                    className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+                    className="rounded-xl bg-amber-600 hover:bg-amber-700 px-4 py-2.5 text-xs font-bold text-white transition-colors shadow-sm active:scale-[0.98] disabled:opacity-50"
                   >
-                    {bulkBusy === 'RESOLVED' ? 'Isleniyor...' : 'Grubu cozuldu isaretle'}
+                    {bulkBusy === 'RESOLVED' ? 'Kapatılıyor...' : 'Tüm Grubu Çözüldü Olarak İşaretle'}
                   </button>
                 </div>
               )}
@@ -473,67 +478,85 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
           ) : null}
 
           <section className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <div className="mb-5 flex items-start justify-between gap-3">
+            <div className="mb-6 flex items-start justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
               <div>
-                <p className="text-lg font-bold text-slate-900 dark:text-white">Yasam dongusu</p>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  Tum hareketler ve vatandasa giden notlar zaman cizelgesinde gorunur.
+                <p className="text-base font-bold text-slate-900 dark:text-white">Yaşam Döngüsü & Akış Gecmişi</p>
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                  Rapor üzerinde yapılan tüm işlemler zaman tünelinde kronolojik olarak takip edilir.
                 </p>
               </div>
-              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                <Clock3 className="h-3.5 w-3.5" />
-                {timeline.length} adim
+              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                <Clock className="h-3.5 w-3.5" />
+                {timeline.length} işlem
               </span>
             </div>
 
             {timeline.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 p-5 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                Henuz durum gecmisi bulunmuyor.
+              <div className="rounded-2xl border border-dashed border-slate-300/80 p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                Bu rapor için henüz işlem geçmişi bulunmuyor.
               </div>
             ) : (
-              <div className="relative space-y-0 border-l-2 border-primary/20 pl-5">
-                {timeline.map((entry, index) => (
-                  <div key={`${entry.at}-${index}`} className="relative pb-7 last:pb-0">
-                    <span className="absolute -left-[26px] top-1.5 h-3 w-3 rounded-full bg-primary ring-4 ring-white dark:ring-slate-900" />
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                      {formatDate(entry.at)}
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
-                      {toStatusLabel(entry.oldStatus)} → {toStatusLabel(entry.newStatus)}
-                    </p>
-                    {entry.actorName && <p className="text-xs text-slate-500">{entry.actorName}</p>}
-                    {entry.note && (
-                      <div className="mt-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-600 dark:bg-slate-800/70 dark:text-slate-300">
-                        {entry.note}
-                      </div>
-                    )}
-                  </div>
-                ))}
+              <div className="relative space-y-0 border-l-2 border-slate-200/80 pl-6 dark:border-slate-800 ml-3">
+                {timeline.map((entry, index) => {
+                  let badgeDot = 'bg-slate-400';
+                  if (entry.newStatus === 'RESOLVED') badgeDot = 'bg-emerald-500';
+                  if (entry.newStatus === 'PENDING') badgeDot = 'bg-amber-500';
+                  if (entry.newStatus === 'PROCESSING') badgeDot = 'bg-sky-500';
+                  if (entry.newStatus === 'REJECTED') badgeDot = 'bg-red-500';
+
+                  return (
+                    <div key={`${entry.at}-${index}`} className="relative pb-8 last:pb-0">
+                      <span className={`absolute -left-[31px] top-1 flex h-4 w-4 items-center justify-center rounded-full ring-4 ring-white dark:ring-slate-900 ${badgeDot}`} />
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        {formatDate(entry.at)}
+                      </p>
+                      <p className="mt-1.5 text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <span className="opacity-60 font-medium">{toStatusLabel(entry.oldStatus)}</span>
+                        <ChevronRight size={14} className="text-slate-400" />
+                        <span className="text-primary dark:text-sky-400">{toStatusLabel(entry.newStatus)}</span>
+                      </p>
+                      {entry.actorName && (
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
+                          İşlemi Yapan: {entry.actorName}
+                        </p>
+                      )}
+                      {entry.note && (
+                        <div className="mt-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-700 border border-slate-100 dark:bg-slate-800/40 dark:border-slate-800/60 dark:text-slate-300 leading-relaxed">
+                          {entry.note}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </section>
         </div>
 
         <div className="space-y-6 xl:sticky xl:top-6 xl:self-start">
-          <section className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <p className="text-lg font-bold text-slate-900 dark:text-white">Atama ve yonlendirme</p>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Saha gorevlisi secin, gerekirse beyaz masa uzerinden departmana aktarim yapin.
+          {/* Atama ve Yönlendirme */}
+          <section className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-center gap-2 mb-2">
+              <Briefcase className="h-5 w-5 text-primary dark:text-sky-400" />
+              <p className="text-base font-bold text-slate-900 dark:text-white">Atama ve Yönlendirme</p>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Saha görevlisi seçebilir ya da Beyaz Masa üzerinden yetkili departmana yönlendirebilirsiniz.
             </p>
 
             <div className="mt-5 space-y-4">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/40">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Saha atamasi</p>
-                <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
-                  {report.assigneeFullName ?? 'Atanmamis'}
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/40">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Mevcut Saha Görevlisi</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
+                  {report.assigneeFullName ?? 'Henüz saha ataması yapılmamış'}
                 </p>
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <div className="mt-3.5 flex flex-col gap-2">
                   <select
                     value={selectedOfficerId}
                     onChange={(e) => setSelectedOfficerId(e.target.value)}
-                    className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   >
-                    <option value="">Saha gorevlisi sec...</option>
+                    <option value="">Saha görevlisi seç...</option>
                     {officers.map((officer) => (
                       <option key={officer.id} value={officer.id}>
                         {officer.firstName} {officer.lastName}
@@ -544,27 +567,27 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
                     type="button"
                     onClick={handleAssign}
                     disabled={!selectedOfficerId || isAssigning}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-sm font-bold text-white hover:bg-primary-hover disabled:opacity-50"
+                    className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary px-3 py-2.5 text-xs font-bold text-white hover:bg-primary-hover transition-colors shadow-xs active:scale-[0.99] disabled:opacity-50"
                   >
-                    <UserPlus className="h-4 w-4" />
-                    {isAssigning ? 'Isleniyor...' : 'Ata'}
+                    <UserPlus className="h-3.5 w-3.5" />
+                    {isAssigning ? 'Atanıyor...' : 'Görevlendir'}
                   </button>
                 </div>
               </div>
 
               {isWhiteDesk && (
-                <div className="rounded-2xl border border-violet-200 bg-violet-50/70 p-4 dark:border-violet-900/40 dark:bg-violet-950/20">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">Departman aktarimi</p>
-                  <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
-                    {report.forwardedDepartmentName ?? 'Henuz departmana aktarilmadi'}
+                <div className="rounded-2xl border border-violet-100 bg-violet-50/20 p-4 dark:border-violet-900/20 dark:bg-violet-950/10">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-violet-600 dark:text-violet-400">Departman Transferi</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
+                    {report.forwardedDepartmentName ?? 'Mevcut departmanda'}
                   </p>
-                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  <div className="mt-3.5 flex flex-col gap-2">
                     <select
                       value={selectedDeptId}
                       onChange={(e) => setSelectedDeptId(e.target.value)}
-                      className="min-w-0 flex-1 rounded-xl border border-violet-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-violet-300 dark:border-violet-800 dark:bg-slate-900 dark:text-white"
+                      className="w-full rounded-xl border border-violet-200/60 bg-white px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-violet-300 dark:border-violet-800 dark:bg-slate-900 dark:text-white"
                     >
-                      <option value="">Departman sec...</option>
+                      <option value="">Departman seç...</option>
                       {departments.map((department) => (
                         <option key={department.id} value={department.id}>
                           {department.name}
@@ -575,9 +598,10 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
                       type="button"
                       onClick={handleForward}
                       disabled={!selectedDeptId || isAssigning}
-                      className="rounded-xl bg-violet-600 px-3 py-2 text-sm font-bold text-white hover:bg-violet-700 disabled:opacity-50"
+                      className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-violet-600 hover:bg-violet-700 px-3 py-2.5 text-xs font-bold text-white transition-colors shadow-xs active:scale-[0.99] disabled:opacity-50"
                     >
-                      {isAssigning ? 'Isleniyor...' : 'Yonlendir'}
+                      <CornerDownRight className="h-3.5 w-3.5" />
+                      {isAssigning ? 'Yönlendiriliyor...' : 'Departmana Yönlendir'}
                     </button>
                   </div>
                 </div>
@@ -585,42 +609,57 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
             </div>
           </section>
 
-          <section className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <p className="text-lg font-bold text-slate-900 dark:text-white">Durum guncelle</p>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Vatandasa gidecek not ile birlikte kaydi guncelle.
+          {/* Durum Güncelle */}
+          <section className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-center gap-2 mb-2">
+              <Activity className="h-5 w-5 text-primary dark:text-sky-400" />
+              <p className="text-base font-bold text-slate-900 dark:text-white">Aksiyon Al & Durum Güncelle</p>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Vatandaşa iletilecek çözüm bildirim notu ile birlikte kaydı güncelleyin.
             </p>
 
             <div className="mt-5 space-y-4">
               <div>
-                <label htmlFor="statusSelect" className="mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-                  Yeni durum
+                <label htmlFor="statusSelect" className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Yeni Durum
                 </label>
                 <select
                   id="statusSelect"
                   value={statusValue}
                   onChange={(e) => setStatusValue(e.target.value as 'PROCESSING' | 'RESOLVED')}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 >
-                  <option value="PROCESSING">Islemde</option>
-                  {canResolve && <option value="RESOLVED">Cozuldu</option>}
+                  <option value="PROCESSING">İşlemde</option>
+                  {canResolve && <option value="RESOLVED">Çözüldü</option>}
                 </select>
               </div>
 
               <div>
-                <label htmlFor="statusNote" className="mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-                  Vatandasa not
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label htmlFor="statusNote" className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Vatandaşa Not
+                  </label>
+                  <button
+                    type="button"
+                    disabled={aiBusy}
+                    onClick={() => void runAiAnalysis()}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white px-2.5 py-1 text-[11px] font-bold transition shadow-xs hover:shadow active:scale-[0.98] disabled:opacity-50"
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    {aiBusy ? 'Üretiliyor...' : 'AI Yanıtı Oluştur'}
+                  </button>
+                </div>
                 <textarea
                   id="statusNote"
                   rows={6}
                   value={noteText}
                   onChange={(e) => setNoteText(e.target.value)}
-                  placeholder="Vatandasa iletilecek acik, nezih ve aksiyon odakli not..."
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  placeholder="Vatandaşa iletilecek açık, nezih ve aksiyon odaklı not..."
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white leading-relaxed"
                 />
-                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                  AI taslagi uretildiginde bu alan otomatik dolacaktir.
+                <p className="mt-1.5 text-[10px] text-slate-500 dark:text-slate-400">
+                  AI taslağı üretildiğinde bu alan otomatik dolacaktır.
                 </p>
               </div>
 
@@ -628,22 +667,27 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
                 type="button"
                 onClick={() => void saveStatus()}
                 disabled={statusBusy}
-                className="w-full rounded-xl bg-primary py-3 text-sm font-bold text-white transition-colors hover:bg-primary-hover disabled:opacity-60"
+                className="w-full rounded-xl bg-primary py-3 text-xs font-bold text-white transition-colors hover:bg-primary-hover shadow-xs active:scale-[0.99] disabled:opacity-60"
               >
-                {statusBusy ? 'Kaydediliyor...' : 'Durumu kaydet'}
+                {statusBusy ? 'Kaydediliyor...' : 'Durumu ve Notu Kaydet'}
               </button>
             </div>
           </section>
 
-          <section className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <p className="text-lg font-bold text-slate-900 dark:text-white">Konum ve kayit bilgisi</p>
-            <div className="mt-4 grid gap-3">
-              <MiniInfo label="Koordinat" value={`${report.latitude}, ${report.longitude}`} helper="Saha dogrulamasi icin" />
-              <MiniInfo label="Ilce" value={report.district || 'Belirtilmedi'} helper="Vatandas lokasyonu" />
+          {/* Konum ve Kayıt Bilgisi */}
+          <section className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-center gap-2 mb-4">
+              <MapPin className="h-5 w-5 text-primary dark:text-sky-400" />
+              <p className="text-base font-bold text-slate-900 dark:text-white">Lokasyon & Detay Bilgisi</p>
+            </div>
+            <div className="grid gap-3.5">
+              <MiniInfo label="Koordinat" value={`${report.latitude}, ${report.longitude}`} helper="Saha doğrulaması için GPS" icon={MapPin} />
+              <MiniInfo label="Bölge / İlçe" value={report.district || 'Belirtilmedi'} helper="Vatandaşın konumu" icon={Layers} />
               <MiniInfo
-                label="Departman"
-                value={report.forwardedDepartmentName ?? 'Yok'}
-                helper={report.forwardedByName ? `Aktaran: ${report.forwardedByName}` : 'Direkt akista'}
+                label="Sorumlu Departman"
+                value={report.forwardedDepartmentName ?? 'Beyaz Masa'}
+                helper={report.forwardedByName ? `Aktaran: ${report.forwardedByName}` : 'Direkt akışta'}
+                icon={Briefcase}
               />
             </div>
           </section>
@@ -653,26 +697,34 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
   );
 }
 
-function DetailStat({ label, value, helper }: { label: string; value: string; helper: string }) {
+function DetailStat({ label, value, helper, icon: Icon }: { label: string; value: string; helper: string; icon?: any }) {
   return (
-    <div className="rounded-2xl border border-slate-200/90 bg-white/90 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-        {label}
-      </p>
-      <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">{value}</p>
-      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{helper}</p>
+    <div className="rounded-2xl border border-slate-200/90 bg-white/95 p-4.5 shadow-xs transition-all hover:shadow dark:border-slate-800 dark:bg-slate-900/90 flex flex-col justify-between">
+      <div>
+        <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+          {Icon && <Icon className="h-3.5 w-3.5 shrink-0" />}
+          <p className="text-[10px] font-bold uppercase tracking-wider">
+            {label}
+          </p>
+        </div>
+        <p className="mt-2 text-sm font-bold text-slate-900 dark:text-white leading-tight">{value}</p>
+      </div>
+      <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800/80 pt-2">{helper}</p>
     </div>
   );
 }
 
-function MiniInfo({ label, value, helper }: { label: string; value: string; helper: string }) {
+function MiniInfo({ label, value, helper, icon: Icon }: { label: string; value: string; helper: string; icon?: any }) {
   return (
-    <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/50">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-        {label}
-      </p>
-      <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">{value}</p>
-      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{helper}</p>
+    <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-800/40">
+      <div className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500">
+        {Icon && <Icon className="h-3.5 w-3.5 shrink-0" />}
+        <p className="text-[10px] font-bold uppercase tracking-wider">
+          {label}
+        </p>
+      </div>
+      <p className="mt-2 text-sm font-bold text-slate-900 dark:text-white leading-tight">{value}</p>
+      <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">{helper}</p>
     </div>
   );
 }

@@ -15,7 +15,7 @@ export function sectionTitleClass(): string {
 }
 
 export function sectionHintClass(): string {
-  return 'text-[10px] text-slate-400 dark:text-slate-500';
+  return 'text-[10px] text-slate-500 dark:text-slate-400';
 }
 
 export function screenHeadingClass(isDark: boolean): string {

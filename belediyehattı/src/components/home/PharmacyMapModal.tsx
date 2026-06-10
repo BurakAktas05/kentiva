@@ -182,7 +182,7 @@ export default function PharmacyMapModal({
 
         {/* Bottom Drawer listing pharmacies for quick interaction */}
         <div className="max-h-[30vh] overflow-y-auto bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 p-4 shrink-0 z-10">
-          <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
+          <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
             {t('home.widgets.pharmacyList', lang) || 'NÖBETÇİ ECZANELER'}
           </p>
           <div className="space-y-3">

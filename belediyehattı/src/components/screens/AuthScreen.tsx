@@ -64,7 +64,10 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
       if (forgotMode === 'phone') {
         await fetch(`${apiBase()}/auth/forgot-password`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'ngrok-skip-browser-warning': 'true',
+          },
           body: JSON.stringify({ phoneNumber: resetPhone }),
         }).then(async r => {
           const data = await r.json();
@@ -77,7 +80,10 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
       } else if (forgotMode === 'newpass') {
         await fetch(`${apiBase()}/auth/reset-password`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'ngrok-skip-browser-warning': 'true',
+          },
           body: JSON.stringify({ phoneNumber: resetPhone, otpCode, newPassword }),
         }).then(async r => {
           const data = await r.json();

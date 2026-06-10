@@ -309,7 +309,10 @@ async function tryRefreshToken(): Promise<boolean> {
     try {
       const res = await fetch(`${apiBase()}/auth/refresh`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+        },
         body: JSON.stringify({ refreshToken: refresh }),
       });
       const json = await parseJsonBody(res);
@@ -345,6 +348,7 @@ async function handleUnauthorized(path: string): Promise<never> {
 async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
     ...(opts.headers as Record<string, string> || {}),
   };
   const token = getToken();
@@ -381,7 +385,9 @@ async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
 async function publicFetch<T>(path: string): Promise<T> {
   const normalized = path.startsWith('/') ? path : `/${path}`;
   const res = await fetch(`${apiBase()}${normalized}`, {
-    headers: {},
+    headers: {
+      'ngrok-skip-browser-warning': 'true',
+    },
   });
   const json = await parseJsonBody(res);
   if (!res.ok || !json.success) {
@@ -390,44 +396,16 @@ async function publicFetch<T>(path: string): Promise<T> {
   return json.data as T;
 }
 
-export const MOCK_SAFRANBOLU: PublicTenant = {
-  id: 'safranbolu-id',
-  slug: 'safranbolu',
-  displayName: 'Safranbolu Belediyesi',
-  provinceName: 'Karabük',
-  logoUrl: null,
-  primaryColor: '#0ea5e9',
-  secondaryColor: '#0284c7',
-  accentColor: '#f59e0b',
-  slogan: 'Korumacılığın Başkenti',
-  centerLat: 41.2507,
-  centerLng: 32.6942,
-  active: true,
-  onboarded: true,
-};
-
 export async function fetchPublicMunicipalities(): Promise<PublicTenant[]> {
   try {
-    const list = await publicFetch<PublicTenant[]>('/public/municipalities');
-    if (!list.some(m => m.slug === 'safranbolu')) {
-      list.push(MOCK_SAFRANBOLU);
-    }
-    return list;
+    return await publicFetch<PublicTenant[]>('/public/municipalities');
   } catch (e) {
-    return [MOCK_SAFRANBOLU];
+    return [];
   }
 }
 
 export async function fetchPublicMunicipalityBySlug(slug: string): Promise<PublicTenant> {
-  if (slug === 'safranbolu') {
-    return MOCK_SAFRANBOLU;
-  }
-  try {
-    return await publicFetch<PublicTenant>(`/public/municipalities/${encodeURIComponent(slug)}`);
-  } catch (e) {
-    if (slug === 'safranbolu') return MOCK_SAFRANBOLU;
-    throw e;
-  }
+  return publicFetch<PublicTenant>(`/public/municipalities/${encodeURIComponent(slug)}`);
 }
 
 export async function fetchPublicDepartmentContext(
@@ -476,7 +454,10 @@ export async function resolveMunicipalityByGps(lat: number, lng: number): Promis
 export async function login(email: string, password: string): Promise<AuthUser> {
   const res = await fetch(`${apiBase()}/auth/login`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'ngrok-skip-browser-warning': 'true',
+    },
     body: JSON.stringify({ email, password }),
   });
   const json = await parseJsonBody(res);
@@ -577,7 +558,9 @@ export async function uploadMedia(file: File): Promise<string[]> {
   const attempt = async () => {
     const formData = new FormData();
     formData.append('files', file);
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = {
+      'ngrok-skip-browser-warning': 'true',
+    };
     const token = getToken();
     if (token) headers['Authorization'] = `Bearer ${token}`;
     return fetch(`${apiBase()}/reports/upload`, { method: 'POST', headers, body: formData });
@@ -645,7 +628,7 @@ export async function getMyProfile(): Promise<ApiUserProfile> {
       } catch {}
     }
     const selectedTenant = localStorage.getItem('belediye_offline_tenant');
-    let preferredMunicipality = MOCK_SAFRANBOLU;
+    let preferredMunicipality = null;
     if (selectedTenant) {
       try { preferredMunicipality = JSON.parse(selectedTenant); } catch {}
     }
@@ -664,20 +647,18 @@ export async function getMyProfile(): Promise<ApiUserProfile> {
 }
 
 export async function setPreferredMunicipality(municipalityId: string): Promise<ApiUserProfile> {
-  let tenant = MOCK_SAFRANBOLU;
-  if (municipalityId === 'safranbolu-id') {
-    tenant = MOCK_SAFRANBOLU;
-  }
-  localStorage.setItem('belediye_offline_tenant', JSON.stringify(tenant));
-
-  try {
-    const profile = await apiFetch<ApiUserProfile>('/users/me/preferred-municipality', {
-      method: 'PATCH',
-      body: JSON.stringify({ municipalityId }),
-    });
-    localStorage.setItem('belediye_offline_profile', JSON.stringify(profile));
-    return profile;
-  } catch (e) {
+  const token = getToken();
+  if (!token) {
+    const cachedTenantRaw = localStorage.getItem('belediye_offline_tenant');
+    let preferredMunicipality: PublicTenant | null = null;
+    if (cachedTenantRaw) {
+      try {
+        const parsed = JSON.parse(cachedTenantRaw) as PublicTenant;
+        if (parsed.id === municipalityId) {
+          preferredMunicipality = parsed;
+        }
+      } catch {}
+    }
     const fallbackProfile = {
       id: 'mock-user-id',
       firstName: 'Burak',
@@ -687,7 +668,42 @@ export async function setPreferredMunicipality(municipalityId: string): Promise<
       roles: ['CITIZEN'],
       reputationScore: 120,
       reputationLevel: 'Duyarlı Hemşehri',
-      preferredMunicipality: tenant,
+      preferredMunicipality,
+    };
+    return fallbackProfile;
+  }
+
+  try {
+    const profile = await apiFetch<ApiUserProfile>('/users/me/preferred-municipality', {
+      method: 'PATCH',
+      body: JSON.stringify({ municipalityId }),
+    });
+    localStorage.setItem('belediye_offline_profile', JSON.stringify(profile));
+    if (profile.preferredMunicipality) {
+      localStorage.setItem('belediye_offline_tenant', JSON.stringify(profile.preferredMunicipality));
+    }
+    return profile;
+  } catch (e) {
+    const cachedTenantRaw = localStorage.getItem('belediye_offline_tenant');
+    let preferredMunicipality: PublicTenant | null = null;
+    if (cachedTenantRaw) {
+      try {
+        const parsed = JSON.parse(cachedTenantRaw) as PublicTenant;
+        if (parsed.id === municipalityId) {
+          preferredMunicipality = parsed;
+        }
+      } catch {}
+    }
+    const fallbackProfile = {
+      id: 'mock-user-id',
+      firstName: 'Burak',
+      lastName: 'Aktaş',
+      email: 'burak@kentiva.gov.tr',
+      phoneNumber: '5551234567',
+      roles: ['CITIZEN'],
+      reputationScore: 120,
+      reputationLevel: 'Duyarlı Hemşehri',
+      preferredMunicipality,
     };
     localStorage.setItem('belediye_offline_profile', JSON.stringify(fallbackProfile));
     return fallbackProfile;

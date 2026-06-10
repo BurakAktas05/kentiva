@@ -93,6 +93,15 @@ const LiveMap = ({
   const [layerMode, setLayerMode] = useState<MapLayerMode>('both');
   const [wsConnected, setWsConnected] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
 
   const mergeReport = useCallback((incoming: Report) => {
     setReports((prev) => {
@@ -219,8 +228,10 @@ const LiveMap = ({
 
       <MapContainer center={[centerLat || 41.0082, centerLng || 28.9784]} zoom={zoom || 11} className="h-full w-full">
         <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url={isDark
+            ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+            : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'}
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
           subdomains={['a', 'b', 'c']}
         />
         {showHeat && heatPoints.length > 0 && <HeatLayer points={heatPoints} />}

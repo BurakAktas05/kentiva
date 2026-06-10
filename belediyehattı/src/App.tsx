@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { useEdgeSwipeBack } from './lib/useEdgeSwipeBack';
 import { clearStaleApiOverrideIfNeeded } from './lib/apiBase';
 import { initNativeShell, registerNativeBackHandler } from './lib/nativeShell';
@@ -137,7 +138,17 @@ export default function App() {
   const [pickerMode, setPickerMode] = useState<MunicipalityPickerMode | null>(null);
   const [sessionBooting, setSessionBooting] = useState(() => Boolean(getSavedUser()));
   const [isPrefsModalOpen, setIsPrefsModalOpen] = useState(false);
-  const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  
+  const [systemIsDark, setSystemIsDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (e: MediaQueryListEvent) => setSystemIsDark(e.matches);
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  }, []);
+
+  const isDark = theme === 'dark' || (theme === 'system' && systemIsDark);
 
   useEffect(() => {
     void clearStaleApiOverrideIfNeeded();
@@ -190,12 +201,12 @@ export default function App() {
 
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    if (isDark) {
       root.classList.add('dark');
     } else {
       root.classList.remove('dark');
     }
-  }, [theme]);
+  }, [isDark]);
 
   useEffect(() => {
     document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
@@ -232,8 +243,10 @@ export default function App() {
           return;
         }
         if (!cancelled) {
-          setTenant(null);
-          setPickerMode('onboarding');
+          if (!tenant?.id) {
+            setTenant(null);
+            setPickerMode('onboarding');
+          }
         }
       } catch {
         if (!cancelled) {
@@ -246,7 +259,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [explicitRoute, routeBooting, tenant?.id, user]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [explicitRoute, routeBooting, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (user && localStorage.getItem('belediye_notification_prefs_onboarded') !== 'true') {
@@ -329,7 +342,7 @@ export default function App() {
       setKey((k) => k + 1);
       const targetUrl = t.slug ? municipalityAppUrl(t.slug, '/') : null;
       const currentHostSlug = inferMunicipalitySlugFromHostname(window.location.hostname);
-      if (targetUrl && currentHostSlug !== t.slug) {
+      if (!Capacitor.isNativePlatform() && targetUrl && currentHostSlug !== t.slug) {
         window.location.replace(targetUrl);
         return;
       }
@@ -379,7 +392,7 @@ export default function App() {
       return;
     }
 
-    if (tenant?.slug) {
+    if (!Capacitor.isNativePlatform() && tenant?.slug) {
       const nextSubdomainUrl = municipalityAppUrl(
         tenant.slug,
         department?.slug ? `/departments/${department.slug}` : '/',
@@ -698,7 +711,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => goToTab('home')}
-              className={`flex flex-1 flex-col items-center py-2 min-w-0 transition-colors ${activeTab === 'home' ? 'text-primary' : isDark ? 'text-slate-500' : 'text-slate-400'}`}
+              className={`flex flex-1 flex-col items-center py-2 min-w-0 transition-colors ${activeTab === 'home' ? 'text-primary' : isDark ? 'text-slate-400' : 'text-slate-500'}`}
             >
               <HomeIcon className="w-5 h-5 mb-0.5" strokeWidth={activeTab === 'home' ? 2.5 : 2} />
               <span className="text-[9px] font-medium truncate max-w-full px-0.5">{t('tab.home', lang)}</span>
@@ -707,7 +720,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => goToTab('kent')}
-              className={`flex flex-1 flex-col items-center py-2 min-w-0 transition-colors ${activeTab === 'kent' ? 'text-primary' : isDark ? 'text-slate-500' : 'text-slate-400'}`}
+              className={`flex flex-1 flex-col items-center py-2 min-w-0 transition-colors ${activeTab === 'kent' ? 'text-primary' : isDark ? 'text-slate-400' : 'text-slate-500'}`}
             >
               <Map className="w-5 h-5 mb-0.5" strokeWidth={activeTab === 'kent' ? 2.5 : 2} />
               <span className="text-[9px] font-medium truncate max-w-full px-0.5">{t('tab.kent', lang)}</span>
@@ -730,7 +743,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => goToTab('topluluk')}
-              className={`flex flex-1 flex-col items-center py-2 min-w-0 transition-colors ${activeTab === 'topluluk' ? 'text-primary' : isDark ? 'text-slate-500' : 'text-slate-400'}`}
+              className={`flex flex-1 flex-col items-center py-2 min-w-0 transition-colors ${activeTab === 'topluluk' ? 'text-primary' : isDark ? 'text-slate-400' : 'text-slate-500'}`}
             >
               <Users className="w-5 h-5 mb-0.5" strokeWidth={activeTab === 'topluluk' ? 2.5 : 2} />
               <span className="text-[9px] font-medium truncate max-w-full px-0.5">{t('tab.community', lang)}</span>
@@ -739,7 +752,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => goToTab('profile')}
-              className={`flex flex-1 flex-col items-center py-2 min-w-0 transition-colors ${activeTab === 'profile' ? 'text-primary' : isDark ? 'text-slate-500' : 'text-slate-400'}`}
+              className={`flex flex-1 flex-col items-center py-2 min-w-0 transition-colors ${activeTab === 'profile' ? 'text-primary' : isDark ? 'text-slate-400' : 'text-slate-500'}`}
             >
               <User className="w-5 h-5 mb-0.5" strokeWidth={activeTab === 'profile' ? 2.5 : 2} />
               <span className="text-[9px] font-medium truncate max-w-full px-0.5">{t('tab.profile', lang)}</span>

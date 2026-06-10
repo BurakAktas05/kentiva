@@ -338,7 +338,7 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
             <div className={`rounded-2xl border p-4.5 mb-5 ${
               isDark ? 'border-slate-800 bg-slate-950/20' : 'border-slate-100 bg-slate-50/25'
             }`}>
-              <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-4.5">
+              <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-4.5">
                 <TrendingUp className="h-3.5 w-3.5 text-primary" />
                 {ui.stageTitle}
               </div>
@@ -399,7 +399,7 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
                               : 'text-primary'
                             : isCompleted
                             ? 'text-slate-700 dark:text-slate-300'
-                            : 'text-slate-400 dark:text-slate-500'
+                            : 'text-slate-500 dark:text-slate-400'
                         }`}
                       >
                         {stepLabel}
@@ -440,7 +440,7 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
                     </h4>
                   </div>
                   {officialResponse.actorName && (
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">
                       {officialResponse.actorName}
                     </span>
                   )}
@@ -449,7 +449,7 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
                   {officialResponse.note}
                 </p>
                 {officialResponse.at && (
-                  <div className="mt-3 text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">
+                  <div className="mt-3 text-[9px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">
                     {new Date(officialResponse.at).toLocaleString(locale)}
                   </div>
                 )}
@@ -493,7 +493,7 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
                   <UserRound className="h-4 w-4" />
                 </div>
                 <div className="text-xs">
-                  <span className="text-slate-400 dark:text-slate-500 font-bold block text-[9px] uppercase tracking-wider">
+                  <span className="text-slate-500 dark:text-slate-400 font-bold block text-[9px] uppercase tracking-wider">
                     {ui.assignee}
                   </span>
                   <span className="font-bold">{detail.assigneeFullName}</span>
@@ -504,7 +504,7 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
             {/* Photo Attachments */}
             {detail.mediaUrls && detail.mediaUrls.length > 1 && (
               <div className="mb-6">
-                <h3 className={`text-xs font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3`}>
+                <h3 className={`text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3`}>
                   {ui.attachments}
                 </h3>
                 <div className="grid grid-cols-4 gap-2">
@@ -535,7 +535,7 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
             {/* Detailed Timeline Audit Log */}
             <div>
               <div className="mb-4">
-                <h3 className={`text-xs font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500`}>
+                <h3 className={`text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400`}>
                   {ui.processTimeline}
                 </h3>
               </div>
@@ -560,7 +560,7 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
                         }`} />
 
                         {/* Formatted Time */}
-                        <p className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">
+                        <p className="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
                           {entry.at ? new Date(entry.at).toLocaleString(locale) : ''}
                         </p>
 
@@ -639,7 +639,7 @@ function QuickInfoTile({
         {icon}
       </div>
       <div className="min-w-0 flex-1">
-        <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
+        <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
           {label}
         </span>
         <p className={`mt-0.5 text-xs font-bold leading-normal truncate ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>

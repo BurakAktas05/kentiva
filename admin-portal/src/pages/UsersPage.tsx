@@ -253,33 +253,33 @@ export default function UsersPage() {
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Ad *</label>
-                  <input type="text" required value={firstName} onChange={e => setFirstName(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary" />
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Ad *</label>
+                  <input type="text" required value={firstName} onChange={e => setFirstName(e.target.value)} className="kentiva-input" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Soyad *</label>
-                  <input type="text" required value={lastName} onChange={e => setLastName(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary" />
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Soyad *</label>
+                  <input type="text" required value={lastName} onChange={e => setLastName(e.target.value)} className="kentiva-input" />
                 </div>
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">E-posta *</label>
-                <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary" />
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">E-posta *</label>
+                <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="kentiva-input" />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Şifre *</label>
-                <input type="password" required value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary" />
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Şifre *</label>
+                <input type="password" required value={password} onChange={e => setPassword(e.target.value)} className="kentiva-input" />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Telefon</label>
-                <input type="tel" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary" />
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Telefon</label>
+                <input type="tel" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} className="kentiva-input" />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Rol *</label>
-                <select value={role} onChange={e => setRole(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary bg-white">
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Rol *</label>
+                <select value={role} onChange={e => setRole(e.target.value)} className="kentiva-input">
                   <option value="ROLE_FIELD_OFFICER">Saha Görevlisi</option>
                   <option value="ROLE_DEPT_MANAGER">Birim Müdürü</option>
                   <option value="ROLE_WHITE_DESK">Beyaz Masa</option>
@@ -288,8 +288,8 @@ export default function UsersPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Departman (Opsiyonel)</label>
-                <select value={departmentId} onChange={e => setDepartmentId(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary bg-white">
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Departman (Opsiyonel)</label>
+                <select value={departmentId} onChange={e => setDepartmentId(e.target.value)} className="kentiva-input">
                   <option value="">-- Departman Seçin --</option>
                   {departments.map((d) => (
                     <option key={d.id} value={d.id}>
@@ -301,8 +301,8 @@ export default function UsersPage() {
               </div>
 
               <div className="mt-6 flex justify-end gap-3 pt-4">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50">İptal</button>
-                <button type="submit" disabled={saving} className="px-4 py-2 text-sm font-semibold text-white bg-primary rounded-lg hover:bg-primary-hover disabled:opacity-50">{saving ? 'Ekleniyor...' : 'Ekle'}</button>
+                <button type="button" onClick={() => setIsModalOpen(false)} className="kentiva-btn kentiva-btn-secondary">İptal</button>
+                <button type="submit" disabled={saving} className="kentiva-btn kentiva-btn-primary">{saving ? 'Ekleniyor...' : 'Ekle'}</button>
               </div>
             </form>
           </div>

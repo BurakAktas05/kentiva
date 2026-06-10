@@ -407,7 +407,7 @@ export default function NewReport({
 
   const previewRow = (label: string, value: string) => (
     <div className={`flex gap-3 border-b py-3 last:border-0 ${isDark ? 'border-slate-700' : 'border-slate-100'}`}>
-      <span className={`w-24 shrink-0 text-xs font-semibold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{label}</span>
+      <span className={`w-24 shrink-0 text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{label}</span>
       <span className={`min-w-0 flex-1 text-sm font-medium ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{value}</span>
     </div>
   );
@@ -433,7 +433,7 @@ export default function NewReport({
           <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-800'}`}>
             {t('report.screenTitle', lang)}
           </p>
-          <p className={`text-[11px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+          <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
             {step === 2 ? t('report.step2.short', lang) : t('report.stepProgress', lang, { current: step, total: 2 })}
           </p>
         </div>
@@ -478,9 +478,9 @@ export default function NewReport({
                 <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                   {t('report.templates', lang)}
                 </label>
-                <p className={`mb-2 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{t('report.templates.hint', lang)}</p>
+                <p className={`mb-2 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{t('report.templates.hint', lang)}</p>
                 {templatesLoading ? (
-                  <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                  <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                     {lang === 'tr' ? 'Sablonlar yukleniyor...' : 'Loading templates...'}
                   </p>
                 ) : (
@@ -518,7 +518,7 @@ export default function NewReport({
                 {t('report.preview.category', lang)}
               </label>
               {categories.length === 0 ? (
-                <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                   {lang === 'tr' ? 'Konum alindiktan sonra kategoriler yuklenecek.' : 'Categories load after location is set.'}
                 </p>
               ) : (
@@ -698,7 +698,7 @@ export default function NewReport({
                 <img src={localPhotoPreview || resolveMediaUrl(mediaUrl!)} alt="" className="h-36 w-full object-cover" />
               )}
               <motion.div className={`px-4 py-3 ${isDark ? 'bg-slate-800/80' : 'bg-slate-50'}`}>
-                <p className={`mb-1 text-xs font-semibold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                <p className={`mb-1 text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                   {t('report.preview.description', lang)}
                 </p>
                 <p className={`text-sm leading-relaxed ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{description}</p>

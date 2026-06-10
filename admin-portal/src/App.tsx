@@ -26,6 +26,7 @@ import {
   Sparkles,
   Megaphone,
   BarChart3,
+  X,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api, { clearAuthStorage, type PredictiveInsight, type Stats } from './api';
@@ -524,15 +525,47 @@ const MunicipalityDashboard = ({ user }: { user: AuthenticatedPortalUser }) => {
         </div>
       </div>
 
-      {mapReportId && (
-        <Suspense fallback={null}>
-          <ReportDetailPage
-            reportId={mapReportId}
-            embedded
-            onClose={() => setMapReportId(null)}
-          />
-        </Suspense>
-      )}
+      <AnimatePresence>
+        {mapReportId && (
+          <div className="fixed inset-0 z-[2000] flex justify-end">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setMapReportId(null)}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs cursor-pointer"
+            />
+            {/* Drawer Panel */}
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+              className="relative flex h-full w-full max-w-3xl flex-col overflow-hidden bg-slate-50 shadow-2xl dark:bg-slate-950 border-l border-slate-200 dark:border-slate-800"
+            >
+              <button
+                type="button"
+                onClick={() => setMapReportId(null)}
+                className="absolute right-4 top-4 z-10 rounded-lg border border-slate-200 bg-white p-2 text-slate-600 shadow-sm hover:bg-slate-50 transition-colors dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                aria-label="Kapat"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <div className="flex-1 overflow-y-auto">
+                <Suspense fallback={<div className="p-6 text-slate-500">Yükleniyor...</div>}>
+                  <ReportDetailPage
+                    reportId={mapReportId}
+                    embedded
+                    onClose={() => setMapReportId(null)}
+                  />
+                </Suspense>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@variant dark (&:where(.dark, .dark *));
+
 /* Kentiva — shared design tokens (vatandaş uygulaması) */
 @theme {
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
@@ -57,6 +59,10 @@ html.native-app {
   html {
     -webkit-tap-highlight-color: transparent;
     text-rendering: optimizeLegibility;
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
   }
   body {
     @apply bg-slate-100 text-slate-900 antialiased font-sans;
