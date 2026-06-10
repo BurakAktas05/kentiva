@@ -312,10 +312,10 @@ public class ReportCommandService {
      * Gemini HTTP çağrısı transaction DIŞINDA yapılır (DB connection bekletilmez).
      */
     @PreAuthorize("hasAnyAuthority('ROLE_FIELD_OFFICER','ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
-    public void performAiAnalysis(String reportId, AppUser currentUser) {
+    public void performAiAnalysis(String reportId, ReportStatus status, AppUser currentUser) {
         // self üzerinden çağırarak @Transactional proxy'sini garanti altına alırız.
         AiContext ctx = self.loadReportWithTenantCheck(reportId, currentUser);
-        applyAiAnalysisOutsideTx(reportId, ctx);
+        applyAiAnalysisOutsideTx(reportId, ctx, status);
     }
 
     /**
@@ -325,7 +325,7 @@ public class ReportCommandService {
      */
     public void performAiAnalysisAsSystem(String reportId) {
         AiContext ctx = self.loadReportForSystemAi(reportId);
-        applyAiAnalysisOutsideTx(reportId, ctx);
+        applyAiAnalysisOutsideTx(reportId, ctx, null);
     }
 
     /**
@@ -357,9 +357,9 @@ public class ReportCommandService {
     }
 
     /** Gemini/HTTP çağrısı txn dışında. Sonra kısa yazma txn'i ile kaydeder. */
-    private void applyAiAnalysisOutsideTx(String reportId, AiContext ctx) {
+    private void applyAiAnalysisOutsideTx(String reportId, AiContext ctx, ReportStatus targetStatus) {
         Report report = ctx.report();
-        GeminiService.AIAnalysisResult result = geminiService.analyzeReport(report);
+        GeminiService.AIAnalysisResult result = geminiService.analyzeReport(report, targetStatus);
         if (result == null) {
             result = heuristicReportAnalyzer.analyze(report);
             log.info("Kural tabanlı AI yedek analiz kullanıldı: {}", reportId);

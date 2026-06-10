@@ -36,7 +36,8 @@ if ($base -notmatch '^https://') {
 $healthUri = "$base/actuator/health"
 Write-Host "Tünel kontrolü: GET $healthUri" -ForegroundColor Cyan
 try {
-    $health = Invoke-RestMethod -Uri $healthUri -Method Get -TimeoutSec 25
+    $headers = @{ "ngrok-skip-browser-warning" = "true" }
+    $health = Invoke-RestMethod -Uri $healthUri -Method Get -Headers $headers -TimeoutSec 25
     if ($health.status -and $health.status -notin @('UP', 'up')) {
         if (-not $Force) { throw "Backend durumu: $($health.status)" }
     }

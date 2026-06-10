@@ -297,8 +297,11 @@ export default function NewReport({
 
     try {
       const hints = await fetchNearbyReportHints(latitude, longitude, resolvedMunicipality.id, 75);
-      if (hints.length > 0) {
-        setNearbyHints(hints);
+      const matchingCategoryHints = hints.filter(
+        (hint) => hint.categoryName?.trim().toLowerCase() === selectedCategory?.name?.trim().toLowerCase()
+      );
+      if (matchingCategoryHints.length > 0) {
+        setNearbyHints(matchingCategoryHints);
         setShowDuplicateModal(true);
         return;
       }

@@ -2,6 +2,7 @@ package com.burak.belediyeapp.service.ai;
 
 import com.burak.belediyeapp.dto.request.municipality.GenerateNotificationTemplateRequest.NotificationTemplateKind;
 import com.burak.belediyeapp.entity.Report;
+import com.burak.belediyeapp.entity.ReportStatus;
 import com.burak.belediyeapp.repository.IReportCategoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +40,10 @@ public class GeminiService {
     private final IReportCategoryRepository categoryRepository;
 
     public AIAnalysisResult analyzeReport(Report report) {
+        return analyzeReport(report, null);
+    }
+
+    public AIAnalysisResult analyzeReport(Report report, ReportStatus targetStatus) {
         if (apiKey == null || apiKey.isBlank() || apiKey.equals("your-gemini-api-key")) {
             log.warn("Gemini API Key eksik. AI analizi atlanıyor.");
             return null;
@@ -57,6 +62,17 @@ public class GeminiService {
             default -> "Turkish";
         };
 
+        String replyDraftInstruction;
+        if (targetStatus == ReportStatus.OUT_OF_JURISDICTION) {
+            replyDraftInstruction = "vatandaşa gönderilecek, konunun belediyenin yetki/görev alanı dışında kaldığını (örneğin karayolları genel müdürlüğü, elektrik dağıtım şirketi vb. kurumlara ait olduğunu) belirten, durumu kibarca açıklayan resmi bir bilgilendirme yanıtı — mutlaka %s dilinde";
+        } else if (targetStatus == ReportStatus.RESOLVED) {
+            replyDraftInstruction = "vatandaşa gönderilecek, bildirilen sorunun saha ekiplerimiz tarafından başarıyla çözümlendiğini ve giderildiğini bildiren resmi bir teşekkür ve bilgilendirme yanıtı — mutlaka %s dilinde";
+        } else if (targetStatus == ReportStatus.PROCESSING) {
+            replyDraftInstruction = "vatandaşa gönderilecek, bildirimin incelenip işleme alındığını ve saha ekiplerinin çalışmaya başladığını bildiren resmi ve kısa bir bilgilendirme yanıtı — mutlaka %s dilinde";
+        } else {
+            replyDraftInstruction = "vatandaşa gönderilecek kısa resmi yanıt — mutlaka %s dilinde";
+        }
+
         String prompt = String.format(
                 """
                 Sen Kentiva şehir bildirim platformunun analiz asistanısın. Aşağıdaki vatandaş bildirimini analiz et.
@@ -64,14 +80,14 @@ public class GeminiService {
                 Mevcut seçilen kategori: %s
                 Rapor içerik dili: %s
                 JSON döndür (İngilizce anahtarlar):
-                {"priority":"LOW|MEDIUM|HIGH|CRITICAL","summary":"max 25 kelime, staff için Türkçe","is_category_correct":true/false,"suggested_category_name":"yalnızca listeden bir ad veya mevcut kategori","suggested_title":"kısa başlık (rapor diliyle uyumlu, max 10 kelime)","sla_risk":"LOW|MEDIUM|HIGH","duplicate_hint":"mükerrer notu Türkçe veya boş","reply_draft":"vatandaşa gönderilecek kısa resmi yanıt — mutlaka %s dilinde","priority_rationale":"öncelik gerekçesi Türkçe, max 20 kelime"}
+                {"priority":"LOW|MEDIUM|HIGH|CRITICAL","summary":"max 25 kelime, staff için Türkçe","is_category_correct":true/false,"suggested_category_name":"yalnızca listeden bir ad veya mevcut kategori","suggested_title":"kısa başlık (rapor diliyle uyumlu, max 10 kelime)","sla_risk":"LOW|MEDIUM|HIGH","duplicate_hint":"mükerrer notu Türkçe veya boş","reply_draft":"%s","priority_rationale":"öncelik gerekçesi Türkçe, max 20 kelime"}
                 Başlık: %s
                 Açıklama: %s
                 """,
                 categoryOptions,
                 report.getCategory().getName(),
                 lang,
-                replyLanguage,
+                String.format(replyDraftInstruction, replyLanguage),
                 report.getTitle(),
                 report.getDescription()
         );
@@ -220,6 +236,29 @@ public class GeminiService {
             String priorityRationale
     ) {}
 
+    private String executeGeminiCall(String requestBody) {
+        String response = restClient.post()
+                .uri(geminiGenerateContentUrl() + "?key=" + apiKey)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(requestBody)
+                .retrieve()
+                .body(String.class);
+
+        JSONObject json = new JSONObject(response);
+        String text = json.getJSONArray("candidates")
+                .getJSONObject(0)
+                .getJSONObject("content")
+                .getJSONArray("parts")
+                .getJSONObject(0)
+                .getString("text")
+                .trim();
+
+        if (text.startsWith("```")) {
+            text = text.replaceAll("```json|```", "").trim();
+        }
+        return text;
+    }
+
     public String parseBusRoutes(String combinedText) {
         if (apiKey == null || apiKey.isBlank() || apiKey.equals("your-gemini-api-key")) {
             log.warn("Gemini API Key eksik. AI ile otobüs hatları ayrıştırma atlanıyor. Boş veri döndürülüyor.");
@@ -229,7 +268,7 @@ public class GeminiService {
         String prompt = String.format(
                 """
                 Sen Kentiva belediye ulaşım asistanısın. Sana verilen metinler, bir belediyenin otobüs hatları, durakları ve kalkış saatleri bilgilerini içerir.
-                Bu metinlerden otobüs hatlarını (bus routes) analiz et ve aşağıdaki JSON şemasına uygun bir JSON dizisi oluştur.
+                Metinlerdeki çizimlerin, tabloların veya saatlerin kaymış olabileceğini göz önünde bulundurarak otobüs hatlarını (bus routes) akıllıca analiz et ve aşağıdaki JSON şemasına uygun bir JSON dizisi oluştur.
                 
                 Her hat (route) için:
                 - code: Kısa hat kodu (örn: "Şİ", "SK", "100-A", "KYK")
@@ -276,28 +315,72 @@ public class GeminiService {
                 .toString();
 
         try {
-            String response = restClient.post()
-                    .uri(geminiGenerateContentUrl() + "?key=" + apiKey)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(requestBody)
-                    .retrieve()
-                    .body(String.class);
-
-            JSONObject json = new JSONObject(response);
-            String text = json.getJSONArray("candidates")
-                    .getJSONObject(0)
-                    .getJSONObject("content")
-                    .getJSONArray("parts")
-                    .getJSONObject(0)
-                    .getString("text")
-                    .trim();
-
-            if (text.startsWith("```")) {
-                text = text.replaceAll("```json|```", "").trim();
-            }
-            return text;
+            return executeGeminiCall(requestBody);
         } catch (Exception e) {
             log.error("Gemini otobüs hatları ayrıştırma hatası: ", e);
+            return "[]";
+        }
+    }
+
+    public String parseBusRoutesFromPdf(byte[] pdfBytes) {
+        if (apiKey == null || apiKey.isBlank() || apiKey.equals("your-gemini-api-key")) {
+            log.warn("Gemini API Key eksik. AI ile otobüs hatları PDF ayrıştırma atlanıyor. Boş veri döndürülüyor.");
+            return "[]";
+        }
+
+        String prompt = """
+                Sen Kentiva belediye ulaşım asistanısın. Sana verilen PDF belgesinde, bir belediyenin otobüs hatları, durakları ve kalkış saatleri bilgileri yer almaktadır.
+                Bu belgedeki karmaşık tabloları, çizimleri ve metinleri çok dikkatli analiz et. Kolonlardaki saatleri ve durak isimlerini birbirleriyle doğru eşleştir.
+                Otobüs hatlarını (bus routes) aşağıdaki JSON şemasına uygun bir JSON dizisi olarak çıkar.
+                
+                ÖNEMLİ GEREKSİNİMLER:
+                1. Duraklar (stops) listesi başlangıç durağından bitiş durağına doğru sıralı olmalıdır.
+                2. Kalkış saatleri (schedule) weekday (hafta içi) mutlaka dolu olmalıdır. departuresFromStart başlangıç durağından kalkış saatlerini, departuresFromEnd ise bitiş durağından kalkış saatlerini içermelidir.
+                3. PDF içindeki karmaşık satırlar veya sütunlar arasından her durak ismini ve kalkış saatlerini doğru bir şekilde çıkar.
+                4. Yalnızca geçerli bir JSON dizisi döndür. Başka açıklama veya ```json bloğu ekleme.
+                
+                JSON formatı kesinlikle şu şekilde olmalıdır:
+                [
+                  {
+                    "code": "Şİ",
+                    "name": "Şehir İçi Hattı",
+                    "color": "#10B981",
+                    "icon": "bus",
+                    "stops": ["Kıranköy", "Sadri Artunç Caddesi", "Eski Çarşı"],
+                    "schedule": {
+                      "weekday": {
+                        "departuresFromStart": ["07:00", "08:00"],
+                        "departuresFromEnd": ["07:30", "08:30"]
+                      },
+                      "weekend": {
+                        "departuresFromStart": ["09:00", "10:00"],
+                        "departuresFromEnd": ["09:30", "10:30"]
+                      }
+                    }
+                  }
+                ]
+                """;
+
+        try {
+            String base64Pdf = java.util.Base64.getEncoder().encodeToString(pdfBytes);
+
+            JSONObject partText = new JSONObject().put("text", prompt);
+            JSONObject partPdf = new JSONObject().put("inlineData", new JSONObject()
+                    .put("mimeType", "application/pdf")
+                    .put("data", base64Pdf));
+
+            JSONArray parts = new JSONArray().put(partText).put(partPdf);
+
+            String requestBody = new JSONObject()
+                    .put("contents", new JSONArray().put(
+                            new JSONObject().put("parts", parts)
+                    ))
+                    .put("generationConfig", new JSONObject().put("response_mime_type", "application/json"))
+                    .toString();
+
+            return executeGeminiCall(requestBody);
+        } catch (Exception e) {
+            log.error("Gemini otobüs hatları PDF ayrıştırma hatası: ", e);
             return "[]";
         }
     }

@@ -45,28 +45,50 @@ public class BusRouteService {
             return;
         }
 
-        StringBuilder combinedText = new StringBuilder();
+        List<JSONArray> allRoutesLists = new ArrayList<>();
+
         for (MultipartFile file : files) {
             if (file.isEmpty()) continue;
             String filename = file.getOriginalFilename();
             if (filename == null) continue;
 
-            try (InputStream is = file.getInputStream()) {
+            try {
                 if (filename.toLowerCase().endsWith(".pdf")) {
-                    combinedText.append(extractTextFromPdf(is)).append("\n");
-                } else if (filename.toLowerCase().endsWith(".xlsx") || filename.toLowerCase().endsWith(".xls")) {
-                    combinedText.append(extractTextFromExcel(is)).append("\n");
+                    byte[] pdfBytes = file.getBytes();
+                    String routeJson = geminiService.parseBusRoutesFromPdf(pdfBytes);
+                    if (routeJson != null && !routeJson.isBlank() && !routeJson.equals("[]")) {
+                        allRoutesLists.add(new JSONArray(routeJson));
+                    }
                 } else {
-                    combinedText.append(new String(is.readAllBytes(), StandardCharsets.UTF_8)).append("\n");
+                    String text;
+                    try (InputStream is = file.getInputStream()) {
+                        if (filename.toLowerCase().endsWith(".xlsx") || filename.toLowerCase().endsWith(".xls")) {
+                            text = extractTextFromExcel(is);
+                        } else {
+                            text = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+                        }
+                    }
+                    if (text != null && !text.isBlank()) {
+                        String routeJson = geminiService.parseBusRoutes(text);
+                        if (routeJson != null && !routeJson.isBlank() && !routeJson.equals("[]")) {
+                            allRoutesLists.add(new JSONArray(routeJson));
+                        }
+                    }
                 }
             } catch (Exception e) {
-                log.error("Dosya okuma hatası: " + filename, e);
-                throw new BusinessException("Dosya okunamadı: " + filename, "FILE_READ_ERROR");
+                log.error("Dosya işleme hatası: " + filename, e);
+                throw new BusinessException("Dosya işlenemedi: " + filename, "FILE_PROCESSING_ERROR");
             }
         }
-        String parsedJson = geminiService.parseBusRoutes(combinedText.toString());
 
-        if (parsedJson == null || parsedJson.isBlank() || parsedJson.equals("[]")) {
+        JSONArray jsonArray = new JSONArray();
+        for (JSONArray arr : allRoutesLists) {
+            for (int i = 0; i < arr.length(); i++) {
+                jsonArray.put(arr.getJSONObject(i));
+            }
+        }
+
+        if (jsonArray.isEmpty()) {
             log.warn("AI hatları çözümleyemedi veya API anahtarı eksik. Varsayılan hatlar yükleniyor.");
             busRouteRepository.deleteAllByMunicipalityId(municipalityId);
             saveFallbackSeedData(municipality);
@@ -74,7 +96,6 @@ public class BusRouteService {
         }
 
         try {
-            JSONArray jsonArray = new JSONArray(parsedJson);
             List<BusRoute> existingRoutes = busRouteRepository.findAllByMunicipalityId(municipalityId);
             Map<String, BusRoute> codeToRoute = new HashMap<>();
             for (BusRoute r : existingRoutes) {

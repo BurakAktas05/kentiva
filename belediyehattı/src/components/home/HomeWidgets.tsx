@@ -202,7 +202,7 @@ export function WeatherWidgetCard({ tenant, lang, isDark }: WidgetBaseProps) {
 
   return (
     <section className={`overflow-hidden rounded-2xl border shadow-sm ${theme}`}>
-      <div className="p-4">
+      <div className="p-3.5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <WidgetHeader
@@ -211,9 +211,8 @@ export function WeatherWidgetCard({ tenant, lang, isDark }: WidgetBaseProps) {
               accent="sky"
               isDark={isDark}
             />
-            <p className={`mt-2 text-[11px] font-medium ${isDark ? 'text-sky-200/80' : 'text-slate-600'}`}>
+            <p className={`mt-1 text-[10px] font-medium ${isDark ? 'text-sky-200/80' : 'text-slate-600'}`}>
               {locationSourceLabel(locationSource, lang)}
-              {weather?.dataSource ? ` · ${weather.dataSource}` : ''}
             </p>
           </div>
           <button
@@ -221,34 +220,34 @@ export function WeatherWidgetCard({ tenant, lang, isDark }: WidgetBaseProps) {
             onClick={refresh}
             disabled={loading}
             aria-label={t('home.widgets.refresh', lang)}
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition active:scale-95 disabled:opacity-50 ${
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition active:scale-95 disabled:opacity-50 ${
               isDark ? 'bg-slate-800 text-slate-300' : 'bg-white/70 text-sky-700 shadow-sm'
             }`}
           >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
 
         {loading ? (
-          <div className="mt-4 h-24 animate-pulse rounded-xl bg-white/40 dark:bg-slate-700/50" />
+          <div className="mt-3 h-20 animate-pulse rounded-xl bg-white/40 dark:bg-slate-700/50" />
         ) : hasData ? (
-          <div className="mt-3 flex items-center gap-4">
+          <div className="mt-2.5 flex items-center gap-3">
             <div
-              className={`flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl ${
+              className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl ${
                 isDark ? 'bg-sky-500/15 text-sky-200' : 'bg-white/60 text-sky-600 shadow-inner'
               }`}
               aria-hidden
             >
-              {weatherVisual(weather.weatherCode, 'h-12 w-12')}
+              {weatherVisual(weather.weatherCode, 'h-8 w-8')}
             </div>
             <div className="min-w-0 flex-1">
-              <p className={`text-4xl font-bold tabular-nums leading-none ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              <p className={`text-2xl font-bold tabular-nums leading-none ${isDark ? 'text-white' : 'text-slate-900'}`}>
                 {Math.round(weather.temperatureC!)}°
               </p>
-              <p className={`mt-1 text-sm font-medium ${isDark ? 'text-sky-100/90' : 'text-slate-700'}`}>
+              <p className={`mt-0.5 text-xs font-semibold ${isDark ? 'text-sky-100/90' : 'text-slate-700'}`}>
                 {weather.description}
               </p>
-              <div className={`mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+              <div className={`mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                 {weather.apparentTemperatureC != null && (
                   <span>
                     {t('home.widgets.feelsLike', lang)}{' '}
@@ -267,7 +266,7 @@ export function WeatherWidgetCard({ tenant, lang, isDark }: WidgetBaseProps) {
             </div>
           </div>
         ) : (
-          <p className={`mt-4 text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+          <p className={`mt-3 text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
             {t('home.widgets.weatherUnavailable', lang)}
           </p>
         )}
@@ -313,7 +312,6 @@ export function PharmacyWidgetCard({ tenant, lang, isDark }: WidgetBaseProps) {
             </div>
             <p className={`mt-2 text-[11px] font-medium ${isDark ? 'text-emerald-100/75' : 'text-slate-600'}`}>
               {locationSourceLabel(locationSource, lang)}
-              {bundle?.pharmacyDataSource ? ` · ${bundle.pharmacyDataSource}` : ''}
             </p>
           </div>
           <button
@@ -399,7 +397,16 @@ export function PharmacyWidgetCard({ tenant, lang, isDark }: WidgetBaseProps) {
               <div className="mt-3 pt-3 border-t border-emerald-100/60 dark:border-emerald-900/40">
                 <button
                   type="button"
-                  onClick={() => setIsMapOpen(true)}
+                  onClick={() => {
+                    const query = encodeURIComponent(
+                      lang === 'tr' ? 'nöbetçi eczane' : lang === 'ar' ? 'صيدلية مناوبة' : 'on-duty pharmacy'
+                    );
+                    let url = `https://www.google.com/maps/search/?api=1&query=${query}`;
+                    if (resolvedCoords) {
+                      url += `&center=${resolvedCoords.lat},${resolvedCoords.lng}`;
+                    }
+                    window.open(url, '_blank', 'noopener,noreferrer');
+                  }}
                   className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] text-white shadow-sm transition"
                 >
                   <MapPin className="h-4 w-4" />

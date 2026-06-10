@@ -60,9 +60,8 @@ export const coverMediaClass =
 
 export const coverMediaImgClass = 'absolute inset-0 h-full w-full object-cover object-center';
 
-/** Yatay duyuru kartı (ana sayfa şeridi) */
 export const announcementCardClass =
-  'relative shrink-0 snap-center w-[78%] max-w-[320px] aspect-[16/9] rounded-2xl overflow-hidden text-left shadow-sm focus:outline-none focus:ring-2 focus:ring-primary';
+  'relative w-full shrink-0 snap-center aspect-[16/9] rounded-2xl overflow-hidden text-left shadow-sm focus:outline-none focus:ring-2 focus:ring-primary';
 
 export function detailHeaderBar(isDark: boolean): string {
   return `sticky top-0 z-10 flex shrink-0 items-center gap-2 border-b px-4 py-3 pt-safe backdrop-blur-md ${

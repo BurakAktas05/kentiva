@@ -37,6 +37,7 @@ const MunicipalityPicker = lazy(() => import('./components/screens/MunicipalityP
 const KentScreen = lazy(() => import('./components/screens/KentScreen'));
 const CommunityScreen = lazy(() => import('./components/screens/CommunityScreen'));
 const NotificationPrefsModal = lazy(() => import('./components/screens/NotificationPrefsModal'));
+const IntroductionModal = lazy(() => import('./components/screens/IntroductionModal'));
 const AnnouncementDetailScreen = lazy(() => import('./components/screens/AnnouncementDetailScreen'));
 const BusScheduleScreen = lazy(() => import('./components/screens/BusScheduleScreen'));
 
@@ -92,6 +93,38 @@ function LoadingSpinner({ isDark }: { isDark: boolean }) {
   );
 }
 
+function AppLoadingScreen({ isDark, lang }: { isDark: boolean; lang: Lang }) {
+  const heading = 'Kentiva';
+  const subtitle = lang === 'tr' ? 'Akıllı Belediyecilik Platformu' : lang === 'ar' ? 'منصة البلدية الذكية' : 'Smart Municipalism Platform';
+  const slogan = lang === 'tr' 
+    ? 'Yapay zeka destekli modern şehir yönetimi ve katılımcı belediyecilik.'
+    : lang === 'ar'
+      ? 'إدارة المدن الحديثة والبلدية التشاركية المدعومة بالذكاء الاصطناعي.'
+      : 'AI-powered modern city management and participatory municipalism.';
+
+  return (
+    <div className={`flex flex-col items-center justify-center min-h-app p-5 text-center ${isDark ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-900'}`}>
+      <div className={`w-full max-w-sm rounded-3xl border p-8 shadow-xl transition-all ${
+        isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200/90 bg-white'
+      }`}>
+        <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-3xl bg-primary/10 text-primary shadow-inner">
+          <Building2 className="h-12 w-12 animate-pulse text-primary" strokeWidth={1.5} />
+        </div>
+        <h1 className="text-2xl font-bold tracking-tight">{heading}</h1>
+        <p className="text-sm font-bold text-primary mt-1">{subtitle}</p>
+        <div className={`mt-6 p-4 rounded-2xl border text-xs leading-relaxed font-semibold ${
+          isDark ? 'border-slate-800 bg-slate-950/60 text-slate-400' : 'border-slate-100 bg-slate-50 text-slate-500'
+        }`}>
+          {slogan}
+        </div>
+        <div className="mt-8 flex justify-center">
+          <div className="h-7 w-7 animate-spin rounded-full border-3 border-primary border-t-transparent" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function NotOnboardedBlockedView({ lang, isDark }: { lang: Lang; isDark: boolean }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center p-6 text-center min-h-[60vh]">
@@ -138,6 +171,7 @@ export default function App() {
   const [pickerMode, setPickerMode] = useState<MunicipalityPickerMode | null>(null);
   const [sessionBooting, setSessionBooting] = useState(() => Boolean(getSavedUser()));
   const [isPrefsModalOpen, setIsPrefsModalOpen] = useState(false);
+  const [isIntroModalOpen, setIsIntroModalOpen] = useState(false);
   
   const [systemIsDark, setSystemIsDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
 
@@ -262,13 +296,24 @@ export default function App() {
   }, [explicitRoute, routeBooting, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (user && localStorage.getItem('belediye_notification_prefs_onboarded') !== 'true') {
+    if (user && localStorage.getItem('belediye_welcome_onboarded') !== 'true') {
+      setIsIntroModalOpen(true);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (
+      user &&
+      localStorage.getItem('belediye_welcome_onboarded') === 'true' &&
+      localStorage.getItem('belediye_notification_prefs_onboarded') !== 'true' &&
+      !isIntroModalOpen
+    ) {
       const timer = setTimeout(() => {
         setIsPrefsModalOpen(true);
       }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [user]);
+  }, [user, isIntroModalOpen]);
 
   useEffect(() => {
     if (user) {
@@ -440,6 +485,10 @@ export default function App() {
   }, []);
 
   const popNavigation = useCallback((): boolean => {
+    if (isIntroModalOpen) {
+      setIsIntroModalOpen(false);
+      return true;
+    }
     if (isPrefsModalOpen) {
       setIsPrefsModalOpen(false);
       return true;
@@ -509,7 +558,7 @@ export default function App() {
   }
 
   if (sessionBooting || routeBooting) {
-    return <LoadingSpinner isDark={isDark} />;
+    return <AppLoadingScreen isDark={isDark} lang={lang} />;
   }
 
   if (pickerMode) {
@@ -760,6 +809,12 @@ export default function App() {
           </nav>
         )}
         <Suspense fallback={null}>
+          <IntroductionModal
+            lang={lang}
+            isDark={isDark}
+            isOpen={isIntroModalOpen}
+            onClose={() => setIsIntroModalOpen(false)}
+          />
           <NotificationPrefsModal
             lang={lang}
             isDark={isDark}

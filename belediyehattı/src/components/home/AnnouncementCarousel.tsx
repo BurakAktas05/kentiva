@@ -109,7 +109,6 @@ export default function AnnouncementCarousel({ announcements, lang, isDark, onOp
   }, [count, scrollToLogical]);
 
   const handleScroll = () => {
-    pauseAuto();
     if (scrollEndTimerRef.current) clearTimeout(scrollEndTimerRef.current);
     scrollEndTimerRef.current = setTimeout(() => {
       normalizeInfiniteScroll();
@@ -132,10 +131,9 @@ export default function AnnouncementCarousel({ announcements, lang, isDark, onOp
         onScroll={handleScroll}
         onTouchStart={pauseAuto}
         onMouseDown={pauseAuto}
-        className="flex gap-3 overflow-x-auto snap-x snap-mandatory scroll-smooth scrollbar-none snap-center"
+        className="flex gap-3 w-full overflow-x-auto snap-x snap-mandatory scroll-smooth scrollbar-none snap-center"
         style={{
           WebkitOverflowScrolling: 'touch',
-          scrollPaddingInline: 'max(1rem, calc((100% - min(300px, 78vw)) / 2))',
         }}
       >
         {loopSlides.map((ann, i) => (

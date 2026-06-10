@@ -147,14 +147,14 @@ export default function Home({
           ) : null}
 
           {homeMunicipality && (
-            <div className="pb-4">
-              <div className="px-4 mb-2">
+            <div className="px-4 pb-4">
+              <div className="mb-2">
                 <h3 className={sectionTitleClass()}>{t('home.announcements.title', lang)}</h3>
               </div>
               {announcementsLoading ? (
-                <div className="mx-auto w-[78%] max-w-[320px] aspect-[16/9] animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800/40" />
+                <div className="w-full aspect-[16/9] animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800/40" />
               ) : announcements.length === 0 ? (
-                <div className="mx-4 rounded-2xl border border-slate-200 bg-white p-5 text-center dark:border-slate-800 dark:bg-slate-900">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 text-center dark:border-slate-800 dark:bg-slate-900">
                   <Info className="h-8 w-8 text-slate-300 mx-auto mb-2" />
                   <p className="text-xs text-slate-500">{t('home.announcements.empty', lang)}</p>
                 </div>
@@ -199,6 +199,7 @@ export default function Home({
             </div>
           ) : (
             <>
+              <div className="px-4 pb-4">{reportsCard()}</div>
               <div className="pb-4">
                 <Surveys
                   municipality={homeMunicipality}
@@ -209,7 +210,6 @@ export default function Home({
                   onReputationChange={onReputationChange}
                 />
               </div>
-              <div className="px-4">{reportsCard()}</div>
             </>
           )}
         </>

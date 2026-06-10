@@ -97,8 +97,8 @@ public class ReportService {
     }
 
     /** Admin / saha ekibi tarafından elle tetiklenen AI analizi (IDOR korumalı). */
-    public void performAiAnalysis(String reportId, AppUser currentUser) {
-        commandService.performAiAnalysis(reportId, currentUser);
+    public void performAiAnalysis(String reportId, ReportStatus status, AppUser currentUser) {
+        commandService.performAiAnalysis(reportId, status, currentUser);
     }
 
     /** Sistem (event listener) tarafından otomatik AI analizi — admin oturumu yok. */

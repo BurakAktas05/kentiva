@@ -169,7 +169,7 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
     setAiBusy(true);
     setError(null);
     try {
-      const res = await api.post(`/reports/${id}/ai-analysis`);
+      const res = await api.post(`/reports/${id}/ai-analysis?status=${statusValue}`);
       const next = res.data.data as Report;
       setReport(next);
       if (next.aiReplyDraft) {

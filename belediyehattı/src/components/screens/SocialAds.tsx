@@ -144,17 +144,45 @@ export default function SocialAds({
   }, [activeTab, focusDistrict?.district, districtResolving]);
 
   const fetchAds = async (district: string) => {
-    setLoading(true);
+    // 1. Try loading cached data first (Stale-While-Revalidate)
+    const cacheKey = `belediye_cache_social_${activeTab}_${district}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (activeTab === 'blood') {
+          setBloodAds(parsed || []);
+        } else if (activeTab === 'lost') {
+          setLostPetAds(parsed || []);
+        } else {
+          setItemAds(parsed || []);
+        }
+        // Immediately turn off loading if cache is present, so content displays instantly
+        setLoading(false);
+      } catch (err) {
+        setLoading(true);
+      }
+    } else {
+      setLoading(true);
+    }
+
+    // 2. Fetch fresh data from API
     try {
       if (activeTab === 'blood') {
         const ads = await getBloodAds(district);
-        setBloodAds(ads || []);
+        const list = ads || [];
+        setBloodAds(list);
+        localStorage.setItem(cacheKey, JSON.stringify(list));
       } else if (activeTab === 'lost') {
         const ads = await getLostPetAds(district);
-        setLostPetAds(ads || []);
+        const list = ads || [];
+        setLostPetAds(list);
+        localStorage.setItem(cacheKey, JSON.stringify(list));
       } else {
         const ads = await getItemDonationAds(district);
-        setItemAds(ads || []);
+        const list = ads || [];
+        setItemAds(list);
+        localStorage.setItem(cacheKey, JSON.stringify(list));
       }
     } catch (err) {
       console.error('Sosyal ilanlar yuklenirken hata:', err);

@@ -200,9 +200,10 @@ public class ReportController {
     @Operation(summary = "Rapor için AI analizi ve vatandaş yanıt taslağı oluştur")
     public ResponseEntity<ApiResponse<ReportResponse>> runAiAnalysis(
             @PathVariable String reportId,
+            @RequestParam(required = false) ReportStatus status,
             @AuthenticationPrincipal AppUser currentUser) {
 
-        reportService.performAiAnalysis(reportId, currentUser);
+        reportService.performAiAnalysis(reportId, status, currentUser);
         ReportResponse response = reportService.getReportById(reportId, currentUser);
         return ResponseEntity.ok(ApiResponse.success("AI analizi tamamlandı", response));
     }
