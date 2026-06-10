@@ -72,6 +72,7 @@ docker compose --env-file .env.docker up --build
 2. **Çevre Değişkenleri:** `.env.example` dosyasını `.env` adıyla kopyalayın ve JWT secret, veritabanı şifrelerini doldurun.
 3. **Backend Çalıştırma:**
    ```bash
+   cd backend
    ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
    ```
 4. **Varsayılan Yönetici Bilgileri:** Geliştirme profilinde (`dev`) süper yönetici hesabı: `admin@kentiva.app` / `admin123`

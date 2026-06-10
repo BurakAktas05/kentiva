@@ -117,11 +117,11 @@ if ($RestartBackend) {
         '"-Dmaven.test.skip=true"'
     )
     if ($NoNewWindows) {
-        Write-Host "  Manuel: .\mvnw.cmd $($mvnArgs -join ' ')" -ForegroundColor Yellow
+        Write-Host "  Manuel: cd backend; .\mvnw.cmd $($mvnArgs -join ' ')" -ForegroundColor Yellow
     } else {
         Start-Process powershell -ArgumentList @(
             '-NoExit', '-Command',
-            "cd '$root'; .\mvnw.cmd $($mvnArgs -join ' ')"
+            "cd '$(Join-Path $root 'backend')'; .\mvnw.cmd $($mvnArgs -join ' ')"
         ) -WindowStyle Normal
     }
     Wait-BackendHealth -BaseUrl 'http://localhost:8080'

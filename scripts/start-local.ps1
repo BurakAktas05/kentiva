@@ -48,7 +48,7 @@ Write-FrontendEnvFiles -ProjectRoot $root
 Write-Host '[2/5] Spring Boot (dev profil)...' -ForegroundColor Cyan
 if (-not $SkipBackend) {
     if ($NoNewWindows) {
-        Write-Host '  Manuel: .\mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=dev"' -ForegroundColor Yellow
+        Write-Host '  Manuel: cd backend; .\mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=dev"' -ForegroundColor Yellow
     } else {
         Start-SpringBootWindow -ProjectRoot $root
     }

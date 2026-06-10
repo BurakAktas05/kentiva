@@ -36,8 +36,8 @@ function Assert-LocalTestPrerequisites {
     if (-not (Test-CommandExists 'npm')) { $missing += 'npm (Node ile gelir)' }
 
     $root = Get-ProjectRoot
-    if (-not (Test-Path (Join-Path $root 'mvnw.cmd'))) {
-        $missing += "mvnw.cmd bulunamadı: $root"
+    if (-not (Test-Path (Join-Path (Join-Path $root 'backend') 'mvnw.cmd'))) {
+        $missing += "mvnw.cmd bulunamadı under backend directory"
     }
 
     if ($missing.Count -gt 0) {
@@ -301,7 +301,7 @@ function Start-SpringBootWindow {
     }
     $envBlock = if ($envLines.Count) { ($envLines -join '; ') + '; ' } else { '' }
     $cmd = "${envBlock}.\mvnw.cmd spring-boot:run `"-Dspring-boot.run.profiles=dev`""
-    Start-DevServerWindow -Title 'Kentiva Backend (8080)' -WorkingDirectory $ProjectRoot -Command $cmd
+    Start-DevServerWindow -Title 'Kentiva Backend (8080)' -WorkingDirectory (Join-Path $ProjectRoot 'backend') -Command $cmd
 }
 
 function Test-AndroidSdk {
