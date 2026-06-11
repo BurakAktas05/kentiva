@@ -32,5 +32,13 @@ public record MunicipalityPatchRequest(
         String smsAssignedTemplate,
         String pushAssignedTitleTemplate,
         String pushAssignedBodyTemplate,
-        String workflowMode
+        String workflowMode,
+        Boolean allowMunicipalityRejection,
+        Integer reputationDeltaReportCreated,
+        Integer reputationDeltaReportResolved,
+        Integer reputationDeltaReportRejected,
+        Integer reputationDeltaInappropriateMedia,
+        Integer autoSuspensionThreshold,
+        Integer autoSuspensionDays,
+        Boolean aiMediaModerationEnabled
 ) {}

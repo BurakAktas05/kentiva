@@ -69,21 +69,25 @@ public class AuthService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Sistem rolü bulunamadı. Yöneticinizle iletişime geçin."));
         AppUser user = new AppUser();
-        user.setId(UUID.randomUUID().toString());
         user.setFirstName(request.firstName());
         user.setLastName(request.lastName());
         user.setEmail(request.email());
         user.setPassword(passwordEncoder.encode(request.password()));
         user.setPhoneNumber(request.phoneNumber());
-        user.setRoles(Set.of(citizenRole));
+        user.getRoles().add(citizenRole);
         user.setKvkkApproved(Boolean.TRUE.equals(request.kvkkApproved()));
         if (user.isKvkkApproved()) {
             user.setKvkkApprovedAt(LocalDateTime.now());
-            user.setKvkkSignature(kvkkConsentSigningService.signUserConsent(
-                    user.getId(), user.getEmail(), user.getKvkkApprovedAt()));
         }
 
-        AppUser savedUser = userRepository.save(user);
+        final AppUser savedUser = userRepository.saveAndFlush(user);
+
+        if (savedUser.isKvkkApproved()) {
+            savedUser.setKvkkSignature(kvkkConsentSigningService.signUserConsent(
+                    savedUser.getId(), savedUser.getEmail(), savedUser.getKvkkApprovedAt()));
+            userRepository.saveAndFlush(savedUser);
+        }
+
         jwtAuthenticationSupport.evictCache(savedUser.getEmail());
         log.info("Yeni vatandaş kaydı: {} ({})", savedUser.getFullName(), savedUser.getEmail());
 

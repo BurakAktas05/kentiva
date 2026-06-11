@@ -74,12 +74,15 @@ public class ReportCommandService {
                     "REPORT_ALREADY_CLOSED");
         }
 
-        // Sadece SUPER_ADMIN rapor reddedebilir; belediye adminleri reddedemez
-        if (request.status() == ReportStatus.REJECTED
-                && !currentUser.hasRole("ROLE_SUPER_ADMIN")) {
-            throw new BusinessException(
-                    "Rapor reddi yalnızca platform yöneticisi tarafından yapılabilir.",
-                    "REJECT_FORBIDDEN");
+        // Sadece SUPER_ADMIN veya bu izne sahip belediye adminleri rapor reddedebilir
+        if (request.status() == ReportStatus.REJECTED) {
+            boolean isSuperAdmin = currentUser.hasRole("ROLE_SUPER_ADMIN");
+            boolean allowedByMuni = report.getMunicipality() != null && report.getMunicipality().isAllowMunicipalityRejection();
+            if (!isSuperAdmin && !allowedByMuni) {
+                throw new BusinessException(
+                        "Rapor reddi bu belediye için devre dışı bırakılmıştır veya yetkiniz yoktur.",
+                        "REJECT_FORBIDDEN");
+            }
         }
 
         // Beyaz Masa görevlileri ihbarları çözüldü yapamaz; bu işlem yalnızca ilgili departman tarafından gerçekleştirilebilir.
@@ -122,6 +125,11 @@ public class ReportCommandService {
      */
     @Transactional
     public void systemRejectReport(String reportId, String reason) {
+        systemRejectReport(reportId, reason, false);
+    }
+
+    @Transactional
+    public void systemRejectReport(String reportId, String reason, boolean hide) {
         reportRepository.findById(reportId).ifPresent(report -> {
             if (report.getReportStatus() == ReportStatus.RESOLVED
                     || report.getReportStatus() == ReportStatus.REJECTED
@@ -131,6 +139,7 @@ public class ReportCommandService {
             }
             ReportStatus oldStatus = report.getReportStatus();
             report.setReportStatus(ReportStatus.REJECTED);
+            report.setHiddenFromMunicipality(hide);
             historyRepository.save(ReportHistory.builder()
                     .report(report)
                     .oldStatus(oldStatus)
@@ -147,7 +156,7 @@ public class ReportCommandService {
             } catch (Exception ex) {
                 log.warn("Sistem reddi bildirimi gönderilemedi: {}", ex.getMessage());
             }
-            log.warn("Rapor sistem tarafından reddedildi: {} — sebep: {}", reportId, reason);
+            log.warn("Rapor sistem tarafından reddedildi: {} — sebep: {}, gizlendi: {}", reportId, reason, hide);
         });
     }
 
@@ -373,7 +382,6 @@ public class ReportCommandService {
     @Transactional
     public void persistAiResult(String reportId, String municipalityId, GeminiService.AIAnalysisResult result) {
         Report report = reportSupport.findReportOrThrow(reportId);
-        report.setAiPriority(result.priority());
         report.setAiSummary(composeSummaryWithRationale(result.summary(), result.priorityRationale()));
         report.setAiSlaRisk(blankToNull(truncate(result.slaRisk(), 20)));
         report.setAiReplyDraft(blankToNull(result.replyDraft()));
@@ -385,24 +393,9 @@ public class ReportCommandService {
 
         if (result.suggestedCategoryName() != null && !result.suggestedCategoryName().isBlank()) {
             report.setAiSuggestedCategory(result.suggestedCategoryName());
-
-            boolean shouldReassign = !result.isCategoryCorrect()
-                    || (report.getCategory() != null && "Diğer".equals(report.getCategory().getName()));
-            if (shouldReassign) {
-                // Cross-tenant kategori atamasını önlemek için belediye kapsamında ara.
-                categoryRepository.findVisibleToMunicipalityByName(
-                                result.suggestedCategoryName(), municipalityId)
-                        .stream()
-                        .findFirst()
-                        .ifPresent(newCat -> {
-                            report.setCategory(newCat);
-                            log.info("AI otomatik kategori düzeltti (tenant-scoped): {} -> {}",
-                                    reportId, newCat.getName());
-                        });
-            }
         }
         reportRepository.save(report);
-        log.info("AI analizi tamamlandı: rapor={}, öncelik={}", reportId, result.priority());
+        log.info("AI analizi tamamlandı: rapor={}", reportId);
     }
 
     private static String composeSummaryWithRationale(String summary, String rationale) {

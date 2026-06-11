@@ -1,6 +1,7 @@
 package com.burak.belediyeapp.service.citizen;
 
 import com.burak.belediyeapp.entity.AppUser;
+import com.burak.belediyeapp.entity.Municipality;
 import com.burak.belediyeapp.entity.Report;
 import com.burak.belediyeapp.entity.ReportStatus;
 import com.burak.belediyeapp.repository.IAppUserRepository;
@@ -33,8 +34,9 @@ public class CitizenReputationService {
     private final JwtAuthenticationSupport jwtAuthenticationSupport;
 
     @Transactional
-    public void onReportCreated(AppUser reporter) {
-        applyDelta(reporter.getId(), DELTA_REPORT_CREATED, "REPORT_CREATED");
+    public void onReportCreated(AppUser reporter, Municipality municipality) {
+        int delta = municipality != null ? municipality.getReputationDeltaReportCreated() : DELTA_REPORT_CREATED;
+        applyDelta(reporter.getId(), delta, "REPORT_CREATED");
     }
 
     @Transactional
@@ -42,7 +44,8 @@ public class CitizenReputationService {
         if (report.getReporter() == null) {
             return;
         }
-        applyDelta(report.getReporter().getId(), DELTA_REPORT_RESOLVED, "REPORT_RESOLVED");
+        int delta = report.getMunicipality() != null ? report.getMunicipality().getReputationDeltaReportResolved() : DELTA_REPORT_RESOLVED;
+        applyDelta(report.getReporter().getId(), delta, "REPORT_RESOLVED");
     }
 
     @Transactional
@@ -50,20 +53,28 @@ public class CitizenReputationService {
         if (report.getReporter() == null) {
             return;
         }
-        int delta = selfieRelated ? DELTA_SELFIE_REJECTED : DELTA_REPORT_REJECTED;
+        Municipality muni = report.getMunicipality();
+        int delta = selfieRelated 
+                ? (muni != null ? muni.getReputationDeltaInappropriateMedia() : DELTA_SELFIE_REJECTED)
+                : (muni != null ? muni.getReputationDeltaReportRejected() : DELTA_REPORT_REJECTED);
         applyDelta(report.getReporter().getId(), delta, selfieRelated ? "SELFIE_REJECTED" : "REPORT_REJECTED");
 
-        // Ban check: count rejected reports for the user in the last 30 days
-        java.time.LocalDateTime since = java.time.LocalDateTime.now().minusDays(30);
-        long rejectedCount = reportRepository.countByReporterIdAndReportStatusAndCreatedAtAfter(
-                report.getReporter().getId(), ReportStatus.REJECTED, since);
-        if (rejectedCount >= 5) {
+        // Ban check: count rejected reports for the user in the last autoSuspensionDays
+        int threshold = muni != null ? muni.getAutoSuspensionThreshold() : 5;
+        int days = muni != null ? muni.getAutoSuspensionDays() : 30;
+
+        java.time.LocalDateTime since = java.time.LocalDateTime.now().minusDays(days);
+        long rejectedCount = reportRepository.countAutoRejectedReports(
+                report.getReporter().getId(), since);
+        if (rejectedCount >= threshold) {
             userRepository.findById(report.getReporter().getId()).ifPresent(user -> {
-                if (isCitizen(user) && user.isEnabled()) {
-                    user.setEnabled(false);
+                if (isCitizen(user)) {
+                    user.setSuspendedUntil(java.time.LocalDateTime.now().plusDays(days));
+                    user.setSuspensionReason("Çok sayıda otomatik reddedilen (uygunsuz içerikli) ihbar kaydı oluşturma.");
                     userRepository.save(user);
                     jwtAuthenticationSupport.evictCache(user.getEmail());
-                    log.warn("Kullanıcı çok sayıda asılsız ihbar nedeniyle otomatik banlandı: userId={}, email={}", user.getId(), user.getEmail());
+                    log.warn("Kullanıcı çok sayıda asılsız veya uygunsuz ihbar nedeniyle otomatik askıya alındı: userId={}, email={}, suspendedUntil={}", 
+                            user.getId(), user.getEmail(), user.getSuspendedUntil());
                 }
             });
         }

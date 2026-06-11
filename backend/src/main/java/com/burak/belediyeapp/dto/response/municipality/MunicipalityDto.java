@@ -41,7 +41,15 @@ public record MunicipalityDto(
         String smsAssignedTemplate,
         String pushAssignedTitleTemplate,
         String pushAssignedBodyTemplate,
-        String workflowMode
+        String workflowMode,
+        Boolean allowMunicipalityRejection,
+        Integer reputationDeltaReportCreated,
+        Integer reputationDeltaReportResolved,
+        Integer reputationDeltaReportRejected,
+        Integer reputationDeltaInappropriateMedia,
+        Integer autoSuspensionThreshold,
+        Integer autoSuspensionDays,
+        Boolean aiMediaModerationEnabled
 ) {
     public static MunicipalityDto fromEntity(Municipality m) {
         if (m == null) {
@@ -85,7 +93,15 @@ public record MunicipalityDto(
                 m.getSmsAssignedTemplate(),
                 m.getPushAssignedTitleTemplate(),
                 m.getPushAssignedBodyTemplate(),
-                m.getWorkflowMode() != null ? m.getWorkflowMode().name() : "SIMPLE"
+                m.getWorkflowMode() != null ? m.getWorkflowMode().name() : "SIMPLE",
+                m.isAllowMunicipalityRejection(),
+                m.getReputationDeltaReportCreated(),
+                m.getReputationDeltaReportResolved(),
+                m.getReputationDeltaReportRejected(),
+                m.getReputationDeltaInappropriateMedia(),
+                m.getAutoSuspensionThreshold(),
+                m.getAutoSuspensionDays(),
+                m.isAiMediaModerationEnabled()
         );
     }
 }

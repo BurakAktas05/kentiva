@@ -27,6 +27,7 @@ import {
   Megaphone,
   BarChart3,
   X,
+  MessageSquare,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api, { clearAuthStorage, type PredictiveInsight, type Stats } from './api';
@@ -63,6 +64,8 @@ const SetupPage = lazy(() => import('./pages/SetupPage'));
 const SuperAdminHomePage = lazy(() => import('./pages/SuperAdminHomePage'));
 const AnnouncementsPage = lazy(() => import('./pages/AnnouncementsPage'));
 const SurveysPage = lazy(() => import('./pages/SurveysPage'));
+const SystemFeedbackPage = lazy(() => import('./pages/SystemFeedbackPage'));
+const EventsAndOutagesPage = lazy(() => import('./pages/EventsAndOutagesPage'));
 
 const PageFallback = () => (
   <motion.div
@@ -108,45 +111,72 @@ const Sidebar = ({
   const { newCount: liveNewReports } = useReportLive();
 
   type MenuItem = { name: string; icon: typeof LayoutDashboard; path: string };
+  type MenuGroup = { title: string; items: MenuItem[] };
 
-  const menuItems: MenuItem[] = isPlatformSuperAdmin(user)
+  const menuGroups: MenuGroup[] = isPlatformSuperAdmin(user)
     ? [
-        { name: 'Platform', icon: LayoutDashboard, path: '/' },
-        { name: 'Kurulum sihirbazı', icon: Sparkles, path: '/admin/onboarding' },
-        { name: 'Belediyeler', icon: MapPinned, path: '/admin/municipalities' },
-        { name: 'Denetim raporu', icon: Shield, path: '/audit-logs' },
+        {
+          title: 'Platform Yönetimi',
+          items: [
+            { name: 'Platform', icon: LayoutDashboard, path: '/' },
+            { name: 'Kurulum sihirbazı', icon: Sparkles, path: '/admin/onboarding' },
+            { name: 'Belediyeler', icon: MapPinned, path: '/admin/municipalities' },
+            { name: 'Geri Bildirimler', icon: MessageSquare, path: '/system-feedback' },
+            { name: 'Denetim raporu', icon: Shield, path: '/audit-logs' },
+          ]
+        }
       ]
     : (() => {
-        const baseItems: MenuItem[] = [
-          { name: 'Dashboard', icon: LayoutDashboard, path: '/' },
-          { name: 'Raporlar', icon: FileText, path: '/reports' },
-          { name: 'Duyurular', icon: Megaphone, path: '/announcements' },
-          { name: 'Anketler', icon: BarChart3, path: '/surveys' },
-          { name: 'Personeller', icon: Users, path: '/staff' },
-          { name: 'Departmanlar', icon: Building2, path: '/departments' },
-          { name: 'İstatistikler', icon: PieChart, path: '/stats' },
+        const overviewItems: MenuItem[] = [
+          { name: 'Dashboard', icon: LayoutDashboard, path: '/' }
         ];
-        const extra: MenuItem[] = [];
-        if (user.roles.some((r) => ['ROLE_ADMIN', 'ROLE_SUPER_ADMIN'].includes(r))) {
-          extra.push({ name: 'Denetim raporu', icon: Shield, path: '/audit-logs' });
+
+        const trackingItems: MenuItem[] = [
+          { name: 'Raporlar', icon: FileText, path: '/reports' },
+          { name: 'İstatistikler', icon: PieChart, path: '/stats' }
+        ];
+
+        const prItems: MenuItem[] = [
+          { name: 'Duyurular', icon: Megaphone, path: '/announcements' },
+          { name: 'Anketler', icon: BarChart3, path: '/surveys' }
+        ];
+        if (user.roles.includes('ROLE_ADMIN') && user.municipality) {
+          prItems.push({ name: 'Etkinlikler & Kesintiler', icon: CalendarClock, path: '/events-outages' });
+        }
+
+        const orgItems: MenuItem[] = [
+          { name: 'Personeller', icon: Users, path: '/staff' },
+          { name: 'Departmanlar', icon: Building2, path: '/departments' }
+        ];
+
+        const systemItems: MenuItem[] = [];
+        if (user.roles.includes('ROLE_ADMIN') && user.municipality) {
+          systemItems.push({ name: 'Belediye ayarları', icon: SettingsIcon, path: '/municipality-settings' });
         }
         if (user.roles.some((r) => ['ROLE_ADMIN', 'ROLE_DEPT_MANAGER', 'ROLE_SUPER_ADMIN'].includes(r))) {
-          extra.push({ name: 'Planlı dışa aktarma', icon: CalendarClock, path: '/scheduled-exports' });
+          systemItems.push({ name: 'Planlı dışa aktarma', icon: CalendarClock, path: '/scheduled-exports' });
         }
-        if (user.roles.includes('ROLE_ADMIN') && user.municipality) {
-          extra.push({ name: 'Belediye ayarları', icon: SettingsIcon, path: '/municipality-settings' });
+        if (user.roles.some((r) => ['ROLE_ADMIN', 'ROLE_SUPER_ADMIN'].includes(r))) {
+          systemItems.push({ name: 'Denetim raporu', icon: Shield, path: '/audit-logs' });
         }
         if (user.roles.includes('ROLE_SUPER_ADMIN')) {
-          extra.push({ name: 'Belediyeler', icon: MapPinned, path: '/admin/municipalities' });
-          extra.push({ name: 'Kurulum sihirbazı', icon: Sparkles, path: '/admin/onboarding' });
+          systemItems.push({ name: 'Belediyeler', icon: MapPinned, path: '/admin/municipalities' });
+          systemItems.push({ name: 'Kurulum sihirbazı', icon: Sparkles, path: '/admin/onboarding' });
         }
-        return [...baseItems, ...extra];
+
+        return [
+          { title: 'Genel Bakış', items: overviewItems },
+          { title: 'İhbar & Takip', items: trackingItems },
+          { title: 'Halkla İlişkiler', items: prItems },
+          { title: 'Organizasyon', items: orgItems },
+          { title: 'Sistem & Yapılandırma', items: systemItems }
+        ];
       })();
 
   return (
     <aside className={`fixed inset-y-0 left-0 z-50 w-72 border-r border-slate-200/90 bg-white transition-transform duration-200 dark:border-slate-800 dark:bg-slate-900 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
       <div className="flex flex-col h-full">
-        <div className="flex items-center gap-3 border-b border-slate-200/80 px-5 py-5 dark:border-slate-800">
+        <div className="flex items-center gap-3 border-b border-slate-200/80 px-5 py-3.5 dark:border-slate-800">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary text-white shadow-sm ring-1 ring-slate-900/5 dark:ring-white/10">
             <Building2 size={20} strokeWidth={2} />
           </div>
@@ -156,56 +186,66 @@ const Sidebar = ({
           </div>
         </div>
 
-        <nav className="flex-1 space-y-0.5 px-3 py-4">
-          {menuItems.map((item) => {
-            const isActive =
-              item.path === '/'
-                ? location.pathname === '/'
-                : location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
+        <nav className="flex-1 space-y-3 px-3 py-3 overflow-y-auto">
+          {menuGroups.map((group) => {
+            if (group.items.length === 0) return null;
             return (
-              <Link
-                key={item.name}
-                to={item.path}
-                onClick={() => setOpen(false)}
-                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors ${
-                  isActive
-                    ? 'bg-slate-100 text-primary dark:bg-slate-800 dark:text-sky-300'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-slate-100'
-                }`}
-              >
-                <item.icon size={18} strokeWidth={isActive ? 2.25 : 2} />
-                <span className="flex-1">{item.name}</span>
-                {item.path === '/reports' && liveNewReports > 0 ? (
-                  <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[10px] font-bold text-white animate-pulse">
-                    +{liveNewReports > 9 ? '9+' : liveNewReports}
-                  </span>
-                ) : null}
-              </Link>
+              <div key={group.title} className="space-y-1">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-3 py-1">
+                  {group.title}
+                </p>
+                {group.items.map((item) => {
+                  const isActive =
+                    item.path === '/'
+                      ? location.pathname === '/'
+                      : location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
+                  return (
+                    <Link
+                      key={item.name}
+                      to={item.path}
+                      onClick={() => setOpen(false)}
+                      className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
+                        isActive
+                          ? 'bg-slate-100 text-primary dark:bg-slate-800 dark:text-sky-300'
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-slate-100'
+                      }`}
+                    >
+                      <item.icon size={18} strokeWidth={isActive ? 2.25 : 2} />
+                      <span className="flex-1">{item.name}</span>
+                      {item.path === '/reports' && liveNewReports > 0 ? (
+                        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[10px] font-bold text-white animate-pulse">
+                          +{liveNewReports > 9 ? '9+' : liveNewReports}
+                        </span>
+                      ) : null}
+                    </Link>
+                  );
+                })}
+              </div>
             );
           })}
         </nav>
 
-        <div className="border-t border-slate-200/80 p-4 dark:border-slate-800">
-          <div className="flex items-center gap-3 rounded-xl border border-slate-200/90 bg-slate-50/80 px-3 py-3 dark:border-slate-700 dark:bg-slate-800/40">
+        <div className="border-t border-slate-200/80 p-3 dark:border-slate-800">
+          <div className="flex items-center gap-2.5 rounded-xl border border-slate-200/90 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/40">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-sm font-bold text-primary shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-700 dark:ring-slate-600 dark:text-sky-200">
               {user.fullName[0]}
             </div>
             <div className="min-w-0 flex-1 overflow-hidden">
-              <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{user.fullName}</p>
-              <p className="truncate text-xs font-medium text-slate-500 dark:text-slate-400">{user.municipality?.name || user.district || 'Süper Admin'}</p>
+              <p className="truncate text-xs font-bold text-slate-900 dark:text-white leading-tight">{user.fullName}</p>
+              <p className="truncate text-[10px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5">{user.municipality?.name || user.district || 'Süper Admin'}</p>
             </div>
+            <button 
+              onClick={async () => {
+                try { await api.post('/auth/logout'); } catch { /* ignore */ }
+                clearAuthStorage();
+                window.location.href = loginPathForUser(user);
+              }}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-950/30 dark:hover:text-red-400 transition-colors"
+              title="Çıkış Yap"
+            >
+              <LogOut size={16} />
+            </button>
           </div>
-          <button 
-            onClick={async () => {
-              try { await api.post('/auth/logout'); } catch { /* ignore */ }
-              clearAuthStorage();
-              window.location.href = loginPathForUser(user);
-            }}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-red-50 hover:text-red-700 dark:text-slate-400 dark:hover:bg-red-950/30 dark:hover:text-red-300"
-          >
-            <LogOut size={18} />
-            Çıkış Yap
-          </button>
         </div>
       </div>
     </aside>
@@ -674,6 +714,14 @@ const App = () => {
                         </ProtectedRoute>
                       }
                     />
+                    <Route
+                      path="/events-outages"
+                      element={
+                        <ProtectedRoute user={user} allow={(u) => u.roles.includes('ROLE_ADMIN') && Boolean(u.municipality)}>
+                          <EventsAndOutagesPage />
+                        </ProtectedRoute>
+                      }
+                    />
                     <Route path="/reports/:id" element={<ReportDetailPage />} />
                     <Route path="/stats" element={<StatisticsPage />} />
                     <Route
@@ -722,6 +770,14 @@ const App = () => {
                       element={
                         <ProtectedRoute user={user} allow={(u) => u.roles.includes('ROLE_ADMIN') && Boolean(u.municipality)}>
                           <MunicipalityNotificationTemplatesPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/system-feedback"
+                      element={
+                        <ProtectedRoute user={user} allow={(u) => u.roles.includes('ROLE_SUPER_ADMIN')}>
+                          <SystemFeedbackPage />
                         </ProtectedRoute>
                       }
                     />

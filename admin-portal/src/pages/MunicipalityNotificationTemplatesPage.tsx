@@ -145,40 +145,37 @@ export default function MunicipalityNotificationTemplatesPage() {
         </p>
       </div>
 
-      <motion.div className="mb-6 flex gap-2 border-b border-slate-200 dark:border-slate-700">
-        <button
-          type="button"
-          onClick={() => setTab('sms')}
-          className={`flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-semibold ${
-            tab === 'sms'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <MessageSquare className="h-4 w-4" />
-          SMS
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab('push')}
-          className={`flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-semibold ${
-            tab === 'push'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Bell className="h-4 w-4" />
-          Push
-        </button>
-      </motion.div>
+      {/* İç İçe Tuşlar (Sleek Tabs) */}
+      <div className="mb-6 border-b border-slate-200 dark:border-slate-800">
+        <nav className="flex flex-wrap -mb-px gap-6" aria-label="Tabs">
+          {[
+            { id: 'sms', name: 'SMS Şablonları', icon: MessageSquare },
+            { id: 'push', name: 'Push Şablonları', icon: Bell }
+          ].map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id as any)}
+              className={`flex items-center gap-2 border-b-2 py-4 px-1 text-sm font-semibold transition-all ${
+                tab === t.id
+                  ? 'border-violet-600 text-violet-600 dark:border-violet-400 dark:text-violet-400 font-extrabold'
+                  : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-350'
+              }`}
+            >
+              <t.icon className="h-4 w-4" />
+              {t.name}
+            </button>
+          ))}
+        </nav>
+      </div>
 
       <form onSubmit={publish} className="max-w-2xl space-y-4">
         {tab === 'sms' ? (
           <>
-            <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/40">
+            <div className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/50">
               <label className="text-sm font-bold text-slate-800 dark:text-slate-100">SMS gönderici adı (max 11)</label>
               <input
-                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:border-slate-700 dark:bg-slate-900"
                 value={form.smsSenderHeader}
                 maxLength={11}
                 onChange={(e) => setForm((f) => ({ ...f, smsSenderHeader: e.target.value }))}

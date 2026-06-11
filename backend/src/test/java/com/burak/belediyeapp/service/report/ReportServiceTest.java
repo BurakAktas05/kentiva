@@ -36,6 +36,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.atLeastOnce;
 
 @ExtendWith(MockitoExtension.class)
 class ReportServiceTest {
@@ -147,7 +148,7 @@ class ReportServiceTest {
         when(districtResolutionService.resolveDistrict(41.25, 32.69)).thenReturn(Optional.of("municipality-gps"));
         when(municipalityRepository.findById("municipality-gps")).thenReturn(Optional.of(resolved));
         when(reportMapper.toEntity(request)).thenReturn(mapped);
-        when(reportRepository.save(any())).thenAnswer(inv -> {
+        when(reportRepository.saveAndFlush(any())).thenAnswer(inv -> {
             Report r = inv.getArgument(0);
             r.setId("report-new");
             r.setMunicipality(resolved);
@@ -167,7 +168,7 @@ class ReportServiceTest {
         creationService.createReport(request, citizen);
 
         verify(municipalityRepository).findById("municipality-gps");
-        verify(reportRepository).save(any());
+        verify(reportRepository, atLeastOnce()).saveAndFlush(any());
     }
 
     @Test

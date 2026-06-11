@@ -42,46 +42,46 @@ public interface IReportRepository extends JpaRepository<Report, String> {
      * Belirli bir saha görevlisine atanmış raporları getirir.
      */
     @EntityGraph(attributePaths = {"category"})
-    Page<Report> findByAssigneeId(String assigneeId, Pageable pageable);
+    Page<Report> findByAssigneeIdAndHiddenFromMunicipalityFalse(String assigneeId, Pageable pageable);
 
     @EntityGraph(attributePaths = {"category"})
-    Page<Report> findByAssigneeIdAndMunicipalityId(String assigneeId, String municipalityId, Pageable pageable);
+    Page<Report> findByAssigneeIdAndMunicipalityIdAndHiddenFromMunicipalityFalse(String assigneeId, String municipalityId, Pageable pageable);
 
     /**
      * Duruma göre filtreli rapor listesi (admin paneli için).
      */
     @EntityGraph(attributePaths = {"category"})
-    Page<Report> findByReportStatus(ReportStatus status, Pageable pageable);
+    Page<Report> findByReportStatusAndHiddenFromMunicipalityFalse(ReportStatus status, Pageable pageable);
 
     /**
      * Departmana göre raporları getirir (birim müdürü görünümü).
      */
     @EntityGraph(attributePaths = {"category"})
-    Page<Report> findByCategoryDepartmentId(String departmentId, Pageable pageable);
+    Page<Report> findByCategoryDepartmentIdAndHiddenFromMunicipalityFalse(String departmentId, Pageable pageable);
 
     @EntityGraph(attributePaths = {"category"})
-    Page<Report> findByCategoryDepartmentIdAndMunicipalityId(String departmentId, String municipalityId, Pageable pageable);
+    Page<Report> findByCategoryDepartmentIdAndMunicipalityIdAndHiddenFromMunicipalityFalse(String departmentId, String municipalityId, Pageable pageable);
 
     @EntityGraph(attributePaths = {"category"})
-    Page<Report> findByCategoryDepartmentIdAndMunicipalityIdAndReportStatus(String departmentId, String municipalityId, ReportStatus reportStatus, Pageable pageable);
+    Page<Report> findByCategoryDepartmentIdAndMunicipalityIdAndReportStatusAndHiddenFromMunicipalityFalse(String departmentId, String municipalityId, ReportStatus reportStatus, Pageable pageable);
 
     @EntityGraph(attributePaths = {"category"})
-    Page<Report> findByCategoryDepartmentIdAndReportStatus(String departmentId, ReportStatus status, Pageable pageable);
+    Page<Report> findByCategoryDepartmentIdAndReportStatusAndHiddenFromMunicipalityFalse(String departmentId, ReportStatus status, Pageable pageable);
 
     /**
      * Yönlendirilmiş raporlar (Birim Müdürü DEPARTMENTAL mod)
      */
     @EntityGraph(attributePaths = {"category"})
-    Page<Report> findByForwardedDepartmentId(String departmentId, Pageable pageable);
+    Page<Report> findByForwardedDepartmentIdAndHiddenFromMunicipalityFalse(String departmentId, Pageable pageable);
 
     @EntityGraph(attributePaths = {"category"})
-    Page<Report> findByForwardedDepartmentIdAndMunicipalityId(String departmentId, String municipalityId, Pageable pageable);
+    Page<Report> findByForwardedDepartmentIdAndMunicipalityIdAndHiddenFromMunicipalityFalse(String departmentId, String municipalityId, Pageable pageable);
 
     @EntityGraph(attributePaths = {"category"})
-    Page<Report> findByForwardedDepartmentIdAndReportStatus(String departmentId, ReportStatus status, Pageable pageable);
+    Page<Report> findByForwardedDepartmentIdAndReportStatusAndHiddenFromMunicipalityFalse(String departmentId, ReportStatus status, Pageable pageable);
 
     @EntityGraph(attributePaths = {"category"})
-    Page<Report> findByForwardedDepartmentIdAndMunicipalityIdAndReportStatus(String departmentId, String municipalityId, ReportStatus status, Pageable pageable);
+    Page<Report> findByForwardedDepartmentIdAndMunicipalityIdAndReportStatusAndHiddenFromMunicipalityFalse(String departmentId, String municipalityId, ReportStatus status, Pageable pageable);
 
 
     /**
@@ -92,7 +92,8 @@ public interface IReportRepository extends JpaRepository<Report, String> {
      */
     @Query(value = """
             SELECT r.* FROM reports r
-            WHERE ST_DWithin(
+            WHERE r.hidden_from_municipality = false
+              AND ST_DWithin(
                 r.location::geography,
                 ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography,
                 :radiusInMeters
@@ -111,6 +112,7 @@ public interface IReportRepository extends JpaRepository<Report, String> {
     @Query(value = """
             SELECT r.* FROM reports r
             WHERE r.municipality_id = :municipalityId
+              AND r.hidden_from_municipality = false
               AND ST_DWithin(
                 r.location::geography,
                 ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography,
@@ -132,6 +134,7 @@ public interface IReportRepository extends JpaRepository<Report, String> {
             SELECT r.* FROM reports r
             WHERE r.municipality_id = :municipalityId
               AND r.id <> :excludeId
+              AND r.hidden_from_municipality = false
               AND r.report_status IN ('PENDING', 'PROCESSING')
               AND ST_DWithin(
                 r.location::geography,
@@ -187,18 +190,21 @@ public interface IReportRepository extends JpaRepository<Report, String> {
     long countByDistrictAndReportStatus(String district, ReportStatus status);
 
     @EntityGraph(attributePaths = {"category"})
-    Page<Report> findByMunicipalityId(String municipalityId, Pageable pageable);
+    Page<Report> findByMunicipalityIdAndHiddenFromMunicipalityFalse(String municipalityId, Pageable pageable);
 
     @EntityGraph(attributePaths = {"category"})
-    Page<Report> findByMunicipalityIdAndReportStatus(String municipalityId, ReportStatus status, Pageable pageable);
+    Page<Report> findByMunicipalityIdAndReportStatusAndHiddenFromMunicipalityFalse(String municipalityId, ReportStatus status, Pageable pageable);
     
-    long countByMunicipalityIdAndReportStatus(String municipalityId, ReportStatus status);
+    long countByMunicipalityIdAndReportStatusAndHiddenFromMunicipalityFalse(String municipalityId, ReportStatus status);
 
-    long countByMunicipalityId(String municipalityId);
+    long countByMunicipalityIdAndHiddenFromMunicipalityFalse(String municipalityId);
 
     long countByReporterIdAndReportStatus(String reporterId, ReportStatus status);
 
     long countByReporterIdAndReportStatusAndCreatedAtAfter(String reporterId, ReportStatus status, LocalDateTime since);
+
+    @Query("SELECT COUNT(r) FROM Report r WHERE r.reporter.id = :reporterId AND r.reportStatus = com.burak.belediyeapp.entity.ReportStatus.REJECTED AND r.hiddenFromMunicipality = true AND r.createdAt >= :since")
+    long countAutoRejectedReports(@Param("reporterId") String reporterId, @Param("since") LocalDateTime since);
 
     /**
      * Tüm belediyeler için rapor sayısını TEK SQL ile getirir (dashboard N+1 önleme).

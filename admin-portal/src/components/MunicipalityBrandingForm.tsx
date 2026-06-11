@@ -1,7 +1,6 @@
 import { motion } from 'framer-motion';
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { Link } from 'react-router-dom';
-import { Upload, Link2, Palette, AlertTriangle, MessageSquare } from 'lucide-react';
+import { Upload, Link2, Palette, AlertTriangle } from 'lucide-react';
 import api from '../api';
 import { resolveMediaUrl } from '../lib/env';
 import {
@@ -407,7 +406,7 @@ export default function MunicipalityBrandingForm({
       </Section>
 
       {/* Mobil uygulama */}
-      <Section title="Mobil uygulama" subtitle="Kamu istatistikleri ve bildirim şablonları.">
+      <Section title="Mobil uygulama" subtitle="Kamu istatistikleri ayarları.">
         <label className="flex items-start gap-3 rounded-xl border border-slate-200/90 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/40">
           <input
             type="checkbox"
@@ -422,18 +421,6 @@ export default function MunicipalityBrandingForm({
             <span className="text-xs text-slate-500">kentiva.app/belediye sayfasında çözüm oranı gösterilir.</span>
           </span>
         </label>
-
-        <Link
-          to={
-            mode === 'tenant'
-              ? '/municipality-settings/notifications'
-              : `/admin/municipalities/${meta.municipalityId}/notifications`
-          }
-          className="mt-3 flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm font-semibold text-violet-800 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200"
-        >
-          <MessageSquare className="h-4 w-4" />
-          SMS ve push şablonları (AI ile oluştur)
-        </Link>
       </Section>
 
       <motion.div

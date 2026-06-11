@@ -103,15 +103,16 @@ public class ReportCreationService {
         // KVKK rıza kaydı
         report.setKvkkApproved(Boolean.TRUE.equals(request.kvkkApproved()));
         if (report.isKvkkApproved()) {
-            if (report.getId() == null) {
-                report.setId(java.util.UUID.randomUUID().toString());
-            }
             report.setKvkkApprovedAt(java.time.LocalDateTime.now());
-            report.setKvkkSignature(kvkkConsentSigningService.signReportConsent(
-                    report.getId(), reporter.getEmail(), report.getKvkkApprovedAt()));
         }
 
-        Report saved = reportRepository.save(report);
+        final Report saved = reportRepository.saveAndFlush(report);
+
+        if (saved.isKvkkApproved()) {
+            saved.setKvkkSignature(kvkkConsentSigningService.signReportConsent(
+                    saved.getId(), reporter.getEmail(), saved.getKvkkApprovedAt()));
+            reportRepository.saveAndFlush(saved);
+        }
 
         if (request.mediaUrls() != null && !request.mediaUrls().isEmpty()) {
             List<ReportMedia> mediaList = request.mediaUrls().stream()
@@ -139,7 +140,7 @@ public class ReportCreationService {
         }
 
         eventPublisher.publishEvent(new ReportCreatedEvent(saved.getId()));
-        citizenReputationService.onReportCreated(freshReporter);
+        citizenReputationService.onReportCreated(freshReporter, saved.getMunicipality());
 
         log.info("Yeni rapor oluşturuldu: {} — {} — ilçe={}", saved.getId(), freshReporter.getEmail(), report.getDistrict());
 

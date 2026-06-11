@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { BarChart3, Pencil, Plus, Search, Trash2, ShieldAlert } from 'lucide-react';
 import axios from 'axios';
 import api from '../api';
-import ContentWorkspaceTabs from '../components/ContentWorkspaceTabs';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
 
 export interface SurveyDetail {
@@ -230,7 +229,6 @@ export default function SurveysPage({ canManage }: SurveysPageProps) {
       </div>
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200/90 bg-gradient-to-r from-white via-slate-50 to-emerald-50 p-4 shadow-sm dark:border-slate-700 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950">
-        <ContentWorkspaceTabs />
         <div className="grid min-w-[220px] flex-1 gap-3 sm:grid-cols-2 xl:max-w-xl">
           <SurveyStat label="Toplam anket" value={String(surveys.length)} helper="Tüm kayıtlar" />
           <SurveyStat

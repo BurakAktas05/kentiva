@@ -60,7 +60,7 @@ public class UserController {
     }
 
     @PatchMapping("/me/preferred-municipality")
-    @PreAuthorize("hasAuthority('ROLE_CITIZEN')")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Ana ekran widget'ları için tercih edilen belediye")
     public ResponseEntity<ApiResponse<UserResponse>> updatePreferredMunicipality(
             @AuthenticationPrincipal AppUser currentUser,

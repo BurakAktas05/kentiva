@@ -58,6 +58,32 @@ public class BusRouteController {
         return ResponseEntity.ok(ApiResponse.success("Hatlar başarıyla içe aktarıldı ve AI tarafından işlendi.", null));
     }
 
+    @PostMapping(value = "/municipalities/me/bus-routes/import-preview", consumes = "multipart/form-data")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Kendi belediyesi için otobüs hatlarını önizleme olarak içe aktar (Belediye Admini)")
+    public ResponseEntity<ApiResponse<List<BusRouteDto>>> importRoutesPreviewAdmin(
+            @AuthenticationPrincipal AppUser user,
+            @RequestParam(value = "files", required = false) List<MultipartFile> files) {
+        if (user.getMunicipality() == null) {
+            throw new BusinessException("Kullanıcı bir belediyeye bağlı değil.", "MUNICIPALITY_NOT_ASSIGNED");
+        }
+        List<BusRouteDto> preview = busRouteService.importPreview(user.getMunicipality().getId(), files);
+        return ResponseEntity.ok(ApiResponse.success("Hatlar önizleme için başarıyla işlendi.", preview));
+    }
+
+    @PostMapping("/municipalities/me/bus-routes/import-confirm")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Kendi belediyesi için önizlenen otobüs hatlarını onayla ve kaydet (Belediye Admini)")
+    public ResponseEntity<ApiResponse<Void>> importRoutesConfirmAdmin(
+            @AuthenticationPrincipal AppUser user,
+            @RequestBody List<BusRouteDto> routeDtos) {
+        if (user.getMunicipality() == null) {
+            throw new BusinessException("Kullanıcı bir belediyeye bağlı değil.", "MUNICIPALITY_NOT_ASSIGNED");
+        }
+        busRouteService.importConfirm(user.getMunicipality().getId(), routeDtos);
+        return ResponseEntity.ok(ApiResponse.success("Önizlenen hatlar başarıyla onaylandı ve kaydedildi.", null));
+    }
+
     @PostMapping("/bus-routes/{routeId}/star")
     @Operation(summary = "Hattı yıldızla / favoriye ekle")
     public ResponseEntity<ApiResponse<Void>> starRoute(

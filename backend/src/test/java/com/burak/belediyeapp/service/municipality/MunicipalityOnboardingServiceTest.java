@@ -77,7 +77,8 @@ class MunicipalityOnboardingServiceTest {
                         "Slogan", null, null, null, false, true, true,
                         "TRIAL", null, null, "TRIAL",
                         null, null, null, null,
-                        null, null, null, null, null, null, "SIMPLE"));
+                        null, null, null, null, null, null, "SIMPLE",
+                        true, 25, 50, -45, -70, 5, 30, true));
         Municipality municipality = Municipality.builder()
                 .name("Test İlçe")
                 .type(MunicipalityType.DISTRICT)

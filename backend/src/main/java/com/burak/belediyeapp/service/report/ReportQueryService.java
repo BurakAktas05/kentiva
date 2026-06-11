@@ -65,16 +65,16 @@ public class ReportQueryService {
             String deptId = user.getDepartment().getId();
             if (user.getMunicipality() != null && user.getMunicipality().getWorkflowMode() == com.burak.belediyeapp.entity.WorkflowMode.DEPARTMENTAL) {
                 page = tenantAccess.staffMunicipalityScope(user)
-                        .map(muniId -> reportRepository.findByForwardedDepartmentIdAndMunicipalityId(deptId, muniId, pageable))
-                        .orElseGet(() -> reportRepository.findByForwardedDepartmentId(deptId, pageable));
+                        .map(muniId -> reportRepository.findByForwardedDepartmentIdAndMunicipalityIdAndHiddenFromMunicipalityFalse(deptId, muniId, pageable))
+                        .orElseGet(() -> reportRepository.findByForwardedDepartmentIdAndHiddenFromMunicipalityFalse(deptId, pageable));
             } else {
                 page = tenantAccess.staffMunicipalityScope(user)
-                        .map(muniId -> reportRepository.findByCategoryDepartmentIdAndMunicipalityId(deptId, muniId, pageable))
-                        .orElseGet(() -> reportRepository.findByCategoryDepartmentId(deptId, pageable));
+                        .map(muniId -> reportRepository.findByCategoryDepartmentIdAndMunicipalityIdAndHiddenFromMunicipalityFalse(deptId, muniId, pageable))
+                        .orElseGet(() -> reportRepository.findByCategoryDepartmentIdAndHiddenFromMunicipalityFalse(deptId, pageable));
             }
         } else {
             page = tenantAccess.staffMunicipalityScope(user)
-                    .map(muniId -> reportRepository.findByMunicipalityId(muniId, pageable))
+                    .map(muniId -> reportRepository.findByMunicipalityIdAndHiddenFromMunicipalityFalse(muniId, pageable))
                     .orElseGet(() -> reportRepository.findAll(pageable));
         }
         return mapPage(page);
@@ -88,17 +88,17 @@ public class ReportQueryService {
             String deptId = user.getDepartment().getId();
             if (user.getMunicipality() != null && user.getMunicipality().getWorkflowMode() == com.burak.belediyeapp.entity.WorkflowMode.DEPARTMENTAL) {
                 page = tenantAccess.staffMunicipalityScope(user)
-                        .map(muniId -> reportRepository.findByForwardedDepartmentIdAndMunicipalityIdAndReportStatus(deptId, muniId, status, pageable))
-                        .orElseGet(() -> reportRepository.findByForwardedDepartmentIdAndReportStatus(deptId, status, pageable));
+                        .map(muniId -> reportRepository.findByForwardedDepartmentIdAndMunicipalityIdAndReportStatusAndHiddenFromMunicipalityFalse(deptId, muniId, status, pageable))
+                        .orElseGet(() -> reportRepository.findByForwardedDepartmentIdAndReportStatusAndHiddenFromMunicipalityFalse(deptId, status, pageable));
             } else {
                 page = tenantAccess.staffMunicipalityScope(user)
-                        .map(muniId -> reportRepository.findByCategoryDepartmentIdAndMunicipalityIdAndReportStatus(deptId, muniId, status, pageable))
-                        .orElseGet(() -> reportRepository.findByCategoryDepartmentIdAndReportStatus(deptId, status, pageable));
+                        .map(muniId -> reportRepository.findByCategoryDepartmentIdAndMunicipalityIdAndReportStatusAndHiddenFromMunicipalityFalse(deptId, muniId, status, pageable))
+                        .orElseGet(() -> reportRepository.findByCategoryDepartmentIdAndReportStatusAndHiddenFromMunicipalityFalse(deptId, status, pageable));
             }
         } else {
             page = tenantAccess.staffMunicipalityScope(user)
-                    .map(muniId -> reportRepository.findByMunicipalityIdAndReportStatus(muniId, status, pageable))
-                    .orElseGet(() -> reportRepository.findByReportStatus(status, pageable));
+                    .map(muniId -> reportRepository.findByMunicipalityIdAndReportStatusAndHiddenFromMunicipalityFalse(muniId, status, pageable))
+                    .orElseGet(() -> reportRepository.findByReportStatusAndHiddenFromMunicipalityFalse(status, pageable));
         }
         return mapPage(page);
     }
@@ -110,13 +110,13 @@ public class ReportQueryService {
         String effectiveDeptId = user.getDepartment() != null ? user.getDepartment().getId() : departmentId;
         Page<Report> page;
         if (tenantAccess.isSuperAdmin(user)) {
-            page = reportRepository.findByCategoryDepartmentId(effectiveDeptId, pageable);
+            page = reportRepository.findByCategoryDepartmentIdAndHiddenFromMunicipalityFalse(effectiveDeptId, pageable);
         } else {
             String muniId = tenantAccess.requireStaffMunicipalityId(user);
             if (user.getMunicipality() != null && user.getMunicipality().getWorkflowMode() == com.burak.belediyeapp.entity.WorkflowMode.DEPARTMENTAL) {
-                page = reportRepository.findByForwardedDepartmentIdAndMunicipalityId(effectiveDeptId, muniId, pageable);
+                page = reportRepository.findByForwardedDepartmentIdAndMunicipalityIdAndHiddenFromMunicipalityFalse(effectiveDeptId, muniId, pageable);
             } else {
-                page = reportRepository.findByCategoryDepartmentIdAndMunicipalityId(effectiveDeptId, muniId, pageable);
+                page = reportRepository.findByCategoryDepartmentIdAndMunicipalityIdAndHiddenFromMunicipalityFalse(effectiveDeptId, muniId, pageable);
             }
         }
         return mapPage(page);
@@ -218,7 +218,7 @@ public class ReportQueryService {
     @PreAuthorize("hasAuthority('ROLE_FIELD_OFFICER')")
     public Page<ReportListResponse> getMyAssignments(AppUser user, Pageable pageable) {
         String muniId = tenantAccess.requireStaffMunicipalityId(user);
-        return mapPage(reportRepository.findByAssigneeIdAndMunicipalityId(user.getId(), muniId, pageable));
+        return mapPage(reportRepository.findByAssigneeIdAndMunicipalityIdAndHiddenFromMunicipalityFalse(user.getId(), muniId, pageable));
     }
 
     @Transactional(readOnly = true)

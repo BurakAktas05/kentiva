@@ -59,10 +59,9 @@ class CitizenReputationServiceTest {
     @Test
     void onReportRejected_whenCountIsLessThanFive_doesNotBanUser() {
         // Given
-        when(reportRepository.countByReporterIdAndReportStatusAndCreatedAtAfter(
-                org.mockito.ArgumentMatchers.eq("user-1"),
-                org.mockito.ArgumentMatchers.eq(ReportStatus.REJECTED),
-                org.mockito.ArgumentMatchers.any(java.time.LocalDateTime.class)
+        when(reportRepository.countAutoRejectedReports(
+                eq("user-1"),
+                any(java.time.LocalDateTime.class)
         )).thenReturn(4L);
         when(userRepository.findById("user-1")).thenReturn(Optional.of(reporter));
 
@@ -70,18 +69,16 @@ class CitizenReputationServiceTest {
         citizenReputationService.onReportRejected(report, false);
 
         // Then
-        assertThat(reporter.isEnabled()).isTrue();
+        assertThat(reporter.getSuspendedUntil()).isNull();
         verify(userRepository, times(1)).save(reporter); // for the reputation score delta update
-        verify(userRepository, never()).save(argThat(u -> !u.isEnabled()));
     }
 
     @Test
     void onReportRejected_whenCountIsFiveOrMore_bansUser() {
         // Given
-        when(reportRepository.countByReporterIdAndReportStatusAndCreatedAtAfter(
-                org.mockito.ArgumentMatchers.eq("user-1"),
-                org.mockito.ArgumentMatchers.eq(ReportStatus.REJECTED),
-                org.mockito.ArgumentMatchers.any(java.time.LocalDateTime.class)
+        when(reportRepository.countAutoRejectedReports(
+                eq("user-1"),
+                any(java.time.LocalDateTime.class)
         )).thenReturn(5L);
         when(userRepository.findById("user-1")).thenReturn(Optional.of(reporter));
 
@@ -89,8 +86,8 @@ class CitizenReputationServiceTest {
         citizenReputationService.onReportRejected(report, false);
 
         // Then
-        assertThat(reporter.isEnabled()).isFalse();
-        // Repository save is called twice: once for reputation score delta, once for setEnabled(false)
+        assertThat(reporter.getSuspendedUntil()).isNotNull();
+        // Repository save is called twice: once for reputation score delta, once for setSuspendedUntil
         verify(userRepository, atLeastOnce()).save(reporter);
     }
 }

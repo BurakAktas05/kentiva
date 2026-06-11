@@ -76,11 +76,15 @@ public class ReportCreatedEventListener {
         }
 
         // 2. Media-guard tarama — selfie/uygunsuz içerik tespiti.
-        // Önce yeni bir read-only transaction içinde URL listesini çekeriz
+        // Önce yeni bir read-only transaction içinde URL listesini ve ayarları çekeriz
         // (LAZY mediaList sorunu olmasın diye); HTTP indirme ve tarama txn dışında yapılır.
         try {
-            List<String> imageUrls = self.collectMediaUrls(event.reportId());
-            scanMediaAndAutoRejectIfNeeded(event.reportId(), imageUrls);
+            ModerationData modData = self.getModerationData(event.reportId());
+            if (modData.enabled()) {
+                scanMediaAndAutoRejectIfNeeded(event.reportId(), modData.urls());
+            } else {
+                log.info("Media-guard taraması devre dışı (belediye ayarı): reportId={}", event.reportId());
+            }
         } catch (Exception e) {
             log.warn("Media-guard tarama hatası (atlanıyor): reportId={}, err={}",
                     event.reportId(), e.getMessage());
@@ -111,24 +115,31 @@ public class ReportCreatedEventListener {
         });
     }
 
+    public record ModerationData(boolean enabled, List<String> urls) {}
+
     /**
-     * Yeni bir read-only transaction içinde rapor + mediaList'i çeker
-     * ve sadece URL stringlerini dışarı taşır (LAZY proxy detached olmasın diye).
+     * Yeni bir read-only transaction içinde rapor + settings + mediaList'i çeker
+     * ve bunları dışarı taşır (LAZY proxy detached olmasın diye).
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
-    public List<String> collectMediaUrls(String reportId) {
+    public ModerationData getModerationData(String reportId) {
         return reportRepository.findById(reportId)
-                .map(Report::getMediaList)
-                .map(list -> {
-                    List<String> urls = new ArrayList<>(list.size());
-                    for (ReportMedia m : list) {
-                        if (m.getImageUrl() != null && !m.getImageUrl().isBlank()) {
-                            urls.add(m.getImageUrl());
+                .map(report -> {
+                    boolean enabled = true;
+                    if (report.getMunicipality() != null) {
+                        enabled = report.getMunicipality().isAiMediaModerationEnabled();
+                    }
+                    List<String> urls = new ArrayList<>();
+                    if (report.getMediaList() != null) {
+                        for (ReportMedia m : report.getMediaList()) {
+                            if (m.getImageUrl() != null && !m.getImageUrl().isBlank()) {
+                                urls.add(m.getImageUrl());
+                            }
                         }
                     }
-                    return urls;
+                    return new ModerationData(enabled, urls);
                 })
-                .orElseGet(List::of);
+                .orElseGet(() -> new ModerationData(true, List.of()));
     }
 
     /**
@@ -147,9 +158,9 @@ public class ReportCreatedEventListener {
             if (result.rejected()) {
                 String reason = result.reason() != null && !result.reason().isBlank()
                         ? result.reason()
-                        : "Uygunsuz fotoğraf içeriği (selfie veya yüz tespiti).";
+                        : "Uygunsuz fotoğraf içerik tespiti (selfie veya yüz tespiti).";
                 log.warn("Media-guard reddi: reportId={}, reason={}", reportId, reason);
-                reportService.systemRejectReport(reportId, reason);
+                reportService.systemRejectReport(reportId, reason, true);
                 return;
             }
 
@@ -159,7 +170,7 @@ public class ReportCreatedEventListener {
                         ? geminiResult.reason()
                         : "Görsel güvenlik kuralları ihlali (" + geminiResult.code() + ").";
                 log.warn("Gemini Safe Search reddi: reportId={}, reason={}, code={}", reportId, reason, geminiResult.code());
-                reportService.systemRejectReport(reportId, "[Görsel Güvenlik] " + reason);
+                reportService.systemRejectReport(reportId, "[Görsel Güvenlik] " + reason, true);
                 
                 if ("OBSCENITY".equalsIgnoreCase(geminiResult.code()) 
                         || "VIOLENCE".equalsIgnoreCase(geminiResult.code()) 

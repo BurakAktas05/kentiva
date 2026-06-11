@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Award, Star, Settings as SettingsIcon, ChevronRight, LogOut, Loader2 } from 'lucide-react';
+import { Award, Star, Settings as SettingsIcon, ChevronRight, LogOut, Loader2, MessageSquare } from 'lucide-react';
 import {
   getMyProfile,
   getMyReports,
@@ -8,6 +8,7 @@ import {
   ApiReportList,
   logout as apiLogout,
   type PublicTenant,
+  submitSystemFeedback,
 } from '../../api';
 import { Lang, t } from '../../i18n';
 import MunicipalityCard from '../MunicipalityCard';
@@ -33,6 +34,14 @@ export default function Profile({
   const [reports, setReports] = useState<ApiReportList[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+
+  // Feedback widget states
+  const [feedbackRating, setFeedbackRating] = useState<number>(0);
+  const [feedbackHoveredRating, setFeedbackHoveredRating] = useState<number>(0);
+  const [feedbackContent, setFeedbackContent] = useState<string>('');
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState<boolean>(false);
+  const [feedbackSuccess, setFeedbackSuccess] = useState<boolean>(false);
+  const [feedbackError, setFeedbackError] = useState<string>('');
 
   useEffect(() => {
     loadProfile();
@@ -82,6 +91,26 @@ export default function Profile({
   const handleLogout = async () => {
     await apiLogout();
     onLogout();
+  };
+
+  const handleFeedbackSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (feedbackRating === 0 || !feedbackContent.trim()) {
+      setFeedbackError(t('profile.feedback.required', lang));
+      return;
+    }
+    setFeedbackSubmitting(true);
+    setFeedbackError('');
+    try {
+      await submitSystemFeedback(feedbackRating, feedbackContent.trim());
+      setFeedbackSuccess(true);
+      setFeedbackRating(0);
+      setFeedbackContent('');
+    } catch (err: any) {
+      setFeedbackError(err?.message || t('profile.feedback.error', lang));
+    } finally {
+      setFeedbackSubmitting(false);
+    }
   };
 
   const points = profile?.reputationScore ?? 100;
@@ -193,6 +222,114 @@ export default function Profile({
           onChange={onChangeMunicipality}
           compact
         />
+      </div>
+
+      {/* Geri Bildirim Widget'ı */}
+      <div className="mt-6 px-5">
+        <div
+          className={`rounded-2xl border p-5 shadow-sm transition-all ${
+            isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'
+          }`}
+        >
+          <div className="flex items-center gap-3 mb-4">
+            <div className={`rounded-xl p-2 ${isDark ? 'bg-primary/20 text-sky-300' : 'bg-primary/10 text-primary'}`}>
+              <MessageSquare className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>
+                {t('profile.feedback.title', lang)}
+              </h3>
+              <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                {t('profile.feedback.desc', lang)}
+              </p>
+            </div>
+          </div>
+
+          {feedbackSuccess ? (
+            <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-4 text-center">
+              <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                {t('profile.feedback.success', lang)}
+              </p>
+              <button
+                type="button"
+                onClick={() => setFeedbackSuccess(false)}
+                className="mt-3 text-xs font-semibold text-primary dark:text-sky-300 hover:underline"
+              >
+                {lang === 'tr' ? 'Tekrar görüş bildir' : lang === 'en' ? 'Submit another feedback' : 'أرسل ملاحظة أخرى'}
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleFeedbackSubmit} className="space-y-4">
+              {/* Star rating selector */}
+              <div>
+                <p className={`text-xs font-bold mb-2 uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  {t('profile.feedback.rating', lang)}
+                </p>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => {
+                    const isFilled = star <= (feedbackHoveredRating || feedbackRating);
+                    return (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setFeedbackRating(star)}
+                        onMouseEnter={() => setFeedbackHoveredRating(star)}
+                        onMouseLeave={() => setFeedbackHoveredRating(0)}
+                        className="transition-transform hover:scale-110 focus:outline-none"
+                      >
+                        <Star
+                          className={`h-7 w-7 ${
+                            isFilled
+                              ? 'text-yellow-500 fill-yellow-500'
+                              : isDark
+                              ? 'text-slate-600'
+                              : 'text-slate-350'
+                          }`}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Comment text area */}
+              <div>
+                <textarea
+                  value={feedbackContent}
+                  onChange={(e) => setFeedbackContent(e.target.value)}
+                  placeholder={t('profile.feedback.comment', lang)}
+                  rows={3}
+                  className={`w-full rounded-xl border p-3 text-sm font-medium outline-none transition-all placeholder:text-slate-400 focus:ring-2 ${
+                    isDark
+                      ? 'border-slate-700 bg-slate-900/50 text-white focus:border-primary/50 focus:ring-primary/15'
+                      : 'border-slate-200 bg-slate-50 focus:border-primary focus:ring-primary/10'
+                  }`}
+                />
+              </div>
+
+              {feedbackError && (
+                <p className="text-xs font-semibold text-rose-500 dark:text-rose-400">
+                  {feedbackError}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={feedbackSubmitting}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-primary-dark text-white text-sm font-bold py-2.5 px-4 transition-all active:scale-[0.98] disabled:opacity-50"
+              >
+                {feedbackSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {t('report.submitting', lang)}
+                  </>
+                ) : (
+                  t('profile.feedback.submit', lang)
+                )}
+              </button>
+            </form>
+          )}
+        </div>
       </div>
 
       <div className="mt-8 space-y-3 px-5">

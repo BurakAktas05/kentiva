@@ -3,6 +3,7 @@ package com.burak.belediyeapp.service.ai;
 import com.burak.belediyeapp.dto.request.municipality.GenerateNotificationTemplateRequest.NotificationTemplateKind;
 import com.burak.belediyeapp.entity.Report;
 import com.burak.belediyeapp.entity.ReportStatus;
+import com.burak.belediyeapp.entity.SystemFeedback;
 import com.burak.belediyeapp.repository.IReportCategoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +16,20 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
 import java.util.stream.Collectors;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.awt.image.BufferedImage;
+import javax.imageio.ImageIO;
+import java.io.ByteArrayOutputStream;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.rendering.PDFRenderer;
+import org.apache.pdfbox.text.PDFTextStripper;
 
 /**
  * Google Gemini — öncelik, özet, kategori uyumu ve önerilen kategori.
@@ -26,6 +41,24 @@ public class GeminiService {
 
     @Value("${app.ai.gemini.api-key:}")
     private String apiKey;
+
+    @Value("${app.ai.gemini.key-report-analysis:${app.ai.gemini.api-key:}}")
+    private String keyReportAnalysis;
+
+    @Value("${app.ai.gemini.key-notification-template:${app.ai.gemini.api-key:}}")
+    private String keyNotificationTemplate;
+
+    @Value("${app.ai.gemini.key-bus-transit:${app.ai.gemini.api-key:}}")
+    private String keyBusTransit;
+
+    @Value("${app.ai.gemini.key-duplicate-detection:${app.ai.gemini.api-key:}}")
+    private String keyDuplicateDetection;
+
+    @Value("${app.ai.gemini.key-resolved-reports:${app.ai.gemini.api-key:}}")
+    private String keyResolvedReports;
+
+    @Value("${app.ai.gemini.key-feedback-analysis:${app.ai.gemini.api-key:}}")
+    private String keyFeedbackAnalysis;
 
     @Value("${app.ai.gemini.model:gemini-2.5-flash}")
     private String model;
@@ -44,7 +77,8 @@ public class GeminiService {
     }
 
     public AIAnalysisResult analyzeReport(Report report, ReportStatus targetStatus) {
-        if (apiKey == null || apiKey.isBlank() || apiKey.equals("your-gemini-api-key")) {
+        String activeKey = keyReportAnalysis != null && !keyReportAnalysis.isBlank() ? keyReportAnalysis : apiKey;
+        if (activeKey == null || activeKey.isBlank() || activeKey.equals("your-gemini-api-key")) {
             log.warn("Gemini API Key eksik. AI analizi atlanıyor.");
             return null;
         }
@@ -69,6 +103,8 @@ public class GeminiService {
             replyDraftInstruction = "vatandaşa gönderilecek, bildirilen sorunun saha ekiplerimiz tarafından başarıyla çözümlendiğini ve giderildiğini bildiren resmi bir teşekkür ve bilgilendirme yanıtı — mutlaka %s dilinde";
         } else if (targetStatus == ReportStatus.PROCESSING) {
             replyDraftInstruction = "vatandaşa gönderilecek, bildirimin incelenip işleme alındığını ve saha ekiplerinin çalışmaya başladığını bildiren resmi ve kısa bir bilgilendirme yanıtı — mutlaka %s dilinde";
+        } else if (targetStatus == ReportStatus.REJECTED) {
+            replyDraftInstruction = "vatandaşa gönderilecek, bildirimin kurallarımıza uymaması veya yetersiz bilgi içermesi sebebiyle reddedildiğini bildiren, durumu kibarca açıklayan resmi bir bilgilendirme yanıtı — mutlaka %s dilinde";
         } else {
             replyDraftInstruction = "vatandaşa gönderilecek kısa resmi yanıt — mutlaka %s dilinde";
         }
@@ -104,7 +140,7 @@ public class GeminiService {
         for (int attempt = 1; attempt <= 2; attempt++) {
             try {
                 String response = restClient.post()
-                        .uri(geminiGenerateContentUrl() + "?key=" + apiKey)
+                        .uri(geminiGenerateContentUrl() + "?key=" + activeKey)
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(requestBody)
                         .retrieve()
@@ -126,7 +162,8 @@ public class GeminiService {
             String municipalityDisplayName,
             String slogan,
             NotificationTemplateKind kind) {
-        if (apiKey == null || apiKey.isBlank() || apiKey.equals("your-gemini-api-key")) {
+        String activeKey = keyNotificationTemplate != null && !keyNotificationTemplate.isBlank() ? keyNotificationTemplate : apiKey;
+        if (activeKey == null || activeKey.isBlank() || activeKey.equals("your-gemini-api-key")) {
             log.warn("Gemini API Key eksik. Şablon AI atlanıyor.");
             return null;
         }
@@ -145,7 +182,7 @@ public class GeminiService {
         for (int attempt = 1; attempt <= 2; attempt++) {
             try {
                 String response = restClient.post()
-                        .uri(geminiGenerateContentUrl() + "?key=" + apiKey)
+                        .uri(geminiGenerateContentUrl() + "?key=" + activeKey)
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(requestBody)
                         .retrieve()
@@ -237,8 +274,12 @@ public class GeminiService {
     ) {}
 
     private String executeGeminiCall(String requestBody) {
+        return executeGeminiCall(requestBody, apiKey);
+    }
+
+    private String executeGeminiCall(String requestBody, String activeKey) {
         String response = restClient.post()
-                .uri(geminiGenerateContentUrl() + "?key=" + apiKey)
+                .uri(geminiGenerateContentUrl() + "?key=" + activeKey)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(requestBody)
                 .retrieve()
@@ -260,7 +301,8 @@ public class GeminiService {
     }
 
     public String parseBusRoutes(String combinedText) {
-        if (apiKey == null || apiKey.isBlank() || apiKey.equals("your-gemini-api-key")) {
+        String activeKey = keyBusTransit != null && !keyBusTransit.isBlank() ? keyBusTransit : apiKey;
+        if (activeKey == null || activeKey.isBlank() || activeKey.equals("your-gemini-api-key")) {
             log.warn("Gemini API Key eksik. AI ile otobüs hatları ayrıştırma atlanıyor. Boş veri döndürülüyor.");
             return "[]";
         }
@@ -315,21 +357,22 @@ public class GeminiService {
                 .toString();
 
         try {
-            return executeGeminiCall(requestBody);
+            return executeGeminiCall(requestBody, activeKey);
         } catch (Exception e) {
             log.error("Gemini otobüs hatları ayrıştırma hatası: ", e);
             return "[]";
         }
     }
 
-    public String parseBusRoutesFromPdf(byte[] pdfBytes) {
-        if (apiKey == null || apiKey.isBlank() || apiKey.equals("your-gemini-api-key")) {
+    public String parseBusRoutesFromPdf(byte[] pdfBytes, String extractedText) {
+        String activeKey = keyBusTransit != null && !keyBusTransit.isBlank() ? keyBusTransit : apiKey;
+        if (activeKey == null || activeKey.isBlank() || activeKey.equals("your-gemini-api-key")) {
             log.warn("Gemini API Key eksik. AI ile otobüs hatları PDF ayrıştırma atlanıyor. Boş veri döndürülüyor.");
             return "[]";
         }
 
         String prompt = """
-                Sen Kentiva belediye ulaşım asistanısın. Sana verilen PDF belgesinde, bir belediyenin otobüs hatları, durakları ve kalkış saatleri bilgileri yer almaktadır.
+                Sen Kentiva belediye ulaşım asistanısın. Sana verilen PDF belgesinde ve ekteki metinde, bir belediyenin otobüs hatları, durakları ve kalkış saatleri bilgileri yer almaktadır.
                 Bu belgedeki karmaşık tabloları, çizimleri ve metinleri çok dikkatli analiz et. Kolonlardaki saatleri ve durak isimlerini birbirleriyle doğru eşleştir.
                 Otobüs hatlarını (bus routes) aşağıdaki JSON şemasına uygun bir JSON dizisi olarak çıkar.
                 
@@ -359,7 +402,11 @@ public class GeminiService {
                     }
                   }
                 ]
-                """;
+                
+                Aşağıda PDF'ten çıkarılmış ham metin bulunmaktadır. Bu metni de PDF görüntüsüyle birlikte analiz etmek için kullan:
+                [PDF'ten Çıkarılan Ham Metin]
+                %s
+                """.formatted(extractedText != null ? extractedText : "");
 
         try {
             String base64Pdf = java.util.Base64.getEncoder().encodeToString(pdfBytes);
@@ -378,7 +425,7 @@ public class GeminiService {
                     .put("generationConfig", new JSONObject().put("response_mime_type", "application/json"))
                     .toString();
 
-            return executeGeminiCall(requestBody);
+            return executeGeminiCall(requestBody, activeKey);
         } catch (Exception e) {
             log.error("Gemini otobüs hatları PDF ayrıştırma hatası: ", e);
             return "[]";
@@ -386,7 +433,8 @@ public class GeminiService {
     }
 
     public java.util.List<String> findDuplicateReports(Report newReport, java.util.List<Report> nearbyReports) {
-        if (apiKey == null || apiKey.isBlank() || apiKey.equals("your-gemini-api-key")) {
+        String activeKey = keyDuplicateDetection != null && !keyDuplicateDetection.isBlank() ? keyDuplicateDetection : apiKey;
+        if (activeKey == null || activeKey.isBlank() || activeKey.equals("your-gemini-api-key")) {
             log.warn("Gemini API Key eksik. Semantik duplicate analizi atlanıyor.");
             return null;
         }
@@ -432,7 +480,7 @@ public class GeminiService {
         for (int attempt = 1; attempt <= 2; attempt++) {
             try {
                 String response = restClient.post()
-                        .uri(geminiGenerateContentUrl() + "?key=" + apiKey)
+                        .uri(geminiGenerateContentUrl() + "?key=" + activeKey)
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(requestBody)
                         .retrieve()
@@ -465,7 +513,8 @@ public class GeminiService {
     }
 
     public java.util.List<String> selectBestResolvedReports(java.util.List<Report> resolvedReports) {
-        if (apiKey == null || apiKey.isBlank() || apiKey.equals("your-gemini-api-key")) {
+        String activeKey = keyResolvedReports != null && !keyResolvedReports.isBlank() ? keyResolvedReports : apiKey;
+        if (activeKey == null || activeKey.isBlank() || activeKey.equals("your-gemini-api-key")) {
             log.warn("Gemini API Key eksik. Örnek rapor seçimi atlanıyor.");
             return null;
         }
@@ -504,7 +553,7 @@ public class GeminiService {
         for (int attempt = 1; attempt <= 2; attempt++) {
             try {
                 String response = restClient.post()
-                        .uri(geminiGenerateContentUrl() + "?key=" + apiKey)
+                        .uri(geminiGenerateContentUrl() + "?key=" + activeKey)
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(requestBody)
                         .retrieve()
@@ -536,10 +585,426 @@ public class GeminiService {
         return null;
     }
 
+    public record FeedbackAnalysisResult(String sentiment, String category) {}
+
+    public FeedbackAnalysisResult analyzeFeedback(String content) {
+        String activeKey = keyFeedbackAnalysis != null && !keyFeedbackAnalysis.isBlank() ? keyFeedbackAnalysis : apiKey;
+        if (activeKey == null || activeKey.isBlank() || activeKey.equals("your-gemini-api-key")) {
+            log.warn("Gemini API Key eksik. Feedback analizi atlanıyor.");
+            return new FeedbackAnalysisResult("NEUTRAL", "OTHER");
+        }
+
+        String prompt = String.format(
+                """
+                Aşağıdaki Kentiva mobil uygulaması kullanıcı geri bildirimini analiz et.
+                Dönüş formatı kesinlikle şu şekilde JSON olmalıdır (başka hiçbir metin veya açıklama ekleme):
+                {"sentiment": "POSITIVE|NEGATIVE|NEUTRAL", "category": "PERFORMANCE|UI_DESIGN|USER_SUGGESTION|OTHER"}
+                
+                Geri bildirim içeriği:
+                %s
+                """,
+                content
+        );
+
+        String requestBody = new JSONObject()
+                .put("contents", new JSONArray().put(
+                        new JSONObject().put("parts", new JSONArray().put(
+                                new JSONObject().put("text", prompt)
+                        ))
+                ))
+                .put("generationConfig", new JSONObject().put("response_mime_type", "application/json"))
+                .toString();
+
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            try {
+                String text = executeGeminiCall(requestBody, activeKey);
+                JSONObject analysis = new JSONObject(text);
+                return new FeedbackAnalysisResult(
+                        analysis.optString("sentiment", "NEUTRAL").toUpperCase(),
+                        analysis.optString("category", "OTHER").toUpperCase()
+                );
+            } catch (Exception e) {
+                log.warn("AI feedback analiz hatası (deneme {}): {}", attempt, e.getMessage());
+            }
+        }
+        return new FeedbackAnalysisResult("NEUTRAL", "OTHER");
+    }
+
+    public String generateGlobalFeedbackReport(java.util.List<SystemFeedback> feedbacks) {
+        String activeKey = keyFeedbackAnalysis != null && !keyFeedbackAnalysis.isBlank() ? keyFeedbackAnalysis : apiKey;
+        if (activeKey == null || activeKey.isBlank() || activeKey.equals("your-gemini-api-key")) {
+            log.warn("Gemini API Key eksik. Global feedback raporu üretilemiyor.");
+            return "Gemini API anahtarı yapılandırılmamış.";
+        }
+        if (feedbacks == null || feedbacks.isEmpty()) {
+            return "Henüz sisteme girilmiş bir geri bildirim bulunmamaktadır.";
+        }
+
+        StringBuilder dataBuilder = new StringBuilder();
+        for (int i = 0; i < feedbacks.size(); i++) {
+            SystemFeedback fb = feedbacks.get(i);
+            dataBuilder.append(String.format("- Puan: %d, Kategori: %s, Duygu: %s, Yorum: %s\n",
+                    fb.getRating(), fb.getCategory(), fb.getSentiment(), fb.getContent()));
+        }
+
+        String prompt = String.format(
+                """
+                Sen Kentiva platformu baş yapay zeka analiz uzmanısın.
+                Aşağıda kullanıcılardan gelen mobil uygulama geri bildirimlerinin listesi bulunmaktadır.
+                Bu geri bildirimleri analiz ederek Türkçe dilinde profesyonel bir Markdown raporu oluştur.
+                Raporda şu bölümler yer almalıdır:
+                1. Genel Özet (Genel memnuniyet düzeyi, öne çıkan ana konular)
+                2. Olumlu Yönler (Kullanıcıların en çok beğendiği özellikler)
+                3. Geliştirilmesi Gereken Alanlar ve Hatalar (En sık şikayet edilen veya düzeltilmesi istenen noktalar)
+                4. Yapay Zeka Önerileri (Uygulamanın kalitesini ve kullanıcı memnuniyetini artırmak için atılabilecek somut adımlar)
+                
+                Raporu estetik, okunaklı ve Markdown formatında sun.
+                
+                Geri Bildirimler:
+                %s
+                """,
+                dataBuilder.toString()
+        );
+
+        String requestBody = new JSONObject()
+                .put("contents", new JSONArray().put(
+                        new JSONObject().put("parts", new JSONArray().put(
+                                new JSONObject().put("text", prompt)
+                        ))
+                ))
+                .toString();
+
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            try {
+                String response = restClient.post()
+                        .uri(geminiGenerateContentUrl() + "?key=" + activeKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(requestBody)
+                        .retrieve()
+                        .body(String.class);
+                return extractPlainText(response);
+            } catch (Exception e) {
+                log.warn("Global feedback raporu oluşturma hatası (deneme {}): {}", attempt, e.getMessage());
+            }
+        }
+        return "Yapay zeka analiz raporu oluşturulurken bir hata meydana geldi.";
+    }
+
+    public String parseBusRoutesFromPdfMultiPass(byte[] pdfBytes, String extractedText) {
+        String activeKey = keyBusTransit != null && !keyBusTransit.isBlank() ? keyBusTransit : apiKey;
+        if (activeKey == null || activeKey.isBlank() || activeKey.equals("your-gemini-api-key")) {
+            log.warn("Gemini API Key eksik. AI ile otobüs hatları PDF multi-pass ayrıştırma atlanıyor. Boş veri döndürülüyor.");
+            return "[]";
+        }
+
+        JSONArray allRoutes = new JSONArray();
+
+        try (PDDocument document = Loader.loadPDF(pdfBytes)) {
+            PDFRenderer pdfRenderer = new PDFRenderer(document);
+            int pageCount = Math.min(document.getNumberOfPages(), 20); // limit to 20 pages max
+            log.info("PDF multi-pass analizi başlatılıyor. Toplam sayfa sayısı: {}, işlenecek sayfa sayısı: {}", document.getNumberOfPages(), pageCount);
+
+            for (int i = 0; i < pageCount; i++) {
+                log.info("Sayfa {} işleniyor...", i + 1);
+                
+                // Render page to Base64 PNG
+                String base64Image = null;
+                try {
+                    BufferedImage bim = pdfRenderer.renderImageWithDPI(i, 150);
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    ImageIO.write(bim, "png", baos);
+                    base64Image = Base64.getEncoder().encodeToString(baos.toByteArray());
+                } catch (Exception e) {
+                    log.error("Sayfa {} görüntüye dönüştürülürken hata oluştu: {}", i + 1, e.getMessage());
+                    continue;
+                }
+
+                // Extract text for this single page
+                String pageText = "";
+                try {
+                    PDFTextStripper stripper = new PDFTextStripper();
+                    stripper.setStartPage(i + 1);
+                    stripper.setEndPage(i + 1);
+                    pageText = stripper.getText(document);
+                } catch (Exception ex) {
+                    log.warn("Sayfa {} metin çıkarma hatası: {}", i + 1, ex.getMessage());
+                }
+
+                // Pass 1: Yapı Tespiti
+                String pass1Prompt = """
+                        Sen Kentiva belediye ulaşım asistanısın. Sana verilen otobüs tarifesi sayfasının görüntüsünü ve ham metnini incele.
+                        Bu sayfada hangi otobüs hatları var? Bu sayfada hangi otobüs hatları, kaç durak ve kaç sefer var?
+                        Yanıtını sadece aşağıdaki JSON formatında bir dizi olarak dön. Başka hiçbir şey yazma:
+                        [
+                          {"routeCode": "Şİ", "routeName": "Şehir İçi", "pageContains": "stops_and_schedule"}
+                        ]
+                        Eğer bu sayfada herhangi bir otobüs hattı tarifi, durak veya saat bilgisi yoksa boş bir dizi dön: []
+                        
+                        Ham metin:
+                        %s
+                        """.formatted(pageText);
+
+                JSONObject partText1 = new JSONObject().put("text", pass1Prompt);
+                JSONObject partImage1 = new JSONObject().put("inlineData", new JSONObject()
+                        .put("mimeType", "image/png")
+                        .put("data", base64Image));
+
+                String pass1Body = new JSONObject()
+                        .put("contents", new JSONArray().put(
+                                new JSONObject().put("parts", new JSONArray().put(partText1).put(partImage1))
+                        ))
+                        .put("generationConfig", new JSONObject().put("response_mime_type", "application/json"))
+                        .toString();
+
+                String pass1Response = null;
+                try {
+                    pass1Response = executeGeminiCall(pass1Body, activeKey);
+                } catch (Exception e) {
+                    log.error("Sayfa {} Pass 1 Yapı Tespiti hatası: {}", i + 1, e.getMessage());
+                    continue;
+                }
+
+                if (pass1Response == null || pass1Response.isBlank() || pass1Response.equals("[]")) {
+                    log.info("Sayfa {} üzerinde otobüs hattı bulunamadı.", i + 1);
+                    continue;
+                }
+
+                JSONArray detectedRoutes;
+                try {
+                    detectedRoutes = new JSONArray(pass1Response);
+                } catch (Exception e) {
+                    log.warn("Sayfa {} Pass 1 yanıt ayrıştırma hatası: {}", i + 1, e.getMessage());
+                    continue;
+                }
+
+                // Pass 2: Her tespit edilen hat için detay çıkarma
+                for (int r = 0; r < detectedRoutes.length(); r++) {
+                    JSONObject routeInfo = detectedRoutes.getJSONObject(r);
+                    String routeCode = routeInfo.optString("routeCode", "").trim();
+                    String routeName = routeInfo.optString("routeName", "").trim();
+
+                    if (routeCode.isEmpty()) continue;
+
+                    log.info("Sayfa {}: Hat detayları çıkarılıyor -> {} ({})", i + 1, routeName, routeCode);
+
+                    String pass2Prompt = """
+                            Sen Kentiva belediye ulaşım asistanısın. Ekteki otobüs tarifesi sayfa görüntüsünü ve ham metni kullanarak, "%s" (Kod: %s) isimli hat için durakları ve kalkış saatlerini detaylı olarak çıkar.
+                            
+                            Gereksinimler:
+                            1. Duraklar (stops) listesi başlangıç durağından bitiş durağına doğru sıralı olmalıdır.
+                            2. Kalkış saatleri (schedule) weekday (hafta içi) alanı dolu olmalıdır. departuresFromStart başlangıç durağından kalkış saatlerini, departuresFromEnd ise bitiş durağından kalkış saatlerini içermelidir.
+                            3. Saatler "HH:mm" formatında olmalıdır (örneğin "07:30" veya "14:05"). "7:00" gibi saatleri "07:00" olarak düzelt.
+                            4. Color alanı için uyumlu ve canlı bir hex renk (örn: "#10B981", "#3B82F6", "#F59E0B") seç.
+                            5. Icon alanı için 'bus', 'graduation-cap', 'home' değerlerinden birini seç.
+                            6. Yanıtını kesinlikle aşağıdaki JSON formatında dön. Başka hiçbir metin veya açıklama ekleme:
+                            {
+                              "code": "%s",
+                              "name": "%s",
+                              "color": "#3B82F6",
+                              "icon": "bus",
+                              "stops": ["Kıranköy", "Sadri Artunç Caddesi", "Eski Çarşı"],
+                              "schedule": {
+                                "weekday": {
+                                  "departuresFromStart": ["07:00", "08:00"],
+                                  "departuresFromEnd": ["07:30", "08:30"]
+                                },
+                                "weekend": {
+                                  "departuresFromStart": ["09:00", "10:00"],
+                                  "departuresFromEnd": ["09:30", "10:30"]
+                                }
+                              }
+                            }
+                            
+                            Ham metin:
+                            %s
+                            """.formatted(routeName, routeCode, routeCode, routeName, pageText);
+
+                    JSONObject partText2 = new JSONObject().put("text", pass2Prompt);
+                    JSONObject partImage2 = new JSONObject().put("inlineData", new JSONObject()
+                            .put("mimeType", "image/png")
+                            .put("data", base64Image));
+
+                    String pass2Body = new JSONObject()
+                            .put("contents", new JSONArray().put(
+                                    new JSONObject().put("parts", new JSONArray().put(partText2).put(partImage2))
+                            ))
+                            .put("generationConfig", new JSONObject().put("response_mime_type", "application/json"))
+                            .toString();
+
+                    try {
+                        String pass2Response = executeGeminiCall(pass2Body, activeKey);
+                        if (pass2Response != null && !pass2Response.isBlank()) {
+                            JSONObject routeDetails = new JSONObject(pass2Response);
+                            
+                            // Validation & Normalization
+                            validateAndNormalizeRoute(routeDetails);
+                            
+                            if (routeDetails.getJSONArray("stops").isEmpty()) {
+                                log.warn("Hat {} için durak listesi boş olduğundan atlanıyor.", routeCode);
+                                continue;
+                            }
+                            
+                            allRoutes.put(routeDetails);
+                        }
+                    } catch (Exception e) {
+                        log.error("Hat {} için Pass 2 Detay Çıkarma hatası: {}", routeCode, e.getMessage());
+                    }
+                }
+            }
+
+            // Merging duplicates
+            JSONArray mergedRoutes = mergeDuplicateRoutes(allRoutes);
+            return mergedRoutes.toString();
+
+        } catch (Exception e) {
+            log.error("Gemini otobüs hatları PDF multi-pass ayrıştırma hatası: ", e);
+            return "[]";
+        }
+    }
+
+    private void validateAndNormalizeRoute(JSONObject route) {
+        // Ensure color starts with #
+        String color = route.optString("color", "#3B82F6");
+        if (!color.startsWith("#")) {
+            color = "#" + color;
+        }
+        route.put("color", color);
+
+        // Ensure icon is valid
+        String icon = route.optString("icon", "bus");
+        if (!List.of("bus", "graduation-cap", "home").contains(icon)) {
+            icon = "bus";
+        }
+        route.put("icon", icon);
+
+        // Ensure stops is an array
+        if (!route.has("stops") || !(route.get("stops") instanceof JSONArray)) {
+            route.put("stops", new JSONArray());
+        }
+
+        // Schedule normalization
+        if (!route.has("schedule") || !(route.get("schedule") instanceof JSONObject)) {
+            JSONObject schedule = new JSONObject();
+            schedule.put("weekday", new JSONObject()
+                    .put("departuresFromStart", new JSONArray())
+                    .put("departuresFromEnd", new JSONArray()));
+            route.put("schedule", schedule);
+        }
+
+        JSONObject schedule = route.getJSONObject("schedule");
+        for (String key : List.of("weekday", "weekend", "saturday", "sunday")) {
+            if (schedule.has(key) && schedule.get(key) instanceof JSONObject) {
+                JSONObject daySched = schedule.getJSONObject(key);
+                normalizeTimeList(daySched, "departuresFromStart");
+                normalizeTimeList(daySched, "departuresFromEnd");
+            } else if (key.equals("weekday")) {
+                schedule.put("weekday", new JSONObject()
+                        .put("departuresFromStart", new JSONArray())
+                        .put("departuresFromEnd", new JSONArray()));
+            }
+        }
+    }
+
+    private void normalizeTimeList(JSONObject parent, String arrayKey) {
+        if (!parent.has(arrayKey) || !(parent.get(arrayKey) instanceof JSONArray)) {
+            parent.put(arrayKey, new JSONArray());
+            return;
+        }
+        JSONArray times = parent.getJSONArray(arrayKey);
+        JSONArray normalized = new JSONArray();
+        java.util.TreeSet<String> uniqueSortedTimes = new java.util.TreeSet<>();
+
+        for (int i = 0; i < times.length(); i++) {
+            String time = times.optString(i, "").trim();
+            // Match times like H:mm, HH:mm, H.mm, HH.mm
+            time = time.replace(".", ":");
+            if (time.matches("^\\d{1,2}:\\d{2}$")) {
+                if (time.length() == 4) {
+                    time = "0" + time; // e.g. 7:30 -> 07:30
+                }
+                uniqueSortedTimes.add(time);
+            }
+        }
+        for (String t : uniqueSortedTimes) {
+            normalized.put(t);
+        }
+        parent.put(arrayKey, normalized);
+    }
+
+    private JSONArray mergeDuplicateRoutes(JSONArray routes) {
+        Map<String, JSONObject> mergedMap = new LinkedHashMap<>();
+
+        for (int i = 0; i < routes.length(); i++) {
+            JSONObject current = routes.getJSONObject(i);
+            String code = current.optString("code", "").trim().toUpperCase();
+            if (code.isEmpty()) continue;
+
+            if (!mergedMap.containsKey(code)) {
+                mergedMap.put(code, current);
+            } else {
+                JSONObject existing = mergedMap.get(code);
+                
+                // Merge stops (keep all distinct stops)
+                JSONArray existingStops = existing.getJSONArray("stops");
+                JSONArray currentStops = current.getJSONArray("stops");
+                Set<String> stopsSet = new LinkedHashSet<>();
+                for (int j = 0; j < existingStops.length(); j++) {
+                    stopsSet.add(existingStops.getString(j));
+                }
+                for (int j = 0; j < currentStops.length(); j++) {
+                    stopsSet.add(currentStops.getString(j));
+                }
+                existing.put("stops", new JSONArray(stopsSet));
+
+                // Merge schedule
+                JSONObject existingSched = existing.getJSONObject("schedule");
+                JSONObject currentSched = current.getJSONObject("schedule");
+
+                for (String key : List.of("weekday", "weekend", "saturday", "sunday")) {
+                    if (currentSched.has(key)) {
+                        if (!existingSched.has(key)) {
+                            existingSched.put(key, currentSched.getJSONObject(key));
+                        } else {
+                            JSONObject existingDay = existingSched.getJSONObject(key);
+                            JSONObject currentDay = currentSched.getJSONObject(key);
+
+                            mergeTimes(existingDay, currentDay, "departuresFromStart");
+                            mergeTimes(existingDay, currentDay, "departuresFromEnd");
+                        }
+                    }
+                }
+            }
+        }
+
+        JSONArray result = new JSONArray();
+        for (JSONObject route : mergedMap.values()) {
+            result.put(route);
+        }
+        return result;
+    }
+
+    private void mergeTimes(JSONObject existingDay, JSONObject currentDay, String key) {
+        JSONArray existingTimes = existingDay.optJSONArray(key);
+        JSONArray currentTimes = currentDay.optJSONArray(key);
+
+        Set<String> timeSet = new java.util.TreeSet<>();
+        if (existingTimes != null) {
+            for (int i = 0; i < existingTimes.length(); i++) {
+                timeSet.add(existingTimes.getString(i));
+            }
+        }
+        if (currentTimes != null) {
+            for (int i = 0; i < currentTimes.length(); i++) {
+                timeSet.add(currentTimes.getString(i));
+            }
+        }
+        existingDay.put(key, new JSONArray(timeSet));
+    }
+
     private static SimpleClientHttpRequestFactory requestFactory() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(3_000);
-        factory.setReadTimeout(30_000);
+        factory.setReadTimeout(90_000);
         return factory;
     }
 }

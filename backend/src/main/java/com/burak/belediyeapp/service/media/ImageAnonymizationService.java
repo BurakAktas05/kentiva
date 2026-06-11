@@ -28,7 +28,7 @@ import java.util.List;
 @Slf4j
 public class ImageAnonymizationService {
 
-    @Value("${app.ai.gemini.api-key:}")
+    @Value("${app.ai.gemini.key-anonymization:${app.ai.gemini.api-key:}}")
     private String apiKey;
 
     @Value("${app.ai.gemini.model:gemini-2.5-flash}")

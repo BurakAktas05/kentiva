@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { ImagePlus, Megaphone, Pencil, Plus, Search, ShieldAlert, Trash2, UploadCloud, X } from 'lucide-react';
 import axios from 'axios';
 import api from '../api';
-import ContentWorkspaceTabs from '../components/ContentWorkspaceTabs';
 import { resolveMediaUrl } from '../lib/env';
 
 export interface Announcement {
@@ -197,7 +196,6 @@ export default function AnnouncementsPage({ canManage }: AnnouncementsPageProps)
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200/90 bg-gradient-to-r from-white via-slate-50 to-sky-50 p-4 shadow-sm dark:border-slate-700 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950">
-        <ContentWorkspaceTabs />
         <div className="grid min-w-[220px] flex-1 gap-3 sm:grid-cols-2 xl:max-w-xl">
           <ContentStat
             label="Toplam duyuru"

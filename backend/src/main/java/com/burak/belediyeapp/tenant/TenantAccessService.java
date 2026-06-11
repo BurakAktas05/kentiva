@@ -87,6 +87,12 @@ public class TenantAccessService {
         if (isSuperAdmin(user)) {
             return;
         }
+        if (report.isHiddenFromMunicipality()) {
+            if (user != null && report.getReporter() != null && report.getReporter().getId().equals(user.getId())) {
+                return;
+            }
+            throw new BusinessException("Bu rapora erişim yetkiniz yok", "ACCESS_DENIED");
+        }
         if (isCitizenOnly(user)) {
             if (report.getReporter() != null && report.getReporter().getId().equals(user.getId())) {
                 return;

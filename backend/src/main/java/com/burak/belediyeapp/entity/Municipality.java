@@ -2,7 +2,7 @@ package com.burak.belediyeapp.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.locationtech.jts.geom.Polygon;
+import org.locationtech.jts.geom.MultiPolygon;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -152,8 +152,8 @@ public class Municipality extends BaseEntity {
      * Belediyenin sınırları (opsiyonel).
      * WGS84 (SRID 4326) formatında.
      */
-    @Column(columnDefinition = "geometry(Polygon,4326)")
-    private Polygon boundaries;
+    @Column(columnDefinition = "geometry(MultiPolygon,4326)")
+    private MultiPolygon boundaries;
 
     /** ERP/CRM giden webhook hedef URL (https) */
     @Column(name = "webhook_url", length = 512)
@@ -191,4 +191,36 @@ public class Municipality extends BaseEntity {
 
     @Column(name = "mis_api_key", length = 255)
     private String misApiKey;
+
+    @Column(name = "allow_municipality_rejection", nullable = false)
+    @Builder.Default
+    private boolean allowMunicipalityRejection = true;
+
+    @Column(name = "reputation_delta_report_created", nullable = false)
+    @Builder.Default
+    private int reputationDeltaReportCreated = 25;
+
+    @Column(name = "reputation_delta_report_resolved", nullable = false)
+    @Builder.Default
+    private int reputationDeltaReportResolved = 50;
+
+    @Column(name = "reputation_delta_report_rejected", nullable = false)
+    @Builder.Default
+    private int reputationDeltaReportRejected = -45;
+
+    @Column(name = "reputation_delta_inappropriate_media", nullable = false)
+    @Builder.Default
+    private int reputationDeltaInappropriateMedia = -70;
+
+    @Column(name = "auto_suspension_threshold", nullable = false)
+    @Builder.Default
+    private int autoSuspensionThreshold = 5;
+
+    @Column(name = "auto_suspension_days", nullable = false)
+    @Builder.Default
+    private int autoSuspensionDays = 30;
+
+    @Column(name = "ai_media_moderation_enabled", nullable = false)
+    @Builder.Default
+    private boolean aiMediaModerationEnabled = true;
 }

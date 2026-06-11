@@ -141,4 +141,8 @@ public class Report extends BaseEntity implements TenantAware {
     @OneToMany(mappedBy = "report", cascade = CascadeType.ALL)
     @Builder.Default
     private List<ReportHistory> historyList = new ArrayList<>();
+
+    @Column(name = "hidden_from_municipality", nullable = false)
+    @Builder.Default
+    private boolean hiddenFromMunicipality = false;
 }

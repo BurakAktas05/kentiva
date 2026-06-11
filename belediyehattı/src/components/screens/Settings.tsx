@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { ChevronLeft, Globe, Moon, Sun, Monitor, Info, Check, Bell, Loader2 } from 'lucide-react';
+import { ChevronLeft, Globe, Moon, Sun, Monitor, Info, Check, Bell, Loader2, Star } from 'lucide-react';
 import { Lang, LANGUAGES, t } from '../../i18n';
-import { getNotificationPreferences, updateNotificationPreferences, type PublicTenant } from '../../api';
+import { getNotificationPreferences, updateNotificationPreferences, submitSystemFeedback, type PublicTenant } from '../../api';
 import MunicipalityCard from '../MunicipalityCard';
 
 interface SettingsProps {
@@ -33,6 +33,36 @@ export default function Settings({
   const [lostPets, setLostPets] = useState(true);
   const [surveys, setSurveys] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackRating, setFeedbackRating] = useState(5);
+  const [feedbackContent, setFeedbackContent] = useState('');
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [feedbackError, setFeedbackError] = useState('');
+
+  const closeFeedback = () => {
+    setShowFeedbackModal(false);
+    setFeedbackRating(5);
+    setFeedbackContent('');
+    setFeedbackError('');
+  };
+
+  const handleSendFeedback = async () => {
+    if (!feedbackContent.trim()) {
+      setFeedbackError('Lütfen bir geri bildirim metni yazın.');
+      return;
+    }
+    setFeedbackSubmitting(true);
+    setFeedbackError('');
+    try {
+      await submitSystemFeedback(feedbackRating, feedbackContent.trim());
+      alert('Geri bildiriminiz için teşekkür ederiz!');
+      closeFeedback();
+    } catch (err: any) {
+      setFeedbackError(err.message || 'Geri bildirim gönderilirken bir hata oluştu.');
+    } finally {
+      setFeedbackSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     getNotificationPreferences()
@@ -223,12 +253,88 @@ export default function Settings({
             <Info className="h-4 w-4 text-primary" />
             <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">{t('settings.about', lang)}</h3>
           </div>
-          <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-700 dark:bg-slate-800">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{t('settings.version', lang)}</span>
-            <span className="text-sm text-slate-400">3.0.0</span>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-700 dark:bg-slate-800">
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{t('settings.version', lang)}</span>
+              <span className="text-sm text-slate-400">3.0.0</span>
+            </div>
+            
+            <button
+              type="button"
+              onClick={() => setShowFeedbackModal(true)}
+              className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white p-3.5 text-left transition-all hover:border-slate-350 dark:border-slate-700 dark:bg-slate-800"
+            >
+              <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Görüş & Öneri Paylaş</span>
+              <span className="text-xs text-primary dark:text-secondary font-bold">Geri Bildirim</span>
+            </button>
           </div>
         </section>
       </div>
+
+      {/* Feedback Modal */}
+      {showFeedbackModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl dark:bg-slate-900 border border-slate-100 dark:border-slate-800"
+          >
+            <h3 className="text-base font-bold text-slate-900 dark:text-white">Uygulama Geri Bildirimi</h3>
+            <p className="mt-1 text-xs text-slate-500">Görüş ve önerileriniz bizim için çok değerlidir.</p>
+
+            {/* Star Rating Select */}
+            <div className="mt-4 flex justify-center gap-2">
+              {[1, 2, 3, 4, 5].map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setFeedbackRating(s)}
+                  className="p-1 transition-transform active:scale-95"
+                >
+                  <Star
+                    className={`h-7 w-7 ${
+                      s <= feedbackRating ? 'text-yellow-500 fill-yellow-500' : 'text-slate-250 dark:text-slate-700'
+                    }`}
+                  />
+                </button>
+              ))}
+            </div>
+
+            {/* Comment Textarea */}
+            <textarea
+              className="mt-4 w-full h-24 rounded-xl border border-slate-200 bg-white p-3 text-xs focus:outline-none focus:ring-2 focus:ring-primary dark:border-slate-700 dark:bg-slate-800 dark:text-white resize-none"
+              placeholder="Fikirlerinizi veya sorunlarınızı buraya yazabilirsiniz..."
+              value={feedbackContent}
+              onChange={(e) => setFeedbackContent(e.target.value)}
+            />
+
+            {/* Error message */}
+            {feedbackError && (
+              <p className="mt-2 text-xs font-semibold text-rose-600">{feedbackError}</p>
+            )}
+
+            {/* Action Buttons */}
+            <div className="mt-4 flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={closeFeedback}
+                disabled={feedbackSubmitting}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
+              >
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                onClick={handleSendFeedback}
+                disabled={feedbackSubmitting}
+                className="px-5 py-2 rounded-xl bg-primary hover:bg-primary/90 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-sm"
+              >
+                {feedbackSubmitting ? 'Gönderiliyor...' : 'Gönder'}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </motion.div>
   );
 }

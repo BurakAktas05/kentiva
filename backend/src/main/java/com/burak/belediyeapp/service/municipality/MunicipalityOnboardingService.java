@@ -116,7 +116,7 @@ public class MunicipalityOnboardingService {
         user.setEmail(normalizedEmail);
         user.setPassword(passwordEncoder.encode(adminPart.password()));
         user.setPhoneNumber(adminPart.phone() != null && !adminPart.phone().isBlank() ? adminPart.phone().trim() : null);
-        user.setRoles(Set.of(adminRole));
+        user.getRoles().add(adminRole);
         user.setMunicipality(municipality);
         user.setDistrict(municipality.getName());
         user.setEnabled(true);
@@ -138,7 +138,7 @@ public class MunicipalityOnboardingService {
         user.setEmail(normalizedEmail);
         user.setPassword(passwordEncoder.encode(part.password()));
         user.setPhoneNumber(part.phone() != null && !part.phone().isBlank() ? part.phone().trim() : null);
-        user.setRoles(Set.of(wdRole));
+        user.getRoles().add(wdRole);
         user.setMunicipality(municipality);
         user.setDistrict(municipality.getName());
         user.setEnabled(true);

@@ -203,6 +203,30 @@ public class MunicipalityManagementService {
         if (p.publicStatsEnabled() != null) {
             m.setPublicStatsEnabled(p.publicStatsEnabled());
         }
+        if (p.allowMunicipalityRejection() != null) {
+            m.setAllowMunicipalityRejection(p.allowMunicipalityRejection());
+        }
+        if (p.reputationDeltaReportCreated() != null) {
+            m.setReputationDeltaReportCreated(p.reputationDeltaReportCreated());
+        }
+        if (p.reputationDeltaReportResolved() != null) {
+            m.setReputationDeltaReportResolved(p.reputationDeltaReportResolved());
+        }
+        if (p.reputationDeltaReportRejected() != null) {
+            m.setReputationDeltaReportRejected(p.reputationDeltaReportRejected());
+        }
+        if (p.reputationDeltaInappropriateMedia() != null) {
+            m.setReputationDeltaInappropriateMedia(p.reputationDeltaInappropriateMedia());
+        }
+        if (p.autoSuspensionThreshold() != null) {
+            m.setAutoSuspensionThreshold(p.autoSuspensionThreshold());
+        }
+        if (p.autoSuspensionDays() != null) {
+            m.setAutoSuspensionDays(p.autoSuspensionDays());
+        }
+        if (p.aiMediaModerationEnabled() != null) {
+            m.setAiMediaModerationEnabled(p.aiMediaModerationEnabled());
+        }
         if (superAdminFields) {
             if (p.workflowMode() != null && !p.workflowMode().isBlank()) {
                 m.setWorkflowMode(com.burak.belediyeapp.entity.WorkflowMode.valueOf(p.workflowMode().trim().toUpperCase()));

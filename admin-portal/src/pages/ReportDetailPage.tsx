@@ -77,7 +77,7 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
   const [duplicateGroup, setDuplicateGroup] = useState<ReportListItem[]>([]);
   const [bulkBusy, setBulkBusy] = useState<'RESOLVED' | null>(null);
   const [aiBusy, setAiBusy] = useState(false);
-  const [statusValue, setStatusValue] = useState<'PROCESSING' | 'RESOLVED' | 'OUT_OF_JURISDICTION'>('PROCESSING');
+  const [statusValue, setStatusValue] = useState<'PROCESSING' | 'RESOLVED' | 'OUT_OF_JURISDICTION' | 'REJECTED'>('PROCESSING');
   const [noteText, setNoteText] = useState('');
   const [statusBusy, setStatusBusy] = useState(false);
   const [currentUser, setCurrentUser] = useState<any | null>(null);
@@ -106,7 +106,15 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
         setDepartments((depsRes.data.data?.content ?? []) as { id: string; name: string }[]);
         setDuplicateGroup(dup.data.data as ReportListItem[]);
         setCurrentUser(me.data.data);
-        setStatusValue(rep.status === 'RESOLVED' ? 'RESOLVED' : rep.status === 'OUT_OF_JURISDICTION' ? 'OUT_OF_JURISDICTION' : 'PROCESSING');
+        setStatusValue(
+          rep.status === 'RESOLVED'
+            ? 'RESOLVED'
+            : rep.status === 'OUT_OF_JURISDICTION'
+            ? 'OUT_OF_JURISDICTION'
+            : rep.status === 'REJECTED'
+            ? 'REJECTED'
+            : 'PROCESSING'
+        );
         if (rep.aiReplyDraft) {
           setNoteText(rep.aiReplyDraft);
         }
@@ -122,6 +130,7 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
 
   const canResolve = currentUser?.departmentId != null;
   const isWhiteDesk = currentUser?.roles?.includes('ROLE_WHITE_DESK');
+  const isSuperAdmin = currentUser?.roles?.includes('ROLE_SUPER_ADMIN');
   const resolvedMapUrl = useMemo(() => mapUrl(report?.latitude, report?.longitude), [report?.latitude, report?.longitude]);
 
   const refreshReport = async () => {
@@ -130,7 +139,15 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
     const next = r.data.data as Report;
     setReport(next);
     setTimeline(tl.data.data as ReportTimelineEntry[]);
-    setStatusValue(next.status === 'RESOLVED' ? 'RESOLVED' : next.status === 'OUT_OF_JURISDICTION' ? 'OUT_OF_JURISDICTION' : 'PROCESSING');
+    setStatusValue(
+      next.status === 'RESOLVED'
+        ? 'RESOLVED'
+        : next.status === 'OUT_OF_JURISDICTION'
+        ? 'OUT_OF_JURISDICTION'
+        : next.status === 'REJECTED'
+        ? 'REJECTED'
+        : 'PROCESSING'
+    );
   };
 
   const bulkCloseDuplicateGroup = async () => {
@@ -630,12 +647,15 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
                 <select
                   id="statusSelect"
                   value={statusValue}
-                  onChange={(e) => setStatusValue(e.target.value as 'PROCESSING' | 'RESOLVED' | 'OUT_OF_JURISDICTION')}
+                  onChange={(e) => setStatusValue(e.target.value as any)}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 >
                   <option value="PROCESSING">İşlemde</option>
                   {canResolve && <option value="RESOLVED">Çözüldü</option>}
                   <option value="OUT_OF_JURISDICTION">Yetki Alanı Dışı</option>
+                  {(isSuperAdmin || currentUser?.municipality?.allowMunicipalityRejection) && (
+                    <option value="REJECTED">Reddedildi</option>
+                  )}
                 </select>
               </div>
 

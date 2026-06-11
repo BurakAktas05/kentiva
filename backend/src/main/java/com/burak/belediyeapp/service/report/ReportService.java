@@ -111,7 +111,11 @@ public class ReportService {
      * Human admin yetkisi gerektirmez; internal kullanım içindir.
      */
     public void systemRejectReport(String reportId, String reason) {
-        commandService.systemRejectReport(reportId, reason);
+        commandService.systemRejectReport(reportId, reason, false);
+    }
+
+    public void systemRejectReport(String reportId, String reason, boolean hide) {
+        commandService.systemRejectReport(reportId, reason, hide);
     }
 
     public void suspendReporterOfReport(String reportId) {

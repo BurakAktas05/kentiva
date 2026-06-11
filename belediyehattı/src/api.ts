@@ -1019,3 +1019,10 @@ export async function fetchStarredStops(municipalityId: string): Promise<string[
   }
 }
 
+export async function submitSystemFeedback(rating: number, content: string): Promise<void> {
+  await apiFetch('/system-feedback', {
+    method: 'POST',
+    body: JSON.stringify({ rating, content }),
+  });
+}
+

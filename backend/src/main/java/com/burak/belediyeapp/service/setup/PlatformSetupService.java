@@ -62,7 +62,7 @@ public class PlatformSetupService {
         if (request.phoneNumber() != null && !request.phoneNumber().isBlank()) {
             user.setPhoneNumber(request.phoneNumber().trim());
         }
-        user.setRoles(Set.of(superRole));
+        user.getRoles().add(superRole);
         user.setEnabled(true);
 
         userRepository.save(user);

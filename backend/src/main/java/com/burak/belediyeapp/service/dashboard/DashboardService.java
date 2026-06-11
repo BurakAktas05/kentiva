@@ -41,12 +41,12 @@ public class DashboardService {
                         + categoryRepository.countByMunicipalityIsNull();
 
         return new DashboardStatsResponse(
-                reportRepository.countByMunicipalityId(municipalityId),
-                reportRepository.countByMunicipalityIdAndReportStatus(municipalityId, ReportStatus.PENDING),
-                reportRepository.countByMunicipalityIdAndReportStatus(municipalityId, ReportStatus.PROCESSING),
-                reportRepository.countByMunicipalityIdAndReportStatus(municipalityId, ReportStatus.RESOLVED),
-                reportRepository.countByMunicipalityIdAndReportStatus(municipalityId, ReportStatus.REJECTED),
-                reportRepository.countByMunicipalityIdAndReportStatus(municipalityId, ReportStatus.FORWARDED),
+                reportRepository.countByMunicipalityIdAndHiddenFromMunicipalityFalse(municipalityId),
+                reportRepository.countByMunicipalityIdAndReportStatusAndHiddenFromMunicipalityFalse(municipalityId, ReportStatus.PENDING),
+                reportRepository.countByMunicipalityIdAndReportStatusAndHiddenFromMunicipalityFalse(municipalityId, ReportStatus.PROCESSING),
+                reportRepository.countByMunicipalityIdAndReportStatusAndHiddenFromMunicipalityFalse(municipalityId, ReportStatus.RESOLVED),
+                reportRepository.countByMunicipalityIdAndReportStatusAndHiddenFromMunicipalityFalse(municipalityId, ReportStatus.REJECTED),
+                reportRepository.countByMunicipalityIdAndReportStatusAndHiddenFromMunicipalityFalse(municipalityId, ReportStatus.FORWARDED),
                 userRepository.countByMunicipalityId(municipalityId),
                 departmentRepository.countByMunicipalityId(municipalityId),
                 categoryCount);

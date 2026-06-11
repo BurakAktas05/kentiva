@@ -32,10 +32,10 @@ public class IntegrationReportService {
         requireScope(principal, ApiKeyScope.REPORTS_READ.code());
         String municipalityId = principal.getMunicipalityId();
         if (status != null) {
-            return reportRepository.findByMunicipalityIdAndReportStatus(municipalityId, status, pageable)
+            return reportRepository.findByMunicipalityIdAndReportStatusAndHiddenFromMunicipalityFalse(municipalityId, status, pageable)
                     .map(reportMapper::toListResponse);
         }
-        return reportRepository.findByMunicipalityId(municipalityId, pageable)
+        return reportRepository.findByMunicipalityIdAndHiddenFromMunicipalityFalse(municipalityId, pageable)
                 .map(reportMapper::toListResponse);
     }
 

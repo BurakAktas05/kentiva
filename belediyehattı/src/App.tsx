@@ -276,6 +276,14 @@ export default function App() {
           }
           return;
         }
+        if (tenant?.id) {
+          try {
+            await setPreferredMunicipality(tenant.id);
+          } catch {
+            /* ignore */
+          }
+          return;
+        }
         if (!cancelled) {
           if (!tenant?.id) {
             setTenant(null);

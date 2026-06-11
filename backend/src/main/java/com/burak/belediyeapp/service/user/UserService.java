@@ -122,7 +122,7 @@ public class UserService {
             // Varsayılan olarak CITIZEN rolü ata
             Role citizenRole = roleRepository.findByName("ROLE_CITIZEN")
                     .orElseThrow(() -> new ResourceNotFoundException("Sistem rolü bulunamadı"));
-            user.setRoles(Set.of(citizenRole));
+            user.getRoles().add(citizenRole);
         }
         // Departman ata
         if (request.departmentId() != null && !request.departmentId().isBlank()) {

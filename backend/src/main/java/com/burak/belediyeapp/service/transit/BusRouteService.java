@@ -55,7 +55,13 @@ public class BusRouteService {
             try {
                 if (filename.toLowerCase().endsWith(".pdf")) {
                     byte[] pdfBytes = file.getBytes();
-                    String routeJson = geminiService.parseBusRoutesFromPdf(pdfBytes);
+                    String extractedText = null;
+                    try (InputStream is = file.getInputStream()) {
+                        extractedText = extractTextFromPdf(is);
+                    } catch (Exception ex) {
+                        log.warn("PDF metin okunamadi, sadece gorsel analiz yapilacak: {}", filename);
+                    }
+                    String routeJson = geminiService.parseBusRoutesFromPdfMultiPass(pdfBytes, extractedText);
                     if (routeJson != null && !routeJson.isBlank() && !routeJson.equals("[]")) {
                         allRoutesLists.add(new JSONArray(routeJson));
                     }
@@ -303,5 +309,160 @@ public class BusRouteService {
         return starredStopRepository.findAllByUserIdAndMunicipalityId(user.getId(), municipalityId).stream()
                 .map(StarredStop::getStopName)
                 .collect(Collectors.toList());
+    }
+
+    public List<BusRouteDto> importPreview(String municipalityId, List<MultipartFile> files) {
+        Municipality municipality = municipalityRepository.findById(municipalityId)
+                .orElseThrow(() -> new BusinessException("Belediye bulunamadı", "MUNICIPALITY_NOT_FOUND"));
+
+        if (files == null || files.isEmpty() || files.stream().allMatch(MultipartFile::isEmpty)) {
+            return Collections.emptyList();
+        }
+
+        List<JSONArray> allRoutesLists = new ArrayList<>();
+
+        for (MultipartFile file : files) {
+            if (file.isEmpty()) continue;
+            String filename = file.getOriginalFilename();
+            if (filename == null) continue;
+
+            try {
+                if (filename.toLowerCase().endsWith(".pdf")) {
+                    byte[] pdfBytes = file.getBytes();
+                    String extractedText = null;
+                    try (InputStream is = file.getInputStream()) {
+                        extractedText = extractTextFromPdf(is);
+                    } catch (Exception ex) {
+                        log.warn("PDF metin okunamadi, sadece gorsel analiz yapilacak: {}", filename);
+                    }
+                    String routeJson = geminiService.parseBusRoutesFromPdfMultiPass(pdfBytes, extractedText);
+                    if (routeJson != null && !routeJson.isBlank() && !routeJson.equals("[]")) {
+                        allRoutesLists.add(new JSONArray(routeJson));
+                    }
+                } else {
+                    String text;
+                    try (InputStream is = file.getInputStream()) {
+                        if (filename.toLowerCase().endsWith(".xlsx") || filename.toLowerCase().endsWith(".xls")) {
+                            text = extractTextFromExcel(is);
+                        } else {
+                            text = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+                        }
+                    }
+                    if (text != null && !text.isBlank()) {
+                        String routeJson = geminiService.parseBusRoutes(text);
+                        if (routeJson != null && !routeJson.isBlank() && !routeJson.equals("[]")) {
+                            allRoutesLists.add(new JSONArray(routeJson));
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Dosya işleme hatası: " + filename, e);
+                throw new BusinessException("Dosya işlenemedi: " + filename, "FILE_PROCESSING_ERROR");
+            }
+        }
+
+        JSONArray jsonArray = new JSONArray();
+        for (JSONArray arr : allRoutesLists) {
+            for (int i = 0; i < arr.length(); i++) {
+                jsonArray.put(arr.getJSONObject(i));
+            }
+        }
+
+        List<BusRouteDto> previewList = new ArrayList<>();
+        int tempIdCounter = 0;
+        for (int i = 0; i < jsonArray.length(); i++) {
+            try {
+                JSONObject obj = jsonArray.getJSONObject(i);
+                String code = obj.optString("code", "");
+                String name = obj.optString("name", "");
+                String color = obj.optString("color", "#3B82F6");
+                String icon = obj.optString("icon", "bus");
+                
+                List<String> stops = new ArrayList<>();
+                JSONArray stopsArr = obj.optJSONArray("stops");
+                if (stopsArr != null) {
+                    for (int j = 0; j < stopsArr.length(); j++) {
+                        stops.add(stopsArr.getString(j));
+                    }
+                }
+
+                Map<String, Object> schedule = new HashMap<>();
+                JSONObject schedObj = obj.optJSONObject("schedule");
+                if (schedObj != null) {
+                    schedule = objectMapper.readValue(schedObj.toString(), new TypeReference<Map<String, Object>>() {});
+                }
+
+                previewList.add(new BusRouteDto(
+                        "temp-" + (tempIdCounter++),
+                        name,
+                        code,
+                        stops,
+                        color,
+                        icon,
+                        schedule,
+                        false
+                ));
+            } catch (Exception e) {
+                log.error("Preview mapping hatası: ", e);
+            }
+        }
+
+        return previewList;
+    }
+
+    @Transactional
+    public void importConfirm(String municipalityId, List<BusRouteDto> routeDtos) {
+        Municipality municipality = municipalityRepository.findById(municipalityId)
+                .orElseThrow(() -> new BusinessException("Belediye bulunamadı", "MUNICIPALITY_NOT_FOUND"));
+
+        if (routeDtos == null || routeDtos.isEmpty()) {
+            throw new BusinessException("Kaydedilecek hat bulunamadı.", "NO_ROUTES_TO_CONFIRM");
+        }
+
+        List<BusRoute> existingRoutes = busRouteRepository.findAllByMunicipalityId(municipalityId);
+        Map<String, BusRoute> codeToRoute = new HashMap<>();
+        for (BusRoute r : existingRoutes) {
+            if (r.getCode() != null) {
+                codeToRoute.put(r.getCode().trim().toUpperCase(), r);
+            }
+        }
+
+        Set<String> processedCodes = new HashSet<>();
+
+        for (BusRouteDto dto : routeDtos) {
+            String code = dto.code();
+            if (code == null || code.trim().isEmpty()) continue;
+            String codeKey = code.trim().toUpperCase();
+
+            BusRoute route = codeToRoute.get(codeKey);
+            if (route == null) {
+                route = new BusRoute();
+                route.setMunicipality(municipality);
+                route.setCode(code);
+            }
+
+            route.setName(dto.name());
+            route.setColor(dto.color());
+            route.setIcon(dto.icon() != null ? dto.icon() : "bus");
+
+            try {
+                route.setStopsJson(objectMapper.writeValueAsString(dto.stops()));
+                route.setScheduleJson(objectMapper.writeValueAsString(dto.schedule()));
+            } catch (Exception e) {
+                log.error("JSON serializing error for stops/schedule of code: " + code, e);
+                throw new BusinessException("Veri formatlama hatası: " + code, "SERIALIZATION_ERROR");
+            }
+            route.setActive(true);
+
+            busRouteRepository.save(route);
+            processedCodes.add(codeKey);
+        }
+
+        // Delete only obsolete routes
+        for (BusRoute r : existingRoutes) {
+            if (r.getCode() != null && !processedCodes.contains(r.getCode().trim().toUpperCase())) {
+                busRouteRepository.delete(r);
+            }
+        }
     }
 }
