@@ -51,6 +51,10 @@ public class ReportCrudController {
     public ResponseEntity<ApiResponse<List<String>>> uploadMedia(
             @RequestParam("files") List<MultipartFile> files) {
 
+        if (files.size() > 3) {
+            throw new BusinessException("En fazla 3 fotoğraf yüklenebilir.", "TOO_MANY_FILES");
+        }
+
         List<String> urls = new ArrayList<>();
         for (MultipartFile file : files) {
             if (file.isEmpty()) {

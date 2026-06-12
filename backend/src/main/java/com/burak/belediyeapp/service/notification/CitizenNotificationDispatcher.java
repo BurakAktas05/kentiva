@@ -37,10 +37,6 @@ public class CitizenNotificationDispatcher {
         }
 
         ReportStatus status = loaded.getReportStatus();
-        if (status == ReportStatus.PENDING) {
-            log.debug("PENDING için vatandaş bildirimi atlandı: {}", loaded.getId());
-            return;
-        }
 
         String note = reportHistoryRepository.findFirstByReport_IdOrderByCreatedAtDesc(loaded.getId())
                 .map(h -> h.getNote())

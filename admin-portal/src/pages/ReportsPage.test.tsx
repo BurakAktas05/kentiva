@@ -116,10 +116,13 @@ describe('ReportsPage', () => {
     expect(screen.getByText('Sokak Lambasi Bozuk')).toBeInTheDocument();
   });
 
-  it('performs bulk assignment operation', async () => {
+  it('performs bulk process operation', async () => {
     setupGetMock();
 
     vi.mocked(api.post).mockResolvedValueOnce({
+      data: { data: { successCount: 1, failureCount: 0, failures: [] } },
+    });
+    vi.mocked(api.patch).mockResolvedValueOnce({
       data: { data: { successCount: 1, failureCount: 0, failures: [] } },
     });
 
@@ -133,20 +136,16 @@ describe('ReportsPage', () => {
       expect(screen.getByText('Cukur Problem')).toBeInTheDocument();
     });
 
-    // Select the first report checkbox
     const checkbox = screen.getByLabelText('Cukur Problem seç');
     fireEvent.click(checkbox);
 
-    // Click bulk assignment button
-    const assignBtn = screen.getByRole('button', { name: /Ata/i });
-    fireEvent.click(assignBtn);
+    const processBtn = screen.getByRole('button', { name: /İşle/i });
+    fireEvent.click(processBtn);
 
-    // Modal appears, select officer
-    expect(screen.getByText('Toplu atama')).toBeInTheDocument();
+    expect(screen.getByText('Toplu işlem')).toBeInTheDocument();
     const select = screen.getAllByRole('combobox')[1];
     fireEvent.change(select, { target: { value: 'officer-1' } });
 
-    // Click confirm inside modal
     const confirmBtn = screen.getByRole('button', { name: /Onayla/i });
     fireEvent.click(confirmBtn);
 

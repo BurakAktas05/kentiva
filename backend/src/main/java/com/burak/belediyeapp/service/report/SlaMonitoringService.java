@@ -49,7 +49,12 @@ public class SlaMonitoringService {
             String priority = report.getAiPriority();
             int hoursLimit = getSlaHoursLimit(priority);
 
-            if (report.getCreatedAt().plusHours(hoursLimit).isBefore(now)) {
+            LocalDateTime baseTime = report.getCreatedAt();
+            if (report.getReportStatus() == ReportStatus.PROCESSING && report.getProcessedAt() != null) {
+                baseTime = report.getProcessedAt();
+            }
+
+            if (baseTime.plusHours(hoursLimit).isBefore(now)) {
                 report.setSlaBreached(true);
                 reportRepository.save(report);
                 log.warn("SLA breached for report ID: {} (Tracking: {}). Priority: {}. Created: {}", 

@@ -104,6 +104,39 @@ public final class ReportLanguageMessages {
         };
     }
 
+    public static String pendingPushTitle(String lang, String municipalityName) {
+        return switch (normalizeLang(lang)) {
+            case "en" -> municipalityName + " — Report received";
+            case "ar" -> municipalityName + " — تم استلام بلاغك";
+            default -> municipalityName + " — Raporunuz alındı";
+        };
+    }
+
+    public static String pendingPushBody(String lang, String title) {
+        return switch (normalizeLang(lang)) {
+            case "en" -> "Your report \"" + title + "\" has been successfully received.";
+            case "ar" -> "تم استلام بلاغك \"" + title + "\" بنجاح.";
+            default -> "\"" + title + "\" başlıklı raporunuz başarıyla sisteme alınmıştır.";
+        };
+    }
+
+    public static String forwardedPushTitle(String lang, String municipalityName) {
+        return switch (normalizeLang(lang)) {
+            case "en" -> municipalityName + " — Report forwarded";
+            case "ar" -> municipalityName + " — تم توجيه بلاغك";
+            default -> municipalityName + " — Raporunuz yönlendirildi";
+        };
+    }
+
+    public static String forwardedPushBody(String lang, String title, String staffNote) {
+        String note = formatNote(lang, staffNote);
+        return switch (normalizeLang(lang)) {
+            case "en" -> "Your report \"" + title + "\" has been forwarded to the relevant department." + note;
+            case "ar" -> "تم توجيه بلاغك \"" + title + "\" إلى القسم المختص." + note;
+            default -> "\"" + title + "\" başlıklı raporunuz ilgili departmana yönlendirilmiştir." + note;
+        };
+    }
+
     private static String formatNote(String lang, String staffNote) {
         if (staffNote == null || staffNote.isBlank()) {
             return "";

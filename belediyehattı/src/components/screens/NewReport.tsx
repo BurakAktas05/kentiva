@@ -54,10 +54,10 @@ export default function NewReport({
   const [longitude, setLongitude] = useState<number | null>(null);
   const [locationText, setLocationText] = useState('');
   const [resolvedMunicipality, setResolvedMunicipality] = useState<PublicTenant | null>(null);
-  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
-  const [localPhotoPreview, setLocalPhotoPreview] = useState<string | null>(null);
-  const [capturedFile, setCapturedFile] = useState<File | null>(null);
+  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+  const [localPhotoPreviews, setLocalPhotoPreviews] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const MAX_PHOTOS = 3;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [locating, setLocating] = useState(false);
@@ -87,11 +87,11 @@ export default function NewReport({
 
   useEffect(() => {
     return () => {
-      if (localPhotoPreview && localPhotoPreview.startsWith('blob:')) {
-        URL.revokeObjectURL(localPhotoPreview);
-      }
+      localPhotoPreviews.forEach((url) => {
+        if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+      });
     };
-  }, [localPhotoPreview]);
+  }, [localPhotoPreviews]);
 
   const minDescriptionLen = 20;
   const descriptionTooShort = description.trim().length > 0 && description.trim().length < minDescriptionLen;
@@ -206,30 +206,34 @@ export default function NewReport({
   const selectedCategory = categories.find((category) => category.id === categoryId);
 
   const handleCapturePhoto = async () => {
-    if (isUploading) return;
+    if (isUploading || mediaUrls.length >= MAX_PHOTOS) return;
     setError('');
 
     try {
       const { file, previewUrl } = await captureReportPhotoFile();
-      if (localPhotoPreview && !localPhotoPreview.startsWith('http')) {
-        URL.revokeObjectURL(localPhotoPreview);
-      }
-      setLocalPhotoPreview(previewUrl);
-      setCapturedFile(file);
+      setLocalPhotoPreviews((prev) => [...prev, previewUrl]);
       setIsUploading(true);
 
       const urls = await uploadMedia(file);
       if (urls.length === 0) {
         return;
       }
-      setMediaUrl(urls[0]);
+      setMediaUrls((prev) => [...prev, urls[0]]);
     } catch (err: unknown) {
       if (err instanceof PhotoCaptureCancelledError) return;
       setError(err instanceof Error ? err.message : lang === 'tr' ? 'Fotograf yuklenemedi.' : 'Upload failed.');
-      setMediaUrl(null);
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const handleRemovePhoto = (index: number) => {
+    setMediaUrls((prev) => prev.filter((_, i) => i !== index));
+    setLocalPhotoPreviews((prev) => {
+      const removed = prev[index];
+      if (removed?.startsWith('blob:')) URL.revokeObjectURL(removed);
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   const resolveMunicipalityAt = async (lat: number, lng: number) => {
@@ -310,7 +314,7 @@ export default function NewReport({
     }
 
     // Trigger AI analysis before proceeding
-    if (mediaUrl && categoryId) {
+    if (mediaUrls.length > 0 && categoryId) {
       setAiScanOpen(true);
       setAiAnalysisLoading(true);
       setAiAnalysis(null);
@@ -322,7 +326,7 @@ export default function NewReport({
           title,
           description: description.trim() || undefined,
           contentLanguage: lang,
-          mediaUrl,
+          mediaUrl: mediaUrls[0],
         });
         setAiAnalysis(result);
       } catch {
@@ -356,7 +360,7 @@ export default function NewReport({
         latitude,
         longitude,
         resolvedMunicipality.displayName,
-        mediaUrl ? [mediaUrl] : [],
+        mediaUrls,
         resolvedMunicipality.id,
         kvkkApproved,
       );
@@ -606,36 +610,53 @@ export default function NewReport({
               <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                 {t('report.photo', lang)}
               </label>
-              <button
-                type="button"
-                onClick={() => void handleCapturePhoto()}
-                disabled={isUploading}
-                className={`relative flex aspect-[4/3] max-h-48 w-full flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed transition-colors disabled:opacity-60 ${
-                  isDark
-                    ? 'border-slate-700 bg-slate-800 text-slate-500 hover:border-primary hover:text-secondary'
-                    : 'border-slate-300 bg-slate-50 text-slate-400 hover:border-primary hover:text-primary'
-                }`}
-              >
-                {isUploading ? (
-                  <div className="flex flex-col items-center">
-                    <span className="text-sm font-medium">{t('report.uploading', lang)}</span>
+              <div className="space-y-2">
+                {/* Uploaded photos grid */}
+                {localPhotoPreviews.length > 0 && (
+                  <div className="grid grid-cols-3 gap-2">
+                    {localPhotoPreviews.map((preview, i) => (
+                      <div key={i} className="relative aspect-square overflow-hidden rounded-xl">
+                        <img
+                          src={preview.startsWith('blob:') ? preview : resolveMediaUrl(preview)}
+                          alt={`${lang === 'tr' ? 'Fotoğraf' : 'Photo'} ${i + 1}`}
+                          className="h-full w-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePhoto(i)}
+                          className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white text-xs hover:bg-black/80"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                ) : localPhotoPreview || mediaUrl ? (
-                  <>
-                    <img
-                      src={localPhotoPreview || resolveMediaUrl(mediaUrl!)}
-                      alt={lang === 'tr' ? 'Yuklenen fotograf' : 'Uploaded photo'}
-                      className="absolute inset-0 h-full w-full object-cover"
-                    />
-
-                  </>
-                ) : (
-                  <>
-                    <Camera className="mb-2 h-8 w-8" />
-                    <span className="text-sm font-medium">{t('report.photo.btn', lang)}</span>
-                  </>
                 )}
-              </button>
+                {/* Add photo button */}
+                {localPhotoPreviews.length < MAX_PHOTOS && (
+                  <button
+                    type="button"
+                    onClick={() => void handleCapturePhoto()}
+                    disabled={isUploading}
+                    className={`relative flex aspect-[4/3] max-h-32 w-full flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed transition-colors disabled:opacity-60 ${
+                      isDark
+                        ? 'border-slate-700 bg-slate-800 text-slate-500 hover:border-primary hover:text-secondary'
+                        : 'border-slate-300 bg-slate-50 text-slate-400 hover:border-primary hover:text-primary'
+                    }`}
+                  >
+                    {isUploading ? (
+                      <div className="flex flex-col items-center">
+                        <span className="text-sm font-medium">{t('report.uploading', lang)}</span>
+                      </div>
+                    ) : (
+                      <>
+                        <Camera className="mb-1 h-6 w-6" />
+                        <span className="text-xs font-medium">{t('report.photo.btn', lang)} ({localPhotoPreviews.length}/{MAX_PHOTOS})</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
 
             <div>
@@ -690,15 +711,17 @@ export default function NewReport({
                 {activeDepartment && previewRow(departmentRowLabel, departmentLabel)}
                 {previewRow(
                   t('report.preview.photo', lang),
-                  mediaUrl || localPhotoPreview
-                    ? lang === 'tr'
-                      ? 'Eklendi'
-                      : 'Attached'
+                  mediaUrls.length > 0
+                    ? `${mediaUrls.length} ${lang === 'tr' ? 'fotoğraf eklendi' : 'photo(s) attached'}`
                     : t('report.preview.noPhoto', lang),
                 )}
               </motion.div>
-              {(localPhotoPreview || mediaUrl) && (
-                <img src={localPhotoPreview || resolveMediaUrl(mediaUrl!)} alt="" className="h-36 w-full object-cover" />
+              {localPhotoPreviews.length > 0 && (
+                <div className="grid grid-cols-3 gap-1 px-2 pb-2">
+                  {localPhotoPreviews.map((p, i) => (
+                    <img key={i} src={p.startsWith('blob:') ? p : resolveMediaUrl(p)} alt="" className="h-20 w-full rounded-lg object-cover" />
+                  ))}
+                </div>
               )}
               <motion.div className={`px-4 py-3 ${isDark ? 'bg-slate-800/80' : 'bg-slate-50'}`}>
                 <p className={`mb-1 text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>

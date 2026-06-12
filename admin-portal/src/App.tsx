@@ -35,6 +35,7 @@ import { LanguageProvider, useTranslation, type Language } from './context/Langu
 import { downloadBlobResponse } from './lib/downloadExport';
 import DashboardLoadingSkeleton from './components/DashboardLoadingSkeleton';
 import { reportStatusBadgeClass } from './lib/ui';
+import { reportStatusLabel } from './lib/reportUtils';
 import { ReportLiveProvider, useReportLive } from './context/ReportLiveContext';
 import LoginPage, { LoginLandingPage } from './pages/LoginPage';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -122,7 +123,7 @@ const Sidebar = ({
           title: t('platform_management'),
           items: [
             { name: t('dashboard'), icon: LayoutDashboard, path: '/' },
-            { name: t('recent_reports', 'Son İhbarlar'), icon: FileText, path: '/admin/recent-reports' },
+            { name: t('recent_reports'), icon: FileText, path: '/admin/recent-reports' },
             { name: t('onboarding'), icon: Sparkles, path: '/admin/onboarding' },
             { name: t('municipalities'), icon: MapPinned, path: '/admin/municipalities' },
             { name: t('feedback'), icon: MessageSquare, path: '/system-feedback' },
@@ -760,7 +761,7 @@ const MunicipalityDashboard = ({ user }: { user: AuthenticatedPortalUser }) => {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-slate-900 dark:text-white">{r.title}</p>
                     <div className="mt-1 flex items-center gap-2">
-                      <span className={`kentiva-status-badge ${reportStatusBadgeClass(r.status)}`}>{r.status}</span>
+                      <span className={`kentiva-status-badge ${reportStatusBadgeClass(r.status)}`}>{reportStatusLabel(r.status)}</span>
                       <span className="text-[10px] text-slate-400">{r.createdAt ? new Date(r.createdAt).toLocaleDateString('tr-TR') : ''}</span>
                     </div>
                   </div>

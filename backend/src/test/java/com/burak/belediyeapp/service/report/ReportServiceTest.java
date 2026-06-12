@@ -166,7 +166,7 @@ class ReportServiceTest {
         when(reportMapper.toResponse(any())).thenReturn(new ReportResponse(
                 "report-new", request.title(), request.description(), "PENDING", "Yol", "Vatandaş", null,
                 41.25, 32.69, null, null, List.of(), List.of(), "Safranbolu Belediyesi",
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null));
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, false));
 
         creationService.createReport(request, citizen);
 
@@ -293,7 +293,7 @@ class ReportServiceTest {
         ReportResponse response = new ReportResponse(
                 "report-1", "Başlık", "Açıklama", "PROCESSING", "Kategori", "Muhabir", null,
                 41.0, 29.0, null, null, List.of(), List.of(), "İlçe",
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, false);
 
         when(reportRepository.findById("report-1")).thenReturn(Optional.of(report));
         when(reportRepository.save(report)).thenReturn(report);
@@ -321,7 +321,7 @@ class ReportServiceTest {
         when(reportMapper.toResponse(any())).thenReturn(new ReportResponse(
                 "r1", "Başlık", "Açıklama", "PROCESSING", "Kategori", "Muhabir", "Görevli",
                 41.0, 29.0, null, null, List.of(), List.of(), "İlçe",
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null));
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, false));
 
         BulkReportOperationResult result = commandService.bulkAssignReports(
                 new BulkAssignReportsRequest(List.of("r1", "r2"), "officer-1"), manager);

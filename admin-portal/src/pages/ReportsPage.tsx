@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Clock,
   Download,
   Filter,
   Plus,
@@ -19,6 +20,7 @@ import {
 import axios from 'axios';
 import api, { type BulkReportOperationResult, type ReportListItem, type SpringPage, type User } from '../api';
 import { downloadBlobResponse } from '../lib/downloadExport';
+import { reportStatusLabel } from '../lib/reportUtils';
 import { reportStatusBadgeClass } from '../lib/ui';
 import { useReportLive } from '../context/ReportLiveContext';
 import { reportToListItem } from '../lib/reportUtils';
@@ -41,7 +43,7 @@ const BULK_STATUS_OPTIONS = [
   { value: 'OUT_OF_JURISDICTION', label: 'Yetki Alanı Dışı' },
 ];
 
-type BulkModal = 'assign' | 'status' | 'export' | null;
+type BulkModal = 'process' | 'export' | null;
 type Toast = { type: 'success' | 'error'; message: string } | null;
 
 function hasAnyRole(roles: string[], allowed: string[]) {
@@ -81,6 +83,56 @@ export default function ReportsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { latestReport, wsConnected } = useReportLive();
+
+  const [resolvingIds, setResolvingIds] = useState<Set<string>>(new Set());
+
+  const handleQuickResolve = async (id: string) => {
+    setResolvingIds((prev) => new Set(prev).add(id));
+    try {
+      await api.patch(`/reports/${id}/status`, {
+        status: 'RESOLVED',
+        note: 'Tablo üzerinden hızlıca çözüldü.',
+        resolvedMediaUrls: null,
+      });
+      showToast('success', 'İhbar çözüldü olarak işaretlendi.');
+      void load();
+    } catch (err: unknown) {
+      const msg = axios.isAxiosError(err)
+        ? String((err.response?.data as { message?: string } | undefined)?.message ?? 'Çözme işlemi başarısız oldu.')
+        : 'Çözme işlemi başarısız oldu.';
+      showToast('error', msg);
+    } finally {
+      setResolvingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  };
+
+  const getSlaRemainingHours = (r: ReportListItem) => {
+    if (r.status === 'RESOLVED' || r.status === 'REJECTED' || r.status === 'OUT_OF_JURISDICTION') {
+      return null;
+    }
+    if (r.slaBreached) {
+      return -1;
+    }
+    const priority = r.aiPriority;
+    let limit = 72;
+    if (priority) {
+      const p = priority.toUpperCase();
+      if (p === 'CRITICAL' || p === 'HIGH') limit = 24;
+      else if (p === 'MEDIUM') limit = 72;
+      else if (p === 'LOW') limit = 168;
+    }
+    const start = r.status === 'PROCESSING' && r.processedAt ? r.processedAt : r.createdAt;
+    if (!start) return null;
+    const startTime = Date.parse(start);
+    const now = Date.now();
+    const elapsedHours = (now - startTime) / (1000 * 60 * 60);
+    const remaining = limit - elapsedHours;
+    return remaining;
+  };
 
   const canAssign = hasAnyRole(roles, ['ROLE_DEPT_MANAGER', 'ROLE_ADMIN', 'ROLE_SUPER_ADMIN']);
   const canChangeStatus = hasAnyRole(roles, [
@@ -305,59 +357,56 @@ export default function ReportsPage() {
 
   const showToast = (type: 'success' | 'error', message: string) => setToast({ type, message });
 
-  const applyBulkResult = (result: BulkReportOperationResult, okLabel: string) => {
-    if (result.failureCount === 0) {
-      showToast('success', `${result.successCount} ${okLabel}`);
-    } else if (result.successCount === 0) {
-      const detail = result.failures[0]?.message ?? 'İşlem başarısız.';
-      showToast('error', `Hiçbiri işlenemedi. ${detail}`);
-    } else {
-      showToast(
-        'error',
-        `${result.successCount} başarılı, ${result.failureCount} başarısız. İlk hata: ${result.failures[0]?.message ?? '—'}`,
-      );
-    }
-    clearSelection();
-    void load();
-  };
-
-  const runBulkAssign = async () => {
-    if (!assigneeId || selectedCount === 0) return;
-    setBulkBusy(true);
-    try {
-      const res = await api.post('/reports/batch/assign', {
-        reportIds: [...selected],
-        assigneeId,
-      });
-      applyBulkResult(res.data.data as BulkReportOperationResult, 'rapor atandı');
-      setModal(null);
-      setAssigneeId('');
-    } catch (err: unknown) {
-      const msg = axios.isAxiosError(err)
-        ? String((err.response?.data as { message?: string } | undefined)?.message ?? 'Toplu atama başarısız.')
-        : 'Toplu atama başarısız.';
-      showToast('error', msg);
-    } finally {
-      setBulkBusy(false);
-    }
-  };
-
-  const runBulkStatus = async () => {
+  const runBulkProcess = async () => {
     if (selectedCount === 0) return;
     setBulkBusy(true);
     try {
-      const res = await api.patch('/reports/batch/status', {
-        reportIds: [...selected],
-        status: bulkStatus,
-        note: bulkNote.trim() || null,
-      });
-      applyBulkResult(res.data.data as BulkReportOperationResult, 'rapor güncellendi');
+      let assignFailures = 0;
+
+      if (assigneeId && canAssign) {
+        const res = await api.post('/reports/batch/assign', {
+          reportIds: [...selected],
+          assigneeId,
+        });
+        const result = res.data.data as BulkReportOperationResult;
+        assignFailures = result.failureCount;
+        if (result.failureCount > 0 && result.successCount === 0) {
+          showToast('error', `Atama başarısız. ${result.failures[0]?.message ?? ''}`);
+          return;
+        }
+      }
+
+      if (canChangeStatus && (bulkNote.trim() || bulkStatus !== 'PROCESSING' || !assigneeId)) {
+        const res = await api.patch('/reports/batch/status', {
+          reportIds: [...selected],
+          status: bulkStatus,
+          note: bulkNote.trim() || null,
+        });
+        const result = res.data.data as BulkReportOperationResult;
+        if (result.failureCount === 0) {
+          showToast('success', `${result.successCount} rapor güncellendi`);
+        } else if (result.successCount === 0) {
+          showToast('error', `Durum güncellenemedi. ${result.failures[0]?.message ?? ''}`);
+          return;
+        } else {
+          showToast(
+            'error',
+            `${result.successCount} başarılı, ${result.failureCount} başarısız. İlk hata: ${result.failures[0]?.message ?? '—'}`,
+          );
+        }
+      } else if (assigneeId && assignFailures === 0) {
+        showToast('success', `${selectedCount} rapor atandı`);
+      }
+
       setModal(null);
+      setAssigneeId('');
       setBulkNote('');
+      clearSelection();
+      void load();
     } catch (err: unknown) {
       const msg = axios.isAxiosError(err)
-        ? String((err.response?.data as { message?: string } | undefined)?.message ?? 'Toplu durum güncellemesi başarısız.')
-        : 'Toplu durum güncellemesi başarısız.';
+        ? String((err.response?.data as { message?: string } | undefined)?.message ?? 'Toplu işlem başarısız.')
+        : 'Toplu işlem başarısız.';
       showToast('error', msg);
     } finally {
       setBulkBusy(false);
@@ -405,7 +454,7 @@ export default function ReportsPage() {
     }
   };
 
-  const colSpan = 7;
+  const colSpan = 8;
 
   return (
     <div className="space-y-6 p-6">
@@ -628,25 +677,15 @@ export default function ReportsPage() {
       {selectedCount > 0 && (
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-primary/25 bg-primary/5 px-4 py-3 dark:border-primary/30 dark:bg-primary/10">
           <span className="text-sm font-bold text-primary">{selectedCount} seçili</span>
-          {canAssign && (
+          {(canAssign || canChangeStatus) && (
             <button
               type="button"
               disabled={bulkBusy}
-              onClick={() => setModal('assign')}
+              onClick={() => setModal('process')}
               className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-hover disabled:opacity-50"
             >
               <UserPlus className="h-3.5 w-3.5" />
-              Ata
-            </button>
-          )}
-          {canChangeStatus && (
-            <button
-              type="button"
-              disabled={bulkBusy}
-              onClick={() => setModal('status')}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-            >
-              Durum değiştir
+              İşle
             </button>
           )}
           {canExport && (
@@ -698,6 +737,7 @@ export default function ReportsPage() {
                 <th className="px-4 py-4">Kategori</th>
                 <th className="px-4 py-4">İlçe</th>
                 <th className="px-4 py-4">Durum</th>
+                <th className="px-4 py-4">SLA</th>
                 <th className="px-4 py-4">Tarih</th>
                 <th className="px-4 py-4 text-right">İşlem</th>
               </tr>
@@ -759,16 +799,61 @@ export default function ReportsPage() {
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{r.district ?? '—'}</td>
                     <td className="px-4 py-3">
                       <span className={`kentiva-status-badge ${reportStatusBadgeClass(r.status)}`}>
-                        {r.status}
+                        {reportStatusLabel(r.status)}
                       </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {(() => {
+                        const remaining = getSlaRemainingHours(r);
+                        if (remaining === null) return <span className="text-slate-400 dark:text-slate-600">—</span>;
+                        if (remaining <= 0) {
+                          return (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 dark:bg-rose-950/40 dark:text-rose-300" title="SLA süresi aşıldı!">
+                              <Clock className="h-3.5 w-3.5 text-rose-500 animate-pulse" />
+                              Süresi Aşıldı
+                            </span>
+                          );
+                        }
+                        if (remaining < 6) {
+                          return (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300" title="SLA sınırına yaklaşıldı.">
+                              <Clock className="h-3.5 w-3.5 text-amber-500 animate-pulse" />
+                              Kritik ({Math.ceil(remaining)} sa)
+                            </span>
+                          );
+                        }
+                        return (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                            <Clock className="h-3.5 w-3.5 text-emerald-500" />
+                            {Math.ceil(remaining)} sa
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-slate-500 dark:text-slate-400">
                       {r.createdAt ? new Date(r.createdAt).toLocaleString('tr-TR') : '—'}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Link to={`/reports/${r.id}`} className="text-xs font-bold text-primary hover:underline">
-                        Detay
-                      </Link>
+                      <div className="flex items-center justify-end gap-3">
+                        {r.status === 'PROCESSING' && canChangeStatus && (
+                          <button
+                            type="button"
+                            onClick={() => void handleQuickResolve(r.id)}
+                            disabled={resolvingIds.has(r.id)}
+                            className="inline-flex items-center justify-center rounded-lg p-1 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50 dark:hover:bg-emerald-950/50"
+                            title="Hızlı Çözüldü Olarak İşaretle"
+                          >
+                            {resolvingIds.has(r.id) ? (
+                              <RefreshCw className="h-4 w-4 animate-spin text-slate-400" />
+                            ) : (
+                              <CheckCircle2 className="h-4.5 w-4.5 text-emerald-500" />
+                            )}
+                          </button>
+                        )}
+                        <Link to={`/reports/${r.id}`} className="text-xs font-bold text-primary hover:underline">
+                          Detay
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -811,8 +896,7 @@ export default function ReportsPage() {
           <div className="w-full max-w-md rounded-2xl border border-slate-200/90 bg-white p-6 shadow-xl dark:border-slate-700 dark:bg-slate-900">
             <div className="mb-5 flex items-center justify-between">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                {modal === 'assign' && 'Toplu atama'}
-                {modal === 'status' && 'Toplu durum güncelle'}
+                {modal === 'process' && 'Toplu işlem'}
                 {modal === 'export' && 'Seçili raporları dışa aktar'}
               </h3>
               <button
@@ -830,53 +914,62 @@ export default function ReportsPage() {
               onaylıyor musunuz?
             </p>
 
-            {modal === 'assign' && (
-              <label className="mb-4 block text-sm">
-                <span className="mb-1.5 block font-semibold text-slate-700 dark:text-slate-300">Saha görevlisi</span>
-                <select
-                  value={assigneeId}
-                  onChange={(e) => setAssigneeId(e.target.value)}
-                  disabled={bulkBusy}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                >
-                  <option value="">Seçin…</option>
-                  {officers.map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.firstName} {o.lastName}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-
-            {modal === 'status' && (
+            {modal === 'process' && (
               <div className="mb-4 space-y-3">
-                <label className="block text-sm">
-                  <span className="mb-1.5 block font-semibold text-slate-700 dark:text-slate-300">Yeni durum</span>
-                  <select
-                    value={bulkStatus}
-                    onChange={(e) => setBulkStatus(e.target.value)}
-                    disabled={bulkBusy}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                  >
-                    {availableBulkStatusOptions.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block text-sm">
-                  <span className="mb-1.5 block font-semibold text-slate-700 dark:text-slate-300">Not (isteğe bağlı)</span>
-                  <textarea
-                    value={bulkNote}
-                    onChange={(e) => setBulkNote(e.target.value)}
-                    disabled={bulkBusy}
-                    rows={2}
-                    maxLength={500}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                  />
-                </label>
+                {canAssign && (
+                  <label className="block text-sm">
+                    <span className="mb-1.5 block font-semibold text-slate-700 dark:text-slate-300">
+                      Saha görevlisi (isteğe bağlı)
+                    </span>
+                    <select
+                      value={assigneeId}
+                      onChange={(e) => setAssigneeId(e.target.value)}
+                      disabled={bulkBusy}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    >
+                      <option value="">Atama yapma</option>
+                      {officers.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.firstName} {o.lastName}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                      Atama yapılırsa rapor otomatik olarak işleme alınır.
+                    </p>
+                  </label>
+                )}
+                {canChangeStatus && (
+                  <>
+                    <label className="block text-sm">
+                      <span className="mb-1.5 block font-semibold text-slate-700 dark:text-slate-300">Durum</span>
+                      <select
+                        value={bulkStatus}
+                        onChange={(e) => setBulkStatus(e.target.value)}
+                        disabled={bulkBusy}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      >
+                        {availableBulkStatusOptions.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block text-sm">
+                      <span className="mb-1.5 block font-semibold text-slate-700 dark:text-slate-300">Not (isteğe bağlı)</span>
+                      <textarea
+                        value={bulkNote}
+                        onChange={(e) => setBulkNote(e.target.value)}
+                        disabled={bulkBusy}
+                        rows={2}
+                        maxLength={500}
+                        placeholder="Vatandaşa iletilecek not veya işleme alma mesajı..."
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      />
+                    </label>
+                  </>
+                )}
               </div>
             )}
 
@@ -906,10 +999,9 @@ export default function ReportsPage() {
               </button>
               <button
                 type="button"
-                disabled={bulkBusy || (modal === 'assign' && !assigneeId)}
+                disabled={bulkBusy || (modal === 'process' && !canAssign && !canChangeStatus)}
                 onClick={() => {
-                  if (modal === 'assign') void runBulkAssign();
-                  else if (modal === 'status') void runBulkStatus();
+                  if (modal === 'process') void runBulkProcess();
                   else void runBulkExport();
                 }}
                 className="flex-1 rounded-xl bg-primary py-2.5 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-60"

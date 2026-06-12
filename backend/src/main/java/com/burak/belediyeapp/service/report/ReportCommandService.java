@@ -94,15 +94,21 @@ public class ReportCommandService {
             }
         }
 
-        // Beyaz Masa görevlileri ihbarları çözüldü yapamaz; bu işlem yalnızca ilgili departman tarafından gerçekleştirilebilir.
-        if (request.status() == ReportStatus.RESOLVED && currentUser.getDepartment() == null && !currentUser.hasRole("ROLE_SUPER_ADMIN")) {
+        // Beyaz Masa görevlileri ihbarları çözüldü yapamaz; bu işlem yalnızca ilgili departman veya yetkili yöneticiler tarafından gerçekleştirilebilir.
+        if (request.status() == ReportStatus.RESOLVED && currentUser.getDepartment() == null 
+                && !currentUser.hasRole("ROLE_SUPER_ADMIN") 
+                && !currentUser.hasRole("ROLE_ADMIN") 
+                && !currentUser.hasRole("ROLE_DEPT_MANAGER")) {
             throw new BusinessException(
-                    "Beyaz masa görevlileri veya departmansız yöneticiler ihbarları çözüldü yapamaz; bu işlem yalnızca ilgili departman tarafından gerçekleştirilebilir.",
+                    "Beyaz masa görevlileri veya departmansız yöneticiler ihbarları çözüldü yapamaz; bu işlem yalnızca ilgili departman veya yetkili yöneticiler tarafından gerçekleştirilebilir.",
                     "RESOLVE_FORBIDDEN_FOR_WHITE_TABLE");
         }
 
         ReportStatus oldStatus = report.getReportStatus();
         report.setReportStatus(request.status());
+        if (request.status() == ReportStatus.PROCESSING && report.getProcessedAt() == null) {
+            report.setProcessedAt(java.time.LocalDateTime.now());
+        }
 
         if (request.resolvedMediaUrls() != null && !request.resolvedMediaUrls().isEmpty()) {
             List<ReportMedia> resolvedMedia = request.resolvedMediaUrls().stream()
@@ -237,7 +243,7 @@ public class ReportCommandService {
             .build());
 
         Report saved = reportRepository.save(report);
-        // notificationService.notifyReportForwarded(saved, dept);
+        notificationService.notifyReportStatusChanged(saved);
         
         pushWebSocketUpdate(saved);
         
@@ -278,6 +284,9 @@ public class ReportCommandService {
         if (report.getReportStatus() == ReportStatus.PENDING || report.getReportStatus() == ReportStatus.FORWARDED) {
             ReportStatus oldStatus = report.getReportStatus();
             report.setReportStatus(ReportStatus.PROCESSING);
+            if (report.getProcessedAt() == null) {
+                report.setProcessedAt(java.time.LocalDateTime.now());
+            }
 
             historyRepository.save(ReportHistory.builder()
                     .report(report)

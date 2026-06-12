@@ -128,6 +128,7 @@ export interface Report {
   trackingNumber?: string | null;
   qrCodeBase64?: string | null;
   slaBreached?: boolean | null;
+  processedAt?: string | null;
 }
 
 export interface ReportTimelineEntry {
@@ -150,6 +151,9 @@ export interface ReportListItem {
   duplicateGroupId?: string | null;
   duplicateGroupSize?: number | null;
   municipalityName?: string | null;
+  aiPriority?: string | null;
+  processedAt?: string | null;
+  slaBreached?: boolean | null;
 }
 
 export interface SpringPage<T> {

@@ -79,7 +79,9 @@ class ReportWorkflowControllerWebMvcTest {
                 null,
                 null,
                 null,
-                null
+                null,
+                null,
+                false
         );
 
         when(reportService.updateReportStatus(eq("report-123"), any(UpdateReportStatusRequest.class), any())).thenReturn(response);
@@ -127,7 +129,9 @@ class ReportWorkflowControllerWebMvcTest {
                 null,
                 null,
                 null,
-                null
+                null,
+                null,
+                false
         );
 
         when(reportService.assignReport(eq("report-123"), any(AssignReportRequest.class), any())).thenReturn(response);

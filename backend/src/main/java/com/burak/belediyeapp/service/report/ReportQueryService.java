@@ -151,7 +151,9 @@ public class ReportQueryService {
                 response.forwardedAt(),
                 response.forwardedByName(),
                 response.trackingNumber(),
-                response.qrCodeBase64()
+                response.qrCodeBase64(),
+                response.processedAt(),
+                response.slaBreached()
         );
     }
 

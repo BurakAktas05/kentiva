@@ -129,7 +129,9 @@ public class ReportSupport {
                 response.forwardedAt(),
                 null,
                 response.trackingNumber(),
-                response.qrCodeBase64());
+                response.qrCodeBase64(),
+                response.processedAt(),
+                response.slaBreached());
     }
 
     public ReportListResponse finalizeListResponse(Report report, ReportListResponse mapped) {
@@ -203,7 +205,9 @@ public class ReportSupport {
                 response.forwardedAt(),
                 response.forwardedByName(),
                 response.trackingNumber(),
-                response.qrCodeBase64());
+                response.qrCodeBase64(),
+                response.processedAt(),
+                response.slaBreached());
     }
 
     private ReportResponse withDuplicateMeta(ReportResponse response, Report report) {
@@ -237,7 +241,9 @@ public class ReportSupport {
                 response.forwardedAt(),
                 response.forwardedByName(),
                 report.getTrackingNumber(),
-                qrCodeService.generateQrCodeBase64(report.getTrackingNumber()));
+                qrCodeService.generateQrCodeBase64(report.getTrackingNumber()),
+                report.getProcessedAt(),
+                report.isSlaBreached());
     }
 
     private ReportListResponse withDuplicateMeta(ReportListResponse response, Report report) {
@@ -266,7 +272,9 @@ public class ReportSupport {
                 response.aiSlaRisk(),
                 groupId,
                 size,
-                response.municipalityName());
+                response.municipalityName(),
+                report.getProcessedAt(),
+                report.isSlaBreached());
     }
 
     private Integer duplicateGroupSize(String groupId) {

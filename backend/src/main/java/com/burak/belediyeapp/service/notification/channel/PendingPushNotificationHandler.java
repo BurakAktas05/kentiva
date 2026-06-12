@@ -14,36 +14,42 @@ import org.springframework.stereotype.Component;
 import java.util.Map;
 
 @Component
-@Order(100)
+@Order(10)
 @RequiredArgsConstructor
-public class DefaultStatusPushNotificationHandler implements ReportStatusNotificationHandler {
+public class PendingPushNotificationHandler implements ReportStatusNotificationHandler {
 
     private final INotificationRepository notificationRepository;
-    private final FirebasePushClient firebasePushClient;
     private final MunicipalityMessageService municipalityMessageService;
+    private final FirebasePushClient firebasePushClient;
 
     @Override
     public boolean supports(ReportStatus status) {
-        return status == ReportStatus.PROCESSING;
+        return status == ReportStatus.PENDING;
     }
 
     @Override
     public void deliver(AppUser reporter, Report report, String staffNote) {
-        MunicipalityMessageService.PushMessage push = municipalityMessageService.buildProcessingPush(
-                report.getMunicipality(), report.getTitle(), staffNote, report.getContentLanguage());
+        MunicipalityMessageService.PushMessage push = municipalityMessageService.buildPendingPush(
+                report.getMunicipality(), report.getTitle(), report.getContentLanguage());
 
         notificationRepository.save(Notification.builder()
                 .user(reporter)
                 .title(push.title())
                 .body(push.body())
-                .type("REPORT_STATUS_CHANGED")
+                .type("REPORT_PENDING")
                 .reportId(report.getId())
                 .build());
 
-        firebasePushClient.send(
-                reporter.getFcmToken(),
-                push.title(),
-                push.body(),
-                Map.of("reportId", report.getId(), "type", "REPORT_STATUS_CHANGED"));
+        if (reporter.getFcmToken() != null && !reporter.getFcmToken().isBlank()) {
+            try {
+                firebasePushClient.send(
+                        reporter.getFcmToken(),
+                        push.title(),
+                        push.body(),
+                        Map.of("reportId", report.getId(), "type", "REPORT_PENDING"));
+            } catch (Exception e) {
+                // Log and ignore push failures
+            }
+        }
     }
 }

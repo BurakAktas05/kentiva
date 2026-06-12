@@ -44,6 +44,7 @@ public class ReportCreatedEventListener {
     private final MediaValidationService mediaValidationService;
     private final StorageService storageService;
     private final ReportDuplicateLinkService duplicateLinkService;
+    private final com.burak.belediyeapp.service.notification.NotificationService notificationService;
 
     /** WebSocket opsiyonel — Railway gibi ortamlarda olmayabilir. */
     @Autowired(required = false)
@@ -73,6 +74,15 @@ public class ReportCreatedEventListener {
             } catch (Exception e) {
                 log.warn("WebSocket push hatası: {}", e.getMessage());
             }
+        }
+
+        // Trigger PENDING notification to the citizen
+        try {
+            reportRepository.findById(event.reportId()).ifPresent(report -> {
+                notificationService.notifyReportStatusChanged(report);
+            });
+        } catch (Exception e) {
+            log.warn("Bildirim gönderimi başarısız (Pending): reportId={}, err={}", event.reportId(), e.getMessage());
         }
 
         // 2. Media-guard tarama — selfie/uygunsuz içerik tespiti.

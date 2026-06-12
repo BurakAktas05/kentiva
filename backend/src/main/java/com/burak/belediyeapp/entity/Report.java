@@ -148,6 +148,9 @@ public class Report extends BaseEntity implements TenantAware {
     @Builder.Default
     private boolean slaBreached = false;
 
+    @Column(name = "processed_at")
+    private java.time.LocalDateTime processedAt;
+
     /**
      * Durum değişikliği geçmişi — auditability için.
      */

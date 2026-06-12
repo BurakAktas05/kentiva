@@ -33,7 +33,7 @@ public record CreateReportRequest(
 
         String district,
 
-        @Size(max = 5, message = "En fazla 5 medya dosyası eklenebilir")
+        @Size(max = 3, message = "En fazla 3 medya dosyası eklenebilir")
         List<@NotBlank(message = "Medya URL boş olamaz") @Size(max = 2048, message = "Medya URL çok uzun") String> mediaUrls,
 
         /**

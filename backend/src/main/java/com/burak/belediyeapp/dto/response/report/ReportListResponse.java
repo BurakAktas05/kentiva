@@ -15,5 +15,7 @@ public record ReportListResponse(
         String aiSlaRisk,
         String duplicateGroupId,
         Integer duplicateGroupSize,
-        String municipalityName
+        String municipalityName,
+        LocalDateTime processedAt,
+        Boolean slaBreached
 ) {}

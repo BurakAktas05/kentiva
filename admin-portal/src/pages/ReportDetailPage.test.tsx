@@ -31,6 +31,12 @@ describe('ReportDetailPage', () => {
     mediaUrls: [],
   };
 
+  const mockProcessingReport = {
+    ...mockReport,
+    status: 'PROCESSING',
+    assigneeFullName: 'Ahmet Yilmaz',
+  };
+
   const mockUserMe = {
     id: 'user-admin',
     roles: ['ROLE_ADMIN', 'ROLE_WHITE_DESK'],
@@ -63,11 +69,11 @@ describe('ReportDetailPage', () => {
     vi.clearAllMocks();
   });
 
-  const setupMocks = () => {
+  const setupMocks = (report = mockReport) => {
     vi.mocked(api.get).mockImplementation((url) => {
-      if (url === '/reports/report-123') return Promise.resolve({ data: { data: mockReport } });
-      if (url === '/reports/report-123/timeline') return Promise.resolve({ data: { data: mockTimeline } });
-      if (url === '/reports/report-123/duplicate-group') return Promise.resolve({ data: { data: [] } });
+      if (url === `/reports/${report.id}`) return Promise.resolve({ data: { data: report } });
+      if (url === `/reports/${report.id}/timeline`) return Promise.resolve({ data: { data: mockTimeline } });
+      if (url === `/reports/${report.id}/duplicate-group`) return Promise.resolve({ data: { data: [] } });
       if (url === '/auth/me') return Promise.resolve({ data: { data: mockUserMe } });
       if (url.startsWith('/users')) return Promise.resolve({ data: { data: mockOfficers } });
       if (url === '/departments') return Promise.resolve({ data: { data: mockDepartments } });
@@ -91,9 +97,10 @@ describe('ReportDetailPage', () => {
     });
   });
 
-  it('allows assigning a field officer', async () => {
+  it('allows assigning a field officer via accept flow', async () => {
     setupMocks();
-    vi.mocked(api.post).mockResolvedValueOnce({ data: { data: {} } });
+    vi.mocked(api.post).mockResolvedValue({ data: { data: {} } });
+    vi.mocked(api.patch).mockResolvedValue({ data: { data: mockProcessingReport } });
 
     render(
       <MemoryRouter>
@@ -105,11 +112,17 @@ describe('ReportDetailPage', () => {
       expect(screen.getByText('Kirik Bank')).toBeInTheDocument();
     });
 
-    const select = screen.getAllByRole('combobox')[0]; // Select field officer
+    // Click "Kabul Et" to enter accept flow
+    const acceptBtn = screen.getByRole('button', { name: /Kabul Et/i });
+    fireEvent.click(acceptBtn);
+
+    // Now we should see the officer select
+    const select = screen.getAllByRole('combobox')[0];
     fireEvent.change(select, { target: { value: 'officer-1' } });
 
-    const assignBtn = screen.getByRole('button', { name: /Görevlendir/i });
-    fireEvent.click(assignBtn);
+    // Click "Kabul Et — İşleme Al" to save
+    const saveBtn = screen.getByRole('button', { name: /Kabul Et — İşleme Al/i });
+    fireEvent.click(saveBtn);
 
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith('/reports/report-123/assign', {
@@ -118,9 +131,9 @@ describe('ReportDetailPage', () => {
     });
   });
 
-  it('allows status and note update', async () => {
-    setupMocks();
-    vi.mocked(api.patch).mockResolvedValueOnce({ data: { data: {} } });
+  it('allows status and note update via resolve flow', async () => {
+    setupMocks(mockProcessingReport);
+    vi.mocked(api.patch).mockResolvedValue({ data: { data: { ...mockProcessingReport, status: 'RESOLVED' } } });
 
     render(
       <MemoryRouter>
@@ -132,19 +145,17 @@ describe('ReportDetailPage', () => {
       expect(screen.getByText('Kirik Bank')).toBeInTheDocument();
     });
 
-    const select = screen.getByLabelText('Yeni Durum');
-    fireEvent.change(select, { target: { value: 'PROCESSING' } });
+    // The note field and resolve button should be directly visible
+    const noteTextarea = screen.getByLabelText('Çözüm Notu');
+    fireEvent.change(noteTextarea, { target: { value: 'Çözüldü.' } });
 
-    const noteTextarea = screen.getByLabelText('Vatandaşa Not');
-    fireEvent.change(noteTextarea, { target: { value: 'Isleme alindi.' } });
-
-    const saveBtn = screen.getByRole('button', { name: /Durumu ve Notu Kaydet/i });
-    fireEvent.click(saveBtn);
+    const resolveBtn = screen.getByRole('button', { name: 'Çözüldü Yap' });
+    fireEvent.click(resolveBtn);
 
     await waitFor(() => {
       expect(api.patch).toHaveBeenCalledWith('/reports/report-123/status', {
-        status: 'PROCESSING',
-        note: 'Isleme alindi.',
+        status: 'RESOLVED',
+        note: 'Çözüldü.',
         resolvedMediaUrls: null,
       });
     });

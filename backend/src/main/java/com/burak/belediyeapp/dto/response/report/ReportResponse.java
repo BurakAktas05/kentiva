@@ -31,5 +31,7 @@ public record ReportResponse(
         LocalDateTime forwardedAt,
         String forwardedByName,
         String trackingNumber,
-        String qrCodeBase64
+        String qrCodeBase64,
+        LocalDateTime processedAt,
+        Boolean slaBreached
 ) {}

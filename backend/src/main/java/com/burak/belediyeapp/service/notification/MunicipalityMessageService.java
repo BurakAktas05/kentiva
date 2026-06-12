@@ -173,6 +173,34 @@ public class MunicipalityMessageService {
     }
 
 
+    public PushMessage buildPendingPush(Municipality municipality, String reportTitle, String contentLanguage) {
+        if (!"tr".equals(ReportLanguageMessages.normalizeLang(contentLanguage))) {
+            String name = resolveLabel(municipality);
+            return new PushMessage(
+                    ReportLanguageMessages.pendingPushTitle(contentLanguage, name),
+                    ReportLanguageMessages.pendingPushBody(contentLanguage, truncate(reportTitle, 70)));
+        }
+        String titleTpl = "{belediye} — Bildiriminiz Alındı";
+        String bodyTpl = "\"{baslik}\" başlıklı bildiriminiz başarıyla sisteme alınmıştır.";
+        return new PushMessage(
+                render(titleTpl, municipality, reportTitle, null),
+                render(bodyTpl, municipality, reportTitle, null));
+    }
+
+    public PushMessage buildForwardedPush(Municipality municipality, String reportTitle, String staffNote, String contentLanguage) {
+        if (!"tr".equals(ReportLanguageMessages.normalizeLang(contentLanguage))) {
+            String name = resolveLabel(municipality);
+            return new PushMessage(
+                    ReportLanguageMessages.forwardedPushTitle(contentLanguage, name),
+                    ReportLanguageMessages.forwardedPushBody(contentLanguage, truncate(reportTitle, 70), staffNote));
+        }
+        String titleTpl = "{belediye} — Bildiriminiz Yönlendirildi";
+        String bodyTpl = "\"{baslik}\" başlıklı bildiriminiz ilgili birime yönlendirilmiştir.{not}";
+        return new PushMessage(
+                render(titleTpl, municipality, reportTitle, staffNote),
+                render(bodyTpl, municipality, reportTitle, staffNote));
+    }
+
     public String resolveSmsSenderHeader(Municipality municipality) {
         if (municipality != null
                 && municipality.getSmsSenderHeader() != null

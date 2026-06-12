@@ -89,7 +89,9 @@ class ReportCrudControllerWebMvcTest {
                 null,
                 null,
                 null,
-                null
+                null,
+                null,
+                false
         );
 
         when(reportService.createReport(any(CreateReportRequest.class), any())).thenReturn(response);
@@ -130,7 +132,9 @@ class ReportCrudControllerWebMvcTest {
                 "LOW",
                 null,
                 null,
-                "Kadıköy Belediyesi"
+                "Kadıköy Belediyesi",
+                null,
+                false
         );
 
         when(reportService.getMyReports(any(), any())).thenReturn(new PageImpl<>(List.of(item)));
