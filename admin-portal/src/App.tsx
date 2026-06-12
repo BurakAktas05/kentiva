@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense, useCallback } from 'react';
+import React, { useState, useEffect, lazy, Suspense, useCallback, useRef, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -67,6 +67,7 @@ const AnnouncementsPage = lazy(() => import('./pages/AnnouncementsPage'));
 const SurveysPage = lazy(() => import('./pages/SurveysPage'));
 const SystemFeedbackPage = lazy(() => import('./pages/SystemFeedbackPage'));
 const EventsAndOutagesPage = lazy(() => import('./pages/EventsAndOutagesPage'));
+const SuperAdminRecentReportsPage = lazy(() => import('./pages/SuperAdminRecentReportsPage'));
 
 const PageFallback = () => (
   <motion.div
@@ -121,6 +122,7 @@ const Sidebar = ({
           title: t('platform_management'),
           items: [
             { name: t('dashboard'), icon: LayoutDashboard, path: '/' },
+            { name: t('recent_reports', 'Son İhbarlar'), icon: FileText, path: '/admin/recent-reports' },
             { name: t('onboarding'), icon: Sparkles, path: '/admin/onboarding' },
             { name: t('municipalities'), icon: MapPinned, path: '/admin/municipalities' },
             { name: t('feedback'), icon: MessageSquare, path: '/system-feedback' },
@@ -254,39 +256,133 @@ const Sidebar = ({
   );
 };
 
+interface SystemNotification {
+  id: string;
+  title: string;
+  body: string;
+  type: 'warning' | 'info' | 'danger';
+  link?: string;
+}
+
 const Header = ({
+  user,
   setSidebarOpen,
   darkMode,
   onToggleDark,
 }: {
+  user: AuthenticatedPortalUser | null;
   setSidebarOpen: (o: boolean) => void;
   darkMode: boolean;
   onToggleDark: () => void;
 }) => {
   const navigate = useNavigate();
-  const [pendingCount, setPendingCount] = useState(0);
-  const { newCount: liveNewReports } = useReportLive();
   const { language, setLanguage } = useTranslation();
+  const [notifications, setNotifications] = useState<SystemNotification[]>([]);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const refreshPending = useCallback(() => {
-    api
-      .get('/dashboard/stats')
-      .then((res) => setPendingCount(Number(res.data.data?.pendingReports ?? 0)))
-      .catch(() => setPendingCount(0));
-  }, []);
+  const isSuperAdmin = useMemo(() => {
+    return user ? isPlatformSuperAdmin(user) : false;
+  }, [user]);
 
-  useEffect(() => {
-    refreshPending();
-  }, [refreshPending]);
+  const refreshNotifications = useCallback(() => {
+    if (!user) return;
 
-  useEffect(() => {
-    if (liveNewReports > 0) {
-      refreshPending();
+    if (isSuperAdmin) {
+      api.get('/admin/platform/dashboard')
+        .then((res) => {
+          const tenants = res.data.data?.tenants ?? [];
+          const list: SystemNotification[] = [];
+          tenants.forEach((t: any) => {
+            if (!t.onboarded) {
+              list.push({
+                id: `onboard-${t.id}`,
+                title: 'Kurulum Sihirbazı Bekliyor',
+                body: `${t.displayName || t.name} belediyesinin kurulum (onboarding) işlemi henüz tamamlanmadı.`,
+                type: 'info',
+                link: '/admin/onboarding',
+              });
+            }
+            if (t.membershipStatus === 'EXPIRING_SOON') {
+              list.push({
+                id: `expiring-${t.id}`,
+                title: 'Üyelik Yakında Bitiyor',
+                body: `${t.displayName || t.name} belediye üyeliğinin bitmesine ${t.daysRemaining ?? 0} gün kaldı.`,
+                type: 'warning',
+                link: '/admin/municipalities',
+              });
+            } else if (t.membershipStatus === 'EXPIRED') {
+              list.push({
+                id: `expired-${t.id}`,
+                title: 'Üyelik Süresi Doldu',
+                body: `${t.displayName || t.name} belediye üyeliğinin süresi doldu!`,
+                type: 'danger',
+                link: '/admin/municipalities',
+              });
+            } else if (t.membershipStatus === 'SUSPENDED') {
+              list.push({
+                id: `suspended-${t.id}`,
+                title: 'Hesap Askıda',
+                body: `${t.displayName || t.name} belediye hesabı askıya alındı.`,
+                type: 'danger',
+                link: '/admin/municipalities',
+              });
+            }
+          });
+          setNotifications(list);
+        })
+        .catch(() => {});
+    } else if (user.municipality) {
+      const muni = user.municipality;
+      const list: SystemNotification[] = [];
+      if (muni.membershipStatus === 'EXPIRING_SOON') {
+        list.push({
+          id: 'muni-expiring',
+          title: 'Üyeliğiniz Yakında Bitiyor',
+          body: `Kentiva üyeliğinizin bitmesine ${muni.daysRemaining ?? 0} gün kaldı. Lütfen üyeliğinizi yenileyin.`,
+          type: 'warning',
+          link: '/municipality-settings',
+        });
+      } else if (muni.membershipStatus === 'EXPIRED') {
+        list.push({
+          id: 'muni-expired',
+          title: 'Üyelik Süreniz Doldu',
+          body: 'Kentiva üyelik süreniz doldu! İşlemlere devam edebilmek için platform yöneticinizle iletişime geçin.',
+          type: 'danger',
+        });
+      } else if (muni.membershipStatus === 'TRIAL') {
+        list.push({
+          id: 'muni-trial',
+          title: 'Deneme Sürümü Aktif',
+          body: `Kentiva deneme sürümündesiniz. Kalan süre: ${muni.daysRemaining ?? 0} gün.`,
+          type: 'info',
+          link: '/municipality-settings',
+        });
+      }
+      setNotifications(list);
     }
-  }, [liveNewReports, refreshPending]);
+  }, [user, isSuperAdmin]);
+
+  useEffect(() => {
+    refreshNotifications();
+  }, [refreshNotifications]);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    if (dropdownOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [dropdownOpen]);
 
   return (
-    <header className="sticky top-0 z-40 flex h-[4.25rem] items-center justify-between border-b border-slate-200/90 bg-white/95 px-4 backdrop-blur-md sm:px-6 dark:border-slate-800 dark:bg-slate-900/95">
+    <header className="sticky top-0 z-45 flex h-[4.25rem] items-center justify-between border-b border-slate-200/90 bg-white/95 px-4 backdrop-blur-md sm:px-6 dark:border-slate-800 dark:bg-slate-900/95">
       <button type="button" onClick={() => setSidebarOpen(true)} className="kentiva-btn-icon lg:hidden" aria-label="Menüyü aç">
         <Menu />
       </button>
@@ -328,14 +424,109 @@ const Header = ({
         >
           {darkMode ? <Sun size={19} /> : <Moon size={19} />}
         </button>
-        <Link to="/reports?status=PENDING" className="kentiva-btn-icon relative" title="Bekleyen raporlar" aria-label="Bekleyen raporlar">
-          <Bell size={19} />
-          {pendingCount > 0 ? (
-            <span className="absolute right-0.5 top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white ring-2 ring-white dark:ring-slate-900">
-              {pendingCount > 99 ? '99+' : pendingCount}
-            </span>
-          ) : null}
-        </Link>
+
+        <div className="relative" ref={dropdownRef}>
+          <button
+            type="button"
+            onClick={() => setDropdownOpen(!dropdownOpen)}
+            className="kentiva-btn-icon relative"
+            title="Sistem Bildirimleri"
+            aria-label="Sistem Bildirimleri"
+          >
+            <Bell size={19} />
+            {notifications.length > 0 ? (
+              <span className="absolute right-0.5 top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white ring-2 ring-white dark:ring-slate-900 animate-pulse">
+                {notifications.length}
+              </span>
+            ) : null}
+          </button>
+
+          <AnimatePresence>
+            {dropdownOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                transition={{ duration: 0.15 }}
+                className="absolute right-0 mt-2.5 w-80 sm:w-96 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xl dark:border-slate-850 dark:bg-slate-900/95 z-50 max-h-[450px] overflow-y-auto"
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3 dark:border-slate-800">
+                  <h3 className="font-bold text-slate-900 dark:text-white text-xs">
+                    Sistem Uyarıları & Durumlar
+                  </h3>
+                  {notifications.length > 0 && (
+                    <span className="rounded-full bg-red-100 dark:bg-red-950/40 px-2 py-0.5 text-[10px] font-bold text-red-600 dark:text-red-400">
+                      {notifications.length} bildirim
+                    </span>
+                  )}
+                </div>
+
+                {notifications.length === 0 ? (
+                  <div className="py-6 text-center text-xs text-slate-500 dark:text-slate-400">
+                    <CheckCircle2 className="mx-auto mb-2 h-8 w-8 text-emerald-500" />
+                    <p className="font-semibold text-slate-700 dark:text-slate-300">Her Şey Yolunda!</p>
+                    <p className="mt-1">Kritik bir üyelik veya sistem uyarısı bulunmuyor.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {notifications.map((n) => {
+                      let Icon = Sparkles;
+                      let iconColor = 'text-sky-500 bg-sky-50 dark:bg-sky-950/40';
+                      if (n.type === 'warning') {
+                        Icon = AlertTriangle;
+                        iconColor = 'text-amber-500 bg-amber-50 dark:bg-amber-950/40';
+                      } else if (n.type === 'danger') {
+                        Icon = AlertCircle;
+                        iconColor = 'text-rose-500 bg-rose-50 dark:bg-rose-950/40';
+                      }
+
+                      const content = (
+                        <div className="flex gap-3">
+                          <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${iconColor}`}>
+                            <Icon size={16} />
+                          </div>
+                          <div className="min-w-0 flex-1 text-left">
+                            <p className="text-xs font-bold text-slate-900 dark:text-white leading-tight">
+                              {n.title}
+                            </p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-normal">
+                              {n.body}
+                            </p>
+                          </div>
+                        </div>
+                      );
+
+                      if (n.link) {
+                        return (
+                          <button
+                            key={n.id}
+                            onClick={() => {
+                              setDropdownOpen(false);
+                              navigate(n.link!);
+                            }}
+                            className="w-full block rounded-xl border border-slate-100/70 p-2.5 hover:bg-slate-50 dark:border-slate-800/60 dark:hover:bg-slate-800/40 transition-colors text-left"
+                          >
+                            {content}
+                          </button>
+                        );
+                      }
+
+                      return (
+                        <div
+                          key={n.id}
+                          className="rounded-xl border border-slate-100/70 p-2.5 dark:border-slate-800/60"
+                        >
+                          {content}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
         <div className="mx-1 hidden h-7 w-px bg-slate-200 sm:block dark:bg-slate-700" />
         <div className="hidden items-center gap-2 rounded-lg border border-transparent px-2 py-1 sm:flex dark:hover:border-slate-700">
           <div className="h-8 w-8 shrink-0 rounded-lg bg-primary/15 ring-1 ring-primary/10 dark:bg-primary/25" />
@@ -708,6 +899,7 @@ const App = () => {
               
               <div className="flex flex-1 flex-col lg:ml-72">
                 <Header
+                  user={user}
                   setSidebarOpen={setSidebarOpen}
                   darkMode={darkMode}
                   onToggleDark={() => setDarkMode((d) => !d)}
@@ -821,6 +1013,14 @@ const App = () => {
                       element={
                         <ProtectedRoute user={user} allow={(u) => u.roles.includes('ROLE_SUPER_ADMIN')}>
                           <MunicipalityNotificationTemplatesPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/admin/recent-reports"
+                      element={
+                        <ProtectedRoute user={user} allow={(u) => u.roles.includes('ROLE_SUPER_ADMIN')}>
+                          <SuperAdminRecentReportsPage />
                         </ProtectedRoute>
                       }
                     />

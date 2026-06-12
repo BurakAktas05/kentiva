@@ -145,6 +145,7 @@ describe('ReportDetailPage', () => {
       expect(api.patch).toHaveBeenCalledWith('/reports/report-123/status', {
         status: 'PROCESSING',
         note: 'Isleme alindi.',
+        resolvedMediaUrls: null,
       });
     });
   });

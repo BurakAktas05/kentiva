@@ -13,6 +13,10 @@ export type AuthenticatedPortalUser = {
     centerLat: number;
     centerLng: number;
     defaultZoom: number;
+    subscriptionPlan?: string;
+    subscriptionEndsAt?: string | null;
+    daysRemaining?: number | null;
+    membershipStatus?: string;
   } | null;
   departmentId?: string | null;
   departmentName?: string | null;

@@ -281,7 +281,7 @@ function Start-DevServerWindow {
     $escapedDir = $WorkingDirectory.Replace("'", "''")
     $escapedCmd = $Command.Replace("'", "''")
     $psCmd = "Set-Location '$escapedDir'; Write-Host '$Title' -ForegroundColor Cyan; $escapedCmd"
-    Start-Process powershell -ArgumentList @('-NoExit', '-Command', $psCmd) | Out-Null
+    Start-Process powershell -ArgumentList @('-NoExit', '-ExecutionPolicy', 'Bypass', '-Command', $psCmd) | Out-Null
     Write-Host "Açıldı: $Title" -ForegroundColor Green
 }
 

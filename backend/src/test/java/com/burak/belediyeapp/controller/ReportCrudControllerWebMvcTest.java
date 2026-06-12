@@ -129,7 +129,8 @@ class ReportCrudControllerWebMvcTest {
                 "HIGH",
                 "LOW",
                 null,
-                null
+                null,
+                "Kadıköy Belediyesi"
         );
 
         when(reportService.getMyReports(any(), any())).thenReturn(new PageImpl<>(List.of(item)));

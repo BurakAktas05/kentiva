@@ -265,7 +265,8 @@ public class ReportSupport {
                 response.aiPriority(),
                 response.aiSlaRisk(),
                 groupId,
-                size);
+                size,
+                response.municipalityName());
     }
 
     private Integer duplicateGroupSize(String groupId) {

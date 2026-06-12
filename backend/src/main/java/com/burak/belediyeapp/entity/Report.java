@@ -52,7 +52,6 @@ public class Report extends BaseEntity implements TenantAware {
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", nullable = false)
-    @BatchSize(size = 25)
     private ReportCategory category;
 
     /**
@@ -60,7 +59,6 @@ public class Report extends BaseEntity implements TenantAware {
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reporter_id", nullable = false)
-    @BatchSize(size = 25)
     private AppUser reporter;
 
     /**
@@ -68,7 +66,6 @@ public class Report extends BaseEntity implements TenantAware {
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assignee_id")
-    @BatchSize(size = 25)
     private AppUser assignee;
 
     /**
@@ -122,7 +119,6 @@ public class Report extends BaseEntity implements TenantAware {
     /** Beyaz Masa tarafından yönlendirilen departman (DEPARTMENTAL modda) */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "forwarded_department_id")
-    @BatchSize(size = 25)
     private Department forwardedDepartment;
 
     /** Yönlendirme zamanı */
@@ -132,7 +128,6 @@ public class Report extends BaseEntity implements TenantAware {
     /** Yönlendiren kullanıcı */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "forwarded_by_id")
-    @BatchSize(size = 25)
     private AppUser forwardedBy;
 
     /** KVKK açık rıza onayı */

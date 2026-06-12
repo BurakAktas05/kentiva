@@ -14,5 +14,6 @@ public record ReportListResponse(
         String aiPriority,
         String aiSlaRisk,
         String duplicateGroupId,
-        Integer duplicateGroupSize
+        Integer duplicateGroupSize,
+        String municipalityName
 ) {}

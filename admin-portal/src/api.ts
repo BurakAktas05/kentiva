@@ -149,6 +149,7 @@ export interface ReportListItem {
   district: string;
   duplicateGroupId?: string | null;
   duplicateGroupSize?: number | null;
+  municipalityName?: string | null;
 }
 
 export interface SpringPage<T> {

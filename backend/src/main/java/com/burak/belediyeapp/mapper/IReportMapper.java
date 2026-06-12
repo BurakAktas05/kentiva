@@ -51,6 +51,7 @@ public interface IReportMapper {
     @Mapping(target = "status", source = "reportStatus")
     @Mapping(target = "aiPriority", source = "aiPriority")
     @Mapping(target = "duplicateGroupSize", ignore = true)
+    @Mapping(target = "municipalityName", source = "municipality.name")
     ReportListResponse toListResponse(Report report);
 
     // ==========================================
