@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Globe, LogIn, Wifi, Battery, Bell, Plus, Home, MapPin, User, CheckCircle2 } from 'lucide-react';
+import { Globe, LogIn, Wifi, Battery, Home, MapPin, User, ClipboardList, Cloud, ChevronRight, BarChart3 } from 'lucide-react';
 import { resolveMediaUrl } from '../lib/env';
 import {
   brandingColor,
@@ -39,7 +39,7 @@ export default function MunicipalityBrandingPreview({ form, legalName, slug }: P
         </p>
       )}
 
-      {/* Premium Mobil Cihaz Mockup */}
+      {/* Premium Mobil Cihaz Mockup — mirrors Home.tsx */}
       <div className="relative mx-auto w-[270px] h-[520px] rounded-[48px] border-[8px] border-slate-800 bg-slate-950 shadow-2xl overflow-hidden ring-4 ring-slate-700/30">
         {/* Dynamic Island / Notch */}
         <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-24 h-4 bg-slate-800 rounded-full z-30" />
@@ -55,93 +55,116 @@ export default function MunicipalityBrandingPreview({ form, legalName, slug }: P
 
         {/* Cihaz Ekranı */}
         <div className="relative w-full h-full pt-7 pb-3 bg-slate-50 dark:bg-slate-900 flex flex-col justify-between overflow-hidden select-none">
-          {/* Header Gradiyenti */}
-          <motion.div
-            key={`${primary}-${secondary}`}
-            className="px-4 pt-3 pb-5 rounded-b-[24px] text-white shadow-md relative overflow-hidden"
-            style={{ background: `linear-gradient(135deg, ${primary}, ${secondary})` }}
-          >
-            {/* Header Content */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {logoSrc ? (
-                  <img src={logoSrc} alt="" className="h-7 w-7 rounded-lg bg-white object-contain p-0.5 shadow-sm" />
-                ) : (
-                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 text-xs font-bold">
-                    {display.slice(0, 2).toUpperCase()}
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-bold leading-tight">{display}</p>
-                  <p className="text-[9px] opacity-80 leading-none truncate">Kent Mobil Asistanı</p>
-                </div>
+          {/* Top Bar — Welcome + Municipality Pill */}
+          <div className="px-3.5 pt-3 pb-2.5 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-[9px] font-medium text-slate-400">Hoş geldiniz 👋</p>
+              <p className="text-[11px] font-semibold text-slate-800 dark:text-white leading-tight truncate">
+                Merhaba, Ahmet Yılmaz
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-col items-end gap-0.5">
+              <div
+                className="flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-[8px] font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              >
+                <MapPin className="h-2.5 w-2.5" style={{ color: primary }} />
+                <span className="max-w-[80px] truncate">{display}</span>
               </div>
-              <Bell className="h-4.5 w-4.5 opacity-80" />
             </div>
-
-            <div className="mt-3">
-              <p className="text-[10px] opacity-90 leading-tight">Merhaba 👋</p>
-              <p className="text-sm font-extrabold leading-tight">Hizmet Kapınızda</p>
-            </div>
-          </motion.div>
+          </div>
 
           {/* Scrollable Body Mock */}
-          <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
-            {/* Slogan veya Tanıtım */}
-            {form.slogan && (
-              <div className="bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/80 shadow-sm">
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-semibold">BELEDİYE MOTTO</p>
-                <p className="text-xs font-bold text-slate-800 dark:text-slate-100 mt-0.5">{form.slogan}</p>
+          <div className="flex-1 overflow-y-auto px-3 py-1 space-y-2.5">
+            {/* Weather Widget */}
+            <motion.div
+              key={`weather-${primary}`}
+              className="relative overflow-hidden rounded-xl p-3 text-white shadow-sm"
+              style={{ background: `linear-gradient(135deg, ${primary}, ${secondary})` }}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Cloud className="h-6 w-6 opacity-80" />
+                  <div>
+                    <p className="text-[13px] font-bold leading-none">22°C</p>
+                    <p className="text-[8px] opacity-75 leading-tight">Parçalı Bulutlu</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-[9px] font-semibold opacity-90">{display}</p>
+                  <p className="text-[8px] opacity-70">Haziran 2026</p>
+                </div>
               </div>
-            )}
+            </motion.div>
 
-            {/* İstatistik Widget'ları */}
-            <div className="grid grid-cols-2 gap-2">
-              <div className="bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/80 shadow-sm flex items-center gap-2">
-                <CheckCircle2 className="h-6 w-6" style={{ color: primary }} />
-                <div>
-                  <p className="text-[14px] font-bold text-slate-800 dark:text-slate-100 leading-none">142</p>
-                  <p className="text-[8px] text-slate-400 dark:text-slate-500 font-medium">Çözüldü</p>
+            {/* Announcement Carousel Mock */}
+            <div>
+              <p className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Duyurular</p>
+              <div className="relative rounded-xl overflow-hidden shadow-sm border border-slate-100 dark:border-slate-800">
+                <div
+                  className="h-20 flex items-end p-2.5"
+                  style={{ background: `linear-gradient(135deg, ${secondary}40, ${primary}30)` }}
+                >
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-800 dark:text-white leading-tight">
+                      Yaz Festivali Etkinlik Programı
+                    </p>
+                    <p className="text-[8px] text-slate-500 mt-0.5">2 gün önce yayınlandı</p>
+                  </div>
                 </div>
-              </div>
-              <div className="bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/80 shadow-sm flex items-center gap-2">
-                <div className="h-6 w-6 rounded-full flex items-center justify-center bg-amber-500/10">
-                  <span className="h-2 w-2 rounded-full bg-amber-500" />
-                </div>
-                <div>
-                  <p className="text-[14px] font-bold text-slate-800 dark:text-slate-100 leading-none">8</p>
-                  <p className="text-[8px] text-slate-400 dark:text-slate-500 font-medium">İşlemde</p>
+                {/* Carousel dots */}
+                <div className="absolute bottom-1.5 right-2 flex items-center gap-1">
+                  <span className="h-1 w-3 rounded-full" style={{ backgroundColor: primary }} />
+                  <span className="h-1 w-1 rounded-full bg-slate-300 dark:bg-slate-600" />
+                  <span className="h-1 w-1 rounded-full bg-slate-300 dark:bg-slate-600" />
                 </div>
               </div>
             </div>
 
-            {/* Hızlı Buton */}
-            <motion.button
-              whileTap={{ scale: 0.98 }}
-              className="w-full py-2.5 rounded-xl flex items-center justify-center gap-1.5 text-xs font-extrabold text-white shadow-md shadow-primary/10"
-              style={{ backgroundColor: primary }}
-            >
-              <Plus className="h-4 w-4" />
-              Yeni İhbar Bildir
-            </motion.button>
+            {/* İhbarlarım Card — mirrors reportsCard() in Home.tsx */}
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-800/80 p-2.5 shadow-sm">
+              <div className="flex items-center gap-2.5">
+                <div
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                  style={{ backgroundColor: `${primary}18` }}
+                >
+                  <ClipboardList className="h-4 w-4" style={{ color: primary }} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-semibold text-slate-800 dark:text-white leading-tight">İhbarlarım</p>
+                  <p className="text-[8px] text-slate-400 dark:text-slate-500 mt-0.5">
+                    Toplam 3 ihbar kaydınız var
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-0.5">
+                  <span className="text-[8px] font-medium" style={{ color: primary }}>Tümünü Gör</span>
+                  <ChevronRight className="h-3 w-3" style={{ color: primary }} />
+                </div>
+              </div>
+            </div>
 
-            {/* Son İhbar Kartı */}
-            <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-800/80 shadow-sm space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[9px] px-1.5 py-0.5 rounded-md font-bold text-white" style={{ backgroundColor: secondary }}>
-                  Yol & Altyapı
-                </span>
-                <span className="text-[8px] font-semibold text-slate-400 dark:text-slate-500">2 saat önce</span>
+            {/* Active Survey Widget */}
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-800/80 p-2.5 shadow-sm space-y-2">
+              <div className="flex items-center gap-1.5">
+                <BarChart3 className="h-3.5 w-3.5" style={{ color: accent }} />
+                <p className="text-[9px] font-bold text-slate-700 dark:text-slate-200">Aktif Anket</p>
               </div>
-              <div>
-                <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100">Sokak Çukuru Onarımı</p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">Cumhuriyet Cd. No: 12 önündeki...</p>
-              </div>
-              <div className="flex items-center justify-between border-t border-slate-50 dark:border-slate-700/50 pt-2">
-                <span className="text-[9px] font-bold" style={{ color: accent }}>
-                  ● Ekipler Atandı
-                </span>
-                <span className="text-[8px] font-medium text-slate-400 dark:text-slate-500">Süreç Başlatıldı</span>
+              <p className="text-[10px] font-semibold text-slate-800 dark:text-white leading-tight">
+                Park alanlarını yeterli buluyor musunuz?
+              </p>
+              <div className="space-y-1">
+                {['Evet, yeterli', 'Hayır, artırılmalı', 'Fikrim yok'].map((opt, i) => (
+                  <div
+                    key={i}
+                    className={`rounded-lg px-2 py-1.5 text-[9px] font-medium border ${
+                      i === 0
+                        ? 'border-transparent text-white'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 bg-slate-50/50 dark:bg-slate-900/50'
+                    }`}
+                    style={i === 0 ? { backgroundColor: primary } : undefined}
+                  >
+                    {opt}
+                  </div>
+                ))}
               </div>
             </div>
           </div>

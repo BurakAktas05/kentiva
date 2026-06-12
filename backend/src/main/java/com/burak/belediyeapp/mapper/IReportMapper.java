@@ -37,7 +37,9 @@ public interface IReportMapper {
     @Mapping(target = "longitude", source = "location.x")
     @Mapping(target = "status", source = "reportStatus")
     @Mapping(target = "mediaUrls", source = "mediaList", qualifiedByName = "mediaListToUrls")
+    @Mapping(target = "resolvedMediaUrls", source = "mediaList", qualifiedByName = "resolvedMediaListToUrls")
     @Mapping(target = "duplicateGroupSize", ignore = true)
+    @Mapping(target = "qrCodeBase64", ignore = true)
     ReportResponse toResponse(Report report);
 
     // ==========================================
@@ -78,6 +80,8 @@ public interface IReportMapper {
     @Mapping(target = "duplicateGroupId", ignore = true)
     @Mapping(target = "kvkkApprovedAt", ignore = true)
     @Mapping(target = "kvkkSignature", ignore = true)
+    @Mapping(target = "trackingNumber", ignore = true)
+    @Mapping(target = "slaBreached", ignore = true)
     @BeanMapping(ignoreUnmappedSourceProperties = {"categoryId", "mediaUrls", "latitude", "longitude", "targetMunicipalityId"})
     @Mapping(target = "location", source = "request", qualifiedByName = "coordinatesToPoint")
     Report toEntity(CreateReportRequest request);
@@ -102,6 +106,18 @@ public interface IReportMapper {
             return Collections.emptyList();
         }
         return mediaList.stream()
+                .filter(m -> !m.isResolvedImage())
+                .map(ReportMedia::getImageUrl)
+                .toList();
+    }
+
+    @Named("resolvedMediaListToUrls")
+    default List<String> mapResolvedMediaListToUrls(List<ReportMedia> mediaList) {
+        if (mediaList == null || mediaList.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return mediaList.stream()
+                .filter(ReportMedia::isResolvedImage)
                 .map(ReportMedia::getImageUrl)
                 .toList();
     }

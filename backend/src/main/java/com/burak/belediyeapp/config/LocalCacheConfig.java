@@ -19,6 +19,9 @@ public class LocalCacheConfig {
                 CacheNames.CATEGORIES,
                 CacheNames.PUBLIC_MUNICIPALITIES,
                 CacheNames.MUNICIPALITIES,
-                CacheNames.DUTY_PHARMACY);
+                CacheNames.DUTY_PHARMACY,
+                CacheNames.DASHBOARD_STATS,
+                CacheNames.DEPARTMENTS,
+                CacheNames.WIDGETS);
     }
 }

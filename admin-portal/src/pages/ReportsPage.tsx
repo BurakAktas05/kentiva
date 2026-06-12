@@ -10,6 +10,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Upload,
   UserPlus,
   Wifi,
   WifiOff,
@@ -77,6 +78,7 @@ export default function ReportsPage() {
   const [incomingBanner, setIncomingBanner] = useState<Report | null>(null);
   const [sessionNewCount, setSessionNewCount] = useState(0);
   const lastHandledReportId = useRef<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { latestReport, wsConnected } = useReportLive();
 
@@ -88,6 +90,7 @@ export default function ReportsPage() {
     'ROLE_SUPER_ADMIN',
   ]);
   const canExport = hasAnyRole(roles, ['ROLE_DEPT_MANAGER', 'ROLE_ADMIN', 'ROLE_SUPER_ADMIN']);
+  const canImport = hasAnyRole(roles, ['ROLE_DEPT_MANAGER', 'ROLE_ADMIN', 'ROLE_SUPER_ADMIN']);
 
   const availableBulkStatusOptions = useMemo(() => {
     if (!currentUser || !currentUser.departmentId) {
@@ -160,20 +163,28 @@ export default function ReportsPage() {
       );
     const matchesStatus = !status || item.status === status;
 
-    if (page === 0 && matchesStatus && matchesSearch) {
-      setData((prev) => {
-        if (!prev) return prev;
-        if (prev.content.some((r) => r.id === item.id)) return prev;
+    setData((prev) => {
+      if (!prev) return prev;
+      const index = prev.content.findIndex((r) => r.id === item.id);
+      if (index !== -1) {
+        const newContent = [...prev.content];
+        newContent[index] = { ...newContent[index], ...item };
+        return {
+          ...prev,
+          content: newContent,
+        };
+      } else if (page === 0 && matchesStatus && matchesSearch) {
         return {
           ...prev,
           content: [item, ...prev.content].slice(0, size),
           totalElements: prev.totalElements + 1,
         };
-      });
-    }
+      }
+      return prev;
+    });
 
     setHighlightedIds((prev) => new Set(prev).add(item.id));
-    window.setTimeout(() => {
+    const timer = window.setTimeout(() => {
       setHighlightedIds((prev) => {
         const next = new Set(prev);
         next.delete(item.id);
@@ -181,10 +192,19 @@ export default function ReportsPage() {
       });
     }, 5000);
 
-    setIncomingBanner(latestReport);
-    setSessionNewCount((c) => c + 1);
-    const hide = window.setTimeout(() => setIncomingBanner(null), 7000);
-    return () => window.clearTimeout(hide);
+    if (latestReport.status === 'PENDING') {
+      setIncomingBanner(latestReport);
+      setSessionNewCount((c) => c + 1);
+      const hide = window.setTimeout(() => setIncomingBanner(null), 7000);
+      return () => {
+        window.clearTimeout(timer);
+        window.clearTimeout(hide);
+      };
+    }
+
+    return () => {
+      window.clearTimeout(timer);
+    };
   }, [latestReport, page, size, status, searchText]);
 
   const totalPages = data?.totalPages ?? 0;
@@ -242,6 +262,46 @@ export default function ReportsPage() {
   };
 
   const clearSelection = () => setSelected(new Set());
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setBulkBusy(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await api.post('/reports/import', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      const result = res.data.data as BulkReportOperationResult;
+      if (result.failureCount === 0) {
+        showToast('success', `${result.successCount} rapor başarıyla içe aktarıldı.`);
+      } else if (result.successCount === 0) {
+        const detail = result.failures[0]?.message ?? 'İçe aktarma başarısız.';
+        showToast('error', `İçe aktarma başarısız. Hata: ${detail}`);
+      } else {
+        showToast(
+          'error',
+          `${result.successCount} başarılı, ${result.failureCount} başarısız. İlk hata: ${result.failures[0]?.message ?? '—'}`,
+        );
+      }
+      void load();
+    } catch (err: unknown) {
+      const msg = axios.isAxiosError(err)
+        ? String((err.response?.data as { message?: string } | undefined)?.message ?? 'Toplu içe aktarma başarısız oldu.')
+        : 'Toplu içe aktarma başarısız oldu.';
+      showToast('error', msg);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   const showToast = (type: 'success' | 'error', message: string) => setToast({ type, message });
 
@@ -494,6 +554,26 @@ export default function ReportsPage() {
             }}
             className="rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:ring-2 focus:ring-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
           />
+          {canImport && (
+            <>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept=".xlsx,.xls,.csv"
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={handleImportClick}
+                disabled={bulkBusy}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold shadow-sm hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+              >
+                <Upload className="h-4 w-4" />
+                Toplu Rapor Yükle
+              </button>
+            </>
+          )}
           <button
             type="button"
             onClick={() => load()}

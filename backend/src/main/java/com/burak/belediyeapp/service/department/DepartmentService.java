@@ -15,6 +15,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
+import com.burak.belediyeapp.config.CacheNames;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -54,6 +57,7 @@ public class DepartmentService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.DEPARTMENTS, key = "'slug:' + #municipalitySlug.toLowerCase()")
     public List<DepartmentResponse> getActiveDepartmentsForMunicipalitySlug(String municipalitySlug) {
         Municipality municipality = municipalityRepository.findBySlugIgnoreCaseAndActiveTrue(municipalitySlug)
                 .orElseThrow(() -> new ResourceNotFoundException("Belediye", "slug", municipalitySlug));
@@ -63,6 +67,7 @@ public class DepartmentService {
     }
 
     @Transactional
+    @CacheEvict(value = CacheNames.DEPARTMENTS, allEntries = true)
     @AuditAction(action = "DEPARTMENT_CREATE", description = "Yeni departman olusturuldu")
     public DepartmentResponse createDepartment(CreateDepartmentRequest request, AppUser currentUser) {
         Municipality targetMunicipality = resolveTargetMunicipality(request.municipalityId(), currentUser);
@@ -89,6 +94,7 @@ public class DepartmentService {
     }
 
     @Transactional
+    @CacheEvict(value = CacheNames.DEPARTMENTS, allEntries = true)
     @AuditAction(action = "DEPARTMENT_UPDATE", description = "Departman guncellendi")
     public DepartmentResponse updateDepartment(String departmentId, UpdateDepartmentRequest request, AppUser currentUser) {
         Department department = findDepartmentForUser(departmentId, currentUser);
@@ -115,6 +121,7 @@ public class DepartmentService {
     }
 
     @Transactional
+    @CacheEvict(value = CacheNames.DEPARTMENTS, allEntries = true)
     @AuditAction(action = "DEPARTMENT_DELETE", description = "Departman devre disi birakildi")
     public void deleteDepartment(String departmentId, AppUser currentUser) {
         Department department = findDepartmentForUser(departmentId, currentUser);

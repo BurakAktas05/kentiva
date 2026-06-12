@@ -81,6 +81,7 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
   const [noteText, setNoteText] = useState('');
   const [statusBusy, setStatusBusy] = useState(false);
   const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const [resolvedFiles, setResolvedFiles] = useState<File[]>([]);
 
   useEffect(() => {
     if (!id) return;
@@ -205,12 +206,28 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
     if (!id || statusBusy) return;
     setStatusBusy(true);
     try {
-      await api.patch(`/reports/${id}/status`, { status: statusValue, note: noteText.trim() || null });
+      let resolvedUrls: string[] = [];
+      if (statusValue === 'RESOLVED' && resolvedFiles.length > 0) {
+        const formData = new FormData();
+        resolvedFiles.forEach((file) => {
+          formData.append('files', file);
+        });
+        const uploadRes = await api.post('/reports/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        resolvedUrls = uploadRes.data.data;
+      }
+      await api.patch(`/reports/${id}/status`, {
+        status: statusValue,
+        note: noteText.trim() || null,
+        resolvedMediaUrls: resolvedUrls.length > 0 ? resolvedUrls : null,
+      });
+      setResolvedFiles([]);
       await refreshReport();
       setSuccessMsg('Durum guncellendi.');
       window.setTimeout(() => setSuccessMsg(null), 3000);
-    } catch {
-      window.alert('Durum guncellenemedi');
+    } catch (err: any) {
+      window.alert(errorMessage(err, 'Durum guncellenemedi'));
     } finally {
       setStatusBusy(false);
     }
@@ -358,41 +375,98 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
           </div>
         </div>
 
-        {report.mediaUrls && report.mediaUrls.length > 0 && (
+        {((report.mediaUrls && report.mediaUrls.length > 0) || (report.resolvedMediaUrls && report.resolvedMediaUrls.length > 0)) && (
           <div className="px-6 py-6 border-t border-slate-100 bg-slate-50/20 dark:border-slate-800 dark:bg-slate-900/10 sm:px-8">
-            <div className="mb-4 flex items-center justify-between gap-2">
-              <div>
-                <p className="text-sm font-bold text-slate-900 dark:text-white">Ek kanıtlar ve fotoğraflar</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Sahadan veya vatandaştan gelen medya ekleri
-                </p>
-              </div>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                {report.mediaUrls.length} dosya
-              </span>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {report.mediaUrls.map((url, i) => (
-                <a
-                  key={i}
-                  href={resolveMediaUrl(url)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="group relative overflow-hidden rounded-2xl border border-slate-200/90 bg-slate-100 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-950 block"
-                >
-                  <img
-                    src={resolveMediaUrl(url)}
-                    alt={`Rapor görseli ${i + 1}`}
-                    className="h-44 w-full object-cover transition duration-300 group-hover:scale-[1.04]"
-                  />
-                  <div className="absolute inset-0 bg-slate-900/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <span className="rounded-xl bg-white/90 p-2 text-slate-900 text-xs font-bold flex items-center gap-1.5 backdrop-blur-xs shadow-sm">
-                      <ExternalLink size={14} />
-                      Görüntüle
-                    </span>
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Önceki Durum (Before) */}
+              <div className="rounded-2xl border border-slate-200/60 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/40">
+                <div className="mb-4 flex items-center justify-between gap-2 border-b border-slate-100 pb-2 dark:border-slate-800">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-rose-500" />
+                      Önceki Durum (İhbar Anı)
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Vatandaş tarafından yüklenen ilk fotoğraflar
+                    </p>
                   </div>
-                </a>
-              ))}
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                    {report.mediaUrls?.length || 0} dosya
+                  </span>
+                </div>
+                {report.mediaUrls && report.mediaUrls.length > 0 ? (
+                  <div className="grid gap-3 grid-cols-2">
+                    {report.mediaUrls.map((url, i) => (
+                      <a
+                        key={i}
+                        href={resolveMediaUrl(url)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="group relative overflow-hidden rounded-xl border border-slate-200/90 bg-slate-100 shadow-xs transition hover:-translate-y-0.5 hover:shadow-sm dark:border-slate-800 dark:bg-slate-950 block"
+                      >
+                        <img
+                          src={resolveMediaUrl(url)}
+                          alt={`Önceki durum ${i + 1}`}
+                          className="h-32 w-full object-cover transition duration-300 group-hover:scale-[1.04]"
+                        />
+                        <div className="absolute inset-0 bg-slate-900/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <span className="rounded-lg bg-white/90 p-1.5 text-slate-900 text-[10px] font-bold flex items-center gap-1 backdrop-blur-xs shadow-xs">
+                            <ExternalLink size={12} />
+                            Görüntüle
+                          </span>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 italic">Fotoğraf yüklenmedi.</p>
+                )}
+              </div>
+
+              {/* Sonraki Durum (After) */}
+              <div className="rounded-2xl border border-slate-200/60 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/40">
+                <div className="mb-4 flex items-center justify-between gap-2 border-b border-slate-100 pb-2 dark:border-slate-800">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                      Sonraki Durum (Çözüm Anı)
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Ekipler tarafından yüklenen çözüm fotoğrafları
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                    {report.resolvedMediaUrls?.length || 0} dosya
+                  </span>
+                </div>
+                {report.resolvedMediaUrls && report.resolvedMediaUrls.length > 0 ? (
+                  <div className="grid gap-3 grid-cols-2">
+                    {report.resolvedMediaUrls.map((url, i) => (
+                      <a
+                        key={i}
+                        href={resolveMediaUrl(url)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="group relative overflow-hidden rounded-xl border border-slate-200/90 bg-slate-100 shadow-xs transition hover:-translate-y-0.5 hover:shadow-sm dark:border-slate-800 dark:bg-slate-950 block"
+                      >
+                        <img
+                          src={resolveMediaUrl(url)}
+                          alt={`Sonraki durum ${i + 1}`}
+                          className="h-32 w-full object-cover transition duration-300 group-hover:scale-[1.04]"
+                        />
+                        <div className="absolute inset-0 bg-slate-900/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <span className="rounded-lg bg-white/90 p-1.5 text-slate-900 text-[10px] font-bold flex items-center gap-1 backdrop-blur-xs shadow-xs">
+                            <ExternalLink size={12} />
+                            Görüntüle
+                          </span>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 italic">Çözüm fotoğrafı yüklenmedi.</p>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -659,6 +733,30 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
                 </select>
               </div>
 
+              {statusValue === 'RESOLVED' && (
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Çözüm Fotoğrafları (After)
+                  </label>
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={(e) => {
+                      if (e.target.files) {
+                        setResolvedFiles(Array.from(e.target.files));
+                      }
+                    }}
+                    className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
+                  />
+                  {resolvedFiles.length > 0 && (
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      {resolvedFiles.length} dosya seçildi.
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label htmlFor="statusNote" className="text-xs font-bold uppercase tracking-wider text-slate-400">
@@ -695,6 +793,36 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
               >
                 {statusBusy ? 'Kaydediliyor...' : 'Durumu ve Notu Kaydet'}
               </button>
+            </div>
+          </section>
+
+          {/* Takip & QR Kod */}
+          <section className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-center gap-2 mb-4">
+              <Sparkles className="h-5 w-5 text-primary dark:text-sky-400" />
+              <p className="text-base font-bold text-slate-900 dark:text-white">Takip & QR Kod</p>
+            </div>
+            <div className="flex flex-col items-center justify-center text-center space-y-4">
+              <div className="rounded-xl bg-slate-50 p-3.5 dark:bg-slate-800/40 w-full">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Takip Numarası</p>
+                <p className="text-base font-extrabold text-primary select-all">
+                  {report.trackingNumber || '—'}
+                </p>
+              </div>
+              {report.qrCodeBase64 ? (
+                <div className="rounded-2xl border border-slate-100 bg-white p-3 shadow-xs dark:border-slate-800 dark:bg-slate-950 flex flex-col items-center">
+                  <img
+                    src={`data:image/png;base64,${report.qrCodeBase64}`}
+                    alt="Takip QR Kodu"
+                    className="h-44 w-44 object-contain"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-2">
+                    Vatandaşın sorgulaması için taratın
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500 italic">QR kod üretilemedi.</p>
+              )}
             </div>
           </section>
 

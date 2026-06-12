@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -15,9 +15,12 @@ import {
   Trash2,
   Settings,
   Globe,
-  MessageSquare
+  MessageSquare,
+  Search,
+  Loader2
 } from 'lucide-react';
-import { MapContainer, TileLayer, Polygon as LeafletPolygon, Polyline, CircleMarker, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Polygon as LeafletPolygon, Polyline, CircleMarker, useMapEvents, useMap } from 'react-leaflet';
+import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import api from '../api';
 import { municipalityPublicUrl } from '../lib/branding';
@@ -104,6 +107,12 @@ function MapClickEvent({ onMapClick }: { onMapClick: (lat: number, lng: number) 
   return null;
 }
 
+function MapRefCapture({ onMap }: { onMap: (map: L.Map) => void }) {
+  const map = useMap();
+  useEffect(() => { onMap(map); }, [map, onMap]);
+  return null;
+}
+
 export default function MunicipalityOnboardingPage() {
   const navigate = useNavigate();
   const [stepIndex, setStepIndex] = useState(0);
@@ -127,6 +136,13 @@ export default function MunicipalityOnboardingPage() {
   const [centerLngStr, setCenterLngStr] = useState('28.9784');
   const [defaultZoomStr, setDefaultZoomStr] = useState('12');
   const [coordinates, setCoordinates] = useState<[number, number][]>([]);
+
+  // OSM boundary fetch
+  const [osmQuery, setOsmQuery] = useState('');
+  const [osmCityQuery, setOsmCityQuery] = useState('');
+  const [osmFetching, setOsmFetching] = useState(false);
+  const [osmError, setOsmError] = useState('');
+  const mapRef = useRef<L.Map | null>(null);
 
   // Step 3: Admin & Staff Accounts
   const [adminEmail, setAdminEmail] = useState('');
@@ -304,6 +320,51 @@ export default function MunicipalityOnboardingPage() {
 
   const clearCoordinates = () => {
     setCoordinates([]);
+  };
+
+  const handleOsmFetch = async () => {
+    const q = osmQuery.trim() || name.trim();
+    if (!q) { setOsmError('Lütfen bir ilçe/bölge adı girin.'); return; }
+    setOsmFetching(true);
+    setOsmError('');
+    try {
+      const params: Record<string, string> = { districtName: q };
+      const city = osmCityQuery.trim();
+      if (city) params.cityName = city;
+      const res = await api.get('/admin/onboarding/osm-boundary', { params });
+      const geoJsonStr = res.data?.data;
+      if (!geoJsonStr) { setOsmError('Sınır verisi bulunamadı.'); return; }
+      const geometry = JSON.parse(geoJsonStr);
+      let rings: number[][][] = [];
+      if (geometry.type === 'Polygon') {
+        rings = [geometry.coordinates[0]];
+      } else if (geometry.type === 'MultiPolygon') {
+        rings = geometry.coordinates.map((poly: number[][][]) => poly[0]);
+      }
+      if (rings.length === 0) { setOsmError('Geçerli poligon bulunamadı.'); return; }
+      // Use the largest ring (most points)
+      const largestRing = rings.reduce((a, b) => (a.length >= b.length ? a : b));
+      // GeoJSON is [lng, lat] — convert to [lat, lng]
+      const coords: [number, number][] = largestRing.map((c: number[]) => [c[1], c[0]]);
+      setCoordinates(coords);
+      // Compute center and fit bounds
+      if (coords.length > 0) {
+        const latSum = coords.reduce((s, c) => s + c[0], 0);
+        const lngSum = coords.reduce((s, c) => s + c[1], 0);
+        setCenterLatStr((latSum / coords.length).toFixed(6));
+        setCenterLngStr((lngSum / coords.length).toFixed(6));
+        if (mapRef.current) {
+          const bounds = L.latLngBounds(coords.map(c => L.latLng(c[0], c[1])));
+          mapRef.current.fitBounds(bounds, { padding: [20, 20] });
+        }
+      }
+      setError('');
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'OSM sınır verisi alınırken bir hata oluştu.';
+      setOsmError(msg);
+    } finally {
+      setOsmFetching(false);
+    }
   };
 
   const submit = async () => {
@@ -609,11 +670,43 @@ export default function MunicipalityOnboardingPage() {
                     Hizmet Sınırları ve Coğrafi Çit (Geofencing)
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Belediye sınırlarını haritada tıklayarak çizin veya sınır poligonunu içeren bir GeoJSON dosyası yükleyin.
+                    Belediye sınırlarını OpenStreetMap'ten otomatik çekin, haritada tıklayarak çizin veya GeoJSON yükleyin.
                   </p>
                 </div>
 
                 <div className="space-y-3">
+                  {/* OSM Boundary Fetch */}
+                  <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/30 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20 space-y-3">
+                    <h4 className="text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
+                      <Globe size={14} />
+                      OpenStreetMap'ten Otomatik Sınır Çekimi
+                    </h4>
+                    <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                      <input
+                        className={inputClass}
+                        value={osmQuery}
+                        onChange={(e) => setOsmQuery(e.target.value)}
+                        placeholder={name.trim() || 'İlçe adı (ör: Kadıköy)'}
+                      />
+                      <input
+                        className={inputClass}
+                        value={osmCityQuery}
+                        onChange={(e) => setOsmCityQuery(e.target.value)}
+                        placeholder="İl adı (ör: İstanbul)"
+                      />
+                      <button
+                        type="button"
+                        disabled={osmFetching}
+                        onClick={() => void handleOsmFetch()}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50 whitespace-nowrap"
+                      >
+                        {osmFetching ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+                        {osmFetching ? 'Aranıyor…' : "Sınırları Getir"}
+                      </button>
+                    </div>
+                    {osmError && <p className="text-[11px] font-semibold text-red-500">{osmError}</p>}
+                  </div>
+
                   <div className="flex flex-wrap gap-2 items-center justify-between">
                     <label className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800">
                       <Upload size={12} />
@@ -644,6 +737,7 @@ export default function MunicipalityOnboardingPage() {
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                       />
+                      <MapRefCapture onMap={(m) => { mapRef.current = m; }} />
                       <MapClickEvent onMapClick={handleMapClick} />
                       {coordinates.length > 0 && (
                         <>

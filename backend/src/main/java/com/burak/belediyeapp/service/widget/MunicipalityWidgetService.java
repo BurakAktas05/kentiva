@@ -12,6 +12,8 @@ import com.burak.belediyeapp.repository.IMunicipalityRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.cache.annotation.Cacheable;
+import com.burak.belediyeapp.config.CacheNames;
 
 import java.time.LocalDateTime;
 import com.burak.belediyeapp.dto.response.widget.HomeWidgetsResponse;
@@ -116,6 +118,7 @@ public class MunicipalityWidgetService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.WIDGETS, key = "'outages:' + #municipalityId")
     public List<MunicipalityOutageDto> listOutages(String municipalityId) {
         return outageRepository.findByMunicipalityIdAndActiveTrueOrderByStartsAtDesc(municipalityId).stream()
                 .map(o -> new MunicipalityOutageDto(
@@ -130,6 +133,7 @@ public class MunicipalityWidgetService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.WIDGETS, key = "'events:' + #municipalityId")
     public List<MunicipalityEventDto> listEvents(String municipalityId) {
         return eventRepository
                 .findByMunicipalityIdAndActiveTrueAndStartsAtAfterOrderByStartsAtAsc(

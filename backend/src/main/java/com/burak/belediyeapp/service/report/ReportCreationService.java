@@ -5,6 +5,7 @@ import com.burak.belediyeapp.dto.response.report.ReportResponse;
 import com.burak.belediyeapp.entity.*;
 import com.burak.belediyeapp.exception.BusinessException;
 import com.burak.belediyeapp.exception.ResourceNotFoundException;
+import com.burak.belediyeapp.config.CacheNames;
 import com.burak.belediyeapp.service.admin.MembershipStatusResolver;
 import com.burak.belediyeapp.mapper.IReportMapper;
 import com.burak.belediyeapp.repository.IReportCategoryRepository;
@@ -17,6 +18,7 @@ import com.burak.belediyeapp.service.media.MediaSignedUrlService;
 import com.burak.belediyeapp.tenant.TenantAccessService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
@@ -46,6 +48,7 @@ public class ReportCreationService {
 
     @Transactional
     @PreAuthorize("hasAuthority('ROLE_CITIZEN')")
+    @CacheEvict(value = CacheNames.DASHBOARD_STATS, allEntries = true)
     @com.burak.belediyeapp.audit.AuditAction(action = "REPORT_CREATE", description = "Yeni bir vatandaş raporu oluşturuldu")
     public ReportResponse createReport(CreateReportRequest request, AppUser reporter) {
         AppUser freshReporter = userRepository.findById(reporter.getId())
@@ -73,6 +76,7 @@ public class ReportCreationService {
         report.setCategory(category);
         report.setReporter(freshReporter);
         report.setContentLanguage(ContentLanguageDetector.detect(request.title(), request.description()));
+        report.setTrackingNumber(generateUniqueTrackingNumber());
 
         if (freshReporter.getMunicipality() != null && !tenantAccess.isCitizenOnly(freshReporter)) {
             report.setMunicipality(freshReporter.getMunicipality());
@@ -146,5 +150,22 @@ public class ReportCreationService {
 
         Report refreshed = reportSupport.findReportOrThrow(saved.getId());
         return reportSupport.finalizeResponse(refreshed, reportMapper.toResponse(refreshed), true);
+    }
+
+    private String generateUniqueTrackingNumber() {
+        java.time.LocalDate now = java.time.LocalDate.now();
+        String dateStr = now.format(java.time.format.DateTimeFormatter.ofPattern("yyMMdd"));
+        String alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        java.security.SecureRandom rng = new java.security.SecureRandom();
+        while (true) {
+            StringBuilder sb = new StringBuilder(4);
+            for (int i = 0; i < 4; i++) {
+                sb.append(alpha.charAt(rng.nextInt(alpha.length())));
+            }
+            String trackingNum = "KNT-" + dateStr + "-" + sb.toString();
+            if (!reportRepository.existsByTrackingNumber(trackingNum)) {
+                return trackingNum;
+            }
+        }
     }
 }

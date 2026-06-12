@@ -19,15 +19,19 @@ import com.burak.belediyeapp.service.ai.GeminiService;
 import com.burak.belediyeapp.service.ai.HeuristicReportAnalyzer;
 import com.burak.belediyeapp.service.citizen.CitizenReputationService;
 import com.burak.belediyeapp.service.integration.WebhookDispatchService;
+import com.burak.belediyeapp.service.media.MediaSignedUrlService;
 import com.burak.belediyeapp.service.notification.NotificationService;
 import com.burak.belediyeapp.tenant.TenantAccessService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.cache.annotation.CacheEvict;
+import com.burak.belediyeapp.config.CacheNames;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,6 +54,7 @@ public class ReportCommandService {
     private final HeuristicReportAnalyzer heuristicReportAnalyzer;
     private final WebhookDispatchService webhookDispatchService;
     private final CitizenReputationService citizenReputationService;
+    private final MediaSignedUrlService mediaSignedUrlService;
 
     /**
      * Spring proxy SELF-CALL'ları yakalamadığı için iç @Transactional metotlarını
@@ -59,8 +64,12 @@ public class ReportCommandService {
     @Lazy
     private ReportCommandService self;
 
+    @Autowired(required = false)
+    private SimpMessagingTemplate messagingTemplate;
+
     @Transactional
     @PreAuthorize("hasAnyAuthority('ROLE_FIELD_OFFICER', 'ROLE_DEPT_MANAGER', 'ROLE_ADMIN', 'ROLE_SUPER_ADMIN')")
+    @CacheEvict(value = CacheNames.DASHBOARD_STATS, allEntries = true)
     @com.burak.belediyeapp.audit.AuditAction(action = "REPORT_STATUS_UPDATE", description = "Rapor durumu güncellendi")
     public ReportResponse updateReportStatus(String reportId, UpdateReportStatusRequest request, AppUser currentUser) {
         Report report = reportSupport.findReportOrThrow(reportId);
@@ -95,6 +104,17 @@ public class ReportCommandService {
         ReportStatus oldStatus = report.getReportStatus();
         report.setReportStatus(request.status());
 
+        if (request.resolvedMediaUrls() != null && !request.resolvedMediaUrls().isEmpty()) {
+            List<ReportMedia> resolvedMedia = request.resolvedMediaUrls().stream()
+                    .map(url -> ReportMedia.builder()
+                            .imageUrl(mediaSignedUrlService.persistableStoragePath(url))
+                            .resolvedImage(true)
+                            .report(report)
+                            .build())
+                    .toList();
+            report.getMediaList().addAll(resolvedMedia);
+        }
+
         historyRepository.save(ReportHistory.builder()
                 .report(report)
                 .oldStatus(oldStatus)
@@ -114,6 +134,8 @@ public class ReportCommandService {
                     saved.getMunicipality(), saved, oldStatus, request.status(), request.note());
         }
 
+        pushWebSocketUpdate(saved);
+
         log.info("Rapor durumu güncellendi: {} — {} → {}", reportId, oldStatus, request.status());
         return reportSupport.finalizeResponse(saved, reportMapper.toResponse(saved));
     }
@@ -129,6 +151,7 @@ public class ReportCommandService {
     }
 
     @Transactional
+    @CacheEvict(value = CacheNames.DASHBOARD_STATS, allEntries = true)
     public void systemRejectReport(String reportId, String reason, boolean hide) {
         reportRepository.findById(reportId).ifPresent(report -> {
             if (report.getReportStatus() == ReportStatus.RESOLVED
@@ -156,6 +179,9 @@ public class ReportCommandService {
             } catch (Exception ex) {
                 log.warn("Sistem reddi bildirimi gönderilemedi: {}", ex.getMessage());
             }
+
+            pushWebSocketUpdate(report);
+
             log.warn("Rapor sistem tarafından reddedildi: {} — sebep: {}, gizlendi: {}", reportId, reason, hide);
         });
     }
@@ -174,6 +200,7 @@ public class ReportCommandService {
 
     @Transactional
     @PreAuthorize("hasAnyAuthority('ROLE_WHITE_DESK','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @CacheEvict(value = CacheNames.DASHBOARD_STATS, allEntries = true)
     @com.burak.belediyeapp.audit.AuditAction(action = "REPORT_FORWARD", description = "Rapor departmana yönlendirildi")
     public ReportResponse forwardReportToDepartment(
             String reportId, com.burak.belediyeapp.dto.request.report.ForwardReportRequest request, AppUser currentUser) {
@@ -212,11 +239,14 @@ public class ReportCommandService {
         Report saved = reportRepository.save(report);
         // notificationService.notifyReportForwarded(saved, dept);
         
+        pushWebSocketUpdate(saved);
+        
         return reportSupport.finalizeResponse(saved, reportMapper.toResponse(saved));
     }
 
     @Transactional
     @PreAuthorize("hasAnyAuthority('ROLE_WHITE_DESK','ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @CacheEvict(value = CacheNames.DASHBOARD_STATS, allEntries = true)
     public ReportResponse assignReport(String reportId, AssignReportRequest request, AppUser assignedBy) {
         Report report = reportSupport.findReportOrThrow(reportId);
         tenantAccess.ensureCanViewReport(report, assignedBy);
@@ -270,6 +300,8 @@ public class ReportCommandService {
             notificationService.notifyReportStatusChanged(saved);
         }
 
+        pushWebSocketUpdate(saved);
+
         log.info("Rapor atandı: {} → {}", reportId, assignee.getEmail());
         return reportSupport.finalizeResponse(saved, reportMapper.toResponse(saved));
     }
@@ -303,7 +335,7 @@ public class ReportCommandService {
         List<String> ids = ReportSupport.distinctIds(request.reportIds());
         List<BulkReportOperationResult.BulkReportFailure> failures = new ArrayList<>();
         int success = 0;
-        UpdateReportStatusRequest single = new UpdateReportStatusRequest(request.status(), request.note());
+        UpdateReportStatusRequest single = new UpdateReportStatusRequest(request.status(), request.note(), null);
         for (String reportId : ids) {
             try {
                 updateReportStatus(reportId, single, currentUser);
@@ -406,6 +438,17 @@ public class ReportCommandService {
             return rationale;
         }
         return summary + " — " + rationale;
+    }
+
+    private void pushWebSocketUpdate(Report report) {
+        if (messagingTemplate != null && report.getMunicipality() != null) {
+            try {
+                String topic = "/topic/municipality/" + report.getMunicipality().getId() + "/reports";
+                messagingTemplate.convertAndSend(topic, reportMapper.toResponse(report));
+            } catch (Exception e) {
+                log.warn("WebSocket status/assignment update push hatası: {}", e.getMessage());
+            }
+        }
     }
 
     private static String blankToNull(String s) {

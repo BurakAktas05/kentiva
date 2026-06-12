@@ -12,5 +12,6 @@ public record DashboardStatsResponse(
         long forwardedReports,
         long totalUsers,
         long totalDepartments,
-        long totalCategories
+        long totalCategories,
+        Double averageSatisfaction
 ) {}

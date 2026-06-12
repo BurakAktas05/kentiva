@@ -12,8 +12,10 @@ import com.burak.belediyeapp.exception.BusinessException;
 import com.burak.belediyeapp.exception.ResourceNotFoundException;
 import com.burak.belediyeapp.integration.ApiKeyHasher;
 import com.burak.belediyeapp.integration.ApiKeyScope;
+import com.burak.belediyeapp.entity.WebhookDeliveryLog;
 import com.burak.belediyeapp.repository.IMunicipalityApiKeyRepository;
 import com.burak.belediyeapp.repository.IMunicipalityRepository;
+import com.burak.belediyeapp.repository.IWebhookDeliveryLogRepository;
 import com.burak.belediyeapp.tenant.TenantAccessService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +34,13 @@ public class MunicipalityApiKeyService {
     private final IMunicipalityApiKeyRepository apiKeyRepository;
     private final IMunicipalityRepository municipalityRepository;
     private final TenantAccessService tenantAccess;
+    private final IWebhookDeliveryLogRepository webhookDeliveryLogRepository;
+
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<WebhookDeliveryLog> getWebhookLogs(AppUser admin, org.springframework.data.domain.Pageable pageable) {
+        String municipalityId = tenantAccess.requireStaffMunicipalityId(admin);
+        return webhookDeliveryLogRepository.findByMunicipalityId(municipalityId, pageable);
+    }
 
     @Transactional(readOnly = true)
     public List<ApiKeyListItemResponse> listKeys(AppUser admin) {

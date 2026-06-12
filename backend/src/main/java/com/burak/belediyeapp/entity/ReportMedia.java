@@ -18,6 +18,10 @@ public class ReportMedia extends BaseEntity{
     @Column // Opsiyonel: Dosyayı silerken lazım olur
     private String publicId;
 
+    @Column(name = "resolved_image", nullable = false)
+    @Builder.Default
+    private boolean resolvedImage = false;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "report_id",nullable = false)
     private Report report;

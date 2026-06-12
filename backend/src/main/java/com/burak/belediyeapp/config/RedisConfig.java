@@ -64,7 +64,10 @@ public class RedisConfig {
                 CacheNames.CATEGORIES, base.entryTtl(Duration.ofMinutes(30)),
                 CacheNames.PUBLIC_MUNICIPALITIES, base.entryTtl(Duration.ofHours(2)),
                 CacheNames.MUNICIPALITIES, base.entryTtl(Duration.ofMinutes(15)),
-                CacheNames.DUTY_PHARMACY, base.entryTtl(Duration.ofHours(6)));
+                CacheNames.DUTY_PHARMACY, base.entryTtl(Duration.ofHours(6)),
+                CacheNames.DASHBOARD_STATS, base.entryTtl(Duration.ofMinutes(5)),
+                CacheNames.DEPARTMENTS, base.entryTtl(Duration.ofMinutes(30)),
+                CacheNames.WIDGETS, base.entryTtl(Duration.ofMinutes(15)));
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(base)

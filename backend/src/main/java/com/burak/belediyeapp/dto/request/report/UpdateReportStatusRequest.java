@@ -9,5 +9,7 @@ public record UpdateReportStatusRequest(
         ReportStatus status,
 
         @Size(max = 500, message = "Açıklama en fazla 500 karakter olabilir")
-        String note
+        String note,
+
+        java.util.List<String> resolvedMediaUrls
 ) {}

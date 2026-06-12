@@ -7,6 +7,7 @@ import com.burak.belediyeapp.dto.response.integration.ApiKeyCreatedResponse;
 import com.burak.belediyeapp.dto.response.integration.ApiKeyListItemResponse;
 import com.burak.belediyeapp.dto.response.integration.WebhookSettingsResponse;
 import com.burak.belediyeapp.entity.AppUser;
+import com.burak.belediyeapp.entity.WebhookDeliveryLog;
 import com.burak.belediyeapp.service.integration.MunicipalityApiKeyService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -72,5 +73,14 @@ public class MunicipalityApiKeyController {
             @AuthenticationPrincipal AppUser user,
             @Valid @RequestBody WebhookSettingsRequest request) {
         return ResponseEntity.ok(ApiResponse.success(apiKeyService.updateWebhookSettings(user, request)));
+    }
+
+    @GetMapping("/integration/webhook/logs")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Giden webhook gönderim loglarını listele")
+    public ResponseEntity<ApiResponse<org.springframework.data.domain.Page<WebhookDeliveryLog>>> getWebhookLogs(
+            @AuthenticationPrincipal AppUser user,
+            @org.springframework.data.web.PageableDefault(size = 20, sort = "createdAt,desc") org.springframework.data.domain.Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.success(apiKeyService.getWebhookLogs(user, pageable)));
     }
 }

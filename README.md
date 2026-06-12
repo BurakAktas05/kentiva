@@ -83,6 +83,11 @@ docker compose --env-file .env.docker up --build
    npm run dev
    ```
 
+### 📚 API Dokümantasyonu (Swagger UI)
+Yerel ortamda backend ayağa kalktıktan sonra, tüm API uç noktalarını incelemek ve canlı test etmek için aşağıdaki adresleri kullanabilirsiniz:
+- **Swagger UI:** [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
+- **OpenAPI JSON Spec:** [http://localhost:8080/v3/api-docs](http://localhost:8080/v3/api-docs)
+
 ---
 
 ## 📂 Yardımcı Belgeler ve Kaynaklar

@@ -4,18 +4,24 @@ import com.burak.belediyeapp.dto.response.integration.ReportStatusWebhookPayload
 import com.burak.belediyeapp.entity.Municipality;
 import com.burak.belediyeapp.entity.Report;
 import com.burak.belediyeapp.entity.ReportStatus;
+import com.burak.belediyeapp.entity.WebhookDeliveryLog;
+import com.burak.belediyeapp.repository.IWebhookDeliveryLogRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +30,7 @@ public class WebhookDispatchService {
 
     private final ObjectMapper objectMapper;
     private final MisIntegrationService misIntegrationService;
+    private final IWebhookDeliveryLogRepository webhookDeliveryLogRepository;
     private final RestClient http = RestClient.builder().build();
 
     public void dispatchReportStatusChanged(
@@ -57,7 +64,8 @@ public class WebhookDispatchService {
     }
 
     @Async
-    void dispatchAsync(WebhookDispatchContext ctx) {
+    @Transactional
+    public void dispatchAsync(WebhookDispatchContext ctx) {
         ReportStatusWebhookPayload payload = new ReportStatusWebhookPayload(
                 ctx.event(),
                 LocalDateTime.now(),
@@ -73,25 +81,89 @@ public class WebhookDispatchService {
                 ctx.note()
         );
 
+        String payloadStr;
+        byte[] body;
         try {
-            byte[] body = objectMapper.writeValueAsBytes(payload);
-            var spec = http.post()
-                    .uri(ctx.webhookUrl())
-                    .header("Content-Type", "application/json")
-                    .header("X-BelediyeApp-Event", payload.event())
-                    .body(body);
+            payloadStr = objectMapper.writeValueAsString(payload);
+            body = payloadStr.getBytes(StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            log.error("Webhook payload serileştirme hatası", e);
+            return;
+        }
 
-            String secret = ctx.webhookSecret();
-            if (secret != null && !secret.isBlank()) {
-                spec = spec.header("X-BelediyeApp-Signature", "sha256=" + hmacSha256Hex(secret, body));
+        String signature = null;
+        String secret = ctx.webhookSecret();
+        if (secret != null && !secret.isBlank()) {
+            signature = "sha256=" + hmacSha256Hex(secret, body);
+        }
+
+        WebhookDeliveryLog logEntry = WebhookDeliveryLog.builder()
+                .municipalityId(ctx.municipalityId())
+                .webhookUrl(ctx.webhookUrl())
+                .event(ctx.event())
+                .payload(payloadStr)
+                .signature(signature)
+                .status("PENDING")
+                .retryCount(0)
+                .build();
+
+        logEntry = webhookDeliveryLogRepository.save(logEntry);
+        attemptDelivery(logEntry, body);
+        webhookDeliveryLogRepository.save(logEntry);
+    }
+
+    private void attemptDelivery(WebhookDeliveryLog logEntry, byte[] body) {
+        try {
+            var spec = http.post()
+                    .uri(logEntry.getWebhookUrl())
+                    .header("Content-Type", "application/json")
+                    .header("X-BelediyeApp-Event", logEntry.getEvent());
+
+            if (logEntry.getSignature() != null) {
+                spec = spec.header("X-BelediyeApp-Signature", logEntry.getSignature());
             }
 
-            spec.retrieve().toBodilessEntity();
-            log.info("Webhook gönderildi: event={}, belediye={}, rapor={}",
-                    ctx.event(), ctx.municipalityId(), ctx.reportId());
+            var responseEntity = spec.body(body).retrieve().toBodilessEntity();
+            logEntry.setStatus("SUCCESS");
+            logEntry.setStatusCode(responseEntity.getStatusCode().value());
+            logEntry.setErrorMessage(null);
+            logEntry.setNextAttemptAt(null);
+        } catch (RestClientResponseException e) {
+            logEntry.setStatusCode(e.getStatusCode().value());
+            logEntry.setErrorMessage(e.getResponseBodyAsString());
+            handleFailure(logEntry);
         } catch (Exception e) {
-            log.warn("Webhook gönderilemedi: event={}, belediye={}, rapor={}, hata={}",
-                    ctx.event(), ctx.municipalityId(), ctx.reportId(), e.getMessage());
+            logEntry.setStatusCode(null);
+            logEntry.setErrorMessage(e.getMessage());
+            handleFailure(logEntry);
+        }
+    }
+
+    private void handleFailure(WebhookDeliveryLog logEntry) {
+        logEntry.setRetryCount(logEntry.getRetryCount() + 1);
+        if (logEntry.getRetryCount() >= 5) {
+            logEntry.setStatus("FAILED");
+            logEntry.setNextAttemptAt(null);
+            log.warn("Webhook gönderimi nihai olarak başarısız oldu (max retry): logId={}", logEntry.getId());
+        } else {
+            int backoffMinutes = 5 * (int) Math.pow(2, logEntry.getRetryCount() - 1);
+            logEntry.setNextAttemptAt(LocalDateTime.now().plusMinutes(backoffMinutes));
+            logEntry.setStatus("FAILED"); // listed as failed but pending retry
+            log.info("Webhook gönderimi başarısız, {} dakika sonra tekrar denenecek: logId={}", backoffMinutes, logEntry.getId());
+        }
+    }
+
+    @Scheduled(fixedRate = 60000) // Her dakika başarısızları tara
+    @Transactional
+    public void retryFailedWebhooks() {
+        List<WebhookDeliveryLog> pendingRetries = webhookDeliveryLogRepository
+                .findByStatusAndNextAttemptAtBeforeAndRetryCountLessThan(
+                        "FAILED", LocalDateTime.now(), 5);
+
+        for (WebhookDeliveryLog logEntry : pendingRetries) {
+            byte[] body = logEntry.getPayload().getBytes(StandardCharsets.UTF_8);
+            attemptDelivery(logEntry, body);
+            webhookDeliveryLogRepository.save(logEntry);
         }
     }
 

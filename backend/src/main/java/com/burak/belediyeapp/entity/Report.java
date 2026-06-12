@@ -4,6 +4,10 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.locationtech.jts.geom.Point;
 
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.Where;
+import org.hibernate.annotations.BatchSize;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -18,6 +22,8 @@ import java.util.List;
 @Setter
 @Entity
 @Table(name = "reports")
+@SQLDelete(sql = "UPDATE reports SET deleted = true WHERE id = ?")
+@Where(clause = "deleted = false")
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -46,6 +52,7 @@ public class Report extends BaseEntity implements TenantAware {
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", nullable = false)
+    @BatchSize(size = 25)
     private ReportCategory category;
 
     /**
@@ -53,6 +60,7 @@ public class Report extends BaseEntity implements TenantAware {
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reporter_id", nullable = false)
+    @BatchSize(size = 25)
     private AppUser reporter;
 
     /**
@@ -60,6 +68,7 @@ public class Report extends BaseEntity implements TenantAware {
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assignee_id")
+    @BatchSize(size = 25)
     private AppUser assignee;
 
     /**
@@ -113,6 +122,7 @@ public class Report extends BaseEntity implements TenantAware {
     /** Beyaz Masa tarafından yönlendirilen departman (DEPARTMENTAL modda) */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "forwarded_department_id")
+    @BatchSize(size = 25)
     private Department forwardedDepartment;
 
     /** Yönlendirme zamanı */
@@ -122,6 +132,7 @@ public class Report extends BaseEntity implements TenantAware {
     /** Yönlendiren kullanıcı */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "forwarded_by_id")
+    @BatchSize(size = 25)
     private AppUser forwardedBy;
 
     /** KVKK açık rıza onayı */
@@ -135,6 +146,13 @@ public class Report extends BaseEntity implements TenantAware {
     @Column(name = "kvkk_signature", length = 512)
     private String kvkkSignature;
 
+    @Column(name = "tracking_number", unique = true, length = 50)
+    private String trackingNumber;
+
+    @Column(name = "sla_breached", nullable = false)
+    @Builder.Default
+    private boolean slaBreached = false;
+
     /**
      * Durum değişikliği geçmişi — auditability için.
      */
@@ -145,4 +163,8 @@ public class Report extends BaseEntity implements TenantAware {
     @Column(name = "hidden_from_municipality", nullable = false)
     @Builder.Default
     private boolean hiddenFromMunicipality = false;
+
+    @Column(name = "deleted", nullable = false)
+    @Builder.Default
+    private boolean deleted = false;
 }

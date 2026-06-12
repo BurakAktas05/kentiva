@@ -16,6 +16,7 @@ public record ReportResponse(
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
         List<String> mediaUrls,
+        List<String> resolvedMediaUrls,
         String district,
         String aiPriority,
         String aiSummary,
@@ -28,5 +29,7 @@ public record ReportResponse(
         String forwardedDepartmentId,
         String forwardedDepartmentName,
         LocalDateTime forwardedAt,
-        String forwardedByName
+        String forwardedByName,
+        String trackingNumber,
+        String qrCodeBase64
 ) {}

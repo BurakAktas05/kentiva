@@ -6,6 +6,9 @@ public final class CacheNames {
     public static final String PUBLIC_MUNICIPALITIES = "publicMunicipalities";
     public static final String MUNICIPALITIES = "municipalities";
     public static final String DUTY_PHARMACY = "dutyPharmacy";
+    public static final String DASHBOARD_STATS = "dashboardStats";
+    public static final String DEPARTMENTS = "departments";
+    public static final String WIDGETS = "widgets";
 
     private CacheNames() {
     }

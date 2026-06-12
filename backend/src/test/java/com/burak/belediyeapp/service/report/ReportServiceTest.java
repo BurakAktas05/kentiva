@@ -58,6 +58,7 @@ class ReportServiceTest {
     @Mock ReportDuplicateLinkService duplicateLinkService;
     @Mock CitizenReputationService citizenReputationService;
     @Mock KvkkConsentSigningService kvkkConsentSigningService;
+    @Mock QrCodeService qrCodeService;
 
     private TenantAccessService tenantAccess;
     private ReportSupport reportSupport;
@@ -73,7 +74,8 @@ class ReportServiceTest {
                 municipalityRepository,
                 districtResolutionService,
                 mediaSignedUrlService,
-                duplicateLinkService);
+                duplicateLinkService,
+                qrCodeService);
         creationService = new ReportCreationService(
                 reportRepository,
                 categoryRepository,
@@ -110,7 +112,8 @@ class ReportServiceTest {
                 geminiService,
                 heuristicReportAnalyzer,
                 webhookDispatchService,
-                citizenReputationService);
+                citizenReputationService,
+                mediaSignedUrlService);
         // @Lazy self-injection — testte aynı instance ile değiştir.
         try {
             java.lang.reflect.Field selfField = ReportCommandService.class.getDeclaredField("self");
@@ -162,8 +165,8 @@ class ReportServiceTest {
         });
         when(reportMapper.toResponse(any())).thenReturn(new ReportResponse(
                 "report-new", request.title(), request.description(), "PENDING", "Yol", "Vatandaş", null,
-                41.25, 32.69, null, null, List.of(), "Safranbolu Belediyesi",
-                null, null, null, null, null, null, null, null, null, null, null, null));
+                41.25, 32.69, null, null, List.of(), List.of(), "Safranbolu Belediyesi",
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null));
 
         creationService.createReport(request, citizen);
 
@@ -286,11 +289,11 @@ class ReportServiceTest {
     void statusUpdatePersistsHistoryAndNotifiesReporterWhenInScope() {
         Report report = report("report-1", "municipality-a", ReportStatus.PENDING);
         AppUser admin = user("admin-1", "ROLE_ADMIN", "municipality-a");
-        UpdateReportStatusRequest request = new UpdateReportStatusRequest(ReportStatus.PROCESSING, "Saha ekibine alındı");
+        UpdateReportStatusRequest request = new UpdateReportStatusRequest(ReportStatus.PROCESSING, "Saha ekibine alındı", null);
         ReportResponse response = new ReportResponse(
                 "report-1", "Başlık", "Açıklama", "PROCESSING", "Kategori", "Muhabir", null,
-                41.0, 29.0, null, null, List.of(), "İlçe",
-                null, null, null, null, null, null, null, null, null, null, null, null);
+                41.0, 29.0, null, null, List.of(), List.of(), "İlçe",
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null);
 
         when(reportRepository.findById("report-1")).thenReturn(Optional.of(report));
         when(reportRepository.save(report)).thenReturn(report);
@@ -317,8 +320,8 @@ class ReportServiceTest {
         when(reportRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(reportMapper.toResponse(any())).thenReturn(new ReportResponse(
                 "r1", "Başlık", "Açıklama", "PROCESSING", "Kategori", "Muhabir", "Görevli",
-                41.0, 29.0, null, null, List.of(), "İlçe",
-                null, null, null, null, null, null, null, null, null, null, null, null));
+                41.0, 29.0, null, null, List.of(), List.of(), "İlçe",
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null));
 
         BulkReportOperationResult result = commandService.bulkAssignReports(
                 new BulkAssignReportsRequest(List.of("r1", "r2"), "officer-1"), manager);

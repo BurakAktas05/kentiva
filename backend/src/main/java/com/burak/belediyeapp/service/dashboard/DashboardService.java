@@ -4,8 +4,10 @@ import com.burak.belediyeapp.dto.response.dashboard.DashboardStatsResponse;
 import com.burak.belediyeapp.entity.AppUser;
 import com.burak.belediyeapp.entity.ReportStatus;
 import com.burak.belediyeapp.repository.*;
+import com.burak.belediyeapp.config.CacheNames;
 import com.burak.belediyeapp.tenant.TenantAccessService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,8 +20,10 @@ public class DashboardService {
     private final IDepartmentRepository departmentRepository;
     private final IReportCategoryRepository categoryRepository;
     private final TenantAccessService tenantAccess;
+    private final IReportFeedbackRepository feedbackRepository;
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.DASHBOARD_STATS, key = "#user.hasRole('SUPER_ADMIN') ? 'super-admin' : (#user.municipality != null ? #user.municipality.id : 'none')")
     public DashboardStatsResponse getStats(AppUser user) {
         if (tenantAccess.isSuperAdmin(user)) {
             return new DashboardStatsResponse(
@@ -31,7 +35,8 @@ public class DashboardService {
                     reportRepository.countByReportStatus(ReportStatus.FORWARDED),
                     userRepository.count(),
                     departmentRepository.count(),
-                    categoryRepository.count());
+                    categoryRepository.count(),
+                    feedbackRepository.getGlobalAverageRating());
         }
 
         String municipalityId = tenantAccess.requireStaffMunicipalityId(user);
@@ -49,6 +54,7 @@ public class DashboardService {
                 reportRepository.countByMunicipalityIdAndReportStatusAndHiddenFromMunicipalityFalse(municipalityId, ReportStatus.FORWARDED),
                 userRepository.countByMunicipalityId(municipalityId),
                 departmentRepository.countByMunicipalityId(municipalityId),
-                categoryCount);
+                categoryCount,
+                feedbackRepository.getAverageRatingForMunicipality(municipalityId));
     }
 }

@@ -16,6 +16,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.time.Duration;
@@ -30,9 +31,9 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
     private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
 
-    private Bucket createNewBucket(int perMinute) {
+    private Bucket createNewBucket(int limit, int windowSeconds) {
         return Bucket4j.builder()
-                .addLimit(Bandwidth.classic(perMinute, Refill.intervally(perMinute, Duration.ofMinutes(1))))
+                .addLimit(Bandwidth.classic(limit, Refill.intervally(limit, Duration.ofSeconds(windowSeconds))))
                 .build();
     }
 
@@ -80,13 +81,33 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         }
 
         String rateKey = resolveRateLimitKey(request);
-        String keyType = rateKey.split(":", 2)[0];
+        Bucket bucket;
 
+        // Endpoint bazlı RateLimit kontrolü
+        if (handler instanceof HandlerMethod handlerMethod) {
+            RateLimit rateLimit = handlerMethod.getMethodAnnotation(RateLimit.class);
+            if (rateLimit == null) {
+                rateLimit = handlerMethod.getBeanType().getAnnotation(RateLimit.class);
+            }
+            if (rateLimit != null) {
+                int limit = rateLimit.requests();
+                int window = rateLimit.window();
+                String methodKey = rateKey + ":" + handlerMethod.getBeanType().getSimpleName() + "." + handlerMethod.getMethod().getName();
+                bucket = buckets.computeIfAbsent(methodKey, k -> createNewBucket(limit, window));
+                return tryConsumeOrReject(bucket, response);
+            }
+        }
+
+        // Global / Abonelik planı bazlı limit
+        String keyType = rateKey.split(":", 2)[0];
         SubscriptionPlan plan = resolveSubscriptionPlan(auth);
         int perMinute = computeRateLimit(plan, keyType);
 
-        Bucket bucket = buckets.computeIfAbsent(rateKey, k -> createNewBucket(perMinute));
+        bucket = buckets.computeIfAbsent(rateKey, k -> createNewBucket(perMinute, 60));
+        return tryConsumeOrReject(bucket, response);
+    }
 
+    private boolean tryConsumeOrReject(Bucket bucket, HttpServletResponse response) throws Exception {
         if (bucket.tryConsume(1)) {
             return true;
         } else {

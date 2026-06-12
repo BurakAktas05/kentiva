@@ -1,0 +1,119 @@
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import Home from './Home';
+import * as api from '../../api';
+import '@testing-library/jest-dom';
+
+vi.mock('../../api', () => ({
+  getMyReports: vi.fn(),
+  getMyProfile: vi.fn(),
+  getPublicAnnouncements: vi.fn(),
+}));
+
+vi.mock('../home/HomeWidgets', () => ({
+  WeatherWidgetCard: () => <div data-testid="weather-widget">Weather</div>
+}));
+
+vi.mock('../home/AnnouncementCarousel', () => ({
+  default: () => <div data-testid="announcement-carousel">Carousel</div>
+}));
+
+vi.mock('./Surveys', () => ({
+  default: () => <div data-testid="surveys-section">Surveys</div>
+}));
+
+describe('Home Screen Component', () => {
+  const mockProfile = {
+    id: 'user-1',
+    firstName: 'Burak',
+    lastName: 'Aktas',
+  };
+
+  const mockReportsResponse = {
+    content: [
+      { id: 'rep-1', title: 'Su Patlagi' },
+    ],
+    totalElements: 1,
+  };
+
+  const mockAnnouncements = [
+    { id: 'ann-1', title: 'Yol Calismasi', content: 'Kadikoyde yol calismasi var' },
+  ];
+
+  const mockMunicipality = {
+    id: 'muni-123',
+    displayName: 'Kadikoy Belediyesi',
+    onboarded: true,
+  } as any;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders guest welcome when profile loading fails', async () => {
+    vi.mocked(api.getMyReports).mockResolvedValueOnce({ content: [], totalElements: 0 });
+    vi.mocked(api.getMyProfile).mockRejectedValueOnce(new Error('Auth error'));
+
+    render(
+      <Home
+        onViewMyReports={vi.fn()}
+        onOpenAnnouncement={vi.fn()}
+        lang="tr"
+        isDark={false}
+        homeMunicipality={null}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Değerli hemşehrimiz')).toBeInTheDocument();
+    });
+  });
+
+  it('loads and displays user profile and reports preview', async () => {
+    vi.mocked(api.getMyReports).mockResolvedValueOnce(mockReportsResponse);
+    vi.mocked(api.getMyProfile).mockResolvedValueOnce(mockProfile);
+    vi.mocked(api.getPublicAnnouncements).mockResolvedValueOnce(mockAnnouncements);
+
+    render(
+      <Home
+        onViewMyReports={vi.fn()}
+        onOpenAnnouncement={vi.fn()}
+        lang="tr"
+        isDark={false}
+        homeMunicipality={mockMunicipality}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Burak Aktas')).toBeInTheDocument();
+      expect(screen.getByText('Su Patlagi')).toBeInTheDocument();
+    });
+  });
+
+  it('handles clicking view my reports button', async () => {
+    vi.mocked(api.getMyReports).mockResolvedValueOnce(mockReportsResponse);
+    vi.mocked(api.getMyProfile).mockResolvedValueOnce(mockProfile);
+    vi.mocked(api.getPublicAnnouncements).mockResolvedValueOnce(mockAnnouncements);
+
+    const onViewReportsMock = vi.fn();
+
+    render(
+      <Home
+        onViewMyReports={onViewReportsMock}
+        onOpenAnnouncement={vi.fn()}
+        lang="tr"
+        isDark={false}
+        homeMunicipality={mockMunicipality}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Burak Aktas')).toBeInTheDocument();
+    });
+
+    const cardButton = screen.getByRole('button', { name: /Son başvurularım/i });
+    fireEvent.click(cardButton);
+
+    expect(onViewReportsMock).toHaveBeenCalled();
+  });
+});

@@ -96,6 +96,7 @@ export interface Stats {
   totalUsers: number;
   totalDepartments: number;
   totalCategories: number;
+  averageSatisfaction?: number | null;
 }
 
 export interface Report {
@@ -111,6 +112,7 @@ export interface Report {
   latitude: number;
   longitude: number;
   mediaUrls?: string[];
+  resolvedMediaUrls?: string[];
   aiPriority?: string | null;
   aiSummary?: string | null;
   aiSuggestedCategory?: string | null;
@@ -123,6 +125,9 @@ export interface Report {
   forwardedDepartmentName?: string | null;
   forwardedAt?: string | null;
   forwardedByName?: string | null;
+  trackingNumber?: string | null;
+  qrCodeBase64?: string | null;
+  slaBreached?: boolean | null;
 }
 
 export interface ReportTimelineEntry {

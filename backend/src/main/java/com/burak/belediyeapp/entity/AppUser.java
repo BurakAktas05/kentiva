@@ -175,6 +175,7 @@ public class AppUser extends BaseEntity implements UserDetails, TenantAware {
     }
 
     public boolean hasRole(String roleName) {
-        return roles.stream().anyMatch(r -> r.getName().equals(roleName));
+        String target = roleName.startsWith("ROLE_") ? roleName : "ROLE_" + roleName;
+        return roles.stream().anyMatch(r -> r.getName().equals(target));
     }
 }

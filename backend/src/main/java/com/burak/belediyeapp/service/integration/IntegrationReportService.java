@@ -58,7 +58,8 @@ public class IntegrationReportService {
     }
 
     private ReportResponse withSignedMedia(ReportResponse response) {
-        if (response.mediaUrls() == null || response.mediaUrls().isEmpty()) {
+        if ((response.mediaUrls() == null || response.mediaUrls().isEmpty()) &&
+            (response.resolvedMediaUrls() == null || response.resolvedMediaUrls().isEmpty())) {
             return response;
         }
         return new ReportResponse(
@@ -74,6 +75,7 @@ public class IntegrationReportService {
                 response.createdAt(),
                 response.updatedAt(),
                 mediaSignedUrlService.signAll(response.mediaUrls()),
+                mediaSignedUrlService.signAll(response.resolvedMediaUrls()),
                 response.district(),
                 response.aiPriority(),
                 response.aiSummary(),
@@ -86,7 +88,9 @@ public class IntegrationReportService {
                 response.forwardedDepartmentId(),
                 response.forwardedDepartmentName(),
                 response.forwardedAt(),
-                response.forwardedByName()
+                response.forwardedByName(),
+                response.trackingNumber(),
+                response.qrCodeBase64()
         );
     }
 }

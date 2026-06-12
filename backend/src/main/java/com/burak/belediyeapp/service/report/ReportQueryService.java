@@ -136,6 +136,7 @@ public class ReportQueryService {
                 response.createdAt(),
                 response.updatedAt(),
                 response.mediaUrls(),
+                response.resolvedMediaUrls(),
                 response.district(),
                 response.aiPriority(),
                 response.aiSummary(),
@@ -148,7 +149,9 @@ public class ReportQueryService {
                 response.forwardedDepartmentId(),
                 response.forwardedDepartmentName(),
                 response.forwardedAt(),
-                response.forwardedByName()
+                response.forwardedByName(),
+                response.trackingNumber(),
+                response.qrCodeBase64()
         );
     }
 

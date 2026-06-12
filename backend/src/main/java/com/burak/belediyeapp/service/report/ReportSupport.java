@@ -31,6 +31,7 @@ public class ReportSupport {
     private final DistrictResolutionService districtResolutionService;
     private final MediaSignedUrlService mediaSignedUrlService;
     private final ReportDuplicateLinkService duplicateLinkService;
+    private final QrCodeService qrCodeService;
 
     public Report findReportOrThrow(String reportId) {
         return reportRepository.findById(reportId)
@@ -113,6 +114,7 @@ public class ReportSupport {
                 response.createdAt(),
                 response.updatedAt(),
                 response.mediaUrls(),
+                response.resolvedMediaUrls(),
                 response.district(),
                 response.aiPriority(),
                 response.aiSummary(),
@@ -125,7 +127,9 @@ public class ReportSupport {
                 response.forwardedDepartmentId(),
                 response.forwardedDepartmentName(),
                 response.forwardedAt(),
-                null);
+                null,
+                response.trackingNumber(),
+                response.qrCodeBase64());
     }
 
     public ReportListResponse finalizeListResponse(Report report, ReportListResponse mapped) {
@@ -167,7 +171,8 @@ public class ReportSupport {
     }
 
     public ReportResponse withSignedMedia(ReportResponse response) {
-        if (response.mediaUrls() == null || response.mediaUrls().isEmpty()) {
+        if ((response.mediaUrls() == null || response.mediaUrls().isEmpty()) &&
+            (response.resolvedMediaUrls() == null || response.resolvedMediaUrls().isEmpty())) {
             return response;
         }
         return new ReportResponse(
@@ -183,6 +188,7 @@ public class ReportSupport {
                 response.createdAt(),
                 response.updatedAt(),
                 mediaSignedUrlService.signAll(response.mediaUrls()),
+                mediaSignedUrlService.signAll(response.resolvedMediaUrls()),
                 response.district(),
                 response.aiPriority(),
                 response.aiSummary(),
@@ -195,7 +201,9 @@ public class ReportSupport {
                 response.forwardedDepartmentId(),
                 response.forwardedDepartmentName(),
                 response.forwardedAt(),
-                response.forwardedByName());
+                response.forwardedByName(),
+                response.trackingNumber(),
+                response.qrCodeBase64());
     }
 
     private ReportResponse withDuplicateMeta(ReportResponse response, Report report) {
@@ -214,6 +222,7 @@ public class ReportSupport {
                 response.createdAt(),
                 response.updatedAt(),
                 response.mediaUrls(),
+                response.resolvedMediaUrls(),
                 response.district(),
                 response.aiPriority(),
                 response.aiSummary(),
@@ -226,7 +235,9 @@ public class ReportSupport {
                 response.forwardedDepartmentId(),
                 response.forwardedDepartmentName(),
                 response.forwardedAt(),
-                response.forwardedByName());
+                response.forwardedByName(),
+                report.getTrackingNumber(),
+                qrCodeService.generateQrCodeBase64(report.getTrackingNumber()));
     }
 
     private ReportListResponse withDuplicateMeta(ReportListResponse response, Report report) {

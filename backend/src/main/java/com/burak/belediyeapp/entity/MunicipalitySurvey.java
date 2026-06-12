@@ -3,8 +3,13 @@ package com.burak.belediyeapp.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.Where;
+
 @Entity
 @Table(name = "municipality_surveys")
+@SQLDelete(sql = "UPDATE municipality_surveys SET deleted = true WHERE id = ?")
+@Where(clause = "deleted = false")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -41,4 +46,8 @@ public class MunicipalitySurvey extends BaseEntity implements TenantAware {
     @Builder.Default
     @Column(nullable = false)
     private boolean active = true;
+
+    @Column(name = "deleted", nullable = false)
+    @Builder.Default
+    private boolean deleted = false;
 }

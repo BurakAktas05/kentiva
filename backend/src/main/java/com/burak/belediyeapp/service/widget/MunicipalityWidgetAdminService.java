@@ -16,6 +16,8 @@ import com.burak.belediyeapp.service.notification.OutageNotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.cache.annotation.CacheEvict;
+import com.burak.belediyeapp.config.CacheNames;
 
 import java.util.List;
 
@@ -50,6 +52,7 @@ public class MunicipalityWidgetAdminService {
     }
 
     @Transactional
+    @CacheEvict(value = CacheNames.WIDGETS, allEntries = true)
     public MunicipalityOutageDto createOutage(AppUser user, MunicipalityOutageRequest request) {
         Municipality m = requireMunicipality(user);
         MunicipalityOutage o = MunicipalityOutage.builder()
@@ -71,6 +74,7 @@ public class MunicipalityWidgetAdminService {
     }
 
     @Transactional
+    @CacheEvict(value = CacheNames.WIDGETS, allEntries = true)
     public MunicipalityOutageDto updateOutage(AppUser user, String id, MunicipalityOutageRequest request) {
         MunicipalityOutage o = loadOutage(user, id);
         boolean wasActive = o.isActive();
@@ -92,6 +96,7 @@ public class MunicipalityWidgetAdminService {
     }
 
     @Transactional
+    @CacheEvict(value = CacheNames.WIDGETS, allEntries = true)
     public void deleteOutage(AppUser user, String id) {
         outageRepository.delete(loadOutage(user, id));
     }
@@ -112,6 +117,7 @@ public class MunicipalityWidgetAdminService {
     }
 
     @Transactional
+    @CacheEvict(value = CacheNames.WIDGETS, allEntries = true)
     public MunicipalityEventDto createEvent(AppUser user, MunicipalityEventRequest request) {
         Municipality m = requireMunicipality(user);
         MunicipalityEvent e = MunicipalityEvent.builder()
@@ -128,6 +134,7 @@ public class MunicipalityWidgetAdminService {
     }
 
     @Transactional
+    @CacheEvict(value = CacheNames.WIDGETS, allEntries = true)
     public MunicipalityEventDto updateEvent(AppUser user, String id, MunicipalityEventRequest request) {
         MunicipalityEvent e = loadEvent(user, id);
         e.setTitle(request.title());
@@ -143,6 +150,7 @@ public class MunicipalityWidgetAdminService {
     }
 
     @Transactional
+    @CacheEvict(value = CacheNames.WIDGETS, allEntries = true)
     public void deleteEvent(AppUser user, String id) {
         eventRepository.delete(loadEvent(user, id));
     }

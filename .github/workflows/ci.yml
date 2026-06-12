@@ -1,0 +1,58 @@
+name: Kentiva CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  backend-test:
+    name: Backend Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+      - name: Build and Test Backend
+        run: |
+          cd backend
+          chmod +x mvnw
+          ./mvnw clean test
+
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            admin-portal/package-lock.json
+            belediyehattı/package-lock.json
+            public-site/package-lock.json
+
+      - name: Build Admin Portal
+        run: |
+          cd admin-portal
+          npm ci
+          npm run build
+
+      - name: Build Citizen App
+        run: |
+          cd belediyehattı
+          npm ci
+          npm run build
+
+      - name: Build Public Site
+        run: |
+          cd public-site
+          npm ci
+          npm run build

@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api, { clearAuthStorage, type PredictiveInsight, type Stats } from './api';
+import { LanguageProvider, useTranslation, type Language } from './context/LanguageContext';
 import { downloadBlobResponse } from './lib/downloadExport';
 import DashboardLoadingSkeleton from './components/DashboardLoadingSkeleton';
 import { reportStatusBadgeClass } from './lib/ui';
@@ -109,6 +110,7 @@ const Sidebar = ({
 }) => {
   const location = useLocation();
   const { newCount: liveNewReports } = useReportLive();
+  const { t } = useTranslation();
 
   type MenuItem = { name: string; icon: typeof LayoutDashboard; path: string };
   type MenuGroup = { title: string; items: MenuItem[] };
@@ -116,60 +118,60 @@ const Sidebar = ({
   const menuGroups: MenuGroup[] = isPlatformSuperAdmin(user)
     ? [
         {
-          title: 'Platform Yönetimi',
+          title: t('platform_management'),
           items: [
-            { name: 'Platform', icon: LayoutDashboard, path: '/' },
-            { name: 'Kurulum sihirbazı', icon: Sparkles, path: '/admin/onboarding' },
-            { name: 'Belediyeler', icon: MapPinned, path: '/admin/municipalities' },
-            { name: 'Geri Bildirimler', icon: MessageSquare, path: '/system-feedback' },
-            { name: 'Denetim raporu', icon: Shield, path: '/audit-logs' },
+            { name: t('dashboard'), icon: LayoutDashboard, path: '/' },
+            { name: t('onboarding'), icon: Sparkles, path: '/admin/onboarding' },
+            { name: t('municipalities'), icon: MapPinned, path: '/admin/municipalities' },
+            { name: t('feedback'), icon: MessageSquare, path: '/system-feedback' },
+            { name: t('audit_logs'), icon: Shield, path: '/audit-logs' },
           ]
         }
       ]
     : (() => {
         const overviewItems: MenuItem[] = [
-          { name: 'Dashboard', icon: LayoutDashboard, path: '/' }
+          { name: t('dashboard'), icon: LayoutDashboard, path: '/' }
         ];
 
         const trackingItems: MenuItem[] = [
-          { name: 'Raporlar', icon: FileText, path: '/reports' },
-          { name: 'İstatistikler', icon: PieChart, path: '/stats' }
+          { name: t('reports'), icon: FileText, path: '/reports' },
+          { name: t('stats'), icon: PieChart, path: '/stats' }
         ];
 
         const prItems: MenuItem[] = [
-          { name: 'Duyurular', icon: Megaphone, path: '/announcements' },
-          { name: 'Anketler', icon: BarChart3, path: '/surveys' }
+          { name: t('announcements'), icon: Megaphone, path: '/announcements' },
+          { name: t('surveys'), icon: BarChart3, path: '/surveys' }
         ];
         if (user.roles.includes('ROLE_ADMIN') && user.municipality) {
-          prItems.push({ name: 'Etkinlikler & Kesintiler', icon: CalendarClock, path: '/events-outages' });
+          prItems.push({ name: t('events_outages'), icon: CalendarClock, path: '/events-outages' });
         }
 
         const orgItems: MenuItem[] = [
-          { name: 'Personeller', icon: Users, path: '/staff' },
-          { name: 'Departmanlar', icon: Building2, path: '/departments' }
+          { name: t('staff'), icon: Users, path: '/staff' },
+          { name: t('departments'), icon: Building2, path: '/departments' }
         ];
 
         const systemItems: MenuItem[] = [];
         if (user.roles.includes('ROLE_ADMIN') && user.municipality) {
-          systemItems.push({ name: 'Belediye ayarları', icon: SettingsIcon, path: '/municipality-settings' });
+          systemItems.push({ name: t('municipality_settings'), icon: SettingsIcon, path: '/municipality-settings' });
         }
         if (user.roles.some((r) => ['ROLE_ADMIN', 'ROLE_DEPT_MANAGER', 'ROLE_SUPER_ADMIN'].includes(r))) {
-          systemItems.push({ name: 'Planlı dışa aktarma', icon: CalendarClock, path: '/scheduled-exports' });
+          systemItems.push({ name: t('scheduled_exports'), icon: CalendarClock, path: '/scheduled-exports' });
         }
         if (user.roles.some((r) => ['ROLE_ADMIN', 'ROLE_SUPER_ADMIN'].includes(r))) {
-          systemItems.push({ name: 'Denetim raporu', icon: Shield, path: '/audit-logs' });
+          systemItems.push({ name: t('audit_logs'), icon: Shield, path: '/audit-logs' });
         }
         if (user.roles.includes('ROLE_SUPER_ADMIN')) {
-          systemItems.push({ name: 'Belediyeler', icon: MapPinned, path: '/admin/municipalities' });
-          systemItems.push({ name: 'Kurulum sihirbazı', icon: Sparkles, path: '/admin/onboarding' });
+          systemItems.push({ name: t('municipalities'), icon: MapPinned, path: '/admin/municipalities' });
+          systemItems.push({ name: t('onboarding'), icon: Sparkles, path: '/admin/onboarding' });
         }
 
         return [
-          { title: 'Genel Bakış', items: overviewItems },
-          { title: 'İhbar & Takip', items: trackingItems },
-          { title: 'Halkla İlişkiler', items: prItems },
-          { title: 'Organizasyon', items: orgItems },
-          { title: 'Sistem & Yapılandırma', items: systemItems }
+          { title: t('overview_group'), items: overviewItems },
+          { title: t('tracking_group'), items: trackingItems },
+          { title: t('pr_group'), items: prItems },
+          { title: t('org_group'), items: orgItems },
+          { title: t('system_group'), items: systemItems }
         ];
       })();
 
@@ -241,7 +243,7 @@ const Sidebar = ({
                 window.location.href = loginPathForUser(user);
               }}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-950/30 dark:hover:text-red-400 transition-colors"
-              title="Çıkış Yap"
+              title={t('logout')}
             >
               <LogOut size={16} />
             </button>
@@ -264,6 +266,7 @@ const Header = ({
   const navigate = useNavigate();
   const [pendingCount, setPendingCount] = useState(0);
   const { newCount: liveNewReports } = useReportLive();
+  const { language, setLanguage } = useTranslation();
 
   const refreshPending = useCallback(() => {
     api
@@ -307,6 +310,15 @@ const Header = ({
       </form>
 
       <div className="flex items-center gap-1 sm:gap-2">
+        <select
+          value={language}
+          onChange={(e) => setLanguage(e.target.value as Language)}
+          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 outline-none focus:ring-1 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+        >
+          <option value="tr">TR</option>
+          <option value="en">EN</option>
+          <option value="ar">AR</option>
+        </select>
         <button
           type="button"
           onClick={onToggleDark}
@@ -422,6 +434,12 @@ const MunicipalityDashboard = ({ user }: { user: AuthenticatedPortalUser }) => {
       icon: AlertCircle,
       iconWrap: 'bg-red-50 text-red-700 ring-1 ring-red-600/15 dark:bg-red-950/30 dark:text-red-200',
     },
+    {
+      name: 'Vatandaş Memnuniyeti',
+      value: stats.averageSatisfaction != null ? `${Number(stats.averageSatisfaction).toFixed(1)} / 5.0` : '—',
+      icon: Sparkles,
+      iconWrap: 'bg-violet-50 text-violet-700 ring-1 ring-violet-600/15 dark:bg-violet-950/30 dark:text-violet-200',
+    },
   ];
 
   return (
@@ -492,7 +510,7 @@ const MunicipalityDashboard = ({ user }: { user: AuthenticatedPortalUser }) => {
         </section>
       )}
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {statCards.map((stat) => (
           <div
             key={stat.name}
@@ -651,8 +669,9 @@ const App = () => {
   if (loading) return <div className="flex h-screen items-center justify-center bg-slate-100 text-sm font-medium text-slate-500 dark:bg-slate-950 dark:text-slate-400">Yükleniyor…</div>;
 
   return (
-    <Router>
-      <ErrorBoundary>
+    <LanguageProvider>
+      <Router>
+        <ErrorBoundary>
         <Routes>
         <Route
           path="/setup"
@@ -837,6 +856,7 @@ const App = () => {
       </Routes>
       </ErrorBoundary>
     </Router>
+    </LanguageProvider>
   );
 };
 

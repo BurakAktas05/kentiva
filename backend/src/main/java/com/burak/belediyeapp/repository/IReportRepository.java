@@ -26,6 +26,9 @@ public interface IReportRepository extends JpaRepository<Report, String> {
 
     Optional<Report> findByIdAndMunicipalityId(String id, String municipalityId);
 
+    @EntityGraph(attributePaths = {"category", "reporter", "assignee"})
+    Optional<Report> findByTrackingNumber(String trackingNumber);
+
     @Query("SELECT r FROM Report r LEFT JOIN FETCH r.municipality WHERE r.id = :id")
     Optional<Report> findByIdWithMunicipality(@Param("id") String id);
 
@@ -167,6 +170,7 @@ public interface IReportRepository extends JpaRepository<Report, String> {
             """)
     List<Object[]> countDuplicateGroupsForIds(@Param("groupIds") java.util.Collection<String> groupIds);
 
+    @EntityGraph(attributePaths = {"category"})
     List<Report> findByDuplicateGroupIdAndIdNot(String duplicateGroupId, String excludeId);
 
     /**
@@ -277,4 +281,13 @@ public interface IReportRepository extends JpaRepository<Report, String> {
     List<Report> findRecentResolvedReportsByMunicipalitySlug(
             @Param("municipalitySlug") String municipalitySlug,
             org.springframework.data.domain.Pageable pageable);
+
+    @Override
+    @EntityGraph(attributePaths = {"category"})
+    Page<Report> findAll(Pageable pageable);
+
+    boolean existsByTrackingNumber(String trackingNumber);
+
+    @Query("SELECT r FROM Report r LEFT JOIN FETCH r.municipality WHERE r.reportStatus IN :statuses AND r.slaBreached = false")
+    java.util.List<Report> findUnresolvedReportsNotSlaBreached(@Param("statuses") java.util.Collection<ReportStatus> statuses);
 }
