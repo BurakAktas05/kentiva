@@ -106,8 +106,8 @@ export default function Profile({
       setFeedbackSuccess(true);
       setFeedbackRating(0);
       setFeedbackContent('');
-    } catch (err: any) {
-      setFeedbackError(err?.message || t('profile.feedback.error', lang));
+    } catch (err: unknown) {
+      setFeedbackError(err instanceof Error ? err.message : t('profile.feedback.error', lang));
     } finally {
       setFeedbackSubmitting(false);
     }

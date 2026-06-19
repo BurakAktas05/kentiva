@@ -17,6 +17,21 @@ type Props = {
   onCancel?: () => void;
 };
 
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.03
+    }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 12 },
+  show: { opacity: 1, y: 0, transition: { stiffness: 260, damping: 20 } }
+};
+
 export default function MunicipalityPicker({
   lang,
   isDark,
@@ -163,26 +178,35 @@ export default function MunicipalityPicker({
         ) : (
           <div className="space-y-5">
             <section>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <p className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
                 {t('tenant.sectionGps', lang)}
               </p>
-              <button type="button" onClick={() => void useGps()} disabled={gpsBusy} className={primaryBtnClass(gpsBusy)}>
-                {gpsBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <MapPin className="h-5 w-5" />}
+              <button
+                type="button"
+                onClick={() => void useGps()}
+                disabled={gpsBusy}
+                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-indigo-600 py-3.5 text-sm font-bold text-white shadow-lg shadow-primary/25 hover:brightness-105 active:scale-[0.98] transition-all disabled:opacity-50"
+              >
+                {gpsBusy ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <MapPin className="h-5 w-5 animate-bounce" />
+                )}
                 {t('tenant.gps', lang)}
               </button>
             </section>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 py-1">
               <div className={`h-px flex-1 ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`} />
-              <span className="text-xs font-medium text-slate-400">{t('tenant.orManual', lang)}</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('tenant.orManual', lang)}</span>
               <div className={`h-px flex-1 ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`} />
             </div>
 
             <section>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <p className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
                 {t('tenant.province', lang)}
               </p>
-              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
                 {provinces.map((p) => (
                   <button
                     key={p}
@@ -193,12 +217,12 @@ export default function MunicipalityPicker({
                       setDistrictSearch('');
                       setErr('');
                     }}
-                    className={`shrink-0 rounded-full px-4 py-2 text-xs font-semibold transition-colors ${
+                    className={`shrink-0 rounded-full px-4 py-2 text-xs font-bold transition-all duration-350 active:scale-95 ${
                       province === p
-                        ? 'bg-primary text-white'
+                        ? 'bg-primary text-white shadow-md shadow-primary/20'
                         : isDark
-                          ? 'bg-slate-800 text-slate-300'
-                          : 'bg-white border border-slate-200 text-slate-600'
+                          ? 'bg-slate-800/80 text-slate-350 hover:bg-slate-700/80'
+                          : 'bg-white border border-slate-250/60 text-slate-600 hover:bg-slate-50'
                     }`}
                   >
                     {p}
@@ -208,82 +232,96 @@ export default function MunicipalityPicker({
             </section>
 
             {province ? (
-              <section>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <section className="space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                   {t('tenant.district', lang)}
                 </p>
-                <div className="relative mb-3">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <div className="relative">
+                  <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
                     type="search"
                     value={districtSearch}
                     onChange={(e) => setDistrictSearch(e.target.value)}
                     placeholder={t('tenant.searchDistrict', lang)}
-                    className={`w-full rounded-xl border py-3 pl-9 pr-3 text-sm ${
+                    className={`w-full rounded-2xl border py-3.5 pl-10 pr-4 text-sm transition-all duration-300 outline-none ${
                       isDark
-                        ? 'border-slate-700 bg-slate-900 text-white placeholder:text-slate-500'
-                        : 'border-slate-200 bg-white text-slate-900 placeholder:text-slate-400'
+                        ? 'border-slate-700/80 bg-slate-900/40 text-white placeholder:text-slate-500 focus:border-primary focus:ring-2 focus:ring-primary/25'
+                        : 'border-slate-250/70 bg-white text-slate-900 placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary/15'
                     }`}
                   />
                 </div>
-                <ul className="space-y-2 max-h-[min(50vh,360px)] overflow-y-auto">
+                <motion.ul
+                  variants={containerVariants}
+                  initial="hidden"
+                  animate="show"
+                  className="space-y-2.5 max-h-[min(45vh,320px)] overflow-y-auto px-0.5 scrollbar-thin"
+                >
                   {filteredDistricts.map((d) => {
                     const selected = districtId === d.id;
                     return (
-                      <li key={d.id}>
+                      <motion.li key={d.id} variants={itemVariants}>
                         <button
                           type="button"
                           onClick={() => {
                             setDistrictId(d.id);
                             setErr('');
                           }}
-                          className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition active:scale-[0.99] ${
+                          className={`flex w-full items-center gap-3.5 rounded-2xl border p-3.5 text-left transition-all duration-300 ${
                             selected
-                              ? 'border-primary bg-primary/5 dark:bg-primary/10'
+                              ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-md shadow-primary/5 scale-[1.01]'
                               : isDark
-                                ? 'border-slate-800 bg-slate-900'
-                                : 'border-slate-200 bg-white'
-                          }`}
+                                ? 'border-slate-800/80 bg-slate-900/60 hover:border-slate-700 backdrop-blur-sm'
+                                : 'border-slate-200/80 bg-white hover:border-slate-350 hover:shadow-sm'
+                          } active:scale-[0.98]`}
                         >
                           {d.logoUrl ? (
-                            <img src={d.logoUrl} alt="" className="h-10 w-10 rounded-lg object-contain bg-white p-0.5" />
+                            <img src={d.logoUrl} alt="" className="h-10 w-10 rounded-xl object-contain bg-white p-0.5 border border-slate-100 dark:border-slate-850" />
                           ) : (
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
                               <Building2 className="h-5 w-5" />
                             </div>
                           )}
                           <span className="min-w-0 flex-1 truncate text-sm font-semibold">{d.displayName}</span>
                           {selected ? <Check className="h-5 w-5 shrink-0 text-primary" /> : null}
                         </button>
-                      </li>
+                      </motion.li>
                     );
                   })}
-                </ul>
+                </motion.ul>
                 {filteredDistricts.length === 0 ? (
                   <p className="py-4 text-center text-xs text-slate-500">{t('tenant.noDistrictMatch', lang)}</p>
                 ) : null}
               </section>
             ) : (
-              <p className="text-center text-xs text-slate-500">{t('tenant.selectProvinceFirst', lang)}</p>
+              <p className="py-4 text-center text-xs text-slate-400 font-medium">{t('tenant.selectProvinceFirst', lang)}</p>
             )}
 
             {selectedDistrict ? (
-              <div className={kentivaCard(isDark)}>
-                <p className="text-xs text-slate-500">{t('tenant.selected', lang)}</p>
-                <p className="mt-1 text-sm font-semibold">{selectedDistrict.displayName}</p>
+              <div className={`${kentivaCard(isDark)} border-primary/20 bg-primary/5 dark:bg-primary/10 shadow-inner`}>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t('tenant.selected', lang)}</p>
+                <p className="mt-1 text-sm font-bold text-primary">{selectedDistrict.displayName}</p>
               </div>
             ) : null}
           </div>
         )}
-        {err ? <p className="mt-4 text-sm font-medium text-red-500">{err}</p> : null}
+        {err ? <p className="mt-4 text-sm font-semibold text-red-500 bg-red-500/10 p-3.5 rounded-xl border border-red-500/25">{err}</p> : null}
       </div>
 
       <div
-        className={`fixed bottom-0 left-0 right-0 z-20 border-t px-4 py-3 pb-safe mx-auto max-w-md ${
+        className={`fixed bottom-0 left-0 right-0 z-20 border-t px-4 py-3.5 pb-safe mx-auto max-w-md ${
           isDark ? 'border-slate-800 bg-slate-900/95' : 'border-slate-200 bg-white/95'
         } backdrop-blur-md`}
       >
-        <button type="button" onClick={confirmManual} disabled={!districtId} className={primaryBtnClass(!districtId)}>
+        <button
+          type="button"
+          onClick={confirmManual}
+          disabled={!districtId}
+          className={`w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-bold text-white shadow-lg transition-all duration-300 active:scale-[0.98] ${
+            !districtId
+              ? 'bg-slate-350 dark:bg-slate-800 text-slate-450 dark:text-slate-500 cursor-not-allowed shadow-none'
+              : 'bg-primary shadow-primary/25 hover:brightness-105'
+          }`}
+        >
           {t('tenant.confirm', lang)}
         </button>
       </div>

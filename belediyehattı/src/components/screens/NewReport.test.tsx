@@ -21,7 +21,7 @@ describe('NewReport Screen Component', () => {
   const mockCategories = [
     { id: 'cat-1', name: 'Yol Cukuru' },
     { id: 'cat-2', name: 'Sokak Lambasi' },
-  ];
+  ] as any;
 
   const mockMunicipality = {
     id: 'muni-123',

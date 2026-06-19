@@ -50,8 +50,8 @@ export function setupCitizenPush(onOpenReport: PushNavigationHandler): () => voi
   );
 
   return () => {
-    addRegListener.remove();
-    addErrListener.remove();
-    addNotificationListener.remove();
+    addRegListener.then(h => h.remove());
+    addErrListener.then(h => h.remove());
+    addNotificationListener.then(h => h.remove());
   };
 }

@@ -1003,8 +1003,8 @@ public class GeminiService {
 
     private static SimpleClientHttpRequestFactory requestFactory() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(3_000);
-        factory.setReadTimeout(90_000);
+        factory.setConnectTimeout(5_000);
+        factory.setReadTimeout(180_000); // 3 dakika — multi-pass PDF analizi (20 sayfa × 2 pass = ~40 Gemini çağrısı)
         return factory;
     }
 }

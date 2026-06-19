@@ -6,6 +6,7 @@ import com.burak.belediyeapp.entity.LostPetAd;
 import com.burak.belediyeapp.exception.BusinessException;
 import com.burak.belediyeapp.exception.ResourceNotFoundException;
 import com.burak.belediyeapp.repository.ILostPetAdRepository;
+import com.burak.belediyeapp.service.notification.LostPetNotificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
 public class LostPetAdController {
 
     private final ILostPetAdRepository lostPetAdRepository;
+    private final LostPetNotificationService lostPetNotificationService;
 
     public record LostPetAdResponse(
             String id,
@@ -101,6 +103,7 @@ public class LostPetAdController {
                 .build();
 
         LostPetAd saved = lostPetAdRepository.save(ad);
+        lostPetNotificationService.broadcast(saved.getId());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Kayıp hayvan ilanı yayınlandı", mapToLostPetResponse(saved)));
     }

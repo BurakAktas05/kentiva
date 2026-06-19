@@ -16,8 +16,12 @@ Platform, tek bir altyapı üzerinde birden fazla belediyenin tamamen izole bir 
 ## 🚀 Öne Çıkan Özellikler
 
 - **Çok Kiracılılık (Multi-Tenancy):** Tek bir veritabanı şeması ve kod tabanı üzerinde sınırsız belediye desteği. Her kiracı `municipality_id` üzerinden veri düzeyinde tam izoledir.
+- **Asenkron KVKK Anonimleştirme:** Yüklenen fotoğraflarda yüz ve araç plakaları Gemini AI ile arka planda asenkron taranır. Bounding box tespiti ve pikselleştirme işlemleri dosya yükleme `/upload` aşamasını yavaşlatmadan arka planda tamamlanır.
+- **Normalleştirilmiş Koordinat Desteği:** Gemini bounding box verilerinde hassasiyet kaybını önlemek için normalleştirilmiş `[0-1000]` aralığı kullanılır ve backend tarafında görüntü boyutuna göre dinamik ölçeklenir.
+- **Gelişmiş Rate Limiting (Caffeine Cache):** API limit aşımlarını izlemek için Bucket4j altyapısı Caffeine Cache ile entegre edilmiştir. Bellek sızıntılarını önleyen ve otomatik evict edilen 50.000 limitli bucket mimarisi aktiftir.
+- **Konum Tabanlı Akıllı Seçim:** Mobil uygulama açılışında vatandaşın GPS konumu otomatik taranır. Eğer vatandaş Kentiva üyesi bir ilçedeyse ilgili belediyeye otomatik bağlanır; üye olmayan bir bölgeye geçtiğinde ise eski belediyesinde kalır.
+- **Mekansal Engelleyici Geofencing:** Vatandaş üye olmayan bir konumdan ihbar oluşturmaya çalıştığında form kilitlenir ve premium bölge dışı uyarı kartı gösterilir.
 - **Dinamik Markalama (Custom Branding):** Belediyeler kendi birincil renklerini, logolarını ve sloganlarını admin paneli üzerinden kod yazmadan veya yeniden canlıya almadan anında güncelleyebilir.
-- **Coğrafi Çit (Geofencing):** GeoJSON yüklemeleri sayesinde PostGIS mekansal analizleri (`ST_Contains`) kullanılarak belediye sınırları dışından gelen sahte/geçersiz ihbarlar otomatik olarak engellenir.
 - **Yapay Zeka Destekli Analiz (Gemini AI):** İhbarlar yapay zeka tarafından özetlenir, kategorisi kontrol edilir, öncelik derecesi atanır ve vatandaşlara iletilecek SMS/Push şablonları otomatik olarak oluşturulur.
 - **Güven Puanı (Reputation Score) Modeli:** Vatandaşların ihbar kalitesine göre dinamik olarak hesaplanan puanlama algoritması sayesinde sistem suistimalleri otomatik olarak engellenir.
 
@@ -28,17 +32,17 @@ Platform, tek bir altyapı üzerinde birden fazla belediyenin tamamen izole bir 
 ### 1. Backend API (Spring Boot)
 *   **Teknoloji:** Java 21, Spring Boot 3
 *   **Veritabanı:** PostgreSQL & PostGIS (Coğrafi sorgular, mekansal indeksleme)
-*   **Güvenlik:** JWT tabanlı durumsuz (stateless) kimlik doğrulama, Bucket4j Rate Limiting, Brute-force koruması
+*   **Güvenlik:** JWT tabanlı durumsuz (stateless) kimlik doğrulama, Caffeine Cache destekli Bucket4j Rate Limiting, Brute-force koruması
 *   **Entegrasyonlar:** NetGSM / Twilio SMS OTP, Cloudflare R2 / AWS S3 medya depolama alanları
 *   **Raporlama:** Zebra desenli, durum ve öncelik bazında pastel renk kodlu premium PDF & Excel veri dışa aktarma
 
 ### 2. Yönetici Portalı (Admin Portal)
-*   **Teknoloji:** React 18, Vite, TailwindCSS
-*   **Özellikler:** KPI izleme ekranları, canlı ısı haritası (Live Heatmap), departman bazlı saha görevlisi atama ve AI destekli SMS şablon editörü.
+*   **Teknoloji:** React 19, Vite, TailwindCSS
+*   **Özellikler:** KPI izleme ekranları, canlı ısı haritası (Live Heatmap), departman bazlı saha görevlisi atama, ulaşım hatları AI import ve PDF/Excel şablon yönetimi.
 
 ### 3. Vatandaş Mobil Uygulaması (Citizen Mobile)
-*   **Teknoloji:** React / Ionic (Cross-platform)
-*   **Özellikler:** GPS doğrulamalı konum tabanlı ihbar, canlı kamera fotoğraf yükleme zorunluluğu, Firebase push bildirimleri ve favori otobüs hatları/durakları paneli.
+*   **Teknoloji:** React 19, Ionic / Capacitor (Cross-platform)
+*   **Özellikler:** GPS doğrulamalı konum tabanlı otomatik belediye seçimi, geofencing ihbar kilitleme UI, live kamera çekim zorunluluğu, Firebase push ve favori otobüs hatları/durakları paneli.
 
 ---
 
@@ -50,10 +54,14 @@ Uygulamayı canlı ortama (production) almadan önce sistemin güvenliğini ve k
 > Kötüye kullanım koruma kuralları, görsel müstehcenlik analizleri, itibar puanlama sınırları ve yayın öncesi teknik kontrol adımları için mutlaka **[todo.md](todo.md)** dosyasını inceleyin.
 
 ### Özet Kontrol Maddeleri:
-- [x] **İhbar Denetim PDF Görsel İyileştirmesi:** Zebra desenli satırlar, durum ve öncelik alanları için özel pastel badge tasarımları ve başlık çizgisi eklendi.
-- [x] **Düşük İtibar Bloklama:** Güven puanı **30** puanın altına düşen kullanıcıların yeni ihbar oluşturması engellendi.
+- [x] **Asenkron KVKK Anonimleştirme:** Yüz/plaka maskeleme ve tescil taramaları asenkron event kuyruğuna taşındı.
+- [x] **Caffeine Rate Limit:** Bellek verimliliği yüksek evicting cache mekanizması devreye alındı.
+- [x] **Geofencing & Bölge Dışı Bloklama:** Mobil NewReport ekranında üye olmayan alanlardan ihbar gönderimi engellendi.
+- [x] **Onboarding & Picker Yenilemesi:** Framer Motion staggered list geçişleri ve modern tab capsule yapıları eklendi.
 - [x] **Otobüs Hatları AI İmport:** PDF/Excel hat şemalarının Gemini ile taranıp mobil haritaya basılması sağlandı.
 - [x] **Mobil Favori Desteği:** Durak ve hat yıldızlama entegrasyonu tamamlandı.
+- [x] **İhbar Denetim PDF Görsel İyileştirmesi:** Zebra desenli satırlar ve durum/öncelik pastel badge tasarımları eklendi.
+- [x] **Düşük İtibar Bloklama:** Güven puanı **30** puanın altına düşen kullanıcıların yeni ihbar oluşturması engellendi.
 
 ---
 

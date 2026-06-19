@@ -22,7 +22,6 @@ import {
   Camera,
   AlertTriangle,
   Send,
-  ArrowRightLeft,
 } from 'lucide-react';
 import axios from 'axios';
 import api, { type Report, type ReportListItem, type ReportTimelineEntry, type User } from '../api';

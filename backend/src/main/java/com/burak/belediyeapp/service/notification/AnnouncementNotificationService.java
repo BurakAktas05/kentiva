@@ -17,6 +17,8 @@ import java.util.regex.Pattern;
 @Slf4j
 public class AnnouncementNotificationService {
 
+    private static final com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+
     private final IAppUserRepository userRepository;
     private final INotificationRepository notificationRepository;
     private final IMunicipalityAnnouncementRepository announcementRepository;
@@ -64,7 +66,6 @@ public class AnnouncementNotificationService {
         // Find mentioned starred stops from the route stops
         Set<String> matchedStopNames = new HashSet<>();
         Set<String> allStopNames = new HashSet<>();
-        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
         for (BusRoute route : routes) {
             try {
                 List<String> stops = mapper.readValue(route.getStopsJson(), new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {});
@@ -97,7 +98,18 @@ public class AnnouncementNotificationService {
             }
         }
 
-        // 4. Divide allUsers into priorityUsers and regularUsers
+        // 4. Batch-fetch notification preferences to avoid N+1 queries
+        List<String> nonPriorityUserIds = allUsers.stream()
+                .filter(u -> !priorityUserIds.contains(u.getId()))
+                .map(AppUser::getId)
+                .toList();
+        Map<String, UserNotificationPreference> prefsMap = new HashMap<>();
+        if (!nonPriorityUserIds.isEmpty()) {
+            preferenceRepository.findAllByUserIdIn(nonPriorityUserIds)
+                    .forEach(p -> prefsMap.put(p.getUser().getId(), p));
+        }
+
+        // 5. Divide allUsers into priorityUsers and regularUsers
         List<AppUser> priorityRecipients = new ArrayList<>();
         List<AppUser> regularRecipients = new ArrayList<>();
 
@@ -105,9 +117,8 @@ public class AnnouncementNotificationService {
             if (priorityUserIds.contains(user.getId())) {
                 priorityRecipients.add(user);
             } else {
-                boolean announcementsEnabled = preferenceRepository.findByUserId(user.getId())
-                        .map(UserNotificationPreference::isAnnouncementsEnabled)
-                        .orElse(true);
+                UserNotificationPreference pref = prefsMap.get(user.getId());
+                boolean announcementsEnabled = pref == null || pref.isAnnouncementsEnabled();
                 if (announcementsEnabled) {
                     regularRecipients.add(user);
                 }

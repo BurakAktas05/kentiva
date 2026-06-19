@@ -19,6 +19,7 @@ import {
 } from '../../api';
 import { Lang, t } from '../../i18n';
 import { captureReportPhotoFile, PhotoCaptureCancelledError, type CaptureResult } from '../../lib/captureReportPhoto';
+import { getDevicePosition, isDeviceLocationFailure } from '../../lib/deviceLocation';
 import ReportAiScanOverlay from '../ReportAiScanOverlay';
 
 interface NewReportProps {
@@ -97,40 +98,50 @@ export default function NewReport({
   const descriptionTooShort = description.trim().length > 0 && description.trim().length < minDescriptionLen;
 
   useEffect(() => {
-    if (!navigator.geolocation) {
-      return;
-    }
+    let active = true;
+    (async () => {
+      setLocating(true);
+      setError('');
+      try {
+        const result = await getDevicePosition({ highAccuracy: true, timeoutMs: 15000 });
+        if (!active) return;
+        if (result.ok) {
+          const lat = result.coords.lat;
+          const lng = result.coords.lng;
+          setLatitude(lat);
+          setLongitude(lng);
+          setLocationText(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
 
-    setLocating(true);
-    setError('');
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        setLatitude(lat);
-        setLongitude(lng);
-        setLocationText(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+          if (defaultMunicipality?.id) {
+            setResolvedMunicipality(defaultMunicipality);
+            setError('');
+            setLocating(false);
+            return;
+          }
 
-        if (defaultMunicipality?.id) {
-          setResolvedMunicipality(defaultMunicipality);
-          setError('');
+          const municipality = await resolveMunicipalityByGps(lat, lng);
+          if (!active) return;
+          setResolvedMunicipality(municipality);
+          if (!municipality || !municipality.onboarded) {
+            setError(t('report.municipality.outside', lang));
+          }
           setLocating(false);
-          return;
+        } else if (isDeviceLocationFailure(result)) {
+          setLocating(false);
+          if (result.reason === 'denied') setError(t('report.location.denied', lang));
+          else if (result.reason === 'unsupported') setError(t('report.location.needGps', lang));
+          else setError(lang === 'tr' ? 'Konum bilgisi alınamadı.' : 'Failed to retrieve location.');
         }
-
-        const municipality = await resolveMunicipalityByGps(lat, lng);
-        setResolvedMunicipality(municipality);
-        if (!municipality) {
-          setError(t('report.municipality.outside', lang));
+      } catch {
+        if (active) {
+          setLocating(false);
+          setError(lang === 'tr' ? 'Konum çözümlenirken hata oluştu.' : 'Failed to resolve location.');
         }
-        setLocating(false);
-      },
-      () => {
-        setLocating(false);
-        setError(t('report.location.denied', lang));
-      },
-      { enableHighAccuracy: true, timeout: 15000 },
-    );
+      }
+    })();
+    return () => {
+      active = false;
+    };
   }, [defaultMunicipality?.id, lang]);
 
   useEffect(() => {
@@ -253,34 +264,33 @@ export default function NewReport({
     return municipality;
   };
 
-  const handleGetLocation = () => {
-    if (!navigator.geolocation) {
-      setError(t('report.location.needGps', lang));
-      return;
-    }
-
+  const handleGetLocation = async () => {
     setLocating(true);
     setError('');
     if (!municipalityLocked) {
       setResolvedMunicipality(null);
     }
 
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
+    try {
+      const result = await getDevicePosition({ highAccuracy: true, timeoutMs: 15000 });
+      if (result.ok) {
+        const lat = result.coords.lat;
+        const lng = result.coords.lng;
         setLatitude(lat);
         setLongitude(lng);
         setLocationText(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
         await resolveMunicipalityAt(lat, lng);
         setLocating(false);
-      },
-      () => {
+      } else if (isDeviceLocationFailure(result)) {
         setLocating(false);
-        setError(t('report.location.denied', lang));
-      },
-      { enableHighAccuracy: true, timeout: 15000 },
-    );
+        if (result.reason === 'denied') setError(t('report.location.denied', lang));
+        else if (result.reason === 'unsupported') setError(t('report.location.needGps', lang));
+        else setError(lang === 'tr' ? 'Konum bilgisi alınamadı.' : 'Failed to retrieve location.');
+      }
+    } catch {
+      setLocating(false);
+      setError(lang === 'tr' ? 'Konum çözümlenirken hata oluştu.' : 'Failed to resolve location.');
+    }
   };
 
   const proceedToSummary = () => setStep(2);
@@ -377,7 +387,7 @@ export default function NewReport({
             latitude,
             longitude,
             district: resolvedMunicipality?.displayName ?? null,
-            mediaUrl: mediaUrl || null,
+            mediaUrls: mediaUrls || [],
             targetMunicipalityId: resolvedMunicipality?.id || null,
             kvkkApproved,
             savedAt: new Date().toISOString(),
@@ -419,6 +429,8 @@ export default function NewReport({
     </div>
   );
 
+  const isOutsideKentiva = !locating && (!resolvedMunicipality || !resolvedMunicipality.onboarded);
+
   const canProceed =
     description.trim().length >= minDescriptionLen &&
     latitude !== null &&
@@ -441,19 +453,50 @@ export default function NewReport({
             {t('report.screenTitle', lang)}
           </p>
           <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-            {step === 2 ? t('report.step2.short', lang) : t('report.stepProgress', lang, { current: step, total: 2 })}
+            {isOutsideKentiva ? (lang === 'tr' ? 'Bölge Dışı' : 'Outside Area') : step === 2 ? t('report.step2.short', lang) : t('report.stepProgress', lang, { current: step, total: 2 })}
           </p>
         </div>
         <div className="w-10" />
       </motion.div>
 
-      <div className={`h-1 w-full ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
-        <div className="h-full bg-primary transition-all duration-300 ease-out" style={{ width: `${(step / 2) * 100}%` }} />
-      </div>
+      {!isOutsideKentiva && (
+        <div className={`h-1 w-full ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+          <div className="h-full bg-primary transition-all duration-300 ease-out" style={{ width: `${(step / 2) * 100}%` }} />
+        </div>
+      )}
 
-      <div className="flex-1 overflow-y-auto p-6">
-        {step === 1 && (
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-5">
+      <div className="flex-1 overflow-y-auto p-6 flex flex-col">
+        {isOutsideKentiva ? (
+          <div className="flex flex-1 flex-col items-center justify-center p-4 text-center my-auto">
+            <div className={`rounded-3xl border p-8 max-w-sm shadow-xl w-full transition-all ${
+              isDark 
+                ? 'border-amber-500/20 bg-slate-900/60 text-white' 
+                : 'border-amber-250 bg-white text-slate-800'
+            }`}>
+              <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500 shadow-inner">
+                <Building2 className="h-7 w-7" />
+              </div>
+              <h3 className="text-base font-extrabold tracking-tight">
+                {lang === 'tr' ? 'Belediye Kayıtlı Değil' : 'Municipality Not Registered'}
+              </h3>
+              <p className="mt-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400 font-semibold">
+                {lang === 'tr' 
+                  ? 'Bulunduğunuz konumdaki belediye henüz Kentiva platformuna kayıtlı değildir. Bu nedenle buraya ihbar oluşturamazsınız.' 
+                  : 'The municipality in your region is not registered with Kentiva yet. You cannot submit reports here.'}
+              </p>
+              <button
+                type="button"
+                onClick={onCancel}
+                className="mt-6 w-full rounded-2xl bg-primary py-3 text-xs font-bold text-white shadow-lg shadow-primary/20 hover:brightness-105 active:scale-[0.98] transition-all"
+              >
+                {lang === 'tr' ? 'Vazgeç ve Geri Dön' : 'Cancel & Go Back'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-5 flex-1">
+            {step === 1 && (
+              <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-5">
             {activeDepartment && (
               <div
                 className={`rounded-2xl border px-4 py-3 ${
@@ -751,38 +794,42 @@ export default function NewReport({
             </label>
           </motion.div>
         )}
+        </div>
+      )}
       </div>
 
-      <div className={`border-t p-4 ${isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white'}`}>
-        {step < 2 ? (
-          <button
-            type="button"
-            onClick={handleNext}
-            disabled={!canProceed}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-semibold text-white shadow-md shadow-primary/20 disabled:opacity-50 active:scale-95 dark:shadow-none"
-          >
-            {t('report.next', lang)} <ArrowRight className="h-4 w-4" />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={isSubmitting || !kvkkApproved}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-semibold text-white shadow-md shadow-primary/20 active:scale-95 disabled:opacity-70 dark:shadow-none"
-          >
-            {isSubmitting ? (
-              <span className="flex items-center gap-2">
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                {t('report.submitting', lang)}
-              </span>
-            ) : (
-              <span className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5" /> {t('report.submit', lang)}
-              </span>
-            )}
-          </button>
-        )}
-      </div>
+      {!isOutsideKentiva && (
+        <div className={`border-t p-4 ${isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white'}`}>
+          {step < 2 ? (
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={!canProceed}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-semibold text-white shadow-md shadow-primary/20 disabled:opacity-50 active:scale-95 dark:shadow-none"
+            >
+              {t('report.next', lang)} <ArrowRight className="h-4 w-4" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={isSubmitting || !kvkkApproved}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-semibold text-white shadow-md shadow-primary/20 active:scale-95 disabled:opacity-70 dark:shadow-none"
+            >
+              {isSubmitting ? (
+                <span className="flex items-center gap-2">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  {t('report.submitting', lang)}
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5" /> {t('report.submit', lang)}
+                </span>
+              )}
+            </button>
+          )}
+        </div>
+      )}
 
       <ReportAiScanOverlay
         open={aiScanOpen}

@@ -27,18 +27,19 @@ describe('Home Screen Component', () => {
     id: 'user-1',
     firstName: 'Burak',
     lastName: 'Aktas',
-  };
+  } as any;
 
   const mockReportsResponse = {
     content: [
       { id: 'rep-1', title: 'Su Patlagi' },
     ],
     totalElements: 1,
-  };
+    totalPages: 1,
+  } as any;
 
   const mockAnnouncements = [
     { id: 'ann-1', title: 'Yol Calismasi', content: 'Kadikoyde yol calismasi var' },
-  ];
+  ] as any;
 
   const mockMunicipality = {
     id: 'muni-123',
@@ -51,7 +52,7 @@ describe('Home Screen Component', () => {
   });
 
   it('renders guest welcome when profile loading fails', async () => {
-    vi.mocked(api.getMyReports).mockResolvedValueOnce({ content: [], totalElements: 0 });
+    vi.mocked(api.getMyReports).mockResolvedValueOnce({ content: [], totalElements: 0, totalPages: 0 } as any);
     vi.mocked(api.getMyProfile).mockRejectedValueOnce(new Error('Auth error'));
 
     render(

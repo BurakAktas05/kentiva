@@ -15,9 +15,11 @@ import {
   fetchPublicDepartmentContext,
   fetchPublicMunicipalityBySlug,
   setPreferredMunicipality,
+  resolveMunicipalityByGps,
   AuthUser,
   type ApiAnnouncement,
 } from './api';
+import { getDevicePosition } from './lib/deviceLocation';
 import { setupCitizenPush } from './lib/pushNotifications';
 import { Lang, t } from './i18n';
 import { useTenant } from './TenantContext';
@@ -323,6 +325,7 @@ export default function App() {
     }
   }, [user, isIntroModalOpen]);
 
+
   useEffect(() => {
     if (user) {
       loadUnreadCount();
@@ -352,7 +355,7 @@ export default function App() {
       const queue = JSON.parse(raw) as Array<{
         title: string; description: string; categoryId: string;
         latitude: number; longitude: number; district: string | null;
-        mediaUrl: string | null; targetMunicipalityId: string | null;
+        mediaUrls: string[]; targetMunicipalityId: string | null;
         kvkkApproved: boolean; savedAt: string;
       }>;
       if (queue.length === 0) return;
@@ -365,7 +368,7 @@ export default function App() {
           await createReport(
             r.title, r.description, r.categoryId,
             r.latitude, r.longitude, r.district ?? undefined,
-            r.mediaUrl ? [r.mediaUrl] : [], r.targetMunicipalityId, r.kvkkApproved,
+            r.mediaUrls || [], r.targetMunicipalityId, r.kvkkApproved,
           );
           remaining.splice(remaining.indexOf(r), 1);
           synced++;
@@ -407,6 +410,42 @@ export default function App() {
     },
     [setDepartment, setTenant],
   );
+
+  // Konuma göre belediye güncelleme
+  useEffect(() => {
+    if (!user || sessionBooting || routeBooting) return;
+    
+    let active = true;
+    const checkLocationAndSetTenant = async () => {
+      try {
+        const result = await getDevicePosition({ highAccuracy: false, timeoutMs: 10000 });
+        if (result.ok && active) {
+          const resolved = await resolveMunicipalityByGps(result.coords.lat, result.coords.lng);
+          if (resolved && resolved.onboarded) {
+            // Kentiva'ya üye bir belediye bulundu! Otomatik olarak seçelim.
+            if (!tenant || tenant.id !== resolved.id) {
+              console.log(`[Kentiva] Konuma göre otomatik belediye değişti: ${resolved.displayName}`);
+              await handleMunicipalitySelect(resolved);
+            }
+          } else {
+            console.log("[Kentiva] Konum üye bir belediyeyle eşleşmedi veya üye değil. Mevcut belediyede kalınıyor.");
+          }
+        }
+      } catch (err) {
+        console.warn("[Kentiva] Konum tabanlı belediye çözümlenemedi:", err);
+      }
+    };
+    
+    // Uygulama açılışında 1.5 saniye sonra konum kontrolü yap
+    const timer = setTimeout(() => {
+      void checkLocationAndSetTenant();
+    }, 1500);
+    
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [user, sessionBooting, routeBooting, tenant, handleMunicipalitySelect]);
 
   const handleAuth = (authUser: AuthUser, meta?: AuthMeta) => {
     setUser(authUser);
@@ -743,6 +782,7 @@ export default function App() {
                 <Notifications
                   onBadgeUpdate={setUnreadCount}
                   onOpenReport={openReport}
+                  onNavigate={goToTab}
                   lang={lang}
                   isDark={isDark}
                 />

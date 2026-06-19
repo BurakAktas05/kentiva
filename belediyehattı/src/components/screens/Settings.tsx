@@ -57,8 +57,8 @@ export default function Settings({
       await submitSystemFeedback(feedbackRating, feedbackContent.trim());
       alert('Geri bildiriminiz için teşekkür ederiz!');
       closeFeedback();
-    } catch (err: any) {
-      setFeedbackError(err.message || 'Geri bildirim gönderilirken bir hata oluştu.');
+    } catch (err: unknown) {
+      setFeedbackError(err instanceof Error ? err.message : 'Geri bildirim gönderilirken bir hata oluştu.');
     } finally {
       setFeedbackSubmitting(false);
     }
@@ -103,8 +103,8 @@ export default function Settings({
       if (key === 'blood') setBloodDonations(!currentVal);
       if (key === 'lost') setLostPets(!currentVal);
       if (key === 'surveys') setSurveys(!currentVal);
-    } catch (err: any) {
-      alert(err.message || 'Hata olustu');
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Hata olustu');
     } finally {
       setSavingId(null);
     }

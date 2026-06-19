@@ -12,7 +12,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -20,8 +19,8 @@ import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.time.Duration;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 
 @Component
 @RequiredArgsConstructor
@@ -29,7 +28,10 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
     private final IMunicipalityRepository municipalityRepository;
 
-    private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
+    private final Cache<String, Bucket> buckets = Caffeine.newBuilder()
+            .expireAfterAccess(Duration.ofMinutes(10))
+            .maximumSize(50_000)
+            .build();
 
     private Bucket createNewBucket(int limit, int windowSeconds) {
         return Bucket4j.builder()
@@ -93,7 +95,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
                 int limit = rateLimit.requests();
                 int window = rateLimit.window();
                 String methodKey = rateKey + ":" + handlerMethod.getBeanType().getSimpleName() + "." + handlerMethod.getMethod().getName();
-                bucket = buckets.computeIfAbsent(methodKey, k -> createNewBucket(limit, window));
+                bucket = buckets.get(methodKey, k -> createNewBucket(limit, window));
                 return tryConsumeOrReject(bucket, response);
             }
         }
@@ -103,7 +105,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         SubscriptionPlan plan = resolveSubscriptionPlan(auth);
         int perMinute = computeRateLimit(plan, keyType);
 
-        bucket = buckets.computeIfAbsent(rateKey, k -> createNewBucket(perMinute, 60));
+        bucket = buckets.get(rateKey, k -> createNewBucket(perMinute, 60));
         return tryConsumeOrReject(bucket, response);
     }
 
@@ -180,13 +182,4 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         };
     }
 
-    /**
-     * Her 5 dakikada bir eski bucket'ları temizle — bellek sızıntısını önler.
-     */
-    @Scheduled(fixedRate = 300_000)
-    public void cleanupBuckets() {
-        if (buckets.size() > 10_000) {
-            buckets.clear();
-        }
-    }
 }

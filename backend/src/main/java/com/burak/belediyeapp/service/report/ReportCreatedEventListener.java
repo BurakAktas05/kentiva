@@ -7,6 +7,7 @@ import com.burak.belediyeapp.repository.IReportRepository;
 import com.burak.belediyeapp.service.media.MediaGuardClient;
 import com.burak.belediyeapp.service.media.MediaGuardClient.ScanResult;
 import com.burak.belediyeapp.service.media.MediaValidationService;
+import com.burak.belediyeapp.service.media.ImageAnonymizationService;
 import com.burak.belediyeapp.service.storage.StorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +45,7 @@ public class ReportCreatedEventListener {
     private final MediaValidationService mediaValidationService;
     private final StorageService storageService;
     private final ReportDuplicateLinkService duplicateLinkService;
+    private final ImageAnonymizationService imageAnonymizationService;
     private final com.burak.belediyeapp.service.notification.NotificationService notificationService;
 
     /** WebSocket opsiyonel — Railway gibi ortamlarda olmayabilir. */
@@ -193,7 +195,35 @@ public class ReportCreatedEventListener {
                 }
                 return;
             }
+
+            // Run KVKK anonymization asynchronously
+            try {
+                byte[] anonymizedBytes = imageAnonymizationService.anonymize(bytes, "image/jpeg");
+                if (anonymizedBytes != bytes && anonymizedBytes.length != bytes.length) {
+                    log.info("KVKK anonymization applied to image: reportId={}, imageUrl={}", reportId, imageUrl);
+                    String newUrl = storageService.uploadBytes(anonymizedBytes, "image/jpeg", "reports", "anonymized.jpg");
+                    self.updateMediaUrl(reportId, imageUrl, newUrl);
+                    storageService.deleteFile(imageUrl);
+                }
+            } catch (Exception e) {
+                log.warn("KVKK anonymization failed or skipped: reportId={}, err={}", reportId, e.getMessage());
+            }
         }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void updateMediaUrl(String reportId, String oldUrl, String newUrl) {
+        reportRepository.findById(reportId).ifPresent(report -> {
+            if (report.getMediaList() != null) {
+                for (ReportMedia media : report.getMediaList()) {
+                    if (oldUrl.equals(media.getImageUrl())) {
+                        media.setImageUrl(newUrl);
+                        media.setResolvedImage(true);
+                    }
+                }
+                reportRepository.save(report);
+            }
+        });
     }    /** Görüntü URL'sinden veya yerel yoldan/S3'ten byte[] okur; hata varsa null döner. */
     private byte[] fetchImageBytes(String url) {
         try {

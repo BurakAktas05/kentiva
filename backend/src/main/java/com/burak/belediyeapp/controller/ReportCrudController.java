@@ -73,9 +73,6 @@ public class ReportCrudController {
             } catch (Exception e) {
                 throw new BusinessException("Dosya okunamadı.", "FILE_READ_ERROR");
             }
-            mediaGuardClient.validateImageOrThrow(bytes, ct);
-            // KVKK: yüz ve plaka pikselleştirme
-            bytes = imageAnonymizationService.anonymize(bytes, ct);
             urls.add(storageService.uploadBytes(bytes, ct, "reports", file.getOriginalFilename()));
         }
 

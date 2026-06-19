@@ -70,7 +70,8 @@ public class ImageAnonymizationService {
 
         String prompt = """
                 Bu görüntüdeki tüm insan yüzlerini ve araç plakalarını tespit et.
-                Her tespit için piksel cinsinden sınırlayıcı kutu (bounding box) bilgisi döndür.
+                Kutuları normalleştirilmiş koordinat sisteminde [0-1000] aralığında (0: sol/üst, 1000: sağ/alt olacak şekilde) bounding box (sınırlayıcı kutu) olarak döndür.
+                Kutular normalleştirilmiş x, y, genişlik (width) ve yükseklik (height) olmalıdır. Yani görüntünün sol-üst köşesi [0,0], sağ-alt köşesi [1000,1000] arasındadır.
                 Yanıtı yalnızca JSON formatında ver, başka metin ekleme.
                 Format: {"detections": [{"type": "face"|"plate", "x": int, "y": int, "width": int, "height": int}]}
                 Hiçbir yüz veya plaka yoksa: {"detections": []}
@@ -147,10 +148,15 @@ public class ImageAnonymizationService {
         int pixelSize = Math.max(8, image.getWidth() / 80); // dinamik piksel boyutu
 
         for (BoundingBox box : boxes) {
-            int x = Math.max(0, box.x());
-            int y = Math.max(0, box.y());
-            int w = Math.min(box.width(), image.getWidth() - x);
-            int h = Math.min(box.height(), image.getHeight() - y);
+            int px = (box.x() * image.getWidth()) / 1000;
+            int py = (box.y() * image.getHeight()) / 1000;
+            int pw = (box.width() * image.getWidth()) / 1000;
+            int ph = (box.height() * image.getHeight()) / 1000;
+
+            int x = Math.max(0, px);
+            int y = Math.max(0, py);
+            int w = Math.min(pw, image.getWidth() - x);
+            int h = Math.min(ph, image.getHeight() - y);
 
             if (w <= 0 || h <= 0) continue;
 

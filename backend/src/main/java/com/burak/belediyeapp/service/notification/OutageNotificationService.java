@@ -4,9 +4,11 @@ import com.burak.belediyeapp.entity.AppUser;
 import com.burak.belediyeapp.entity.Municipality;
 import com.burak.belediyeapp.entity.MunicipalityOutage;
 import com.burak.belediyeapp.entity.Notification;
+import com.burak.belediyeapp.entity.UserNotificationPreference;
 import com.burak.belediyeapp.repository.IAppUserRepository;
 import com.burak.belediyeapp.repository.IMunicipalityOutageRepository;
 import com.burak.belediyeapp.repository.INotificationRepository;
+import com.burak.belediyeapp.repository.IUserNotificationPreferenceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -37,6 +39,7 @@ public class OutageNotificationService {
     private final IAppUserRepository userRepository;
     private final INotificationRepository notificationRepository;
     private final IMunicipalityOutageRepository outageRepository;
+    private final IUserNotificationPreferenceRepository preferenceRepository;
     private final FirebasePushClient firebasePushClient;
 
     /**
@@ -54,11 +57,25 @@ public class OutageNotificationService {
             return;
         }
         Municipality m = outage.getMunicipality();
-        List<AppUser> recipients = userRepository.findByPreferredMunicipalityId(m.getId());
-        if (recipients.isEmpty()) {
+        List<AppUser> allUsers = userRepository.findByPreferredMunicipalityId(m.getId());
+        if (allUsers.isEmpty()) {
             log.info("Kesinti yayını için tercih eden vatandaş yok: outageId={}", outage.getId());
             return;
         }
+
+        // Bildirim tercihine göre filtrele — outagesEnabled=false olan kullanıcılara gönderme
+        List<String> userIds = allUsers.stream().map(AppUser::getId).toList();
+        Map<String, UserNotificationPreference> prefsMap = new java.util.HashMap<>();
+        if (!userIds.isEmpty()) {
+            preferenceRepository.findAllByUserIdIn(userIds)
+                    .forEach(p -> prefsMap.put(p.getUser().getId(), p));
+        }
+        List<AppUser> recipients = allUsers.stream()
+                .filter(user -> {
+                    UserNotificationPreference pref = prefsMap.get(user.getId());
+                    return pref == null || pref.isOutagesEnabled();
+                })
+                .toList();
 
         String title = buildTitle(outage, m);
         String body = buildBody(outage);

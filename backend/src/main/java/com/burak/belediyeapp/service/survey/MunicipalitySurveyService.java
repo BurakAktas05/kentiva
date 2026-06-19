@@ -13,6 +13,7 @@ import com.burak.belediyeapp.exception.ResourceNotFoundException;
 import com.burak.belediyeapp.repository.IAppUserRepository;
 import com.burak.belediyeapp.repository.IMunicipalitySurveyRepository;
 import com.burak.belediyeapp.repository.IMunicipalitySurveyVoteRepository;
+import com.burak.belediyeapp.service.notification.SurveyNotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ public class MunicipalitySurveyService {
     private final IMunicipalitySurveyRepository surveyRepository;
     private final IMunicipalitySurveyVoteRepository surveyVoteRepository;
     private final IAppUserRepository userRepository;
+    private final SurveyNotificationService surveyNotificationService;
 
     @Transactional(readOnly = true)
     public List<MunicipalitySurveyDetailDto> listPublic(String municipalityId, AppUser user) {
@@ -96,6 +98,9 @@ public class MunicipalitySurveyService {
                 .active(request.active() == null || request.active())
                 .build();
         MunicipalitySurvey saved = surveyRepository.save(survey);
+        if (saved.isActive()) {
+            surveyNotificationService.broadcast(saved.getId());
+        }
         return toDetailDto(saved, null, false, null, false);
     }
 
@@ -127,11 +132,16 @@ public class MunicipalitySurveyService {
             survey.setOption4(normalizeOptionalOption(request.option4()));
         }
 
+        boolean wasActive = survey.isActive();
         if (request.active() != null) {
             survey.setActive(request.active());
         }
 
-        return toDetailDto(surveyRepository.save(survey), null, false, null, false);
+        MunicipalitySurvey saved = surveyRepository.save(survey);
+        if (saved.isActive() && !wasActive) {
+            surveyNotificationService.broadcast(saved.getId());
+        }
+        return toDetailDto(saved, null, false, null, false);
     }
 
     @Transactional(readOnly = true)

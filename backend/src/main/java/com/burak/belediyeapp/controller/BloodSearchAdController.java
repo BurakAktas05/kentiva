@@ -6,6 +6,7 @@ import com.burak.belediyeapp.entity.BloodSearchAd;
 import com.burak.belediyeapp.exception.BusinessException;
 import com.burak.belediyeapp.exception.ResourceNotFoundException;
 import com.burak.belediyeapp.repository.IBloodSearchAdRepository;
+import com.burak.belediyeapp.service.notification.BloodDonationNotificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
 public class BloodSearchAdController {
 
     private final IBloodSearchAdRepository bloodSearchAdRepository;
+    private final BloodDonationNotificationService bloodDonationNotificationService;
 
     public record BloodSearchAdResponse(
             String id,
@@ -97,6 +99,7 @@ public class BloodSearchAdController {
                 .build();
 
         BloodSearchAd saved = bloodSearchAdRepository.save(ad);
+        bloodDonationNotificationService.broadcast(saved.getId());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Kan ilanı yayınlandı", mapToBloodResponse(saved)));
     }

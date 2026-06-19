@@ -5,8 +5,7 @@ import lombok.*;
 import org.locationtech.jts.geom.Point;
 
 import org.hibernate.annotations.SQLDelete;
-import org.hibernate.annotations.Where;
-import org.hibernate.annotations.BatchSize;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,7 +22,7 @@ import java.util.List;
 @Entity
 @Table(name = "reports")
 @SQLDelete(sql = "UPDATE reports SET deleted = true WHERE id = ?")
-@Where(clause = "deleted = false")
+@SQLRestriction("deleted = false")
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder

@@ -118,7 +118,7 @@ export default function IntroductionModal({ lang, isDark, isOpen, onClose }: Int
             }`}
           >
             {/* Top gradient visual */}
-            <div className={`h-32 bg-gradient-to-b ${currentData.bg} flex items-center justify-center relative transition-all duration-300`}>
+            <div className={`h-36 bg-gradient-to-b ${currentData.bg} flex items-center justify-center relative transition-all duration-300`}>
               <button
                 type="button"
                 onClick={handleSkip}
@@ -126,19 +126,39 @@ export default function IntroductionModal({ lang, isDark, isOpen, onClose }: Int
               >
                 {lang === 'tr' ? 'Atla' : lang === 'ar' ? 'تخطي' : 'Skip'}
               </button>
-              <div className="p-4 rounded-3xl bg-white dark:bg-slate-950 shadow-md border border-slate-100 dark:border-slate-850">
-                {currentData.icon}
-              </div>
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentSlide}
+                  initial={{ opacity: 0, scale: 0.8, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.8, y: 10 }}
+                  transition={{ duration: 0.25, type: 'spring', stiffness: 200, damping: 18 }}
+                  className="p-4 rounded-3xl bg-white dark:bg-slate-950 shadow-md border border-slate-100 dark:border-slate-850"
+                >
+                  {currentData.icon}
+                </motion.div>
+              </AnimatePresence>
             </div>
 
             {/* Slide Info */}
-            <div className="p-6 text-center space-y-4">
-              <h3 className="text-lg font-extrabold tracking-tight">
-                {currentData.title[lang] || currentData.title.en}
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed min-h-[64px]">
-                {currentData.desc[lang] || currentData.desc.en}
-              </p>
+            <div className="p-6 text-center space-y-4 overflow-hidden">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentSlide}
+                  initial={{ opacity: 0, x: 25 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -25 }}
+                  transition={{ duration: 0.22 }}
+                  className="space-y-3"
+                >
+                  <h3 className="text-lg font-extrabold tracking-tight">
+                    {currentData.title[lang] || currentData.title.en}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed min-h-[64px] px-2 font-medium">
+                    {currentData.desc[lang] || currentData.desc.en}
+                  </p>
+                </motion.div>
+              </AnimatePresence>
 
               {/* Dots indicator */}
               <div className="flex justify-center gap-1.5 pt-2">
@@ -148,7 +168,7 @@ export default function IntroductionModal({ lang, isDark, isOpen, onClose }: Int
                     onClick={() => setCurrentSlide(i)}
                     className={`h-2 rounded-full transition-all duration-300 ${
                       i === currentSlide
-                        ? 'w-6 bg-primary'
+                        ? 'w-6 bg-primary shadow-sm shadow-primary/30'
                         : 'w-2 bg-slate-300 dark:bg-slate-700'
                     }`}
                     aria-label={`Go to slide ${i + 1}`}
@@ -162,7 +182,7 @@ export default function IntroductionModal({ lang, isDark, isOpen, onClose }: Int
                   <button
                     type="button"
                     onClick={() => setCurrentSlide((prev) => prev - 1)}
-                    className="flex-1 rounded-2xl border border-slate-200 bg-white py-3.5 text-xs font-extrabold text-slate-500 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 transition-all active:scale-[0.98]"
+                    className="flex-1 rounded-2xl border border-slate-200 bg-white py-3.5 text-xs font-bold text-slate-500 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 transition-all active:scale-[0.98]"
                   >
                     {lang === 'tr' ? 'Geri' : lang === 'ar' ? 'سابق' : 'Back'}
                   </button>
@@ -171,7 +191,7 @@ export default function IntroductionModal({ lang, isDark, isOpen, onClose }: Int
                 <button
                   type="button"
                   onClick={handleNext}
-                  className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-primary py-3.5 text-xs font-extrabold text-white shadow-lg shadow-primary/20 hover:brightness-105 active:scale-[0.98] transition-all"
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-primary py-3.5 text-xs font-bold text-white shadow-lg shadow-primary/20 hover:brightness-105 active:scale-[0.98] transition-all"
                 >
                   {currentSlide === slides.length - 1 ? (
                     <>

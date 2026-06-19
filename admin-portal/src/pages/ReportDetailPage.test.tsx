@@ -24,7 +24,7 @@ describe('ReportDetailPage', () => {
     status: 'PENDING',
     categoryName: 'Park ve Yesil Alan',
     reporterFullName: 'Veli Can',
-    assigneeFullName: null,
+    assigneeFullName: null as string | null,
     createdAt: '2026-06-12T10:00:00Z',
     latitude: 41.0082,
     longitude: 28.9784,

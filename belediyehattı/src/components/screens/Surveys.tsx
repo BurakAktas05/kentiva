@@ -82,8 +82,8 @@ export default function Surveys({
 
       setSuccessMessage(t('surveys.success.vote', lang));
       setTimeout(() => setSuccessMessage(null), 4000);
-    } catch (err: any) {
-      alert(err.message || 'Oy verilirken bir hata olustu.');
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Oy verilirken bir hata olustu.');
     } finally {
       setVotingId(null);
     }

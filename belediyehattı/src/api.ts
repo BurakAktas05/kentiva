@@ -621,56 +621,24 @@ export async function getMyProfile(): Promise<ApiUserProfile> {
     localStorage.setItem('belediye_offline_profile', JSON.stringify(profile));
     return profile;
   } catch (e) {
-    const cached = localStorage.getItem('belediye_offline_profile');
-    if (cached) {
-      try {
-        return JSON.parse(cached);
-      } catch {}
+    // Offline fallback: return cached profile if available
+    if (!navigator.onLine) {
+      const cached = localStorage.getItem('belediye_offline_profile');
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch { /* ignore parse error */ }
+      }
     }
-    const selectedTenant = localStorage.getItem('belediye_offline_tenant');
-    let preferredMunicipality = null;
-    if (selectedTenant) {
-      try { preferredMunicipality = JSON.parse(selectedTenant); } catch {}
-    }
-    return {
-      id: 'mock-user-id',
-      firstName: 'Burak',
-      lastName: 'Aktaş',
-      email: 'burak@kentiva.gov.tr',
-      phoneNumber: '5551234567',
-      roles: ['CITIZEN'],
-      reputationScore: 120,
-      reputationLevel: 'Duyarlı Hemşehri',
-      preferredMunicipality,
-    };
+    // Online but API failed — propagate error instead of returning mock data
+    throw e;
   }
 }
 
 export async function setPreferredMunicipality(municipalityId: string): Promise<ApiUserProfile> {
   const token = getToken();
   if (!token) {
-    const cachedTenantRaw = localStorage.getItem('belediye_offline_tenant');
-    let preferredMunicipality: PublicTenant | null = null;
-    if (cachedTenantRaw) {
-      try {
-        const parsed = JSON.parse(cachedTenantRaw) as PublicTenant;
-        if (parsed.id === municipalityId) {
-          preferredMunicipality = parsed;
-        }
-      } catch {}
-    }
-    const fallbackProfile = {
-      id: 'mock-user-id',
-      firstName: 'Burak',
-      lastName: 'Aktaş',
-      email: 'burak@kentiva.gov.tr',
-      phoneNumber: '5551234567',
-      roles: ['CITIZEN'],
-      reputationScore: 120,
-      reputationLevel: 'Duyarlı Hemşehri',
-      preferredMunicipality,
-    };
-    return fallbackProfile;
+    throw new Error('Oturum açılmamış.');
   }
 
   try {
@@ -684,29 +652,16 @@ export async function setPreferredMunicipality(municipalityId: string): Promise<
     }
     return profile;
   } catch (e) {
-    const cachedTenantRaw = localStorage.getItem('belediye_offline_tenant');
-    let preferredMunicipality: PublicTenant | null = null;
-    if (cachedTenantRaw) {
-      try {
-        const parsed = JSON.parse(cachedTenantRaw) as PublicTenant;
-        if (parsed.id === municipalityId) {
-          preferredMunicipality = parsed;
-        }
-      } catch {}
+    // Offline fallback: return cached profile if available
+    if (!navigator.onLine) {
+      const cached = localStorage.getItem('belediye_offline_profile');
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch { /* ignore parse error */ }
+      }
     }
-    const fallbackProfile = {
-      id: 'mock-user-id',
-      firstName: 'Burak',
-      lastName: 'Aktaş',
-      email: 'burak@kentiva.gov.tr',
-      phoneNumber: '5551234567',
-      roles: ['CITIZEN'],
-      reputationScore: 120,
-      reputationLevel: 'Duyarlı Hemşehri',
-      preferredMunicipality,
-    };
-    localStorage.setItem('belediye_offline_profile', JSON.stringify(fallbackProfile));
-    return fallbackProfile;
+    throw e;
   }
 }
 

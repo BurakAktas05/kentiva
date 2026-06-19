@@ -28,6 +28,7 @@ import {
   BarChart3,
   X,
   MessageSquare,
+  Bus,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api, { clearAuthStorage, type PredictiveInsight, type Stats } from './api';
@@ -69,6 +70,7 @@ const SurveysPage = lazy(() => import('./pages/SurveysPage'));
 const SystemFeedbackPage = lazy(() => import('./pages/SystemFeedbackPage'));
 const EventsAndOutagesPage = lazy(() => import('./pages/EventsAndOutagesPage'));
 const SuperAdminRecentReportsPage = lazy(() => import('./pages/SuperAdminRecentReportsPage'));
+const BusRoutesManagementPage = lazy(() => import('./pages/BusRoutesManagementPage'));
 
 const PageFallback = () => (
   <motion.div
@@ -147,6 +149,7 @@ const Sidebar = ({
         ];
         if (user.roles.includes('ROLE_ADMIN') && user.municipality) {
           prItems.push({ name: t('events_outages'), icon: CalendarClock, path: '/events-outages' });
+          prItems.push({ name: 'Ulaşım Hatları', icon: Bus, path: '/bus-routes' });
         }
 
         const orgItems: MenuItem[] = [
@@ -1030,6 +1033,14 @@ const App = () => {
                       element={
                         <ProtectedRoute user={user} allow={(u) => u.roles.includes('ROLE_SUPER_ADMIN')}>
                           <MunicipalityOnboardingPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/bus-routes"
+                      element={
+                        <ProtectedRoute user={user} allow={(u) => u.roles.includes('ROLE_ADMIN') && Boolean(u.municipality)}>
+                          <BusRoutesManagementPage municipalityId={user.municipality?.id ?? ''} />
                         </ProtectedRoute>
                       }
                     />

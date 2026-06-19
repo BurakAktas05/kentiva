@@ -46,6 +46,7 @@ export default function BusScheduleScreen({ lang, isDark, municipality, onBack }
   const [selectedDayType, setSelectedDayType] = useState<DayType>('weekday');
   const [selectedDirection, setSelectedDirection] = useState<'startToEnd' | 'endToStart'>('startToEnd');
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Keep time updated every 30 seconds
   useEffect(() => {
@@ -106,12 +107,19 @@ export default function BusScheduleScreen({ lang, isDark, municipality, onBack }
       ]);
       setRoutes(fetchedRoutes);
       setStarredStops(fetchedStops);
+      setFetchError(null);
 
       // Save to cache
       localStorage.setItem(cacheRoutesKey, JSON.stringify(fetchedRoutes));
       localStorage.setItem(cacheStopsKey, JSON.stringify(fetchedStops));
     } catch (e) {
-      console.error("Ulaşım verileri güncellenemedi, çevrimdışı önbellek kullanılıyor:", e);
+      console.error("Ulaşım verileri güncellenemedi:", e);
+      // Eğer cache varsa, hata mesajını göster ama sessizce devam et
+      if (!cachedRoutes) {
+        setFetchError('Hat bilgileri yüklenemedi. Lütfen internet bağlantınızı kontrol edin ve yeniden deneyin.');
+      } else {
+        setFetchError('Bağlantı hatası. Çevrimdışı önbellek gösteriliyor.');
+      }
     } finally {
       setLoading(false);
     }
@@ -311,6 +319,19 @@ export default function BusScheduleScreen({ lang, isDark, municipality, onBack }
                 />
               </div>
             </div>
+
+            {/* Error Banner (if fetch failed) */}
+            {fetchError && (
+              <div className={`mx-4 mb-2 px-3 py-2 rounded-xl text-xs font-medium flex items-center gap-2 ${
+                isDark
+                  ? 'bg-amber-950/50 text-amber-300 border border-amber-800/50'
+                  : 'bg-amber-50 text-amber-700 border border-amber-200'
+              }`}>
+                <Info className="w-4 h-4 shrink-0" />
+                <span>{fetchError}</span>
+                <button onClick={() => setFetchError(null)} className="ml-auto opacity-70 hover:opacity-100">✕</button>
+              </div>
+            )}
 
             {/* Main Content Area */}
             <div className="flex-1 overflow-y-auto px-4 py-2 space-y-4 pb-8">

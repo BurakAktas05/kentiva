@@ -24,8 +24,12 @@ public class BusRouteController {
 
     private final BusRouteService busRouteService;
 
-    // DTO for Star Stop Request
+    // ─── Request Records ────────────────────────────────────────────
     public record StarStopRequest(String stopName, String municipalityId) {}
+
+    public record ImportFromUrlRequest(String url) {}
+
+    // ─── LIST ───────────────────────────────────────────────────────
 
     @GetMapping("/public/municipalities/{municipalityId}/bus-routes")
     @Operation(summary = "Belediyenin aktif otobüs hatlarını listele (Kamuya Açık)")
@@ -34,6 +38,8 @@ public class BusRouteController {
             @AuthenticationPrincipal AppUser currentUser) {
         return ResponseEntity.ok(ApiResponse.success(busRouteService.listRoutesForMunicipality(municipalityId, currentUser)));
     }
+
+    // ─── IMPORT FROM FILES ──────────────────────────────────────────
 
     @PostMapping(value = "/admin/municipalities/{id}/bus-routes/import", consumes = "multipart/form-data")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
@@ -84,6 +90,71 @@ public class BusRouteController {
         return ResponseEntity.ok(ApiResponse.success("Önizlenen hatlar başarıyla onaylandı ve kaydedildi.", null));
     }
 
+    // ─── IMPORT FROM URL ────────────────────────────────────────────
+
+    @PostMapping("/municipalities/me/bus-routes/import-from-url")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Bir URL'den otobüs hatlarını çekerek içe aktar — önizleme olmadan doğrudan kaydeder (Belediye Admini)")
+    public ResponseEntity<ApiResponse<Void>> importRoutesFromUrlAdmin(
+            @AuthenticationPrincipal AppUser user,
+            @RequestBody ImportFromUrlRequest request) {
+        if (user.getMunicipality() == null) {
+            throw new BusinessException("Kullanıcı bir belediyeye bağlı değil.", "MUNICIPALITY_NOT_ASSIGNED");
+        }
+        busRouteService.importRoutesFromUrl(user.getMunicipality().getId(), request.url());
+        return ResponseEntity.ok(ApiResponse.success("URL'den hatlar başarıyla içe aktarıldı.", null));
+    }
+
+    @PostMapping("/municipalities/me/bus-routes/import-from-url-preview")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Bir URL'den otobüs hatlarını çekerek önizleme olarak göster (Belediye Admini)")
+    public ResponseEntity<ApiResponse<List<BusRouteDto>>> importRoutesFromUrlPreviewAdmin(
+            @AuthenticationPrincipal AppUser user,
+            @RequestBody ImportFromUrlRequest request) {
+        if (user.getMunicipality() == null) {
+            throw new BusinessException("Kullanıcı bir belediyeye bağlı değil.", "MUNICIPALITY_NOT_ASSIGNED");
+        }
+        List<BusRouteDto> preview = busRouteService.importFromUrlPreview(user.getMunicipality().getId(), request.url());
+        return ResponseEntity.ok(ApiResponse.success("URL'den hatlar önizleme için işlendi.", preview));
+    }
+
+    @PostMapping("/admin/municipalities/{id}/bus-routes/import-from-url")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Bir URL'den otobüs hatlarını çekerek içe aktar (Süper Admin)")
+    public ResponseEntity<ApiResponse<Void>> importRoutesFromUrlSuperAdmin(
+            @PathVariable String id,
+            @RequestBody ImportFromUrlRequest request) {
+        busRouteService.importRoutesFromUrl(id, request.url());
+        return ResponseEntity.ok(ApiResponse.success("URL'den hatlar başarıyla içe aktarıldı.", null));
+    }
+
+    // ─── DELETE SINGLE ROUTE ────────────────────────────────────────
+
+    @DeleteMapping("/municipalities/me/bus-routes/{routeId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Kendi belediyesine ait bir hattı sil (Belediye Admini)")
+    public ResponseEntity<ApiResponse<Void>> deleteRouteAdmin(
+            @AuthenticationPrincipal AppUser user,
+            @PathVariable String routeId) {
+        if (user.getMunicipality() == null) {
+            throw new BusinessException("Kullanıcı bir belediyeye bağlı değil.", "MUNICIPALITY_NOT_ASSIGNED");
+        }
+        busRouteService.deleteRoute(user.getMunicipality().getId(), routeId);
+        return ResponseEntity.ok(ApiResponse.success("Hat başarıyla silindi.", null));
+    }
+
+    @DeleteMapping("/admin/municipalities/{municipalityId}/bus-routes/{routeId}")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Herhangi bir belediyenin hattını sil (Süper Admin)")
+    public ResponseEntity<ApiResponse<Void>> deleteRouteSuperAdmin(
+            @PathVariable String municipalityId,
+            @PathVariable String routeId) {
+        busRouteService.deleteRoute(municipalityId, routeId);
+        return ResponseEntity.ok(ApiResponse.success("Hat başarıyla silindi.", null));
+    }
+
+    // ─── STAR / UNSTAR ROUTES ───────────────────────────────────────
+
     @PostMapping("/bus-routes/{routeId}/star")
     @Operation(summary = "Hattı yıldızla / favoriye ekle")
     public ResponseEntity<ApiResponse<Void>> starRoute(
@@ -108,6 +179,8 @@ public class BusRouteController {
             @AuthenticationPrincipal AppUser user) {
         return ResponseEntity.ok(ApiResponse.success(busRouteService.getStarredRoutes(user)));
     }
+
+    // ─── STAR / UNSTAR STOPS ────────────────────────────────────────
 
     @PostMapping("/bus-stops/star")
     @Operation(summary = "Durağı yıldızla / favoriye ekle")

@@ -76,9 +76,9 @@ class AnnouncementNotificationServiceTest {
         StarredRoute starredRoute = new StarredRoute(user1, route);
         when(starredRouteRepository.findAllByRouteId("route-1")).thenReturn(Collections.singletonList(starredRoute));
 
-        when(preferenceRepository.findByUserId("user-2")).thenReturn(Optional.of(
-                UserNotificationPreference.builder().user(user2).announcementsEnabled(true).build()
-        ));
+        when(preferenceRepository.findAllByUserIdIn(Collections.singletonList("user-2"))).thenReturn(
+                Collections.singletonList(UserNotificationPreference.builder().user(user2).announcementsEnabled(true).build())
+        );
 
         service.broadcast("ann-1");
 

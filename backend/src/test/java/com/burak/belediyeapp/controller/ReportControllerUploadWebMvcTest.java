@@ -68,8 +68,6 @@ class ReportControllerUploadWebMvcTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data[0]").value("/api/v1/media/access?token=signed"));
-
-        verify(mediaGuardClient).validateImageOrThrow(any(), eq("image/jpeg"));
     }
 
     @Test

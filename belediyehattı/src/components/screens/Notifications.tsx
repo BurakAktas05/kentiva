@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { BellOff, CheckCheck, FileText, UserCheck, Info, Droplets, Zap, ChevronRight } from 'lucide-react';
+import { BellOff, CheckCheck, FileText, UserCheck, Info, Droplets, Zap, ChevronRight, Heart, ClipboardList } from 'lucide-react';
 import { getNotifications, markAllNotificationsRead, ApiNotification } from '../../api';
 import { Lang, t } from '../../i18n';
 import { kentivaCard, screenHeadingClass } from '../../lib/ui';
@@ -8,6 +8,7 @@ import { kentivaCard, screenHeadingClass } from '../../lib/ui';
 interface NotificationsProps {
   onBadgeUpdate: (count: number) => void;
   onOpenReport?: (reportId: string) => void;
+  onNavigate?: (tab: 'home' | 'kent' | 'topluluk' | 'profile' | 'reports' | 'report') => void;
   lang: Lang;
   isDark: boolean;
 }
@@ -23,6 +24,12 @@ const getNotifIcon = (type: string) => {
       return <Droplets className="w-5 h-5" />;
     case 'OUTAGE_ELECTRIC':
       return <Zap className="w-5 h-5" />;
+    case 'BLOOD_DONATION':
+      return <Heart className="w-5 h-5 fill-rose-500 text-rose-500" />;
+    case 'LOST_PET':
+      return <Info className="w-5 h-5 text-purple-500" />;
+    case 'SURVEY':
+      return <ClipboardList className="w-5 h-5 text-emerald-500" />;
     default:
       return <Info className="w-5 h-5" />;
   }
@@ -44,6 +51,18 @@ const getNotifColor = (type: string, isDark: boolean) => {
       return isDark
         ? 'bg-amber-900/30 text-amber-300 border-amber-900/50'
         : 'bg-amber-50 text-amber-700 border-amber-200';
+    case 'BLOOD_DONATION':
+      return isDark
+        ? 'bg-rose-950/30 text-rose-400 border-rose-900/50'
+        : 'bg-rose-50 text-rose-600 border-rose-100';
+    case 'LOST_PET':
+      return isDark
+        ? 'bg-purple-950/30 text-purple-400 border-purple-900/50'
+        : 'bg-purple-50 text-purple-600 border-purple-100';
+    case 'SURVEY':
+      return isDark
+        ? 'bg-emerald-950/30 text-emerald-400 border-emerald-900/50'
+        : 'bg-emerald-50 text-emerald-600 border-emerald-100';
     default:
       return isDark
         ? 'bg-slate-800 text-slate-400 border-slate-700'
@@ -51,11 +70,11 @@ const getNotifColor = (type: string, isDark: boolean) => {
   }
 };
 
-function isReportNotification(notif: ApiNotification): boolean {
-  return Boolean(notif.reportId);
+function isClickableNotification(notif: ApiNotification): boolean {
+  return Boolean(notif.reportId) || ['BLOOD_DONATION', 'LOST_PET', 'SURVEY'].includes(notif.type);
 }
 
-export default function Notifications({ onBadgeUpdate, onOpenReport, lang, isDark }: NotificationsProps) {
+export default function Notifications({ onBadgeUpdate, onOpenReport, onNavigate, lang, isDark }: NotificationsProps) {
   const [notifications, setNotifications] = useState<ApiNotification[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -89,6 +108,14 @@ export default function Notifications({ onBadgeUpdate, onOpenReport, lang, isDar
   const handleNotifClick = (notif: ApiNotification) => {
     if (notif.reportId && onOpenReport) {
       onOpenReport(notif.reportId);
+    } else if (notif.type === 'BLOOD_DONATION' || notif.type === 'LOST_PET') {
+      if (onNavigate) {
+        onNavigate('topluluk');
+      }
+    } else if (notif.type === 'SURVEY') {
+      if (onNavigate) {
+        onNavigate('home');
+      }
     }
   };
 
@@ -128,7 +155,7 @@ export default function Notifications({ onBadgeUpdate, onOpenReport, lang, isDar
       ) : (
         <div className="space-y-3">
           {notifications.map((notif, idx) => {
-            const clickable = isReportNotification(notif) && Boolean(onOpenReport);
+            const clickable = isClickableNotification(notif) && (notif.reportId ? Boolean(onOpenReport) : Boolean(onNavigate));
             const Wrapper = clickable ? 'button' : 'div';
             return (
               <motion.div
@@ -176,7 +203,11 @@ export default function Notifications({ onBadgeUpdate, onOpenReport, lang, isDar
                       </p>
                       {clickable && (
                         <p className="mt-2 text-[10px] font-semibold text-primary">
-                          {t('notif.openReport', lang)}
+                          {notif.reportId
+                            ? t('notif.openReport', lang)
+                            : notif.type === 'SURVEY'
+                            ? (lang === 'tr' ? 'Ankete Git' : 'Go to Survey')
+                            : (lang === 'tr' ? 'İlanlara Git' : 'Go to Ads')}
                         </p>
                       )}
                       <span className="text-[10px] text-slate-400 mt-2 block">
