@@ -96,11 +96,44 @@ public final class ReportLanguageMessages {
     }
 
     public static String heuristicReplyDraft(String lang) {
-        return switch (normalizeLang(lang)) {
-            case "en" ->
-                    "Thank you for your report. Our teams are working on it and we will update you as soon as possible.";
-            case "ar" -> "شكراً لبلاغكم. فرقنا تعمل على المعالجة وسنبلغكم عند اكتمال الإجراء.";
-            default -> "Bildiriminiz için teşekkür ederiz. Ekiplerimiz konuyu değerlendirmektedir; süreç hakkında bilgilendirileceksiniz.";
+        return heuristicReplyDraft(lang, null);
+    }
+
+    public static String heuristicReplyDraft(String lang, com.burak.belediyeapp.entity.ReportStatus targetStatus) {
+        String normalized = normalizeLang(lang);
+        if (targetStatus == null) {
+            return switch (normalized) {
+                case "en" -> "Thank you for your report. Our teams are working on it and we will update you as soon as possible.";
+                case "ar" -> "شكراً لبلاغكم. فرقنا تعمل على المعالجة وسنبلغكم عند اكتمال الإجراء.";
+                default -> "Bildiriminiz için teşekkür ederiz. Ekiplerimiz konuyu değerlendirmektedir; süreç hakkında bilgilendirileceksiniz.";
+            };
+        }
+        return switch (targetStatus) {
+            case OUT_OF_JURISDICTION -> switch (normalized) {
+                case "en" -> "The reported issue is outside our municipality's jurisdiction. It will be forwarded to the relevant authority.";
+                case "ar" -> "الموضوع المبلغ عنه خارج نطاق اختصاص بلديتنا. سيتم توجيهه إلى الجهة المعنية.";
+                default -> "Bildirilen konunun belediyemizin yetki alanı dışında kaldığı tespit edilmiştir. İlgili kuruma iletilmesi tavsiye edilir.";
+            };
+            case RESOLVED -> switch (normalized) {
+                case "en" -> "The issue you reported has been successfully resolved by our field teams. Thank you for your contribution.";
+                case "ar" -> "تم حل المشكلة التي أبلغت عنها بنجاح من قبل فرقنا الميدانية. شكراً لمساهمتك.";
+                default -> "Bildirmiş olduğunuz sorun saha ekiplerimiz tarafından başarıyla giderilmiştir. Katkılarınız için teşekkür ederiz.";
+            };
+            case PROCESSING -> switch (normalized) {
+                case "en" -> "Your report has been reviewed and processed. Our field teams have started working on it.";
+                case "ar" -> "تمت مراجعة بلاغك وجاري العمل عليه. بدأت فرقنا الميدانية بالمعالجة.";
+                default -> "Bildiriminiz incelenmiş ve işleme alınmıştır. Saha ekiplerimiz çalışmalara başlamıştır.";
+            };
+            case REJECTED -> switch (normalized) {
+                case "en" -> "Your report has been rejected as it does not comply with our platform guidelines or contains insufficient information.";
+                case "ar" -> "تم رفض البلاغ لعدم توافقه مع شروط منصتنا أو لعدم كفاية المعلومات.";
+                default -> "Bildiriminiz, kurallarımıza uymaması veya yetersiz bilgi içermesi nedeniyle işleme alınamamış ve reddedilmiştir.";
+            };
+            default -> switch (normalized) {
+                case "en" -> "Thank you for your report. Our teams are working on it and we will update you as soon as possible.";
+                case "ar" -> "شكراً لبلاغكم. فرقنا تعمل على المعالجة وسنبلغكم عند اكتمال الإجراء.";
+                default -> "Bildiriminiz için teşekkür ederiz. Ekiplerimiz konuyu değerlendirmektedir; süreç hakkında bilgilendirileceksiniz.";
+            };
         };
     }
 

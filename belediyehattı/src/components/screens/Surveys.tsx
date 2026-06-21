@@ -146,9 +146,18 @@ export default function Surveys({
           </div>
         ) : displaySurveys.length === 0 ? (
           homeSection ? null : (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <BarChart3 className="h-12 w-12 text-slate-300 dark:text-slate-600 mb-3" />
-              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{t('surveys.empty', lang)}</p>
+            <div className="flex flex-col items-center justify-center py-10 px-6 text-center rounded-2xl border border-dashed border-slate-300 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-inner">
+                <BarChart3 className="h-7 w-7" />
+              </div>
+              <p className="text-sm font-bold text-slate-800 dark:text-white">
+                {lang === 'tr' ? 'Aktif Anket Bulunmuyor' : 'No Active Surveys'}
+              </p>
+              <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400 max-w-xs font-semibold">
+                {lang === 'tr'
+                  ? 'Belediyeniz tarafından yayınlanmış güncel bir anket bulunmamaktadır. Yeni anketler yayınlandığında buradan katılabilirsiniz.'
+                  : 'There are no active surveys published by your municipality. You can participate here once new surveys are posted.'}
+              </p>
             </div>
           )
         ) : (

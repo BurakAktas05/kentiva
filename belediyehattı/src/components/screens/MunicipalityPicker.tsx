@@ -221,8 +221,8 @@ export default function MunicipalityPicker({
                       province === p
                         ? 'bg-primary text-white shadow-md shadow-primary/20'
                         : isDark
-                          ? 'bg-slate-800/80 text-slate-350 hover:bg-slate-700/80'
-                          : 'bg-white border border-slate-250/60 text-slate-600 hover:bg-slate-50'
+                          ? 'bg-slate-800/80 text-slate-300 hover:bg-slate-700/80'
+                          : 'bg-white border border-slate-300/60 text-slate-600 hover:bg-slate-50'
                     }`}
                   >
                     {p}
@@ -246,7 +246,7 @@ export default function MunicipalityPicker({
                     className={`w-full rounded-2xl border py-3.5 pl-10 pr-4 text-sm transition-all duration-300 outline-none ${
                       isDark
                         ? 'border-slate-700/80 bg-slate-900/40 text-white placeholder:text-slate-500 focus:border-primary focus:ring-2 focus:ring-primary/25'
-                        : 'border-slate-250/70 bg-white text-slate-900 placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary/15'
+                        : 'border-slate-300/70 bg-white text-slate-900 placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary/15'
                     }`}
                   />
                 </div>
@@ -271,11 +271,11 @@ export default function MunicipalityPicker({
                               ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-md shadow-primary/5 scale-[1.01]'
                               : isDark
                                 ? 'border-slate-800/80 bg-slate-900/60 hover:border-slate-700 backdrop-blur-sm'
-                                : 'border-slate-200/80 bg-white hover:border-slate-350 hover:shadow-sm'
+                                : 'border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-sm'
                           } active:scale-[0.98]`}
                         >
                           {d.logoUrl ? (
-                            <img src={d.logoUrl} alt="" className="h-10 w-10 rounded-xl object-contain bg-white p-0.5 border border-slate-100 dark:border-slate-850" />
+                            <img src={d.logoUrl} alt="" className="h-10 w-10 rounded-xl object-contain bg-white p-0.5 border border-slate-100 dark:border-slate-800" />
                           ) : (
                             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
                               <Building2 className="h-5 w-5" />
@@ -318,7 +318,7 @@ export default function MunicipalityPicker({
           disabled={!districtId}
           className={`w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-bold text-white shadow-lg transition-all duration-300 active:scale-[0.98] ${
             !districtId
-              ? 'bg-slate-350 dark:bg-slate-800 text-slate-450 dark:text-slate-500 cursor-not-allowed shadow-none'
+              ? 'bg-slate-300 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed shadow-none'
               : 'bg-primary shadow-primary/25 hover:brightness-105'
           }`}
         >

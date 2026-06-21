@@ -235,7 +235,7 @@ export default function PharmacyMapModal({
                         });
                       }
                     }}
-                    className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-850 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-350 transition shrink-0"
+                    className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition shrink-0"
                   >
                     {t('home.widgets.showOnMap', lang) || 'Haritada Gör'}
                   </button>

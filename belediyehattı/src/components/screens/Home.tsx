@@ -115,7 +115,7 @@ export default function Home({
           <div className={`rounded-3xl border p-6 text-center shadow-lg transition-all ${
             isDark 
               ? 'border-amber-500/20 bg-gradient-to-br from-slate-900 to-amber-950/10' 
-              : 'border-amber-250 bg-gradient-to-br from-white to-amber-50/20'
+              : 'border-amber-200 bg-gradient-to-br from-white to-amber-50/20'
           }`}>
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500 shadow-inner">
               <Building2 className="h-7 w-7" />

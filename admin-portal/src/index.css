@@ -23,6 +23,19 @@
 
   --shadow-kentiva: 0 22px 44px -18px rgb(11 79 156 / 0.28);
   --shadow-kentiva-sm: 0 8px 24px -8px rgb(15 23 42 / 0.12);
+
+  /* Support for intermediate design shades */
+  --color-slate-150: #f1f5f9;
+  --color-slate-250: #cbd5e1;
+  --color-slate-350: #94a3b8;
+  --color-slate-450: #64748b;
+  --color-slate-550: #475569;
+  --color-slate-650: #334155;
+  --color-slate-750: #1e293b;
+  --color-slate-850: #0f172a;
+  --color-amber-250: #fcd34d;
+  --color-emerald-150: #a7f3d0;
+  --color-indigo-550: #4f46e5;
 }
 
 @layer base {

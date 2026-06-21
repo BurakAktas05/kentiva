@@ -44,6 +44,7 @@ import {
 } from '../../lib/communityDistrict';
 import { kentivaCard, kentivaInputClass, primaryBtnClass, segmentBarClass, segmentBtnClass } from '../../lib/ui';
 import type { CommunitySegment } from './CommunityScreen';
+import { storageService } from '../../lib/storageService';
 
 interface SocialAdsProps {
   municipality: PublicTenant | null;
@@ -71,6 +72,9 @@ export default function SocialAds({
   const [lostPetAds, setLostPetAds] = useState<ApiLostPetAd[]>([]);
   const [itemAds, setItemAds] = useState<ApiItemDonationAd[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showIntroModal, setShowIntroModal] = useState(() => {
+    return storageService.getItem('belediye_social_ads_intro_shown') !== 'true';
+  });
   const [focusDistrict, setFocusDistrict] = useState<FocusDistrict | null>(null);
   const [districtResolving, setDistrictResolving] = useState(true);
   
@@ -146,7 +150,7 @@ export default function SocialAds({
   const fetchAds = async (district: string) => {
     // 1. Try loading cached data first (Stale-While-Revalidate)
     const cacheKey = `belediye_cache_social_${activeTab}_${district}`;
-    const cached = localStorage.getItem(cacheKey);
+    const cached = storageService.getItem(cacheKey);
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
@@ -172,17 +176,17 @@ export default function SocialAds({
         const ads = await getBloodAds(district);
         const list = ads || [];
         setBloodAds(list);
-        localStorage.setItem(cacheKey, JSON.stringify(list));
+        storageService.setItem(cacheKey, JSON.stringify(list));
       } else if (activeTab === 'lost') {
         const ads = await getLostPetAds(district);
         const list = ads || [];
         setLostPetAds(list);
-        localStorage.setItem(cacheKey, JSON.stringify(list));
+        storageService.setItem(cacheKey, JSON.stringify(list));
       } else {
         const ads = await getItemDonationAds(district);
         const list = ads || [];
         setItemAds(list);
-        localStorage.setItem(cacheKey, JSON.stringify(list));
+        storageService.setItem(cacheKey, JSON.stringify(list));
       }
     } catch (err) {
       console.error('Sosyal ilanlar yuklenirken hata:', err);
@@ -285,7 +289,7 @@ export default function SocialAds({
   const handleSubmitBlood = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!hospitalName || !hospitalDistrict || !patientName || !contactPhone || !description) {
-      alert('Lutfen tum alanlari doldurun.');
+      alert(lang === 'tr' ? 'Lütfen tüm alanları doldurun.' : 'Please fill in all fields.');
       return;
     }
     setSubmitting(true);
@@ -303,7 +307,7 @@ export default function SocialAds({
       if (focusDistrictName) void fetchAds(focusDistrictName);
       alert(t('social.ads.success.blood', lang));
     } catch (err: any) {
-      alert(err.message || 'Ilan olusturulurken hata olustu.');
+      alert(err.message || (lang === 'tr' ? 'İlan oluşturulurken hata oluştu.' : 'An error occurred while creating ad.'));
     } finally {
       setSubmitting(false);
     }
@@ -312,7 +316,7 @@ export default function SocialAds({
   const handleSubmitLostPet = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!petName || !petBreed || !lastSeenDistrict || !petContactPhone || !petDescription) {
-      alert('Lutfen tum alanlari doldurun.');
+      alert(lang === 'tr' ? 'Lütfen tüm alanları doldurun.' : 'Please fill in all fields.');
       return;
     }
     setSubmitting(true);
@@ -341,7 +345,7 @@ export default function SocialAds({
       if (focusDistrictName) void fetchAds(focusDistrictName);
       alert(t('social.ads.success.lost', lang));
     } catch (err: any) {
-      alert(err.message || 'Ilan olusturulurken hata olustu.');
+      alert(err.message || (lang === 'tr' ? 'İlan oluşturulurken hata oluştu.' : 'An error occurred while creating ad.'));
     } finally {
       setSubmitting(false);
       setImageUploading(false);
@@ -361,7 +365,7 @@ export default function SocialAds({
       if (focusDistrictName) void fetchAds(focusDistrictName);
       alert(t('social.ads.success.delete', lang));
     } catch (err: any) {
-      alert(err.message || 'Ilan silinirken hata olustu.');
+      alert(err.message || (lang === 'tr' ? 'İlan silinirken hata oluştu.' : 'An error occurred while deleting ad.'));
     }
   };
 
@@ -452,25 +456,70 @@ export default function SocialAds({
             ))}
           </div>
         ) : activeTab === 'blood' && bloodAds.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <Heart className="h-12 w-12 text-slate-300 dark:text-slate-600 mb-3" />
-            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
-              {t('social.ads.empty.district', lang, { district: focusDistrictName })}
+          <div className="flex flex-col items-center justify-center py-10 px-6 text-center rounded-2xl border border-dashed border-slate-300 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-red-500/10 text-red-500 shadow-inner">
+              <Heart className="h-7 w-7" />
+            </div>
+            <p className="text-sm font-bold text-slate-800 dark:text-white">
+              {lang === 'tr' ? 'Acil Kan İlanı Bulunmuyor' : 'No Blood Donation Ads'}
             </p>
+            <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400 max-w-xs font-semibold">
+              {lang === 'tr'
+                ? 'İlçenizdeki vatandaşların görebileceği bir acil kan bağışı ilanı oluşturabilirsiniz. Eklenen ilanlar bölgenizdeki tüm kullanıcılara ulaştırılır.'
+                : 'You can create an emergency blood donation ad for citizens in your district to see. Added ads are shown to all local users.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => { setFormType('blood'); setIsModalOpen(true); }}
+              className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-red-500 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-red-500/10 active:scale-95 transition-all cursor-pointer"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>{lang === 'tr' ? 'İlan Oluştur' : 'Create Ad'}</span>
+            </button>
           </div>
         ) : activeTab === 'lost' && lostPetAds.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <AlertCircle className="h-12 w-12 text-slate-300 dark:text-slate-600 mb-3" />
-            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
-              {t('social.ads.empty.district', lang, { district: focusDistrictName })}
+          <div className="flex flex-col items-center justify-center py-10 px-6 text-center rounded-2xl border border-dashed border-slate-300 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-650 dark:text-indigo-400 shadow-inner">
+              <AlertCircle className="h-7 w-7" />
+            </div>
+            <p className="text-sm font-bold text-slate-800 dark:text-white">
+              {lang === 'tr' ? 'Kayıp Evcil Hayvan İlanı Bulunmuyor' : 'No Lost Pet Ads'}
             </p>
+            <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400 max-w-xs font-semibold">
+              {lang === 'tr'
+                ? 'Kaybolan evcil hayvanınız için ilan oluşturabilirsiniz. İlçenizdeki diğer vatandaşlar ilanı görerek bulmanıza yardımcı olabilir.'
+                : 'You can create an ad for your lost pet. Other citizens in your district can see the ad and help you find it.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => { setFormType('lost'); setIsModalOpen(true); }}
+              className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-indigo-600/10 active:scale-95 transition-all cursor-pointer"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>{lang === 'tr' ? 'İlan Oluştur' : 'Create Ad'}</span>
+            </button>
           </div>
         ) : activeTab === 'items' && itemAds.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <Gift className="h-12 w-12 text-slate-300 dark:text-slate-600 mb-3" />
-            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
-              {t('social.ads.items.empty.district', lang, { district: focusDistrictName })}
+          <div className="flex flex-col items-center justify-center py-10 px-6 text-center rounded-2xl border border-dashed border-slate-300 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 shadow-inner">
+              <Gift className="h-7 w-7" />
+            </div>
+            <p className="text-sm font-bold text-slate-800 dark:text-white">
+              {lang === 'tr' ? 'Eşya Paylaşım İlanı Bulunmuyor' : 'No Item Donation Ads'}
             </p>
+            <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400 max-w-xs font-semibold">
+              {lang === 'tr'
+                ? 'İhtiyacınız olmayan veya bağışlamak istediğiniz kıyafet, eşya vb. için ilan oluşturarak ilçenizdeki ihtiyaç sahiplerine ulaştırabilirsiniz.'
+                : 'You can create an ad for clothes, household items, etc., that you want to donate or share with people in need in your district.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => { setFormType('items'); setIsModalOpen(true); }}
+              className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-600/10 active:scale-95 transition-all cursor-pointer"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>{lang === 'tr' ? 'İlan Oluştur' : 'Create Ad'}</span>
+            </button>
           </div>
         ) : activeTab === 'blood' ? (
           // RENDER BLOOD ADS WITH PRIORITY DISTRICT MATCHING
@@ -1133,6 +1182,103 @@ export default function SocialAds({
                   </button>
                 </form>
               )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showIntroModal && (
+          <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className={`w-full max-w-sm rounded-3xl border p-6 shadow-2xl transition-all ${
+                isDark ? 'border-slate-800 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-800'
+              }`}
+            >
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-inner">
+                <Gift className="h-7 w-7 text-primary animate-bounce" />
+              </div>
+              
+              <h3 className="text-center text-base font-extrabold tracking-tight">
+                {lang === 'tr' ? 'Topluluk Yardımlaşma Alanı' : 'Community Solidarity Space'}
+              </h3>
+              <p className="mt-2 text-center text-xs leading-relaxed text-slate-500 dark:text-slate-400 font-semibold">
+                {lang === 'tr'
+                  ? 'Hemşehrilerinizle yardımlaşın ve mahalle dayanışmasını güçlendirin.'
+                  : 'Collaborate with your neighbors and strengthen local solidarity.'}
+              </p>
+
+              <div className="mt-5 space-y-3.5 text-left">
+                <div className="flex gap-3">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-red-500/10 text-red-500">
+                    <Heart className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                      {lang === 'tr' ? 'Acil Kan Bağışı' : 'Urgent Blood Donation'}
+                    </h4>
+                    <p className="text-[10px] text-slate-500 mt-0.5 leading-normal">
+                      {lang === 'tr' 
+                        ? 'İlçenizdeki hastalar için acil kan ilanları açabilir, bölgenizdeki vatandaşların görmesini sağlayabilirsiniz.'
+                        : 'Create urgent blood donation ads for patients in your district and let local citizens see them.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-500">
+                    <AlertCircle className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                      {lang === 'tr' ? 'Kayıp Evcil Hayvan' : 'Lost Pet Alerts'}
+                    </h4>
+                    <p className="text-[10px] text-slate-500 mt-0.5 leading-normal">
+                      {lang === 'tr'
+                        ? 'Kaybolan evcil hayvanınız için ilan oluşturup, çevredeki komşularınızdan yardım alabilirsiniz.'
+                        : 'Post ads for your lost pets and get support from neighbors living nearby.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
+                    <Gift className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                      {lang === 'tr' ? 'Eşya Paylaşımı' : 'Item Donations'}
+                    </h4>
+                    <p className="text-[10px] text-slate-500 mt-0.5 leading-normal">
+                      {lang === 'tr'
+                        ? 'İhtiyacınız olmayan temiz kıyafet, mobilya ve diğer eşyaları bağışlayarak yardımlaşabilirsiniz.'
+                        : 'Donate clean clothing, furniture, or other unused items to share with those in need.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-100 dark:border-slate-800 text-[10px] text-slate-500 leading-relaxed font-semibold">
+                ℹ️ {lang === 'tr'
+                  ? 'Açtığınız tüm ilanlar yalnızca kendi ilçenizdeki vatandaşlara ulaştırılır ve onlara gösterilir.'
+                  : 'All ads you post are targeted and shown only to citizens residing in your district.'}
+              </div>
+
+              <div className="mt-5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    storageService.setItem('belediye_social_ads_intro_shown', 'true');
+                    setShowIntroModal(false);
+                  }}
+                  className="w-full rounded-2xl bg-primary py-3 text-xs font-bold text-white shadow-lg shadow-primary/20 hover:brightness-105 active:scale-[0.98] transition-all cursor-pointer"
+                >
+                  {lang === 'tr' ? 'Anladım, Keşfet' : 'I Understand, Explore'}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

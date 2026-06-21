@@ -411,7 +411,7 @@ public class ReportCommandService {
         Report report = ctx.report();
         GeminiService.AIAnalysisResult result = geminiService.analyzeReport(report, targetStatus);
         if (result == null) {
-            result = heuristicReportAnalyzer.analyze(report);
+            result = heuristicReportAnalyzer.analyze(report, targetStatus);
             log.info("Kural tabanlı AI yedek analiz kullanıldı: {}", reportId);
         }
         if (result == null) {

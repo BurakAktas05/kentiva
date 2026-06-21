@@ -77,3 +77,9 @@ uploads/
 .codex-runtime/
 .cursor/
 
+### Firebase & Credentials ###
+google-services.json
+**/google-services.json
+kentiva-*.json
+kentiva_base64url.json
+

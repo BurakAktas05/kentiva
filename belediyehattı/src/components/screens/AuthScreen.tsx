@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mail, Lock, User, Phone, ArrowRight, Building2, Loader2, KeyRound, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, User, Phone, ArrowRight, Building2, Loader2, KeyRound, ShieldCheck, X } from 'lucide-react';
 import { login, register, AuthUser, apiBase } from '../../api';
 import type { AuthMeta } from '../../lib/authTypes';
 import { Lang, t } from '../../i18n';
@@ -8,9 +8,10 @@ import { Lang, t } from '../../i18n';
 interface AuthScreenProps {
   onAuth: (user: AuthUser, meta?: AuthMeta) => void;
   lang: Lang;
+  isDark?: boolean;
 }
 
-export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
+export default function AuthScreen({ onAuth, lang, isDark = false }: AuthScreenProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -20,6 +21,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [kvkkApproved, setKvkkApproved] = useState(false);
+  const [showKvkk, setShowKvkk] = useState(false);
 
   // Şifre sıfırlama
   const [forgotMode, setForgotMode] = useState<'off' | 'phone' | 'otp' | 'newpass'>('off');
@@ -67,6 +69,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
           headers: {
             'Content-Type': 'application/json',
             'ngrok-skip-browser-warning': 'true',
+            'bypass-tunnel-reminder': 'true',
           },
           body: JSON.stringify({ phoneNumber: resetPhone }),
         }).then(async r => {
@@ -83,6 +86,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
           headers: {
             'Content-Type': 'application/json',
             'ngrok-skip-browser-warning': 'true',
+            'bypass-tunnel-reminder': 'true',
           },
           body: JSON.stringify({ phoneNumber: resetPhone, otpCode, newPassword }),
         }).then(async r => {
@@ -103,7 +107,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
   };
 
   return (
-    <div className="min-h-app w-full overflow-x-hidden flex flex-col items-center justify-center bg-gradient-to-b from-slate-50 via-white to-slate-100 px-4 py-6 pt-safe pb-safe font-sans [background-image:radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(14,165,233,0.12),transparent)]">
+    <div className={`min-h-app w-full overflow-x-hidden flex flex-col items-center justify-center px-4 py-6 pt-safe pb-safe font-sans ${isDark ? 'bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 [background-image:radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(14,165,233,0.08),transparent)]' : 'bg-gradient-to-b from-slate-50 via-white to-slate-100 [background-image:radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(14,165,233,0.12),transparent)]'}`}>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -112,22 +116,22 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
         {/* Brand */}
         <div className="text-center mb-10">
           <div
-            className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-2xl border-4 border-white/90 bg-gradient-to-br from-primary to-primary-dark text-white shadow-xl shadow-primary/30 ring-1 ring-slate-900/5"
+            className={`mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-2xl border-4 bg-gradient-to-br from-primary to-primary-dark text-white shadow-xl shadow-primary/30 ring-1 ${isDark ? 'border-slate-800/90 ring-white/10' : 'border-white/90 ring-slate-900/5'}`}
             aria-hidden
           >
             <Building2 className="h-10 w-10" strokeWidth={1.5} />
           </div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">{t('app.name', lang)}</h1>
-          <p className="text-sm text-slate-500 mt-1 font-medium">{t('app.slogan', lang)}</p>
+          <h1 className={`text-2xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-800'}`}>{t('app.name', lang)}</h1>
+          <p className={`text-sm mt-1 font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{t('app.slogan', lang)}</p>
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex bg-slate-200/60 rounded-2xl p-1.5 mb-8">
+        <div className={`flex rounded-2xl p-1.5 mb-8 ${isDark ? 'bg-slate-800/60' : 'bg-slate-200/60'}`}>
           <button
             type="button"
             onClick={() => { setIsLogin(true); setError(''); }}
             className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${
-              isLogin ? 'bg-white text-primary shadow-md shadow-slate-300/50' : 'text-slate-500'
+              isLogin ? (isDark ? 'bg-slate-900 text-secondary shadow-md shadow-slate-950/50' : 'bg-white text-primary shadow-md shadow-slate-300/50') : (isDark ? 'text-slate-400' : 'text-slate-500')
             }`}
           >
             {t('auth.login', lang)}
@@ -136,7 +140,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
             type="button"
             onClick={() => { setIsLogin(false); setError(''); }}
             className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${
-              !isLogin ? 'bg-white text-primary shadow-md shadow-slate-300/50' : 'text-slate-500'
+              !isLogin ? (isDark ? 'bg-slate-900 text-secondary shadow-md shadow-slate-950/50' : 'bg-white text-primary shadow-md shadow-slate-300/50') : (isDark ? 'text-slate-400' : 'text-slate-500')
             }`}
           >
             {t('auth.register', lang)}
@@ -162,7 +166,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
                       onChange={(e) => setFirstName(e.target.value)}
                       placeholder={t('auth.firstname', lang)}
                       required={!isLogin}
-                      className="w-full bg-white border border-slate-200 rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm"
+                      className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
                     />
                   </div>
                   <div className="flex-1 relative min-w-0">
@@ -173,7 +177,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
                       onChange={(e) => setLastName(e.target.value)}
                       placeholder={t('auth.lastname', lang)}
                       required={!isLogin}
-                      className="w-full bg-white border border-slate-200 rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm"
+                      className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
                     />
                   </div>
                 </div>
@@ -184,7 +188,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder={t('auth.phone', lang) + ' (' + (lang === 'tr' ? 'isteğe bağlı' : 'optional') + ')'}
-                      className="w-full bg-white border border-slate-200 rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm"
+                      className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
                     />
                   </div>
                 {/* KVKK onay */}
@@ -195,9 +199,9 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
                     onChange={(e) => setKvkkApproved(e.target.checked)}
                     className="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
                   />
-                  <span className="text-xs text-slate-600 leading-relaxed">
+                  <span className={`text-xs leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                     {t('auth.kvkkLabel', lang)}{' '}
-                    <a href="#" className="text-primary font-semibold underline">{t('auth.kvkkLink', lang)}</a>
+                    <button type="button" onClick={(e) => { e.preventDefault(); setShowKvkk(true); }} className="text-primary font-semibold underline">{t('auth.kvkkLink', lang)}</button>
                   </span>
                 </label>
               </motion.div>
@@ -212,7 +216,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
               onChange={(e) => setEmail(e.target.value)}
               placeholder={t('auth.email', lang)}
               required
-              className="w-full bg-white border border-slate-200 rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm"
+              className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
             />
           </div>
 
@@ -225,7 +229,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
               placeholder={t('auth.password', lang)}
               required
               minLength={8}
-              className="w-full bg-white border border-slate-200 rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm"
+              className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
             />
           </div>
 
@@ -274,7 +278,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 10 }}
-              className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-md space-y-4"
+              className={`mt-6 rounded-2xl border p-5 shadow-md space-y-4 ${isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'}`}
             >
               <div className="flex items-center gap-2 text-primary">
                 <ShieldCheck className="w-5 h-5" />
@@ -291,7 +295,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
                       value={resetPhone}
                       onChange={(e) => setResetPhone(e.target.value)}
                       placeholder="05XX XXX XX XX"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary outline-none"
+                      className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary outline-none ${isDark ? 'bg-slate-900 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-slate-50 border border-slate-200'}`}
                     />
                   </div>
                 </div>
@@ -309,7 +313,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
                       placeholder="6 haneli kod"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-11 pr-4 py-3.5 text-sm tracking-[0.3em] text-center font-bold focus:ring-2 focus:ring-primary outline-none"
+                      className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm tracking-[0.3em] text-center font-bold focus:ring-2 focus:ring-primary outline-none ${isDark ? 'bg-slate-900 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-slate-50 border border-slate-200'}`}
                     />
                   </div>
                 </div>
@@ -326,7 +330,7 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder={t('auth.newPassword', lang)}
                       minLength={8}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary outline-none"
+                      className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary outline-none ${isDark ? 'bg-slate-900 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-slate-50 border border-slate-200'}`}
                     />
                   </div>
                 </div>
@@ -361,6 +365,53 @@ export default function AuthScreen({ onAuth, lang }: AuthScreenProps) {
           )}
         </AnimatePresence>
       </motion.div>
+
+      {/* KVKK Modal */}
+      <AnimatePresence>
+        {showKvkk && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+            onClick={() => setShowKvkk(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className={`w-full max-w-md max-h-[80vh] rounded-2xl border p-6 shadow-xl overflow-y-auto ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800'}`}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base font-bold">{t('auth.kvkkLink', lang)}</h3>
+                <button type="button" onClick={() => setShowKvkk(false)} className={`p-1.5 rounded-lg transition ${isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}>
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className={`text-xs leading-relaxed space-y-3 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                <p className="font-bold text-sm">{lang === 'tr' ? '6698 Sayılı Kişisel Verilerin Korunması Kanunu (KVKK) Aydınlatma Metni' : 'Personal Data Protection Policy (KVKK)'}</p>
+                <p>{lang === 'tr' ? 'Kentiva Yazılım Teknolojileri olarak kişisel verilerinizin güvenliği konusuna azami hassasiyet göstermekteyiz. Bu doğrultuda, 6698 sayılı Kişisel Verilerin Korunması Kanunu ("KVKK") uyarınca kişisel verileriniz aşağıda açıklandığı şekilde işlenmektedir.' : 'As Kentiva Software Technologies, we attach the utmost importance to the security of your personal data. Accordingly, your personal data is processed as described below in accordance with the Personal Data Protection Law No. 6698 ("KVKK").'}</p>
+                <p className="font-semibold">{lang === 'tr' ? '1. Veri Sorumlusu' : '1. Data Controller'}</p>
+                <p>{lang === 'tr' ? 'Kişisel verileriniz, veri sorumlusu sıfatıyla Kentiva Yazılım Teknolojileri tarafından toplanmakta ve işlenmektedir.' : 'Your personal data is collected and processed by Kentiva Software Technologies as the data controller.'}</p>
+                <p className="font-semibold">{lang === 'tr' ? '2. İşlenen Kişisel Veriler ve Amaçları' : '2. Personal Data Processed and Purposes'}</p>
+                <p>{lang === 'tr' ? 'Ad-soyad, e-posta, telefon numarası, konum verileri ve fotoğraflar; ihbar oluşturma, kimlik doğrulama, belediye hizmet iyileştirme ve iletişim amaçlarıyla işlenmektedir. Fotoğraflar yalnızca ihbar doğrulama amacıyla kullanılır.' : 'Name, email, phone number, location data and photos are processed for report creation, authentication, municipal service improvement and communication purposes. Photos are used only for report verification purposes.'}</p>
+                <p className="font-semibold">{lang === 'tr' ? '3. Verilerin Aktarımı' : '3. Data Transfer'}</p>
+                <p>{lang === 'tr' ? 'Kişisel verileriniz, yalnızca hizmet aldığınız belediye ile ve yasal zorunluluklar çerçevesinde yetkili kurumlarla paylaşılabilir. Üçüncü şahıslarla ticari amaçlı paylaşım yapılmaz.' : 'Your personal data may only be shared with the municipality you receive service from and with authorized institutions within the framework of legal obligations. No commercial sharing with third parties is made.'}</p>
+                <p className="font-semibold">{lang === 'tr' ? '4. Haklarınız' : '4. Your Rights'}</p>
+                <p>{lang === 'tr' ? 'KVKK\'nın 11. maddesi uyarınca; kişisel verilerinizin işlenip işlenmediğini öğrenme, düzeltilmesini, silinmesini veya anonim hale getirilmesini isteme haklarına sahipsiniz. Başvurularınızı uygulama içi geri bildirim bölümünden veya kvkk@kentiva.app adresinden iletebilirsiniz.' : 'In accordance with Article 11 of KVKK; you have the right to learn whether your personal data is processed, to request correction, deletion or anonymization. You can submit your applications through the in-app feedback section or at kvkk@kentiva.app.'}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowKvkk(false)}
+                className="mt-5 w-full rounded-xl bg-primary py-3 text-xs font-bold text-white shadow-sm hover:brightness-105 active:scale-[0.98] transition-all"
+              >
+                {lang === 'tr' ? 'Anladım, Kapat' : 'Got it, Close'}
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

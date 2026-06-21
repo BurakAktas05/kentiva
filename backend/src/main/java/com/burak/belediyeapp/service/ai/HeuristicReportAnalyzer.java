@@ -19,6 +19,10 @@ public class HeuristicReportAnalyzer {
     private final IReportCategoryRepository categoryRepository;
 
     public GeminiService.AIAnalysisResult analyze(Report report) {
+        return analyze(report, null);
+    }
+
+    public GeminiService.AIAnalysisResult analyze(Report report, com.burak.belediyeapp.entity.ReportStatus targetStatus) {
         String text = ((report.getTitle() != null ? report.getTitle() : "")
                 + " "
                 + (report.getDescription() != null ? report.getDescription() : "")).toLowerCase(Locale.forLanguageTag("tr"));
@@ -29,7 +33,7 @@ public class HeuristicReportAnalyzer {
         boolean categoryCorrect = suggestedCategory.equalsIgnoreCase(report.getCategory().getName());
 
         String lang = report.getContentLanguage() != null ? report.getContentLanguage() : "tr";
-        String replyDraft = ReportLanguageMessages.heuristicReplyDraft(lang);
+        String replyDraft = ReportLanguageMessages.heuristicReplyDraft(lang, targetStatus);
         String summaryFallback = switch (ReportLanguageMessages.normalizeLang(lang)) {
             case "en" -> "Citizen report received.";
             case "ar" -> "تم استلام بلاغ المواطن.";

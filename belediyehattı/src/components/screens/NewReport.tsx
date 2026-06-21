@@ -1,26 +1,21 @@
 import { useEffect, useState } from 'react';
-import { motion } from 'motion/react';
-import { ArrowRight, Building2, Camera, CheckCircle2, ChevronLeft, Navigation } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { ArrowRight, Building2, Camera, CheckCircle2, ChevronLeft, Navigation, MapPin } from 'lucide-react';
 import {
-  analyzeReportDraft,
-  createReport,
-  fetchNearbyReportHints,
   getCategories,
   getReportTemplates,
   resolveMediaUrl,
-  resolveMunicipalityByGps,
-  uploadMedia,
   type ApiCategory,
   type ApiReportTemplate,
-  type NearbyReportHint,
   type PublicDepartment,
   type PublicTenant,
-  type ReportDraftAnalysis,
 } from '../../api';
 import { Lang, t } from '../../i18n';
-import { captureReportPhotoFile, PhotoCaptureCancelledError, type CaptureResult } from '../../lib/captureReportPhoto';
-import { getDevicePosition, isDeviceLocationFailure } from '../../lib/deviceLocation';
 import ReportAiScanOverlay from '../ReportAiScanOverlay';
+import { ReportMap } from '../common/ReportMap';
+import { useReportLocation } from '../../hooks/useReportLocation';
+import { useReportPhotos } from '../../hooks/useReportPhotos';
+import { useReportSubmit } from '../../hooks/useReportSubmit';
 
 interface NewReportProps {
   defaultMunicipality?: PublicTenant | null;
@@ -31,14 +26,6 @@ interface NewReportProps {
   isDark: boolean;
 }
 
-function buildReportTitle(description: string, categoryName: string | undefined, lang: Lang): string {
-  const trimmed = description.trim();
-  if (trimmed.length >= 10) return trimmed.slice(0, 80);
-  const prefix = categoryName || (lang === 'tr' ? 'Bildirim' : 'Report');
-  const combined = `${prefix}: ${trimmed}`.slice(0, 80);
-  return combined.length >= 10 ? combined : `${prefix} - ${new Date().toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US')}`;
-}
-
 export default function NewReport({
   defaultMunicipality,
   defaultDepartment,
@@ -47,30 +34,72 @@ export default function NewReport({
   lang,
   isDark,
 }: NewReportProps) {
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(0);
   const [description, setDescription] = useState('');
   const [categories, setCategories] = useState<ApiCategory[]>([]);
   const [categoryId, setCategoryId] = useState('');
-  const [latitude, setLatitude] = useState<number | null>(null);
-  const [longitude, setLongitude] = useState<number | null>(null);
-  const [locationText, setLocationText] = useState('');
-  const [resolvedMunicipality, setResolvedMunicipality] = useState<PublicTenant | null>(null);
-  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
-  const [localPhotoPreviews, setLocalPhotoPreviews] = useState<string[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
-  const MAX_PHOTOS = 3;
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const [locating, setLocating] = useState(false);
   const [templates, setTemplates] = useState<ApiReportTemplate[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<string | null>(null);
-  const [aiScanOpen, setAiScanOpen] = useState(false);
-  const [aiAnalysis, setAiAnalysis] = useState<ReportDraftAnalysis | null>(null);
-  const [aiAnalysisLoading, setAiAnalysisLoading] = useState(false);
-  const [nearbyHints, setNearbyHints] = useState<NearbyReportHint[]>([]);
-  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
-  const [kvkkApproved, setKvkkApproved] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  const minDescriptionLen = 20;
+  const descriptionTooShort = description.trim().length > 0 && description.trim().length < minDescriptionLen;
+
+  // 1. Geolocation and region boundary tracking
+  const {
+    latitude,
+    longitude,
+    locationText,
+    locating,
+    error: locationError,
+    resolvedMunicipality,
+    nearbyReports,
+    getPosition,
+  } = useReportLocation({ defaultMunicipality, lang });
+
+  // 2. Photo capturing and upload management
+  const {
+    mediaUrls,
+    localPhotoPreviews,
+    isUploading,
+    error: photoError,
+    handleCapturePhoto,
+    handleRemovePhoto,
+    maxPhotos,
+  } = useReportPhotos({ lang });
+
+  const selectedCategory = categories.find((category) => category.id === categoryId);
+
+  // 3. Form validations, duplicate checks, and report submission
+  const {
+    isSubmitting,
+    error: submitError,
+    setError: setSubmitError,
+    showDuplicateModal,
+    setShowDuplicateModal,
+    nearbyHints,
+    kvkkApproved,
+    setKvkkApproved,
+    aiScanOpen,
+    setAiScanOpen,
+    aiAnalysis,
+    aiAnalysisLoading,
+    checkDuplicatesAndProceed,
+    runAiAnalysis,
+    submitReport,
+  } = useReportSubmit({
+    latitude,
+    longitude,
+    resolvedMunicipality,
+    mediaUrls,
+    description,
+    categoryId,
+    selectedCategoryName: selectedCategory?.name,
+    lang,
+    onSubmit,
+    minDescriptionLen,
+  });
 
   const municipalityLocked = Boolean(defaultMunicipality?.id);
   const activeDepartment =
@@ -80,70 +109,7 @@ export default function NewReport({
       ? defaultDepartment
       : null;
 
-  useEffect(() => {
-    if (defaultMunicipality?.onboarded && defaultMunicipality.id && !resolvedMunicipality) {
-      setResolvedMunicipality(defaultMunicipality);
-    }
-  }, [defaultMunicipality, resolvedMunicipality]);
-
-  useEffect(() => {
-    return () => {
-      localPhotoPreviews.forEach((url) => {
-        if (url.startsWith('blob:')) URL.revokeObjectURL(url);
-      });
-    };
-  }, [localPhotoPreviews]);
-
-  const minDescriptionLen = 20;
-  const descriptionTooShort = description.trim().length > 0 && description.trim().length < minDescriptionLen;
-
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      setLocating(true);
-      setError('');
-      try {
-        const result = await getDevicePosition({ highAccuracy: true, timeoutMs: 15000 });
-        if (!active) return;
-        if (result.ok) {
-          const lat = result.coords.lat;
-          const lng = result.coords.lng;
-          setLatitude(lat);
-          setLongitude(lng);
-          setLocationText(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
-
-          if (defaultMunicipality?.id) {
-            setResolvedMunicipality(defaultMunicipality);
-            setError('');
-            setLocating(false);
-            return;
-          }
-
-          const municipality = await resolveMunicipalityByGps(lat, lng);
-          if (!active) return;
-          setResolvedMunicipality(municipality);
-          if (!municipality || !municipality.onboarded) {
-            setError(t('report.municipality.outside', lang));
-          }
-          setLocating(false);
-        } else if (isDeviceLocationFailure(result)) {
-          setLocating(false);
-          if (result.reason === 'denied') setError(t('report.location.denied', lang));
-          else if (result.reason === 'unsupported') setError(t('report.location.needGps', lang));
-          else setError(lang === 'tr' ? 'Konum bilgisi alınamadı.' : 'Failed to retrieve location.');
-        }
-      } catch {
-        if (active) {
-          setLocating(false);
-          setError(lang === 'tr' ? 'Konum çözümlenirken hata oluştu.' : 'Failed to resolve location.');
-        }
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [defaultMunicipality?.id, lang]);
-
+  // Categories load logic
   useEffect(() => {
     if (!resolvedMunicipality?.id) {
       setCategories([]);
@@ -161,7 +127,7 @@ export default function NewReport({
       })
       .catch(() => {
         if (!cancelled) {
-          setError(lang === 'tr' ? 'Kategoriler yuklenemedi.' : 'Could not load categories.');
+          setFormError(lang === 'tr' ? 'Kategoriler yüklenemedi.' : 'Could not load categories.');
         }
       });
 
@@ -170,6 +136,7 @@ export default function NewReport({
     };
   }, [activeDepartment?.id, lang, resolvedMunicipality?.id]);
 
+  // Templates load logic
   useEffect(() => {
     if (!resolvedMunicipality) {
       setTemplates([]);
@@ -214,90 +181,21 @@ export default function NewReport({
     }
   };
 
-  const selectedCategory = categories.find((category) => category.id === categoryId);
-
-  const handleCapturePhoto = async () => {
-    if (isUploading || mediaUrls.length >= MAX_PHOTOS) return;
-    setError('');
-
-    try {
-      const { file, previewUrl } = await captureReportPhotoFile();
-      setLocalPhotoPreviews((prev) => [...prev, previewUrl]);
-      setIsUploading(true);
-
-      const urls = await uploadMedia(file);
-      if (urls.length === 0) {
-        return;
+  useEffect(() => {
+    if (templates.length > 0 && categoryId && !selectedTemplateKey) {
+      const catTemplates = templates.filter((t) => t.categoryId === categoryId);
+      if (catTemplates.length > 0) {
+        applyTemplate(catTemplates[0]);
       }
-      setMediaUrls((prev) => [...prev, urls[0]]);
-    } catch (err: unknown) {
-      if (err instanceof PhotoCaptureCancelledError) return;
-      setError(err instanceof Error ? err.message : lang === 'tr' ? 'Fotograf yuklenemedi.' : 'Upload failed.');
-    } finally {
-      setIsUploading(false);
     }
-  };
-
-  const handleRemovePhoto = (index: number) => {
-    setMediaUrls((prev) => prev.filter((_, i) => i !== index));
-    setLocalPhotoPreviews((prev) => {
-      const removed = prev[index];
-      if (removed?.startsWith('blob:')) URL.revokeObjectURL(removed);
-      return prev.filter((_, i) => i !== index);
-    });
-  };
-
-  const resolveMunicipalityAt = async (lat: number, lng: number) => {
-    if (defaultMunicipality?.id) {
-      setResolvedMunicipality(defaultMunicipality);
-      setError('');
-      return defaultMunicipality;
-    }
-
-    const municipality = await resolveMunicipalityByGps(lat, lng);
-    setResolvedMunicipality(municipality);
-    if (!municipality) {
-      setError(t('report.municipality.outside', lang));
-    } else {
-      setError('');
-    }
-    return municipality;
-  };
-
-  const handleGetLocation = async () => {
-    setLocating(true);
-    setError('');
-    if (!municipalityLocked) {
-      setResolvedMunicipality(null);
-    }
-
-    try {
-      const result = await getDevicePosition({ highAccuracy: true, timeoutMs: 15000 });
-      if (result.ok) {
-        const lat = result.coords.lat;
-        const lng = result.coords.lng;
-        setLatitude(lat);
-        setLongitude(lng);
-        setLocationText(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
-        await resolveMunicipalityAt(lat, lng);
-        setLocating(false);
-      } else if (isDeviceLocationFailure(result)) {
-        setLocating(false);
-        if (result.reason === 'denied') setError(t('report.location.denied', lang));
-        else if (result.reason === 'unsupported') setError(t('report.location.needGps', lang));
-        else setError(lang === 'tr' ? 'Konum bilgisi alınamadı.' : 'Failed to retrieve location.');
-      }
-    } catch {
-      setLocating(false);
-      setError(lang === 'tr' ? 'Konum çözümlenirken hata oluştu.' : 'Failed to resolve location.');
-    }
-  };
+  }, [templates, categoryId, selectedTemplateKey]);
 
   const proceedToSummary = () => setStep(2);
 
   const handleNext = async () => {
+    setFormError('');
     if (description.trim().length < minDescriptionLen) {
-      setError(
+      setFormError(
         lang === 'tr'
           ? `Aciklama en az ${minDescriptionLen} karakter olmalidir.`
           : `Description must be at least ${minDescriptionLen} characters.`,
@@ -309,110 +207,20 @@ export default function NewReport({
       return;
     }
 
-    try {
-      const hints = await fetchNearbyReportHints(latitude, longitude, resolvedMunicipality.id, 75);
-      const matchingCategoryHints = hints.filter(
-        (hint) => hint.categoryName?.trim().toLowerCase() === selectedCategory?.name?.trim().toLowerCase()
-      );
-      if (matchingCategoryHints.length > 0) {
-        setNearbyHints(matchingCategoryHints);
-        setShowDuplicateModal(true);
-        return;
-      }
-    } catch {
-      // Ignore duplicate lookup issues and continue.
-    }
+    const validated = await checkDuplicatesAndProceed();
+    if (!validated) return;
 
-    // Trigger AI analysis before proceeding
     if (mediaUrls.length > 0 && categoryId) {
-      setAiScanOpen(true);
-      setAiAnalysisLoading(true);
-      setAiAnalysis(null);
-      const category = categories.find((item) => item.id === categoryId);
-      const title = buildReportTitle(description, category?.name, lang);
-      try {
-        const result = await analyzeReportDraft({
-          categoryId,
-          title,
-          description: description.trim() || undefined,
-          contentLanguage: lang,
-          mediaUrl: mediaUrls[0],
-        });
-        setAiAnalysis(result);
-      } catch {
-        // AI analysis failed — proceed without it
-        setAiScanOpen(false);
+      const analyzed = await runAiAnalysis();
+      if (!analyzed) {
         proceedToSummary();
-        return;
-      } finally {
-        setAiAnalysisLoading(false);
       }
-      // The overlay's onDone will call proceedToSummary
     } else {
       proceedToSummary();
     }
   };
 
-  const handleSubmit = async () => {
-    if (latitude === null || longitude === null || !categoryId || !resolvedMunicipality) {
-      return;
-    }
-
-    setIsSubmitting(true);
-    setError('');
-
-    try {
-      const finalTitle = buildReportTitle(description, selectedCategory?.name, lang);
-      await createReport(
-        finalTitle,
-        description,
-        categoryId,
-        latitude,
-        longitude,
-        resolvedMunicipality.displayName,
-        mediaUrls,
-        resolvedMunicipality.id,
-        kvkkApproved,
-      );
-      onSubmit();
-    } catch (err: unknown) {
-      // Offline fallback: save to localStorage queue
-      if (!navigator.onLine || (err instanceof TypeError && err.message.includes('fetch'))) {
-        try {
-          const offlineReports = JSON.parse(localStorage.getItem('belediye_offline_reports') || '[]');
-          offlineReports.push({
-            title: buildReportTitle(description, selectedCategory?.name, lang),
-            description,
-            categoryId,
-            latitude,
-            longitude,
-            district: resolvedMunicipality?.displayName ?? null,
-            mediaUrls: mediaUrls || [],
-            targetMunicipalityId: resolvedMunicipality?.id || null,
-            kvkkApproved,
-            savedAt: new Date().toISOString(),
-          });
-          localStorage.setItem('belediye_offline_reports', JSON.stringify(offlineReports));
-          alert(lang === 'tr'
-            ? 'İnternet bağlantınız yok. Raporunuz cihazınıza kaydedildi ve bağlantı sağlandığında otomatik gönderilecek.'
-            : 'You are offline. Your report has been saved locally and will be submitted when you reconnect.');
-          onSubmit();
-          return;
-        } catch {
-          // localStorage failure — fall through to show normal error
-        }
-      }
-      const message =
-        err instanceof Error
-          ? err.message
-          : lang === 'tr'
-            ? 'Rapor gonderilemedi. Internet baglantinizi kontrol edin.'
-            : 'Could not submit. Check your connection.';
-      setError(message);
-      setIsSubmitting(false);
-    }
-  };
-
+  const error = formError || locationError || photoError || submitError;
   const municipalityLabel = resolvedMunicipality?.displayName ?? '-';
   const departmentLabel = activeDepartment?.name ?? '-';
   const departmentScopeTitle = lang === 'tr' ? 'Departman kapsami aktif' : 'Department scope active';
@@ -443,7 +251,11 @@ export default function NewReport({
       <motion.div className={`flex items-center justify-between border-b p-4 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
         <button
           type="button"
-          onClick={() => (step === 1 ? onCancel() : setStep(1))}
+          onClick={() => {
+            if (step === 0) onCancel();
+            else if (step === 1) setStep(0);
+            else setStep(1);
+          }}
           className={`-ml-2 p-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}
         >
           <ChevronLeft className="h-6 w-6" />
@@ -453,7 +265,13 @@ export default function NewReport({
             {t('report.screenTitle', lang)}
           </p>
           <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-            {isOutsideKentiva ? (lang === 'tr' ? 'Bölge Dışı' : 'Outside Area') : step === 2 ? t('report.step2.short', lang) : t('report.stepProgress', lang, { current: step, total: 2 })}
+            {isOutsideKentiva 
+              ? (lang === 'tr' ? 'Bölge Dışı' : 'Outside Area') 
+              : step === 0 
+                ? (lang === 'tr' ? 'Konum Doğrulama' : lang === 'ar' ? 'تأكيد الموقع' : 'Verify Location')
+                : step === 2 
+                  ? t('report.step2.short', lang) 
+                  : t('report.stepProgress', lang, { current: step, total: 2 })}
           </p>
         </div>
         <div className="w-10" />
@@ -471,7 +289,7 @@ export default function NewReport({
             <div className={`rounded-3xl border p-8 max-w-sm shadow-xl w-full transition-all ${
               isDark 
                 ? 'border-amber-500/20 bg-slate-900/60 text-white' 
-                : 'border-amber-250 bg-white text-slate-800'
+                : 'border-amber-200 bg-white text-slate-800'
             }`}>
               <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500 shadow-inner">
                 <Building2 className="h-7 w-7" />
@@ -495,6 +313,80 @@ export default function NewReport({
           </div>
         ) : (
           <div className="space-y-5 flex-1">
+            {step === 0 && (latitude === null || longitude === null) && (
+              <div className="flex flex-1 flex-col items-center justify-center p-6 text-center my-auto min-h-[50vh]">
+                <div className="relative mb-6 flex h-20 w-20 items-center justify-center">
+                  <div className="absolute inset-0 animate-ping rounded-full bg-primary/20" />
+                  <div className="absolute inset-2 animate-pulse rounded-full bg-primary/30" />
+                  <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-white shadow-lg">
+                    <Navigation className="h-6 w-6 animate-spin" />
+                  </div>
+                </div>
+                <h3 className={`text-base font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  {lang === 'tr' ? 'Konumunuz Belirleniyor' : 'Detecting Your Location'}
+                </h3>
+                <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400 font-semibold max-w-xs">
+                  {lang === 'tr'
+                    ? 'En doğru ihbar koordinatları için hassas GPS bağlantısı kuruluyor. Lütfen bekleyin...'
+                    : 'Establishing high-accuracy GPS connection for precise report mapping. Please wait...'}
+                </p>
+              </div>
+            )}
+
+            {step === 0 && latitude !== null && longitude !== null && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="space-y-5 flex-1 flex flex-col"
+              >
+                <div className={`w-full rounded-2xl overflow-hidden shadow-inner relative border ${
+                  isDark ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-slate-100'
+                }`} style={{ height: '320px', zIndex: 10 }}>
+                  <ReportMap
+                    latitude={latitude}
+                    longitude={longitude}
+                    isDark={isDark}
+                    nearbyReports={nearbyReports}
+                    lang={lang}
+                  />
+                </div>
+
+                {resolvedMunicipality ? (
+                  <div className={`p-4 rounded-2xl border flex items-center gap-3.5 transition-all ${
+                    isDark ? 'border-slate-800 bg-slate-900/60' : 'border-slate-100 bg-slate-50'
+                  }`}>
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                      <Building2 className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        {lang === 'tr' ? 'Tespit Edilen Bölge' : 'Resolved Region'}
+                      </p>
+                      <p className={`text-sm font-extrabold truncate mt-0.5 ${isDark ? 'text-white' : 'text-slate-800'}`}>
+                        {resolvedMunicipality.displayName}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={`p-4 rounded-2xl border flex items-center gap-3.5 ${
+                    isDark ? 'border-slate-800 bg-slate-900/60' : 'border-slate-100 bg-slate-50'
+                  }`}>
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+                      <MapPin className="w-5 h-5 animate-pulse" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        {lang === 'tr' ? 'Bölge Sınırı Sorgulanıyor' : 'Resolving Region'}
+                      </p>
+                      <p className={`text-sm font-semibold truncate mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        {lang === 'tr' ? 'Veritabanı kontrol ediliyor...' : 'Checking database...'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
             {step === 1 && (
               <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-5">
             {activeDepartment && (
@@ -531,33 +423,35 @@ export default function NewReport({
                 <p className={`mb-2 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{t('report.templates.hint', lang)}</p>
                 {templatesLoading ? (
                   <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    {lang === 'tr' ? 'Sablonlar yukleniyor...' : 'Loading templates...'}
+                    {lang === 'tr' ? 'Şablonlar yükleniyor...' : 'Loading templates...'}
                   </p>
                 ) : (
                   <div className="flex gap-2 overflow-x-auto pb-1">
-                    {templates.map((template) => (
-                      <button
-                        key={template.id}
-                        type="button"
-                        onClick={() => applyTemplate(template)}
-                        className={`shrink-0 rounded-xl border px-3 py-2 text-left text-xs transition-colors ${
-                          selectedTemplateKey === template.templateKey
-                            ? 'border-primary bg-primary text-white'
-                            : isDark
-                              ? 'border-slate-600 bg-slate-800 text-slate-200 hover:border-primary/50'
-                              : 'border-slate-200 bg-white text-slate-700 hover:border-primary/40'
-                        }`}
-                      >
-                        <span className="block font-bold">{template.title}</span>
-                        <span
-                          className={`mt-0.5 block text-[10px] opacity-80 ${
-                            selectedTemplateKey === template.templateKey ? '' : 'text-slate-500'
+                    {templates
+                      .filter((t) => t.categoryId === categoryId)
+                      .map((template) => (
+                        <button
+                          key={template.id}
+                          type="button"
+                          onClick={() => applyTemplate(template)}
+                          className={`shrink-0 rounded-xl border px-3 py-2 text-left text-xs transition-colors ${
+                            selectedTemplateKey === template.templateKey
+                              ? 'border-primary bg-primary text-white'
+                              : isDark
+                                ? 'border-slate-600 bg-slate-800 text-slate-200 hover:border-primary/50'
+                                : 'border-slate-200 bg-white text-slate-700 hover:border-primary/40'
                           }`}
                         >
-                          {template.categoryName}
-                        </span>
-                      </button>
-                    ))}
+                          <span className="block font-bold">{template.title}</span>
+                          <span
+                            className={`mt-0.5 block text-[10px] opacity-80 ${
+                              selectedTemplateKey === template.templateKey ? '' : 'text-slate-500'
+                            }`}
+                          >
+                            {template.categoryName}
+                          </span>
+                        </button>
+                      ))}
                   </div>
                 )}
               </div>
@@ -569,7 +463,7 @@ export default function NewReport({
               </label>
               {categories.length === 0 ? (
                 <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                  {lang === 'tr' ? 'Konum alindiktan sonra kategoriler yuklenecek.' : 'Categories load after location is set.'}
+                  {lang === 'tr' ? 'Konum alındıktan sonra kategoriler yüklenecek.' : 'Categories load after location is set.'}
                 </p>
               ) : (
                 <div className="flex flex-wrap gap-2">
@@ -577,7 +471,15 @@ export default function NewReport({
                     <button
                       key={category.id}
                       type="button"
-                      onClick={() => setCategoryId(category.id)}
+                      onClick={() => {
+                        setCategoryId(category.id);
+                        const catTemplates = templates.filter((t) => t.categoryId === category.id);
+                        if (catTemplates.length > 0) {
+                          applyTemplate(catTemplates[0]);
+                        } else {
+                          setSelectedTemplateKey(null);
+                        }
+                      }}
                       className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
                         categoryId === category.id
                           ? 'border-primary bg-primary text-white'
@@ -593,68 +495,24 @@ export default function NewReport({
               )}
             </div>
 
-            <div>
-              <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                {t('report.location', lang)}
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={locating ? t('report.location.detecting', lang) : locationText}
-                  readOnly
-                  placeholder={t('report.location', lang)}
-                  className={`flex-1 rounded-xl border px-4 py-3 text-sm outline-none ${
-                    isDark ? 'border-slate-700 bg-slate-800 text-white' : 'border-slate-200 bg-slate-50'
-                  }`}
-                />
-                <button
-                  type="button"
-                  onClick={handleGetLocation}
-                  disabled={locating}
-                  className="flex items-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-white transition-all active:scale-95 disabled:opacity-60"
-                >
-                  <Navigation className={`h-4 w-4 ${locating ? 'animate-spin' : ''}`} />
-                </button>
-              </div>
-
-              {locating && (
-                <div className={`mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-xs ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>
-                  <div className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                  <span>{lang === 'tr' ? 'Konumunuz tespit ediliyor...' : 'Detecting your location...'}</span>
-                </div>
-              )}
-
-              {resolvedMunicipality && (
-                <div
-                  className={`mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium ${
-                    isDark ? 'bg-primary/20 text-secondary' : 'bg-primary/10 text-primary'
-                  }`}
-                >
-                  <Building2 className="h-3.5 w-3.5 shrink-0" />
-                  <span>
-                    {t('report.municipality.resolved', lang)}: <strong>{resolvedMunicipality.displayName}</strong>
+            {resolvedMunicipality && (
+              <div className={`p-4 rounded-2xl border flex items-center gap-3.5 transition-all ${
+                isDark ? 'border-slate-800 bg-slate-900/60' : 'border-slate-100 bg-slate-50'
+              }`}>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <MapPin className="h-4 w-4 text-primary shrink-0" />
+                  <span className={`text-xs font-semibold truncate ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                    {resolvedMunicipality.displayName}
                   </span>
                 </div>
-              )}
-
-              {latitude != null && longitude != null && !resolvedMunicipality && !locating && (
-                <motion.div
-                  className={`mt-3 flex gap-3 rounded-xl border p-3 text-xs font-medium ${
-                    isDark ? 'border-amber-800/60 bg-amber-950/50 text-amber-100' : 'border-amber-200 bg-amber-50 text-amber-900'
-                  }`}
-                >
-                  <Building2 className="mt-0.5 h-4 w-4 shrink-0" />
-                  <p>{t('report.municipality.outside', lang)}</p>
-                </motion.div>
-              )}
-            </div>
+              </div>
+            )}
 
             <div>
               <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                 {t('report.photo', lang)}
               </label>
               <div className="space-y-2">
-                {/* Uploaded photos grid */}
                 {localPhotoPreviews.length > 0 && (
                   <div className="grid grid-cols-3 gap-2">
                     {localPhotoPreviews.map((preview, i) => (
@@ -675,8 +533,7 @@ export default function NewReport({
                     ))}
                   </div>
                 )}
-                {/* Add photo button */}
-                {localPhotoPreviews.length < MAX_PHOTOS && (
+                {localPhotoPreviews.length < maxPhotos && (
                   <button
                     type="button"
                     onClick={() => void handleCapturePhoto()}
@@ -694,7 +551,7 @@ export default function NewReport({
                     ) : (
                       <>
                         <Camera className="mb-1 h-6 w-6" />
-                        <span className="text-xs font-medium">{t('report.photo.btn', lang)} ({localPhotoPreviews.length}/{MAX_PHOTOS})</span>
+                        <span className="text-xs font-medium">{t('report.photo.btn', lang)} ({localPhotoPreviews.length}/{maxPhotos})</span>
                       </>
                     )}
                   </button>
@@ -780,7 +637,6 @@ export default function NewReport({
               </div>
             )}
 
-            {/* KVKK onay */}
             <label className={`flex items-start gap-3 cursor-pointer rounded-xl border p-3 ${isDark ? 'border-slate-700 bg-slate-800/50' : 'border-slate-200 bg-slate-50'}`}>
               <input
                 type="checkbox"
@@ -800,21 +656,31 @@ export default function NewReport({
 
       {!isOutsideKentiva && (
         <div className={`border-t p-4 ${isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white'}`}>
-          {step < 2 ? (
+          {step === 0 ? (
+            <button
+              type="button"
+              disabled={!resolvedMunicipality || !resolvedMunicipality.onboarded}
+              onClick={() => setStep(1)}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-semibold text-white shadow-md shadow-primary/20 disabled:opacity-50 active:scale-95 dark:shadow-none cursor-pointer"
+            >
+              <span>{lang === 'tr' ? 'İhbar Oluştur' : 'Create Report'}</span>
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          ) : step === 1 ? (
             <button
               type="button"
               onClick={handleNext}
               disabled={!canProceed}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-semibold text-white shadow-md shadow-primary/20 disabled:opacity-50 active:scale-95 dark:shadow-none"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-semibold text-white shadow-md shadow-primary/20 disabled:opacity-50 active:scale-95 dark:shadow-none cursor-pointer"
             >
               {t('report.next', lang)} <ArrowRight className="h-4 w-4" />
             </button>
           ) : (
             <button
               type="button"
-              onClick={handleSubmit}
+              onClick={submitReport}
               disabled={isSubmitting || !kvkkApproved}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-semibold text-white shadow-md shadow-primary/20 active:scale-95 disabled:opacity-70 dark:shadow-none"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-semibold text-white shadow-md shadow-primary/20 active:scale-95 disabled:opacity-70 dark:shadow-none cursor-pointer"
             >
               {isSubmitting ? (
                 <span className="flex items-center gap-2">

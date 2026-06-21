@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { PublicDepartment, PublicTenant } from './api';
+import { storageService } from './lib/storageService';
 
 const TENANT_STORAGE_KEY = 'kentiva_tenant_v1';
 const DEPARTMENT_STORAGE_KEY = 'kentiva_department_v1';
@@ -16,7 +17,7 @@ const TenantContext = createContext<TenantContextValue | null>(null);
 export function TenantProvider({ children }: { children: React.ReactNode }) {
   const [tenant, setTenantState] = useState<PublicTenant | null>(() => {
     try {
-      const raw = localStorage.getItem(TENANT_STORAGE_KEY);
+      const raw = storageService.getItem(TENANT_STORAGE_KEY);
       return raw ? (JSON.parse(raw) as PublicTenant) : null;
     } catch {
       return null;
@@ -24,7 +25,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
   });
   const [department, setDepartmentState] = useState<PublicDepartment | null>(() => {
     try {
-      const raw = localStorage.getItem(DEPARTMENT_STORAGE_KEY);
+      const raw = storageService.getItem(DEPARTMENT_STORAGE_KEY);
       return raw ? (JSON.parse(raw) as PublicDepartment) : null;
     } catch {
       return null;
@@ -34,20 +35,20 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
   const setTenant = (nextTenant: PublicTenant | null) => {
     setTenantState(nextTenant);
     if (nextTenant) {
-      localStorage.setItem(TENANT_STORAGE_KEY, JSON.stringify(nextTenant));
+      storageService.setItem(TENANT_STORAGE_KEY, JSON.stringify(nextTenant));
     } else {
-      localStorage.removeItem(TENANT_STORAGE_KEY);
+      storageService.removeItem(TENANT_STORAGE_KEY);
       setDepartmentState(null);
-      localStorage.removeItem(DEPARTMENT_STORAGE_KEY);
+      storageService.removeItem(DEPARTMENT_STORAGE_KEY);
     }
   };
 
   const setDepartment = (nextDepartment: PublicDepartment | null) => {
     setDepartmentState(nextDepartment);
     if (nextDepartment) {
-      localStorage.setItem(DEPARTMENT_STORAGE_KEY, JSON.stringify(nextDepartment));
+      storageService.setItem(DEPARTMENT_STORAGE_KEY, JSON.stringify(nextDepartment));
     } else {
-      localStorage.removeItem(DEPARTMENT_STORAGE_KEY);
+      storageService.removeItem(DEPARTMENT_STORAGE_KEY);
     }
   };
 
@@ -65,7 +66,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     if (!department || !tenant?.id) return;
     if (department.municipalityId !== tenant.id) {
       setDepartmentState(null);
-      localStorage.removeItem(DEPARTMENT_STORAGE_KEY);
+      storageService.removeItem(DEPARTMENT_STORAGE_KEY);
     }
   }, [department, tenant?.id]);
 

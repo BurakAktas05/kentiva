@@ -4,8 +4,14 @@ import App from './App.tsx';
 import './index.css';
 import { TenantProvider } from './TenantContext.tsx';
 import { initTokenStorage } from './lib/tokenStorage.ts';
+import { initStorageService } from './lib/storageService.ts';
 
-void initTokenStorage().then(() => {
+async function bootstrap() {
+  await Promise.all([
+    initStorageService(),
+    initTokenStorage()
+  ]);
+
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <TenantProvider>
@@ -13,4 +19,6 @@ void initTokenStorage().then(() => {
       </TenantProvider>
     </StrictMode>,
   );
-});
+}
+
+void bootstrap();

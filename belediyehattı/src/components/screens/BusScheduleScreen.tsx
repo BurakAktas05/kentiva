@@ -26,6 +26,7 @@ import {
   type RouteScheduleInfo,
   type PublicTenant
 } from '../../api';
+import { storageService } from '../../lib/storageService';
 
 type DayType = 'weekday' | 'weekend' | 'saturday' | 'sunday';
 
@@ -77,8 +78,8 @@ export default function BusScheduleScreen({ lang, isDark, municipality, onBack }
     const cacheStopsKey = `belediye_offline_starred_stops_${municipality.id}`;
 
     // Read from cache immediately
-    const cachedRoutes = localStorage.getItem(cacheRoutesKey);
-    const cachedStops = localStorage.getItem(cacheStopsKey);
+    const cachedRoutes = storageService.getItem(cacheRoutesKey);
+    const cachedStops = storageService.getItem(cacheStopsKey);
 
     if (cachedRoutes) {
       try {
@@ -110,8 +111,8 @@ export default function BusScheduleScreen({ lang, isDark, municipality, onBack }
       setFetchError(null);
 
       // Save to cache
-      localStorage.setItem(cacheRoutesKey, JSON.stringify(fetchedRoutes));
-      localStorage.setItem(cacheStopsKey, JSON.stringify(fetchedStops));
+      storageService.setItem(cacheRoutesKey, JSON.stringify(fetchedRoutes));
+      storageService.setItem(cacheStopsKey, JSON.stringify(fetchedStops));
     } catch (e) {
       console.error("Ulaşım verileri güncellenemedi:", e);
       // Eğer cache varsa, hata mesajını göster ama sessizce devam et
@@ -587,7 +588,7 @@ export default function BusScheduleScreen({ lang, isDark, municipality, onBack }
                   onClick={() => setSelectedDirection(prev => prev === 'startToEnd' ? 'endToStart' : 'startToEnd')}
                   className={`p-2 rounded-lg transition-all border shrink-0 ${
                     isDark 
-                      ? 'bg-slate-800 hover:bg-slate-705 border-slate-700 text-slate-300 active:bg-slate-900' 
+                      ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300 active:bg-slate-900' 
                       : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600 active:bg-slate-200'
                   }`}
                   title="Switch Direction"
@@ -696,12 +697,12 @@ export default function BusScheduleScreen({ lang, isDark, municipality, onBack }
                               className={`absolute -left-[23px] w-4.5 h-4.5 rounded-full border-2 flex items-center justify-center bg-white dark:bg-slate-900 transition-all ${
                                 isFirst || isLast
                                   ? 'border-primary scale-110'
-                                  : isDark ? 'border-slate-750' : 'border-slate-300'
+                                  : isDark ? 'border-slate-700' : 'border-slate-300'
                               }`}
                             >
                               <div 
                                 className={`w-1.5 h-1.5 rounded-full ${
-                                  isFirst || isLast ? 'bg-primary' : isDark ? 'bg-slate-700' : 'bg-slate-350'
+                                  isFirst || isLast ? 'bg-primary' : isDark ? 'bg-slate-700' : 'bg-slate-300'
                                 }`} 
                               />
                             </div>

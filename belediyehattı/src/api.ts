@@ -4,6 +4,7 @@
 
 import { apiOriginFromBase, clearStaleApiOverrideIfNeeded, resolveApiBase } from './lib/apiBase';
 import { getTokenSync, getRefreshTokenSync, getSavedUserRawSync, setTokensSync, clearTokensSync, saveUserSync } from './lib/tokenStorage';
+import { storageService } from './lib/storageService';
 
 const AUTH_PATHS = [
   '/auth/login',
@@ -312,6 +313,7 @@ async function tryRefreshToken(): Promise<boolean> {
         headers: {
           'Content-Type': 'application/json',
           'ngrok-skip-browser-warning': 'true',
+          'bypass-tunnel-reminder': 'true',
         },
         body: JSON.stringify({ refreshToken: refresh }),
       });
@@ -349,6 +351,7 @@ async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'ngrok-skip-browser-warning': 'true',
+    'bypass-tunnel-reminder': 'true',
     ...(opts.headers as Record<string, string> || {}),
   };
   const token = getToken();
@@ -387,6 +390,7 @@ async function publicFetch<T>(path: string): Promise<T> {
   const res = await fetch(`${apiBase()}${normalized}`, {
     headers: {
       'ngrok-skip-browser-warning': 'true',
+      'bypass-tunnel-reminder': 'true',
     },
   });
   const json = await parseJsonBody(res);
@@ -457,6 +461,7 @@ export async function login(email: string, password: string): Promise<AuthUser> 
     headers: {
       'Content-Type': 'application/json',
       'ngrok-skip-browser-warning': 'true',
+      'bypass-tunnel-reminder': 'true',
     },
     body: JSON.stringify({ email, password }),
   });
@@ -560,6 +565,7 @@ export async function uploadMedia(file: File): Promise<string[]> {
     formData.append('files', file);
     const headers: Record<string, string> = {
       'ngrok-skip-browser-warning': 'true',
+      'bypass-tunnel-reminder': 'true',
     };
     const token = getToken();
     if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -618,12 +624,12 @@ export async function markAllNotificationsRead(): Promise<void> {
 export async function getMyProfile(): Promise<ApiUserProfile> {
   try {
     const profile = await apiFetch<ApiUserProfile>('/users/me');
-    localStorage.setItem('belediye_offline_profile', JSON.stringify(profile));
+    storageService.setItem('belediye_offline_profile', JSON.stringify(profile));
     return profile;
   } catch (e) {
     // Offline fallback: return cached profile if available
     if (!navigator.onLine) {
-      const cached = localStorage.getItem('belediye_offline_profile');
+      const cached = storageService.getItem('belediye_offline_profile');
       if (cached) {
         try {
           return JSON.parse(cached);
@@ -646,15 +652,15 @@ export async function setPreferredMunicipality(municipalityId: string): Promise<
       method: 'PATCH',
       body: JSON.stringify({ municipalityId }),
     });
-    localStorage.setItem('belediye_offline_profile', JSON.stringify(profile));
+    storageService.setItem('belediye_offline_profile', JSON.stringify(profile));
     if (profile.preferredMunicipality) {
-      localStorage.setItem('belediye_offline_tenant', JSON.stringify(profile.preferredMunicipality));
+      storageService.setItem('belediye_offline_tenant', JSON.stringify(profile.preferredMunicipality));
     }
     return profile;
   } catch (e) {
     // Offline fallback: return cached profile if available
     if (!navigator.onLine) {
-      const cached = localStorage.getItem('belediye_offline_profile');
+      const cached = storageService.getItem('belediye_offline_profile');
       if (cached) {
         try {
           return JSON.parse(cached);
@@ -678,6 +684,30 @@ export async function fetchNearbyReportHints(
     radiusMeters: String(radiusMeters),
   });
   return apiFetch(`/reports/nearby-hints?${q}`);
+}
+
+export interface ApiReportListResponse {
+  id: string;
+  title: string;
+  status: string;
+  categoryName: string;
+  latitude: number;
+  longitude: number;
+  createdAt: string;
+  district: string;
+}
+
+export async function fetchNearbyReports(
+  latitude: number,
+  longitude: number,
+  radiusMeters = 1000,
+): Promise<ApiReportListResponse[]> {
+  const q = new URLSearchParams({
+    latitude: String(latitude),
+    longitude: String(longitude),
+    radiusMeters: String(radiusMeters),
+  });
+  return apiFetch(`/reports/nearby?${q}`);
 }
 
 export async function fetchHomeWidgets(

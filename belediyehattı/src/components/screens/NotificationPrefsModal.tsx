@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { storageService } from '../../lib/storageService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, Shield, Info, Check, Loader2, X, Volume2 } from 'lucide-react';
 import { getNotificationPreferences, updateNotificationPreferences, type ApiNotificationPreferences } from '../../api';
@@ -36,7 +37,7 @@ export default function NotificationPrefsModal({ lang, isDark, isOpen, onClose }
           }
         })
         .catch((err) => {
-          console.warn('Bildirim tercihleri yuklenemedi, varsayilanlar kullaniliyor.', err);
+          console.warn('Bildirim tercihleri yüklenemedi, varsayılanlar kullanılıyor.', err);
         })
         .finally(() => {
           setLoading(false);
@@ -55,18 +56,18 @@ export default function NotificationPrefsModal({ lang, isDark, isOpen, onClose }
         surveysEnabled: surveys,
       });
       // Mark onboarding as completed in local storage
-      localStorage.setItem('belediye_notification_prefs_onboarded', 'true');
+      storageService.setItem('belediye_notification_prefs_onboarded', 'true');
       alert(t('notification.prefs.success', lang));
       onClose();
     } catch (err: any) {
-      alert(err.message || 'Tercihler kaydedilirken bir hata olustu.');
+      alert(err.message || (lang === 'tr' ? 'Tercihler kaydedilirken bir hata oluştu.' : 'An error occurred while saving preferences.'));
     } finally {
       setSaving(false);
     }
   };
 
   const skipOnboarding = () => {
-    localStorage.setItem('belediye_notification_prefs_onboarded', 'true');
+    storageService.setItem('belediye_notification_prefs_onboarded', 'true');
     onClose();
   };
 
@@ -163,7 +164,7 @@ export default function NotificationPrefsModal({ lang, isDark, isOpen, onClose }
                       className={`flex items-center justify-between gap-4 rounded-2xl border p-4 cursor-pointer transition-all duration-200 ${
                         item.state
                           ? 'border-primary/20 bg-primary/5 dark:border-secondary/20 dark:bg-primary/10'
-                          : 'border-slate-200 bg-slate-50/50 hover:border-slate-300 dark:border-slate-850 dark:bg-slate-950/20'
+                          : 'border-slate-200 bg-slate-50/50 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-950/20'
                       }`}
                     >
                       <div className="flex-1">
@@ -174,7 +175,7 @@ export default function NotificationPrefsModal({ lang, isDark, isOpen, onClose }
                       {/* Custom Switch Component */}
                       <div
                         className={`relative h-6 w-11 flex-shrink-0 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${
-                          item.state ? 'bg-primary' : 'bg-slate-350 dark:bg-slate-800'
+                          item.state ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-800'
                         }`}
                       >
                         <motion.div

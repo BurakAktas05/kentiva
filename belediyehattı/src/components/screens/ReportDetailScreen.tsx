@@ -296,7 +296,7 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
             }`}
           >
             {/* Sheet Handle */}
-            <div className="mx-auto mb-4 h-1.5 w-14 rounded-full bg-slate-250 dark:bg-slate-800" />
+            <div className="mx-auto mb-4 h-1.5 w-14 rounded-full bg-slate-300 dark:bg-slate-800" />
 
             {/* Duplicate Notice */}
             {detail.duplicateGroupSize != null && detail.duplicateGroupSize > 1 && (
@@ -375,7 +375,7 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
                             ? stepperInfo.isRejected && idx === 2
                               ? 'bg-red-100 border-red-500 text-red-600 dark:bg-red-950/20'
                               : 'bg-primary/10 border-primary text-primary dark:bg-primary/20 dark:text-sky-300'
-                            : 'bg-white border-slate-250 text-slate-400 dark:bg-slate-900 dark:border-slate-800'
+                            : 'bg-white border-slate-300 text-slate-400 dark:bg-slate-900 dark:border-slate-800'
                         }`}
                       >
                         {isCompleted ? (
@@ -412,7 +412,7 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
 
             {/* Description Card */}
             <div className="mb-4">
-              <p className={`text-sm leading-relaxed whitespace-pre-wrap font-medium ${isDark ? 'text-slate-350' : 'text-slate-600'}`}>
+              <p className={`text-sm leading-relaxed whitespace-pre-wrap font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                 {detail.description || ui.noDescription}
               </p>
             </div>
@@ -424,8 +424,8 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
                 animate={{ opacity: 1, y: 0 }}
                 className={`rounded-2xl border p-4.5 mb-4 border-l-4 shadow-sm relative overflow-hidden ${
                   isDark
-                    ? 'border-emerald-500/30 bg-gradient-to-br from-slate-900 to-emerald-950/10 text-slate-150 border-l-emerald-500'
-                    : 'border-emerald-150 bg-gradient-to-br from-white to-emerald-50/20 text-slate-800 border-l-emerald-500'
+                    ? 'border-emerald-500/30 bg-gradient-to-br from-slate-900 to-emerald-950/10 text-slate-300 border-l-emerald-500'
+                    : 'border-emerald-200 bg-gradient-to-br from-white to-emerald-50/20 text-slate-800 border-l-emerald-500'
                 }`}
               >
                 <CheckCircle2 className="absolute -right-3 -bottom-3 h-20 w-20 text-emerald-500/5 pointer-events-none" />
@@ -515,7 +515,7 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
                       target="_blank"
                       rel="noreferrer"
                       className={`block overflow-hidden rounded-xl aspect-square border ${
-                        isDark ? 'border-slate-800 hover:border-slate-700' : 'border-slate-150 hover:border-slate-200'
+                        isDark ? 'border-slate-800 hover:border-slate-700' : 'border-slate-200 hover:border-slate-300'
                       }`}
                     >
                       <img
@@ -589,7 +589,7 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
 
                         {/* Actor Name */}
                         {entry.actorName && (
-                          <p className="text-[10px] text-slate-550 dark:text-slate-400 mt-1 font-bold">
+                          <p className="text-[10px] text-slate-600 dark:text-slate-400 mt-1 font-bold">
                             {entry.actorName}
                           </p>
                         )}
@@ -599,7 +599,7 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
                           <div className={`mt-2 rounded-2xl p-3 text-xs leading-relaxed relative border ${
                             isDark
                               ? 'bg-slate-950/40 border-slate-800/80 text-slate-300'
-                              : 'bg-slate-50/50 border-slate-150 text-slate-600'
+                              : 'bg-slate-50/50 border-slate-200 text-slate-600'
                           }`}>
                             {entry.note}
                           </div>
@@ -633,7 +633,7 @@ function QuickInfoTile({
     <div className={`rounded-xl border p-3.5 transition-all duration-200 flex items-center gap-3 ${
       isDark 
         ? 'border-slate-800 bg-slate-900/30 hover:bg-slate-900/50 hover:border-slate-700/80' 
-        : 'border-slate-150 bg-slate-50/30 hover:bg-slate-50 hover:border-slate-200'
+        : 'border-slate-200 bg-slate-50/30 hover:bg-slate-50 hover:border-slate-300'
     }`}>
       <div className="p-2 rounded-lg bg-primary/5 text-primary dark:bg-primary/20 dark:text-sky-300 shrink-0">
         {icon}

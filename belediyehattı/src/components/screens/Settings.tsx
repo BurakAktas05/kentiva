@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
+import { storageService } from '../../lib/storageService';
 import { motion } from 'motion/react';
-import { ChevronLeft, Globe, Moon, Sun, Monitor, Info, Check, Bell, Loader2, Star } from 'lucide-react';
+import { ChevronLeft, Globe, Moon, Sun, Monitor, Info, Check, Bell, Loader2, Star, MapPin } from 'lucide-react';
 import { Lang, LANGUAGES, t } from '../../i18n';
 import { getNotificationPreferences, updateNotificationPreferences, submitSystemFeedback, type PublicTenant } from '../../api';
 import MunicipalityCard from '../MunicipalityCard';
@@ -32,6 +33,9 @@ export default function Settings({
   const [bloodDonations, setBloodDonations] = useState(true);
   const [lostPets, setLostPets] = useState(true);
   const [surveys, setSurveys] = useState(true);
+  const [locationPromptEnabled, setLocationPromptEnabled] = useState(() => {
+    return storageService.getItem('belediye_location_auto_prompt') !== 'false';
+  });
   const [savingId, setSavingId] = useState<string | null>(null);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackRating, setFeedbackRating] = useState(5);
@@ -250,6 +254,37 @@ export default function Settings({
 
         <section>
           <div className="mb-3 flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">{t('settings.location.title', lang)}</h3>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-700 dark:bg-slate-800 flex items-center justify-between">
+            <div className="flex flex-col pr-3">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{t('settings.location.promptToggle', lang)}</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{t('settings.location.promptDesc', lang)}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const nextVal = !locationPromptEnabled;
+                setLocationPromptEnabled(nextVal);
+                storageService.setItem('belediye_location_auto_prompt', String(nextVal));
+              }}
+              className={`relative h-6 w-11 flex-shrink-0 rounded-full p-0.5 transition-colors duration-205 focus:outline-none ${
+                locationPromptEnabled ? 'bg-primary' : 'bg-slate-200 dark:bg-slate-700'
+              }`}
+            >
+              <motion.div
+                layout
+                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                className="h-5 w-5 rounded-full bg-white shadow"
+                animate={{ x: locationPromptEnabled ? 20 : 0 }}
+              />
+            </button>
+          </div>
+        </section>
+
+        <section>
+          <div className="mb-3 flex items-center gap-2">
             <Info className="h-4 w-4 text-primary" />
             <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">{t('settings.about', lang)}</h3>
           </div>
@@ -262,7 +297,7 @@ export default function Settings({
             <button
               type="button"
               onClick={() => setShowFeedbackModal(true)}
-              className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white p-3.5 text-left transition-all hover:border-slate-350 dark:border-slate-700 dark:bg-slate-800"
+              className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white p-3.5 text-left transition-all hover:border-slate-300 dark:hover:border-slate-600 dark:border-slate-700 dark:bg-slate-800"
             >
               <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Görüş & Öneri Paylaş</span>
               <span className="text-xs text-primary dark:text-secondary font-bold">Geri Bildirim</span>
@@ -293,7 +328,7 @@ export default function Settings({
                 >
                   <Star
                     className={`h-7 w-7 ${
-                      s <= feedbackRating ? 'text-yellow-500 fill-yellow-500' : 'text-slate-250 dark:text-slate-700'
+                      s <= feedbackRating ? 'text-yellow-500 fill-yellow-500' : 'text-slate-300 dark:text-slate-750'
                     }`}
                   />
                 </button>

@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { Link, Outlet } from 'react-router-dom';
-import { Building2 } from 'lucide-react';
+import { Building2, Menu, X } from 'lucide-react';
 
 const ADMIN_PORTAL_URL =
   (import.meta.env.VITE_ADMIN_PORTAL_URL as string | undefined)?.trim() ||
@@ -17,6 +18,8 @@ export function BrandMark({ className = '' }: { className?: string }) {
 }
 
 export default function SiteLayout() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800">
       <a
@@ -26,9 +29,9 @@ export default function SiteLayout() {
         İçeriğe geç
       </a>
 
-      <header>
+      <header className="sticky top-0 z-50">
         <nav
-          className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 shadow-sm backdrop-blur-md"
+          className="border-b border-slate-200/80 bg-white/90 shadow-sm backdrop-blur-md"
           aria-label="Ana gezinme"
         >
           <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8 sm:h-[4.25rem]">
@@ -87,9 +90,66 @@ export default function SiteLayout() {
               >
                 Demo Talep Et
               </a>
+              
+              {/* Hamburger Button for mobile */}
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="inline-flex items-center justify-center p-2 rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-700 focus:outline-none md:hidden transition-colors"
+                aria-label="Menüyü aç/kapat"
+                aria-expanded={mobileMenuOpen}
+              >
+                {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              </button>
             </div>
           </div>
         </nav>
+
+        {/* Mobile Navigation Dropdown */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-b border-slate-200 bg-white/95 backdrop-blur-md shadow-lg transition-all duration-200">
+            <div className="space-y-1 px-4 py-3">
+              <a
+                href="/#ozellikler"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-primary transition-colors"
+              >
+                Özellikler
+              </a>
+              <a
+                href="/#istatistikler"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-primary transition-colors"
+              >
+                İstatistikler
+              </a>
+              <a
+                href="/#kilavuz"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-primary transition-colors"
+              >
+                Kullanım kılavuzu
+              </a>
+              <a
+                href="/#fiyatlandirma"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-primary transition-colors"
+              >
+                Fiyatlandırma
+              </a>
+              <div className="h-px bg-slate-100 my-2" />
+              <a
+                href={ADMIN_PORTAL_URL}
+                target="_blank"
+                rel="noreferrer"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-primary transition-colors"
+              >
+                Operatör paneli
+              </a>
+            </div>
+          </div>
+        )}
       </header>
 
       <Outlet />

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { storageService } from '../../lib/storageService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ClipboardList, Bell, Map, Users, Sparkles, Check, ChevronRight } from 'lucide-react';
 import { Lang } from '../../i18n';
@@ -90,13 +91,13 @@ export default function IntroductionModal({ lang, isDark, isOpen, onClose }: Int
     if (currentSlide < slides.length - 1) {
       setCurrentSlide((prev) => prev + 1);
     } else {
-      localStorage.setItem('belediye_welcome_onboarded', 'true');
+      storageService.setItem('belediye_welcome_onboarded', 'true');
       onClose();
     }
   };
 
   const handleSkip = () => {
-    localStorage.setItem('belediye_welcome_onboarded', 'true');
+    storageService.setItem('belediye_welcome_onboarded', 'true');
     onClose();
   };
 
@@ -122,7 +123,7 @@ export default function IntroductionModal({ lang, isDark, isOpen, onClose }: Int
               <button
                 type="button"
                 onClick={handleSkip}
-                className="absolute top-4 right-4 text-xs font-bold text-slate-400 hover:text-slate-500 dark:hover:text-slate-350"
+                className="absolute top-4 right-4 text-xs font-bold text-slate-400 hover:text-slate-500 dark:hover:text-slate-300"
               >
                 {lang === 'tr' ? 'Atla' : lang === 'ar' ? 'تخطي' : 'Skip'}
               </button>
@@ -133,7 +134,7 @@ export default function IntroductionModal({ lang, isDark, isOpen, onClose }: Int
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.8, y: 10 }}
                   transition={{ duration: 0.25, type: 'spring', stiffness: 200, damping: 18 }}
-                  className="p-4 rounded-3xl bg-white dark:bg-slate-950 shadow-md border border-slate-100 dark:border-slate-850"
+                  className="p-4 rounded-3xl bg-white dark:bg-slate-950 shadow-md border border-slate-100 dark:border-slate-800"
                 >
                   {currentData.icon}
                 </motion.div>

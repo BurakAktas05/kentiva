@@ -9,6 +9,7 @@ vi.mock('../../api', () => ({
   getReportTemplates: vi.fn(),
   resolveMunicipalityByGps: vi.fn(),
   fetchNearbyReportHints: vi.fn(),
+  fetchNearbyReports: vi.fn(),
   createReport: vi.fn(),
   resolveMediaUrl: vi.fn(url => url),
 }));
@@ -55,6 +56,7 @@ describe('NewReport Screen Component', () => {
     vi.mocked(api.getCategories).mockResolvedValueOnce(mockCategories);
     vi.mocked(api.getReportTemplates).mockResolvedValueOnce([]);
     vi.mocked(api.resolveMunicipalityByGps).mockResolvedValueOnce(mockMunicipality);
+    vi.mocked(api.fetchNearbyReports).mockResolvedValueOnce([]);
 
     render(
       <NewReport
@@ -66,20 +68,31 @@ describe('NewReport Screen Component', () => {
       />
     );
 
-    // Wait for categories to load
+    // Wait for step 0 map view and resolved region
+    await waitFor(() => {
+      expect(screen.getByText('Kadikoy Belediyesi')).toBeInTheDocument();
+    });
+
+    // Verify fetchNearbyReports call with proper coordinates from device geolocation
+    expect(api.fetchNearbyReports).toHaveBeenCalledWith(41.0082, 28.9784, 1000);
+
+    // Click "İhbar Oluştur" to go to step 1
+    const createBtn = screen.getByRole('button', { name: /İhbar Oluştur/i });
+    expect(createBtn).not.toBeDisabled();
+    fireEvent.click(createBtn);
+
+    // Wait for step 1 categories to load
     await waitFor(() => {
       expect(screen.getByText('Yol Cukuru')).toBeInTheDocument();
       expect(screen.getByText('Sokak Lambasi')).toBeInTheDocument();
     });
-
-    // Verify coordinate auto-fill
-    expect(screen.getByPlaceholderText('Konum')).toHaveValue('41.00820, 28.97840');
   });
 
   it('progresses to step 2 review screen and submits successfully', async () => {
     vi.mocked(api.getCategories).mockResolvedValueOnce(mockCategories);
     vi.mocked(api.getReportTemplates).mockResolvedValueOnce([]);
     vi.mocked(api.resolveMunicipalityByGps).mockResolvedValueOnce(mockMunicipality);
+    vi.mocked(api.fetchNearbyReports).mockResolvedValueOnce([]);
     vi.mocked(api.fetchNearbyReportHints).mockResolvedValueOnce([]);
     vi.mocked(api.createReport).mockResolvedValueOnce({} as any);
 
@@ -95,7 +108,16 @@ describe('NewReport Screen Component', () => {
       />
     );
 
-    // Wait for load
+    // Wait for step 0
+    await waitFor(() => {
+      expect(screen.getByText('Kadikoy Belediyesi')).toBeInTheDocument();
+    });
+
+    // Click "İhbar Oluştur" to go to step 1
+    const createBtn = screen.getByRole('button', { name: /İhbar Oluştur/i });
+    fireEvent.click(createBtn);
+
+    // Wait for load of step 1
     await waitFor(() => {
       expect(screen.getByText('Yol Cukuru')).toBeInTheDocument();
     });

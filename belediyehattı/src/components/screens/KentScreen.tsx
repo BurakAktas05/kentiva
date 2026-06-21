@@ -96,7 +96,7 @@ export default function KentScreen({ municipality, department, lang, isDark, onS
                 </p>
               </div>
             </div>
-            <ChevronRight className={`w-5 h-5 shrink-0 ${isDark ? 'text-slate-605' : 'text-slate-350'}`} />
+            <ChevronRight className={`w-5 h-5 shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
           </section>
         </div>
       )}

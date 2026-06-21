@@ -37,6 +37,7 @@ export const translations = {
     org_group: "Organizasyon",
     system_group: "Sistem & Yapılandırma",
     loading: "Yükleniyor...",
+    bus_routes: "Ulaşım Hatları",
   },
   en: {
     dashboard: "Dashboard",
@@ -72,6 +73,7 @@ export const translations = {
     org_group: "Organization",
     system_group: "System & Config",
     loading: "Loading...",
+    bus_routes: "Bus Routes",
   },
   ar: {
     dashboard: "لوحة القيادة",
@@ -107,6 +109,7 @@ export const translations = {
     org_group: "المؤسسة",
     system_group: "النظام والتكوين",
     loading: "تحميل...",
+    bus_routes: "خطوط النقل",
   }
 };
 

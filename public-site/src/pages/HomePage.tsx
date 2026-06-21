@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   ShieldCheck,
   ArrowRight,
@@ -13,6 +13,7 @@ import {
   ImagePlus,
   Send,
   ClipboardList,
+  ChevronDown,
 } from 'lucide-react';
 import { SeoHead } from '../components/SeoHead';
 import { LiveStatsSection } from '../components/LiveStatsSection';
@@ -433,68 +434,32 @@ function FeatureCard({ icon, title, desc }: { icon: ReactNode; title: string; de
   );
 }
 
-function PricingCard({
-  name,
-  price,
-  period,
-  features,
-  cta,
-  href,
-  highlighted,
-}: {
-  name: string;
-  price: string;
-  period: string;
-  features: string[];
-  cta: string;
-  href: string;
-  highlighted: boolean;
-}) {
-  return (
-    <div
-      className={`relative flex flex-col rounded-2xl border p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg ${
-        highlighted
-          ? 'border-primary/30 bg-primary/[0.02] ring-2 ring-primary/20 hover:shadow-primary/10'
-          : 'border-slate-200/90 bg-white hover:border-primary/20'
-      }`}
-    >
-      {highlighted && (
-        <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm">
-          Popüler
-        </span>
-      )}
-      <h3 className="font-sans text-lg font-bold text-slate-900">{name}</h3>
-      <div className="mt-4 flex items-baseline gap-1">
-        <span className="text-3xl font-extrabold tracking-tight text-slate-900">{price}</span>
-        <span className="text-sm font-medium text-slate-500">{period}</span>
-      </div>
-      <ul className="mt-6 flex-1 space-y-3 border-t border-slate-100 pt-6">
-        {features.map((f) => (
-          <li key={f} className="flex items-start gap-2.5 text-sm font-medium text-slate-700">
-            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-            {f}
-          </li>
-        ))}
-      </ul>
-      <a
-        href={href}
-        className={`mt-6 block rounded-xl py-3 text-center text-sm font-bold transition-all ${
-          highlighted
-            ? 'bg-primary text-white shadow-md shadow-primary/20 hover:bg-primary-hover'
-            : 'border border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50'
-        }`}
-      >
-        {cta}
-      </a>
-    </div>
-  );
-}
-
 function FaqItem({ q, a }: { q: string; a: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+
   return (
-    <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm">
-      <dt className="font-sans text-sm font-bold text-slate-900">{q}</dt>
-      <dd className="mt-2 text-sm font-medium leading-relaxed text-slate-600">{a}</dd>
+    <div className="rounded-2xl border border-slate-200/90 bg-white shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md">
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between p-5 text-left font-sans text-sm font-bold text-slate-900 focus:outline-none focus:bg-slate-50/50"
+      >
+        <span>{q}</span>
+        <ChevronDown
+          className={`h-4 w-4 text-slate-500 transition-transform duration-300 ${
+            isOpen ? 'rotate-180 text-primary' : ''
+          }`}
+        />
+      </button>
+      <div
+        className={`transition-all duration-350 ease-in-out ${
+          isOpen ? 'max-h-40 border-t border-slate-100' : 'max-h-0'
+        } overflow-hidden`}
+      >
+        <div className="p-5 text-sm font-medium leading-relaxed text-slate-600">
+          {a}
+        </div>
+      </div>
     </div>
   );
 }

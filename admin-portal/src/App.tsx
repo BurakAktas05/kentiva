@@ -149,7 +149,7 @@ const Sidebar = ({
         ];
         if (user.roles.includes('ROLE_ADMIN') && user.municipality) {
           prItems.push({ name: t('events_outages'), icon: CalendarClock, path: '/events-outages' });
-          prItems.push({ name: 'Ulaşım Hatları', icon: Bus, path: '/bus-routes' });
+          prItems.push({ name: t('bus_routes'), icon: Bus, path: '/bus-routes' });
         }
 
         const orgItems: MenuItem[] = [
