@@ -15,7 +15,9 @@ export type Tab =
   | 'profile'
   | 'notifications'
   | 'settings'
-  | 'bus';
+  | 'bus'
+  | 'rewards'
+  | 'ranks';
 
 export const MAIN_TABS: Tab[] = ['home', 'kent', 'topluluk', 'profile'];
 
@@ -91,6 +93,7 @@ export function useAppRouting({
   const [openReportId, setOpenReportId] = useState<string | null>(null);
   const [openAnnouncement, setOpenAnnouncement] = useState<ApiAnnouncement | null>(null);
   const [reportReturnTab, setReportReturnTab] = useState<Tab>('home');
+  const [rewardsReturnTab, setRewardsReturnTab] = useState<Tab>('profile');
 
   // Dynamic route booting
   useEffect(() => {
@@ -223,6 +226,14 @@ export function useAppRouting({
       setActiveTab('kent');
       return true;
     }
+    if (activeTab === 'rewards') {
+      setActiveTab(rewardsReturnTab);
+      return true;
+    }
+    if (activeTab === 'ranks') {
+      setActiveTab('profile');
+      return true;
+    }
     if (activeTab === 'report' || activeTab === 'notifications' || activeTab === 'reports') {
       setNavStack([]);
       setActiveTab('home');
@@ -240,7 +251,7 @@ export function useAppRouting({
       return true;
     }
     return false;
-  }, [activeTab, openReportId, openAnnouncement, closeReport, pickerMode, isPrefsModalOpen, setIsIntroModalOpen, setIsPrefsModalOpen, setPickerMode]);
+  }, [activeTab, openReportId, openAnnouncement, closeReport, pickerMode, isPrefsModalOpen, setIsIntroModalOpen, setIsPrefsModalOpen, setPickerMode, rewardsReturnTab]);
 
   useEffect(() => registerNativeBackHandler(popNavigation), [popNavigation]);
 
@@ -251,7 +262,8 @@ export function useAppRouting({
       !openAnnouncement &&
       !openReportId &&
       activeTab !== 'report' &&
-      activeTab !== 'settings',
+      activeTab !== 'settings' &&
+      activeTab !== 'ranks',
     onBack: popNavigation,
   });
 
@@ -266,6 +278,8 @@ export function useAppRouting({
     setOpenAnnouncement,
     reportReturnTab,
     setReportReturnTab,
+    rewardsReturnTab,
+    setRewardsReturnTab,
     openReport,
     closeReport,
     goToTab,

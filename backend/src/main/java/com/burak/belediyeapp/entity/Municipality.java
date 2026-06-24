@@ -148,12 +148,10 @@ public class Municipality extends BaseEntity {
     @Column(name = "subscription_ends_at")
     private LocalDateTime subscriptionEndsAt;
 
-    /**
-     * Belediyenin sınırları (opsiyonel).
-     * WGS84 (SRID 4326) formatında.
-     */
-    @Column(columnDefinition = "geometry(MultiPolygon,4326)")
-    private MultiPolygon boundaries;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "district_id")
+    private TurkeyDistrict district;
+
 
     /** ERP/CRM giden webhook hedef URL (https) */
     @Column(name = "webhook_url", length = 512)

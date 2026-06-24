@@ -19,5 +19,8 @@ public record PublicMunicipalityDetailDto(
         String websiteUrl,
         boolean active,
         boolean onboarded,
-        boolean publicStatsEnabled
+        boolean publicStatsEnabled,
+        String memberId,
+        String plateCode,
+        String provinceName
 ) {}

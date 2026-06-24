@@ -17,5 +17,8 @@ export function toPublicTenant(raw: Partial<PublicTenant> & { id: string }): Pub
     centerLng: raw.centerLng ?? 29,
     active: Boolean(raw.active),
     onboarded: Boolean(raw.onboarded),
+    contactPhone: raw.contactPhone ?? null,
+    contactEmail: raw.contactEmail ?? null,
+    websiteUrl: raw.websiteUrl ?? null,
   };
 }

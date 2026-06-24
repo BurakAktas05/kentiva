@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { BellOff, CheckCheck, FileText, UserCheck, Info, Droplets, Zap, ChevronRight, Heart, ClipboardList } from 'lucide-react';
+import { ArrowLeft, BellOff, CheckCheck, FileText, UserCheck, Info, Droplets, Zap, ChevronRight, Heart, ClipboardList } from 'lucide-react';
 import { getNotifications, markAllNotificationsRead, ApiNotification } from '../../api';
 import { Lang, t } from '../../i18n';
 import { kentivaCard, screenHeadingClass } from '../../lib/ui';
@@ -124,7 +124,21 @@ export default function Notifications({ onBadgeUpdate, onOpenReport, onNavigate,
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="px-4 pb-6 space-y-4">
       <div className="flex items-center justify-between pt-2">
-        <h3 className={screenHeadingClass(isDark)}>{t('notif.title', lang)}</h3>
+        <div className="flex items-center gap-2">
+          {onNavigate && (
+            <button
+              type="button"
+              onClick={() => onNavigate('home')}
+              className={`p-2 rounded-xl transition-colors -ml-2 ${
+                isDark ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-600'
+              }`}
+              aria-label="Back to Home"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          )}
+          <h3 className={screenHeadingClass(isDark)}>{t('notif.title', lang)}</h3>
+        </div>
         {unreadCount > 0 && (
           <button
             type="button"

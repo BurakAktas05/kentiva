@@ -1,1 +1,0 @@
--- Empty migration to prevent mock data loading

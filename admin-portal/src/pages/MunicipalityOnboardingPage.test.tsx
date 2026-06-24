@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import MunicipalityOnboardingPage from './MunicipalityOnboardingPage';
+import api from '../api';
 import '@testing-library/jest-dom';
 
 vi.mock('../api', () => {
@@ -38,6 +39,21 @@ vi.mock('leaflet', () => ({
 describe('MunicipalityOnboardingPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    (api.get as any).mockImplementation((url: string) => {
+      if (url.includes('/catalog/provinces')) {
+        return Promise.resolve({ data: { data: [{ plateCode: '34', nameTr: 'İstanbul' }] } });
+      }
+      if (url.includes('/catalog/districts')) {
+        return Promise.resolve({
+          data: {
+            data: [
+              { id: 1, memberId: '34-kadikoy', nameTr: 'Kadıköy', districtSlug: 'kadikoy', onboarded: false }
+            ]
+          }
+        });
+      }
+      return Promise.resolve({ data: {} });
+    });
   });
 
   it('navigates through onboarding steps correctly', async () => {
@@ -50,8 +66,21 @@ describe('MunicipalityOnboardingPage', () => {
     // STEP 1: Branding
     expect(screen.getByText('Kurumsal Kimlik ve Operasyon Modu')).toBeInTheDocument();
 
-    const nameInput = screen.getByPlaceholderText('Kadıköy Belediyesi');
-    fireEvent.change(nameInput, { target: { value: 'Kadikoy Belediyesi' } });
+    // Wait for province data to load
+    await waitFor(() => {
+      expect(screen.getByText('İstanbul')).toBeInTheDocument();
+    });
+
+    const provinceSelect = screen.getByLabelText(/İl Seçin/i);
+    fireEvent.change(provinceSelect, { target: { value: '34' } });
+
+    // Wait for district data to load
+    await waitFor(() => {
+      expect(screen.getByText(/Kadıköy/i)).toBeInTheDocument();
+    });
+
+    const districtSelect = screen.getByLabelText(/İlçe Seçin/i);
+    fireEvent.change(districtSelect, { target: { value: '1' } });
 
     const nextBtn = screen.getByRole('button', { name: /İleri/i });
     expect(nextBtn).not.toBeDisabled();

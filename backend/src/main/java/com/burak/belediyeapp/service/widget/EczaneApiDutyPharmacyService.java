@@ -52,10 +52,6 @@ public class EczaneApiDutyPharmacyService {
         if (apiKey == null || apiKey.isBlank()) {
             return new PharmacyQueryResult(List.of(), null, false);
         }
-        List<PharmacyWidgetItem> nearby = fetchNearby(lat, lng, limit);
-        if (!nearby.isEmpty()) {
-            return new PharmacyQueryResult(nearby, "EczaneAPI — nöbetçi eczane (konum)", true);
-        }
         String resolvedCity = municipality.getWidgetCitySlug();
         String resolvedDistrict = municipality.getWidgetDistrictSlug();
         if (resolvedCity == null || resolvedCity.isBlank()) {

@@ -23,7 +23,7 @@ import api, {
 import { downloadBlobResponse } from '../lib/downloadExport';
 
 const FORMAT_LABELS: Record<ExportFormat, string> = { EXCEL: 'Excel', PDF: 'PDF' };
-const FREQUENCY_LABELS: Record<ExportFrequency, string> = { DAILY: 'Gunluk', WEEKLY: 'Haftalik' };
+const FREQUENCY_LABELS: Record<ExportFrequency, string> = { DAILY: 'Günlük', WEEKLY: 'Haftalık' };
 
 type Toast = { type: 'success' | 'error'; message: string } | null;
 
@@ -50,7 +50,7 @@ function statusBadge(status: ExportRun['status']) {
     : 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200';
 }
 
-export default function ScheduledExportsPage() {
+export default function ScheduledExportsPage({ embedded = false }: { embedded?: boolean }) {
   const [schedules, setSchedules] = useState<ExportSchedule[]>([]);
   const [runs, setRuns] = useState<ExportRun[]>([]);
   const [runsPage, setRunsPage] = useState(0);
@@ -87,13 +87,13 @@ export default function ScheduledExportsPage() {
         const code = (err.response?.data as { code?: string } | undefined)?.code;
         const message = (err.response?.data as { message?: string } | undefined)?.message;
         if (code === 'MUNICIPALITY_REQUIRED' || err.response?.status === 403) {
-          setScopeError(message ?? 'Planli disa aktarma yalnizca belediye hesaplari icin kullanilabilir.');
+          setScopeError(message ?? 'Planlı dışa aktarma yalnızca belediye hesapları için kullanılabilir.');
           setSchedules([]);
           setRuns([]);
           return;
         }
       }
-      setError('Veriler yuklenemedi. Lutfen sayfayi yenileyin.');
+      setError('Veriler yüklenemedi. Lütfen sayfayı yenileyin.');
     }
   }, [runsPage]);
 
@@ -145,12 +145,12 @@ export default function ScheduledExportsPage() {
       setFrequency('DAILY');
       setHourOfDay(6);
       await loadData();
-      setToast({ type: 'success', message: 'Plan olusturuldu.' });
+      setToast({ type: 'success', message: 'Plan oluşturuldu.' });
     } catch (err: unknown) {
       setFormError(
         axios.isAxiosError(err)
-          ? String((err.response?.data as { message?: string } | undefined)?.message ?? 'Plan olusturulamadi.')
-          : 'Plan olusturulamadi.',
+          ? String((err.response?.data as { message?: string } | undefined)?.message ?? 'Plan oluşturulamadı.')
+          : 'Plan oluşturulamadı.',
       );
     } finally {
       setSaving(false);
@@ -158,7 +158,7 @@ export default function ScheduledExportsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Bu plani silmek istediginize emin misiniz?')) return;
+    if (!window.confirm('Bu planı silmek istediğinize emin misiniz?')) return;
     try {
       await api.delete(`/export/schedules/${id}`);
       await loadData();
@@ -173,14 +173,14 @@ export default function ScheduledExportsPage() {
     try {
       await api.post(`/export/schedules/${scheduleId}/run-now`);
       await loadData();
-      setToast({ type: 'success', message: 'Export uretimi baslatildi ve dosya hazirlandi.' });
+      setToast({ type: 'success', message: 'Export üretimi başlatıldı ve dosya hazırlandı.' });
     } catch (err: unknown) {
       setToast({
         type: 'error',
         message:
           axios.isAxiosError(err)
-            ? String((err.response?.data as { message?: string } | undefined)?.message ?? 'Export calistirilamadi.')
-            : 'Export calistirilamadi.',
+            ? String((err.response?.data as { message?: string } | undefined)?.message ?? 'Export çalıştırılamadı.')
+            : 'Export çalıştırılamadı.',
       });
     } finally {
       setRunningScheduleId(null);
@@ -204,7 +204,7 @@ export default function ScheduledExportsPage() {
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <div className={embedded ? 'space-y-6' : 'space-y-6 p-6'}>
       {toast && (
         <div
           className={`fixed right-6 top-20 z-50 flex max-w-md items-start gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold shadow-lg ${
@@ -221,17 +221,45 @@ export default function ScheduledExportsPage() {
         </div>
       )}
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="kentiva-eyebrow">Disa aktarma merkezi</p>
-          <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-            Planli export operasyonu
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm font-medium text-slate-600 dark:text-slate-400">
-            Excel ve PDF ciktilarini otomatik uretin, kosu gecmisini izleyin ve hata durumlarini tek yerden yonetin.
-          </p>
+      {!embedded && (
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="kentiva-eyebrow">Dışa aktarma merkezi</p>
+            <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+              Planlı export operasyonu
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm font-medium text-slate-600 dark:text-slate-400">
+              Excel ve PDF çıktılarını otomatik üretin, koşu geçmişini izleyin ve hata durumlarını tek yerden yönetin.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void loadData()}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Yenile
+            </button>
+            {canManage && !scopeError && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFormError('');
+                  setModalOpen(true);
+                }}
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover"
+              >
+                <Plus className="h-4 w-4" />
+                Yeni plan
+              </button>
+            )}
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+      )}
+
+      {embedded && (
+        <div className="flex justify-end gap-2">
           <button
             type="button"
             onClick={() => void loadData()}
@@ -254,22 +282,22 @@ export default function ScheduledExportsPage() {
             </button>
           )}
         </div>
-      </div>
+      )}
 
       {municipalityName && (
         <div className="rounded-3xl border border-primary/20 bg-primary/5 px-5 py-4 dark:border-primary/30 dark:bg-primary/10">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">Kapsam</p>
           <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{municipalityName}</p>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Tum planlar ve dosyalar aktif belediye tenant'i kapsaminda uretilir.
+            Tüm planlar ve dosyalar aktif belediye tenant'ı kapsamında üretilir.
           </p>
         </div>
       )}
 
       <div className="grid gap-3 md:grid-cols-3">
-        <SummaryCard label="Aktif plan" value={String(activeCount)} helper="Calisan otomasyonlar" />
-        <SummaryCard label="Hazir dosya" value={String(successCount)} helper="Indirilebilir export kosulari" />
-        <SummaryCard label="Hata" value={String(failureCount)} helper="Mudahale gerektiren kosular" danger={failureCount > 0} />
+        <SummaryCard label="Aktif plan" value={String(activeCount)} helper="Çalışan otomasyonlar" />
+        <SummaryCard label="Hazır dosya" value={String(successCount)} helper="İndirilebilir export koşuları" />
+        <SummaryCard label="Hata" value={String(failureCount)} helper="Müdahale gerektiren koşular" danger={failureCount > 0} />
       </div>
 
       {scopeError && (
@@ -299,7 +327,7 @@ export default function ScheduledExportsPage() {
 
               {schedules.length === 0 ? (
                 <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                  Henuz planli disa aktarma yok.
+                  Henüz planlı dışa aktarma yok.
                 </p>
               ) : (
                 <div className="grid gap-4 xl:grid-cols-2">
@@ -322,10 +350,10 @@ export default function ScheduledExportsPage() {
                             Saat {String(schedule.hourOfDay).padStart(2, '0')}:00
                           </p>
                           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                            Son kosu: {formatDateTime(schedule.lastRunAt)}
+                            Son koşu: {formatDateTime(schedule.lastRunAt)}
                           </p>
                           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                            Sonraki kosu: {formatDateTime(schedule.nextRunAt)}
+                            Sonraki koşu: {formatDateTime(schedule.nextRunAt)}
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -347,7 +375,7 @@ export default function ScheduledExportsPage() {
                                 className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                               >
                                 <PlayCircle className={`h-3.5 w-3.5 ${runningScheduleId === schedule.id ? 'animate-pulse' : ''}`} />
-                                {runningScheduleId === schedule.id ? 'Calisiyor' : 'Hemen uret'}
+                                {runningScheduleId === schedule.id ? 'Çalışıyor' : 'Hemen üret'}
                               </button>
                               <button
                                 type="button"
@@ -370,12 +398,12 @@ export default function ScheduledExportsPage() {
             <section className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <div className="mb-4 flex items-center gap-2">
                 <Download className="h-4 w-4 text-primary" />
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Kosu gecmisi</h3>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Koşu geçmişi</h3>
               </div>
 
               {runs.length === 0 ? (
                 <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                  Henuz uretilmis dosya yok.
+                  Henüz üretilmiş dosya yok.
                 </p>
               ) : (
                 <div className="space-y-3">
@@ -388,7 +416,7 @@ export default function ScheduledExportsPage() {
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${statusBadge(run.status)}`}>
-                              {run.status === 'SUCCESS' ? 'Hazir' : 'Hatali'}
+                              {run.status === 'SUCCESS' ? 'Hazır' : 'Hatalı'}
                             </span>
                             <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                               {FORMAT_LABELS[run.format]}
@@ -416,12 +444,12 @@ export default function ScheduledExportsPage() {
                             className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white hover:bg-primary-hover disabled:opacity-60"
                           >
                             <Download className="h-3.5 w-3.5" />
-                            {downloadingId === run.id ? 'Iniyor' : 'Indir'}
+                            {downloadingId === run.id ? 'İniyor' : 'İndir'}
                           </button>
                         ) : (
                           <div className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 dark:border-rose-900 dark:bg-slate-900 dark:text-rose-200">
                             <Clock3 className="h-3.5 w-3.5" />
-                            Tekrar kosulmasi gerekir
+                            Tekrar koşulması gerekir
                           </div>
                         )}
                       </div>
@@ -436,7 +464,7 @@ export default function ScheduledExportsPage() {
                         onClick={() => setRunsPage((page) => Math.max(0, page - 1))}
                         className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-slate-800"
                       >
-                        Onceki
+                        Önceki
                       </button>
                       <span className="text-xs font-medium text-slate-500">
                         Sayfa {runsPage + 1} / {runsTotalPages}
@@ -463,7 +491,7 @@ export default function ScheduledExportsPage() {
             <div className="mb-5 flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">Yeni plan</p>
-                <h3 className="mt-1 text-lg font-bold text-slate-900 dark:text-white">Planli export olustur</h3>
+                <h3 className="mt-1 text-lg font-bold text-slate-900 dark:text-white">Planlı export oluştur</h3>
               </div>
               <button
                 type="button"
@@ -488,19 +516,19 @@ export default function ScheduledExportsPage() {
               </label>
 
               <label className="block text-sm">
-                <span className="mb-1.5 block font-semibold text-slate-700 dark:text-slate-300">Siklik</span>
+                <span className="mb-1.5 block font-semibold text-slate-700 dark:text-slate-300">Sıklık</span>
                 <select
                   value={frequency}
                   onChange={(event) => setFrequency(event.target.value as ExportFrequency)}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 >
-                  <option value="DAILY">Gunluk</option>
-                  <option value="WEEKLY">Haftalik (Pazartesi)</option>
+                  <option value="DAILY">Günlük</option>
+                  <option value="WEEKLY">Haftalık (Pazartesi)</option>
                 </select>
               </label>
 
               <label className="block text-sm">
-                <span className="mb-1.5 block font-semibold text-slate-700 dark:text-slate-300">Calisma saati (0-23)</span>
+                <span className="mb-1.5 block font-semibold text-slate-700 dark:text-slate-300">Çalışma saati (0-23)</span>
                 <input
                   type="number"
                   min={0}
@@ -513,7 +541,7 @@ export default function ScheduledExportsPage() {
               </label>
 
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Planlar Europe/Istanbul saat diliminde calisir. Haftalik planlar Pazartesi gunu tetiklenir.
+                Planlar Europe/Istanbul saat diliminde çalışır. Haftalık planlar Pazartesi günü tetiklenir.
               </p>
 
               {formError && <p className="text-sm font-medium text-rose-600 dark:text-rose-400">{formError}</p>}
@@ -524,14 +552,14 @@ export default function ScheduledExportsPage() {
                   onClick={() => setModalOpen(false)}
                   className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
-                  Iptal
+                  İptal
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
                   className="flex-1 rounded-xl bg-primary py-2.5 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
                 >
-                  {saving ? 'Kaydediliyor...' : 'Olustur'}
+                  {saving ? 'Kaydediliyor...' : 'Oluştur'}
                 </button>
               </div>
             </form>

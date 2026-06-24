@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Calendar, Droplets, Plus, Trash2, Zap } from 'lucide-react';
+import { Calendar, Droplets, Plus, Trash2, Zap, Edit } from 'lucide-react';
 import api from '../api';
 
 type Outage = {
@@ -30,6 +30,9 @@ export default function MunicipalityWidgetsPanel() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState('');
+
+  const [editingOutageId, setEditingOutageId] = useState<string | null>(null);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
 
   const [outageForm, setOutageForm] = useState({
     outageType: 'WATER',
@@ -73,7 +76,7 @@ export default function MunicipalityWidgetsPanel() {
     e.preventDefault();
     setMsg('');
     try {
-      await api.post('/municipalities/me/widgets/outages', {
+      const payload = {
         outageType: outageForm.outageType,
         title: outageForm.title,
         district: outageForm.district || null,
@@ -81,12 +84,19 @@ export default function MunicipalityWidgetsPanel() {
         startsAt: outageForm.startsAt || null,
         endsAt: outageForm.endsAt || null,
         active: true,
-      });
+      };
+      if (editingOutageId) {
+        await api.put(`/municipalities/me/widgets/outages/${editingOutageId}`, payload);
+        setMsg('Kesinti güncellendi.');
+        setEditingOutageId(null);
+      } else {
+        await api.post('/municipalities/me/widgets/outages', payload);
+        setMsg('Kesinti yayınlandı.');
+      }
       setOutageForm({ outageType: 'WATER', title: '', district: '', message: '', startsAt: '', endsAt: '' });
-      setMsg('Kesinti yayınlandı.');
       await load();
     } catch {
-      setMsg('Kesinti eklenemedi.');
+      setMsg(editingOutageId ? 'Kesinti güncellenemedi.' : 'Kesinti eklenemedi.');
     }
   };
 
@@ -98,7 +108,7 @@ export default function MunicipalityWidgetsPanel() {
     }
     setMsg('');
     try {
-      await api.post('/municipalities/me/widgets/events', {
+      const payload = {
         title: eventForm.title,
         venue: eventForm.venue || null,
         description: eventForm.description || null,
@@ -106,12 +116,19 @@ export default function MunicipalityWidgetsPanel() {
         endsAt: eventForm.endsAt || null,
         externalUrl: eventForm.externalUrl || null,
         active: true,
-      });
+      };
+      if (editingEventId) {
+        await api.put(`/municipalities/me/widgets/events/${editingEventId}`, payload);
+        setMsg('Etkinlik güncellendi.');
+        setEditingEventId(null);
+      } else {
+        await api.post('/municipalities/me/widgets/events', payload);
+        setMsg('Etkinlik yayınlandı.');
+      }
       setEventForm({ title: '', venue: '', description: '', startsAt: '', endsAt: '', externalUrl: '' });
-      setMsg('Etkinlik yayınlandı.');
       await load();
     } catch {
-      setMsg('Etkinlik eklenemedi.');
+      setMsg(editingEventId ? 'Etkinlik güncellenemedi.' : 'Etkinlik eklenemedi.');
     }
   };
 
@@ -123,6 +140,40 @@ export default function MunicipalityWidgetsPanel() {
   const removeEvent = async (id: string) => {
     await api.delete(`/municipalities/me/widgets/events/${id}`);
     await load();
+  };
+
+  const startEditOutage = (o: Outage) => {
+    setEditingOutageId(o.id);
+    setOutageForm({
+      outageType: o.outageType,
+      title: o.title,
+      district: o.district || '',
+      message: o.message || '',
+      startsAt: o.startsAt ? o.startsAt.substring(0, 16) : '',
+      endsAt: o.endsAt ? o.endsAt.substring(0, 16) : '',
+    });
+  };
+
+  const cancelEditOutage = () => {
+    setEditingOutageId(null);
+    setOutageForm({ outageType: 'WATER', title: '', district: '', message: '', startsAt: '', endsAt: '' });
+  };
+
+  const startEditEvent = (ev: Event) => {
+    setEditingEventId(ev.id);
+    setEventForm({
+      title: ev.title,
+      venue: ev.venue || '',
+      description: ev.description || '',
+      startsAt: ev.startsAt ? ev.startsAt.substring(0, 16) : '',
+      endsAt: ev.endsAt ? ev.endsAt.substring(0, 16) : '',
+      externalUrl: ev.externalUrl || '',
+    });
+  };
+
+  const cancelEditEvent = () => {
+    setEditingEventId(null);
+    setEventForm({ title: '', venue: '', description: '', startsAt: '', endsAt: '', externalUrl: '' });
   };
 
   return (
@@ -187,19 +238,30 @@ export default function MunicipalityWidgetsPanel() {
                 onChange={(e) => setOutageForm((f) => ({ ...f, endsAt: e.target.value }))}
               />
             </div>
-            <button
-              type="submit"
-              className="inline-flex items-center gap-1 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-white"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Kesinti yayınla
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="inline-flex items-center gap-1 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-white shadow-sm"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {editingOutageId ? 'Güncelle' : 'Kesinti yayınla'}
+              </button>
+              {editingOutageId && (
+                <button
+                  type="button"
+                  onClick={cancelEditOutage}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 shadow-sm"
+                >
+                  İptal
+                </button>
+              )}
+            </div>
           </form>
           <ul className="mt-4 space-y-2">
             {outages.map((o) => (
               <li
                 key={o.id}
-                className="flex items-start justify-between gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700"
+                className="flex items-start justify-between gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/20"
               >
                 <div>
                   {o.outageType === 'WATER' ? (
@@ -210,9 +272,14 @@ export default function MunicipalityWidgetsPanel() {
                   <p className="font-semibold">{o.title}</p>
                   {o.district && <p className="text-xs text-slate-500">{o.district}</p>}
                 </div>
-                <button type="button" onClick={() => removeOutage(o.id)} className="text-red-600">
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                <div className="flex gap-2 shrink-0">
+                  <button type="button" onClick={() => startEditOutage(o)} className="text-primary hover:brightness-110">
+                    <Edit className="h-4 w-4" />
+                  </button>
+                  <button type="button" onClick={() => removeOutage(o.id)} className="text-red-600 hover:text-red-700">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -263,19 +330,30 @@ export default function MunicipalityWidgetsPanel() {
               value={eventForm.externalUrl}
               onChange={(e) => setEventForm((f) => ({ ...f, externalUrl: e.target.value }))}
             />
-            <button
-              type="submit"
-              className="inline-flex items-center gap-1 rounded-xl bg-violet-600 px-3 py-2 text-xs font-bold text-white"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Etkinlik yayınla
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="inline-flex items-center gap-1 rounded-xl bg-violet-600 px-3 py-2 text-xs font-bold text-white shadow-sm"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {editingEventId ? 'Güncelle' : 'Etkinlik yayınla'}
+              </button>
+              {editingEventId && (
+                <button
+                  type="button"
+                  onClick={cancelEditEvent}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 shadow-sm"
+                >
+                  İptal
+                </button>
+              )}
+            </div>
           </form>
           <ul className="mt-4 space-y-2">
             {events.map((ev) => (
               <li
                 key={ev.id}
-                className="flex items-start justify-between gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700"
+                className="flex items-start justify-between gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/20"
               >
                 <div>
                   <p className="font-semibold">{ev.title}</p>
@@ -284,9 +362,14 @@ export default function MunicipalityWidgetsPanel() {
                     {ev.venue ? ` · ${ev.venue}` : ''}
                   </p>
                 </div>
-                <button type="button" onClick={() => removeEvent(ev.id)} className="text-red-600">
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                <div className="flex gap-2 shrink-0">
+                  <button type="button" onClick={() => startEditEvent(ev)} className="text-primary hover:brightness-110">
+                    <Edit className="h-4 w-4" />
+                  </button>
+                  <button type="button" onClick={() => removeEvent(ev.id)} className="text-red-600 hover:text-red-700">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Award, Star, Settings as SettingsIcon, ChevronRight, LogOut, Loader2 } from 'lucide-react';
+import { Award, Star, Settings as SettingsIcon, ChevronRight, LogOut, Loader2, Gift } from 'lucide-react';
 import {
   getMyProfile,
   getMyReports,
@@ -15,6 +15,7 @@ import MunicipalityCard from '../MunicipalityCard';
 interface ProfileProps {
   onLogout: () => void;
   onSettings: () => void;
+  onRewards: () => void;
   onChangeMunicipality?: () => void;
   municipality?: PublicTenant | null;
   lang: Lang;
@@ -24,6 +25,7 @@ interface ProfileProps {
 export default function Profile({
   onLogout,
   onSettings,
+  onRewards,
   onChangeMunicipality,
   municipality,
   lang,
@@ -169,25 +171,52 @@ export default function Profile({
         </div>
       </div>
 
-      <div className="mt-6 px-5">
-        <div
-          className={`flex items-center justify-between rounded-2xl border p-4 ${
-            isDark ? 'border-primary/25 bg-primary/10' : 'border-primary/15 bg-primary/5'
-          }`}
-        >
-          <div>
-            <h4 className={`text-sm font-bold ${isDark ? 'text-sky-200' : 'text-primary'}`}>
-              {points < 1000 ? t('profile.level.hero', lang) : t('profile.level.hero.done', lang)}
-            </h4>
-            <p className={`mt-1 text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-              {points < 1000 ? t('profile.level.more', lang, { n: 1000 - points }) : t('profile.level.max', lang)}
-            </p>
+      {(() => {
+        let levelTitle = '';
+        let levelMoreText = '';
+        if (points < 100) {
+          const needed = 100 - points;
+          levelTitle = lang === 'tr' ? 'Güvenilir Üye Olmaya Az Kaldı!' : 'Almost a Trusted Member!';
+          levelMoreText = lang === 'tr' ? `${needed} puan daha topla, rozeti kap.` : `Earn ${needed} more points to unlock the badge.`;
+        } else if (points < 250) {
+          const needed = 250 - points;
+          levelTitle = lang === 'tr' ? 'Aktif Vatandaş Olmaya Az Kaldı!' : 'Almost an Active Citizen!';
+          levelMoreText = lang === 'tr' ? `${needed} puan daha topla, rozeti kap.` : `Earn ${needed} more points to unlock the badge.`;
+        } else if (points < 500) {
+          const needed = 500 - points;
+          levelTitle = lang === 'tr' ? 'Gönüllü Üye Olmaya Az Kaldı!' : 'Almost a Volunteer!';
+          levelMoreText = lang === 'tr' ? `${needed} puan daha topla, rozeti kap.` : `Earn ${needed} more points to unlock the badge.`;
+        } else if (points < 800) {
+          const needed = 800 - points;
+          levelTitle = lang === 'tr' ? 'Şehrin Kahramanı Olmaya Az Kaldı!' : 'Almost a City Hero!';
+          levelMoreText = lang === 'tr' ? `${needed} puan daha topla, rozeti kap.` : `Earn ${needed} more points to unlock the badge.`;
+        } else {
+          levelTitle = lang === 'tr' ? 'Harika Bir Vatandaşsın! 🏆' : 'You are an Amazing Citizen! 🏆';
+          levelMoreText = lang === 'tr' ? 'En yüksek seviyeye ulaştın!' : 'You reached the highest level!';
+        }
+
+        return (
+          <div className="mt-6 px-5">
+            <div
+              className={`flex items-center justify-between rounded-2xl border p-4 ${
+                isDark ? 'border-primary/25 bg-primary/10' : 'border-primary/15 bg-primary/5'
+              }`}
+            >
+              <div>
+                <h4 className={`text-sm font-bold ${isDark ? 'text-sky-200' : 'text-primary'}`}>
+                  {levelTitle}
+                </h4>
+                <p className={`mt-1 text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                  {levelMoreText}
+                </p>
+              </div>
+              <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${isDark ? 'bg-primary/25' : 'bg-primary/15'}`}>
+                <Award className={`h-6 w-6 ${isDark ? 'text-sky-200' : 'text-primary'}`} />
+              </div>
+            </div>
           </div>
-          <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${isDark ? 'bg-primary/25' : 'bg-primary/15'}`}>
-            <Award className={`h-6 w-6 ${isDark ? 'text-sky-200' : 'text-primary'}`} />
-          </div>
-        </div>
-      </div>
+        );
+      })()}
 
       <div className="mt-6 px-5">
         <MunicipalityCard
@@ -205,6 +234,29 @@ export default function Profile({
         <h3 className={`mb-2 px-1 font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-800'}`}>
           {t('profile.account', lang)}
         </h3>
+
+        <button
+          type="button"
+          onClick={onRewards}
+          className={`flex w-full items-center justify-between rounded-2xl border p-4 shadow-sm transition-all active:scale-95 ${
+            isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div className={`rounded-xl p-2 ${isDark ? 'bg-primary/20 text-sky-400' : 'bg-primary/10 text-primary'}`}>
+              <Award className="h-5 w-5" />
+            </div>
+            <div className="text-left">
+              <span className={`block text-sm font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                {lang === 'tr' ? 'Rütbe & Ödüller' : 'Ranks & Rewards'}
+              </span>
+              <span className="block text-[10px] text-slate-400 mt-0.5 font-medium">
+                {lang === 'tr' ? 'Puan durumunu gör ve hediyeleri al' : 'View status and claim rewards'}
+              </span>
+            </div>
+          </div>
+          <ChevronRight className="h-5 w-5 text-slate-400" />
+        </button>
 
         <button
           type="button"

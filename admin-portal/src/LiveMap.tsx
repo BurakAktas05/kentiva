@@ -139,34 +139,61 @@ const LiveMap = ({
     if (!token) {
       return;
     }
-    const wsUrl = `${getSockJsUrl()}?token=${encodeURIComponent(token)}`;
-    const socket = new SockJS(wsUrl);
-    const stompClient = Stomp.over(socket);
-    stompClient.debug = () => {};
-    const topic = `/topic/municipality/${municipalityId}/reports`;
-    const connectHeaders = { Authorization: `Bearer ${token}` };
 
-    stompClient.connect(
-      connectHeaders,
-      () => {
-        setWsConnected(true);
-        stompClient.subscribe(topic, (msg) => {
-          const report = JSON.parse(msg.body) as Report;
-          if (Number.isFinite(report.latitude) && Number.isFinite(report.longitude)) {
-            mergeReport(report);
-            setNewReport(report);
-            setTimeout(() => setNewReport(null), 5000);
-          }
-        });
-      },
-      () => setWsConnected(false),
-    );
+    let stompClient: any = null;
+    let reconnectTimeoutId: any = null;
+    let isCurrentEffect = true;
+    let retryCount = 0;
+
+    const connect = () => {
+      if (!isCurrentEffect) return;
+
+      const wsUrl = `${getSockJsUrl()}?token=${encodeURIComponent(token)}`;
+      const socket = new SockJS(wsUrl);
+      stompClient = Stomp.over(socket);
+      stompClient.debug = () => {};
+      const topic = `/topic/municipality/${municipalityId}/reports`;
+      const connectHeaders = { Authorization: `Bearer ${token}` };
+
+      stompClient.connect(
+        connectHeaders,
+        () => {
+          if (!isCurrentEffect) return;
+          setWsConnected(true);
+          retryCount = 0; // reset on success
+          stompClient.subscribe(topic, (msg: any) => {
+            const report = JSON.parse(msg.body) as Report;
+            if (Number.isFinite(report.latitude) && Number.isFinite(report.longitude)) {
+              mergeReport(report);
+              setNewReport(report);
+              setTimeout(() => setNewReport(null), 5000);
+            }
+          });
+        },
+        () => {
+          if (!isCurrentEffect) return;
+          setWsConnected(false);
+          // Exponential backoff reconnect
+          const delay = Math.min(30000, Math.pow(2, retryCount) * 1000 + Math.random() * 1000);
+          retryCount++;
+          reconnectTimeoutId = setTimeout(connect, delay);
+        },
+      );
+    };
+
+    connect();
 
     return () => {
-      try {
-        stompClient.disconnect(() => {});
-      } catch {
-        /* ignore */
+      isCurrentEffect = false;
+      if (reconnectTimeoutId) {
+        clearTimeout(reconnectTimeoutId);
+      }
+      if (stompClient) {
+        try {
+          stompClient.disconnect(() => {});
+        } catch {
+          /* ignore */
+        }
       }
       setWsConnected(false);
     };

@@ -120,3 +120,34 @@ html.native-app {
     @apply rounded-2xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900;
   }
 }
+
+/* Grayscale map tiles */
+.grayscale-map .leaflet-tile-pane {
+  filter: grayscale(100%) brightness(0.95) contrast(1.05);
+}
+.dark .grayscale-map .leaflet-tile-pane {
+  filter: grayscale(100%) brightness(0.75) contrast(1.1);
+}
+
+/* Custom Leaflet divIcon overrides */
+.custom-report-marker-container,
+.custom-user-marker-container {
+  background: transparent !important;
+  border: none !important;
+}
+
+@keyframes marker-ping {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+.animate-marker-ping {
+  animation: marker-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+

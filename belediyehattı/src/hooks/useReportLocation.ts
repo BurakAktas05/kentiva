@@ -63,7 +63,10 @@ export function useReportLocation({ defaultMunicipality, lang }: UseReportLocati
     }
 
     try {
-      const result = await getDevicePosition({ highAccuracy: true, timeoutMs: 15000 });
+      let result = await getDevicePosition({ highAccuracy: true, timeoutMs: 3500 });
+      if (result.ok === false && (result.reason === 'timeout' || result.reason === 'unavailable')) {
+        result = await getDevicePosition({ highAccuracy: false, timeoutMs: 4000 });
+      }
       if (result.ok) {
         const lat = result.coords.lat;
         const lng = result.coords.lng;
@@ -90,8 +93,12 @@ export function useReportLocation({ defaultMunicipality, lang }: UseReportLocati
       setLocating(true);
       setError('');
       try {
-        const result = await getDevicePosition({ highAccuracy: true, timeoutMs: 15000 });
+        let result = await getDevicePosition({ highAccuracy: true, timeoutMs: 3500 });
         if (!active) return;
+        if (result.ok === false && (result.reason === 'timeout' || result.reason === 'unavailable')) {
+          result = await getDevicePosition({ highAccuracy: false, timeoutMs: 4000 });
+          if (!active) return;
+        }
         if (result.ok) {
           const lat = result.coords.lat;
           const lng = result.coords.lng;

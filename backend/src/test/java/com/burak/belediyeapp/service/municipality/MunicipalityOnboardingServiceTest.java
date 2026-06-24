@@ -70,21 +70,23 @@ class MunicipalityOnboardingServiceTest {
     @Test
     void onboard_createsMunicipalityAdminAndSkipsExistingCategories() {
         when(userRepository.existsByEmail("admin@test.com")).thenReturn(false);
-        when(municipalityManagementService.create(any(CreateMunicipalityRequest.class)))
-                .thenReturn(new MunicipalityDto(
-                        "m-1", "Test İlçe", "DISTRICT", null, 41.0, 29.0, 12,
-                        "test-ilce", "Test İlçe", null, null, null, null,
-                        "Slogan", null, null, null, false, true, true,
-                        "TRIAL", null, null, "TRIAL",
-                        null, null, null, null,
-                        null, null, null, null, null, null, "SIMPLE",
-                        true, 25, 50, -45, -70, 5, 30, true));
         Municipality municipality = Municipality.builder()
                 .name("Test İlçe")
                 .type(MunicipalityType.DISTRICT)
                 .slug("test-ilce")
+                .displayName("Test İlçe")
+                .centerLat(41.0)
+                .centerLng(29.0)
+                .defaultZoom(12)
+                .slogan("Slogan")
+                .active(true)
+                .onboarded(true)
+                .subscriptionPlan(com.burak.belediyeapp.entity.SubscriptionPlan.TRIAL)
+                .workflowMode(com.burak.belediyeapp.entity.WorkflowMode.SIMPLE)
                 .build();
         municipality.setId("m-1");
+        when(municipalityManagementService.create(any(CreateMunicipalityRequest.class)))
+                .thenReturn(MunicipalityDto.fromEntity(municipality));
         when(municipalityRepository.findById("m-1")).thenReturn(Optional.of(municipality));
         Role adminRole = new Role();
         adminRole.setName("ROLE_ADMIN");
@@ -117,7 +119,7 @@ class MunicipalityOnboardingServiceTest {
     private static MunicipalityOnboardingRequest sampleRequest() {
         return new MunicipalityOnboardingRequest(
                 new MunicipalityOnboardingRequest.MunicipalityPart(
-                        "Test İlçe", "test-ilce", "Test İlçe", 41.0, 29.0, 12, "Slogan", null, "SIMPLE"),
+                        "Test İlçe", "test-ilce", "Test İlçe", 41.0, 29.0, 12, "Slogan", null, "SIMPLE", null, "34-kadikoy"),
                 new MunicipalityOnboardingRequest.AdminPart(
                         "admin@test.com", "password12", "Ali Veli", "5551112233"),
                 null,

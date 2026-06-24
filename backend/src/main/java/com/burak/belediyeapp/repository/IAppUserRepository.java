@@ -13,7 +13,7 @@ public interface IAppUserRepository extends JpaRepository<AppUser, String> {
 
     Optional<AppUser> findByEmail(String email);
 
-    @Query("SELECT u FROM AppUser u LEFT JOIN FETCH u.municipality WHERE u.email = :email")
+    @Query("SELECT u FROM AppUser u LEFT JOIN FETCH u.municipality m LEFT JOIN FETCH m.district d LEFT JOIN FETCH d.province LEFT JOIN FETCH u.department LEFT JOIN FETCH u.preferredMunicipality WHERE u.email = :email")
     Optional<AppUser> findByEmailWithMunicipality(@Param("email") String email);
 
     boolean existsByEmail(String email);

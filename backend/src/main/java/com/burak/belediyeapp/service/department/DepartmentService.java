@@ -23,6 +23,7 @@ import org.springframework.data.domain.Pageable;
 
 import java.text.Normalizer;
 import java.util.List;
+import com.burak.belediyeapp.util.SlugUtils;
 
 @Service
 @RequiredArgsConstructor
@@ -236,16 +237,6 @@ public class DepartmentService {
     }
 
     static String slugify(String value) {
-        if (value == null || value.isBlank()) {
-            return "";
-        }
-        String normalized = Normalizer.normalize(value, Normalizer.Form.NFD)
-                .replaceAll("\\p{M}+", "")
-                .toLowerCase(java.util.Locale.ROOT)
-                .replace("ı", "i")
-                .replace("ß", "ss");
-        return normalized
-                .replaceAll("[^a-z0-9]+", "-")
-                .replaceAll("^-+|-+$", "");
+        return SlugUtils.slugify(value);
     }
 }

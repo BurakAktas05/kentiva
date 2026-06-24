@@ -5,6 +5,7 @@ import com.burak.belediyeapp.dto.request.municipality.GenerateNotificationTempla
 import com.burak.belediyeapp.dto.request.municipality.MunicipalityPatchRequest;
 import com.burak.belediyeapp.dto.response.common.ApiResponse;
 import com.burak.belediyeapp.dto.response.municipality.MunicipalityDto;
+import com.burak.belediyeapp.dto.response.municipality.MunicipalityBoundaryDto;
 import com.burak.belediyeapp.dto.response.municipality.NotificationTemplateAiResponse;
 import com.burak.belediyeapp.service.geo.MunicipalityBoundaryAutoSyncService;
 import com.burak.belediyeapp.service.municipality.MunicipalityManagementService;
@@ -36,6 +37,13 @@ public class AdminMunicipalityController {
     @Operation(summary = "Tüm belediyeler")
     public ResponseEntity<ApiResponse<Page<MunicipalityDto>>> list(Pageable pageable) {
         return ResponseEntity.ok(ApiResponse.success(municipalityManagementService.listAll(pageable)));
+    }
+
+    @GetMapping("/boundaries")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Tüm belediyelerin sınırlarını GeoJSON olarak getir (süper admin)")
+    public ResponseEntity<ApiResponse<List<MunicipalityBoundaryDto>>> getAllBoundaries() {
+        return ResponseEntity.ok(ApiResponse.success(municipalityManagementService.getAllBoundariesGeoJson()));
     }
 
     @GetMapping("/{id}")
@@ -111,4 +119,35 @@ public class AdminMunicipalityController {
         municipalityManagementService.updateBoundaries(id, geoJson);
         return ResponseEntity.ok(ApiResponse.success("Coğrafi sınır güncellendi", null));
     }
+
+    @GetMapping("/catalog/provinces")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Katalog illerini listele (süper admin)")
+    public ResponseEntity<ApiResponse<List<com.burak.belediyeapp.dto.response.publicapi.PublicProvinceDto>>> listProvinces() {
+        return ResponseEntity.ok(ApiResponse.success(municipalityManagementService.listProvincesForAdmin()));
+    }
+
+    @GetMapping("/catalog/districts")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Katalog ilçelerini listele (süper admin)")
+    public ResponseEntity<ApiResponse<List<com.burak.belediyeapp.dto.response.municipality.AdminDistrictCatalogDto>>> listDistricts(
+            @RequestParam(required = false) String plateCode) {
+        return ResponseEntity.ok(ApiResponse.success(municipalityManagementService.listDistrictsForAdmin(plateCode)));
+    }
+
+    @GetMapping("/catalog/districts/{id}/boundary")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Katalog ilçe sınırını GeoJSON olarak getir (süper admin)")
+    public ResponseEntity<ApiResponse<String>> getDistrictBoundary(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(municipalityManagementService.getDistrictBoundaryGeoJson(id)));
+    }
+
+    @GetMapping("/{id}/boundaries")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Belediye sınırını GeoJSON olarak getir (süper admin)")
+    public ResponseEntity<ApiResponse<String>> getMunicipalityBoundary(@PathVariable String id) {
+        return ResponseEntity.ok(ApiResponse.success(municipalityManagementService.getMunicipalityBoundaryGeoJson(id)));
+    }
+
+
 }

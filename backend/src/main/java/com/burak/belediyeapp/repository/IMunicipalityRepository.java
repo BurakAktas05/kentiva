@@ -26,27 +26,47 @@ public interface IMunicipalityRepository extends JpaRepository<Municipality, Str
             """)
     List<Municipality> findOnboardedActiveByTypeWithParent(@Param("type") MunicipalityType type);
 
+    boolean existsByDistrictIdAndOnboardedTrue(Long districtId);
+
     @org.springframework.data.jpa.repository.Modifying
-    @Query(value = "UPDATE municipalities SET boundaries = ST_Multi(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON(:geoJson), 4326)), 3)) WHERE id = :id", nativeQuery = true)
+    @Query(value = "UPDATE turkey_districts SET boundaries = ST_Multi(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON(:geoJson), 4326)), 3)) WHERE id = (SELECT district_id FROM municipalities WHERE id = :id)", nativeQuery = true)
     void updateBoundariesFromGeoJson(@Param("id") String id, @Param("geoJson") String geoJson);
 
     @Query(value = """
             SELECT m.* FROM municipalities m
+            JOIN turkey_districts td ON m.district_id = td.id
             WHERE m.active = true 
-              AND m.boundaries IS NOT NULL
-              AND ST_Contains(m.boundaries, ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326))
+              AND td.boundaries IS NOT NULL
+              AND ST_Contains(td.boundaries, ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326))
+            ORDER BY ST_Area(td.boundaries) ASC
             LIMIT 1
             """, nativeQuery = true)
     Optional<Municipality> findMunicipalityByCoordinate(@Param("latitude") double latitude, @Param("longitude") double longitude);
 
     @Query(value = """
             SELECT EXISTS(
-                SELECT 1 FROM municipalities
-                WHERE id = :id
-                  AND active = true
-                  AND boundaries IS NOT NULL
-                  AND ST_Contains(boundaries, ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326))
+                SELECT 1 FROM municipalities m
+                JOIN turkey_districts td ON m.district_id = td.id
+                WHERE m.id = :id
+                  AND m.active = true
+                  AND td.boundaries IS NOT NULL
+                  AND ST_Contains(td.boundaries, ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326))
             )
             """, nativeQuery = true)
     boolean isWithinBoundaries(@Param("id") String id, @Param("latitude") double latitude, @Param("longitude") double longitude);
+
+    @Query("""
+            SELECT m FROM Municipality m
+            LEFT JOIN FETCH m.district d
+            LEFT JOIN FETCH d.province
+            """)
+    List<Municipality> findAllWithDistrictAndProvince();
+
+    @Query(value = """
+            SELECT m.id as id, m.display_name as displayName, m.name as name, ST_AsGeoJSON(td.boundaries) as geoJson 
+            FROM municipalities m 
+            JOIN turkey_districts td ON m.district_id = td.id 
+            WHERE m.onboarded = true AND td.boundaries IS NOT NULL
+            """, nativeQuery = true)
+    List<Object[]> findAllOnboardedBoundariesRaw();
 }

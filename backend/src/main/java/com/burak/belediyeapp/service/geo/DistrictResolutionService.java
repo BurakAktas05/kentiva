@@ -10,7 +10,7 @@ import java.util.Optional;
 
 /**
  * GPS noktasının düştüğü ilçe adını PostGIS ile çözer.
- * Veri {@code district_boundaries} tablosundan gelir (Flyway V12).
+ * Veri {@code turkey_districts} tablosundan gelir.
  */
 @Service
 @RequiredArgsConstructor
@@ -26,12 +26,13 @@ public class DistrictResolutionService {
      */
     public Optional<String> resolveDistrict(double latitude, double longitude) {
         String sql = """
-                SELECT id FROM municipalities m
-                WHERE m.type IN ('DISTRICT', 'METROPOLITAN')
-                  AND m.active = true
+                SELECT m.id FROM municipalities m
+                JOIN turkey_districts td ON m.district_id = td.id
+                WHERE m.active = true
                   AND COALESCE(m.onboarded, true) = true
-                  AND m.boundaries IS NOT NULL
-                  AND ST_Contains(m.boundaries, ST_SetSRID(ST_MakePoint(?, ?), 4326))
+                  AND td.boundaries IS NOT NULL
+                  AND ST_Contains(td.boundaries, ST_SetSRID(ST_MakePoint(?, ?), 4326))
+                ORDER BY ST_Area(td.boundaries) ASC
                 LIMIT 1
                 """;
         try {

@@ -17,5 +17,13 @@ public record PublicMunicipalitySummaryDto(
         double centerLat,
         double centerLng,
         boolean active,
-        boolean onboarded
+        boolean onboarded,
+        Integer reputationDeltaReportCreated,
+        Integer reputationDeltaReportResolved,
+        Integer reputationDeltaReportRejected,
+        Integer reputationDeltaInappropriateMedia,
+        Integer autoSuspensionThreshold,
+        Integer autoSuspensionDays,
+        String memberId,
+        String plateCode
 ) {}

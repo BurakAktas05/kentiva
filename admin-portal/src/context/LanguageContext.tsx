@@ -38,6 +38,7 @@ export const translations = {
     system_group: "Sistem & Yapılandırma",
     loading: "Yükleniyor...",
     bus_routes: "Ulaşım Hatları",
+    rewards: "Ödüller",
   },
   en: {
     dashboard: "Dashboard",
@@ -74,6 +75,7 @@ export const translations = {
     system_group: "System & Config",
     loading: "Loading...",
     bus_routes: "Bus Routes",
+    rewards: "Rewards",
   },
   ar: {
     dashboard: "لوحة القيادة",
@@ -110,6 +112,7 @@ export const translations = {
     system_group: "النظام والتكوين",
     loading: "تحميل...",
     bus_routes: "خطوط النقل",
+    rewards: "الجوائز",
   }
 };
 

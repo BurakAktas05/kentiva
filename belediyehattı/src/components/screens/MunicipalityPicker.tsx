@@ -1,9 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { Building2, ChevronLeft, MapPin, Loader2, Sparkles, Search, Check } from 'lucide-react';
-import { fetchPublicMunicipalities, resolveMunicipalityByGps, type PublicTenant } from '../../api';
+import { 
+  fetchPublicMunicipalities, 
+  resolveMunicipalityByGps, 
+  fetchPublicProvinces, 
+  fetchPublicDistricts,
+  type PublicTenant, 
+  type PublicProvince, 
+  type PublicDistrict 
+} from '../../api';
 import { getDevicePosition, isDeviceLocationFailure } from '../../lib/deviceLocation';
-import { groupByProvince, sortedProvinces } from '../../lib/municipalityRegions';
 import { Lang, t } from '../../i18n';
 import { kentivaCard, primaryBtnClass, screenHeadingClass, screenSubtitleClass } from '../../lib/ui';
 
@@ -39,22 +46,37 @@ export default function MunicipalityPicker({
   onSelect,
   onCancel,
 }: Props) {
-  const [list, setList] = useState<PublicTenant[]>([]);
+  const [provinces, setProvinces] = useState<PublicProvince[]>([]);
+  const [districts, setDistricts] = useState<PublicDistrict[]>([]);
+  const [tenants, setTenants] = useState<PublicTenant[]>([]);
+  const [selectedProvince, setSelectedProvince] = useState<PublicProvince | null>(null);
+  const [selectedDistrict, setSelectedDistrict] = useState<PublicDistrict | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [gpsBusy, setGpsBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [province, setProvince] = useState('');
-  const [districtId, setDistrictId] = useState('');
+  const [provinceSearch, setProvinceSearch] = useState('');
   const [districtSearch, setDistrictSearch] = useState('');
 
   const isOnboarding = mode === 'onboarding';
+
+  const stepText = selectedProvince 
+    ? (lang === 'tr' ? 'Adım 2/2: Belediye Seçimi' : 'Step 2/2: Select Municipality')
+    : (lang === 'tr' ? 'Adım 1/2: İl Seçimi' : 'Step 1/2: Select Province');
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const rows = await fetchPublicMunicipalities();
-        if (!cancelled) setList(rows.filter((m) => m.onboarded));
+        setLoading(true);
+        const [provs, ts] = await Promise.all([
+          fetchPublicProvinces(),
+          fetchPublicMunicipalities()
+        ]);
+        if (!cancelled) {
+          setProvinces(provs);
+          setTenants(ts.filter((m) => m.onboarded));
+        }
       } catch {
         if (!cancelled) setErr(t('tenant.loadError', lang));
       } finally {
@@ -66,32 +88,34 @@ export default function MunicipalityPicker({
     };
   }, [lang]);
 
-  const byProvince = useMemo(() => groupByProvince(list), [list]);
-  const provinces = useMemo(() => sortedProvinces(byProvince), [byProvince]);
+  const filteredProvinces = useMemo(() => {
+    const q = provinceSearch.trim().toLowerCase();
+    if (!q) return provinces;
+    return provinces.filter((p) => p.nameTr.toLowerCase().includes(q));
+  }, [provinces, provinceSearch]);
 
-  const districtsInProvince = useMemo(() => {
-    if (!province) return [];
-    return byProvince.get(province) ?? [];
-  }, [byProvince, province]);
+  const handleProvinceClick = async (p: PublicProvince) => {
+    setSelectedProvince(p);
+    setSelectedDistrict(null);
+    setDistrictSearch('');
+    setErr('');
+    setLoading(true);
+    try {
+      const data = await fetchPublicDistricts(p.plateCode);
+      // Only show onboarded districts for citizen selection
+      setDistricts(data.filter(d => d.onboarded));
+    } catch {
+      setErr('İlçe listesi yüklenemedi.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredDistricts = useMemo(() => {
     const q = districtSearch.trim().toLowerCase();
-    if (!q) return districtsInProvince;
-    return districtsInProvince.filter((d) => d.displayName.toLowerCase().includes(q));
-  }, [districtsInProvince, districtSearch]);
-
-  const selectedDistrict = useMemo(
-    () => list.find((m) => m.id === districtId) ?? null,
-    [list, districtId],
-  );
-
-  useEffect(() => {
-    if (province && !provinces.includes(province)) {
-      setProvince('');
-      setDistrictId('');
-      setDistrictSearch('');
-    }
-  }, [province, provinces]);
+    if (!q) return districts;
+    return districts.filter((d) => d.nameTr.toLowerCase().includes(q));
+  }, [districts, districtSearch]);
 
   const useGps = async () => {
     setErr('');
@@ -125,8 +149,13 @@ export default function MunicipalityPicker({
       setErr(t('tenant.pickDistrict', lang));
       return;
     }
+    const tenant = tenants.find(t => t.id === selectedDistrict.municipalityId);
+    if (!tenant) {
+      setErr('Seçilen belediyenin detayları bulunamadı.');
+      return;
+    }
     setErr('');
-    onSelect(selectedDistrict);
+    onSelect(tenant);
   };
 
   return (
@@ -154,7 +183,7 @@ export default function MunicipalityPicker({
             </div>
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-wide text-primary">
-                {t('tenant.onboardingStep', lang)}
+                {stepText}
               </p>
               <h1 className={screenHeadingClass(isDark)}>{t('tenant.onboardingTitle', lang)}</h1>
             </div>
@@ -173,7 +202,7 @@ export default function MunicipalityPicker({
           <div className="flex justify-center py-16">
             <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
           </div>
-        ) : list.length === 0 ? (
+        ) : provinces.length === 0 ? (
           <p className="py-8 text-center text-sm text-slate-500">{t('tenant.emptyMembers', lang)}</p>
         ) : (
           <div className="space-y-5">
@@ -202,47 +231,18 @@ export default function MunicipalityPicker({
               <div className={`h-px flex-1 ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`} />
             </div>
 
-            <section>
-              <p className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                {t('tenant.province', lang)}
-              </p>
-              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
-                {provinces.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => {
-                      setProvince(p);
-                      setDistrictId('');
-                      setDistrictSearch('');
-                      setErr('');
-                    }}
-                    className={`shrink-0 rounded-full px-4 py-2 text-xs font-bold transition-all duration-350 active:scale-95 ${
-                      province === p
-                        ? 'bg-primary text-white shadow-md shadow-primary/20'
-                        : isDark
-                          ? 'bg-slate-800/80 text-slate-300 hover:bg-slate-700/80'
-                          : 'bg-white border border-slate-300/60 text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            {province ? (
+            {!selectedProvince ? (
               <section className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  {t('tenant.district', lang)}
+                <p className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  {t('tenant.province', lang)}
                 </p>
                 <div className="relative">
                   <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
                     type="search"
-                    value={districtSearch}
-                    onChange={(e) => setDistrictSearch(e.target.value)}
-                    placeholder={t('tenant.searchDistrict', lang)}
+                    value={provinceSearch}
+                    onChange={(e) => setProvinceSearch(e.target.value)}
+                    placeholder="İl arayın..."
                     className={`w-full rounded-2xl border py-3.5 pl-10 pr-4 text-sm transition-all duration-300 outline-none ${
                       isDark
                         ? 'border-slate-700/80 bg-slate-900/40 text-white placeholder:text-slate-500 focus:border-primary focus:ring-2 focus:ring-primary/25'
@@ -250,56 +250,130 @@ export default function MunicipalityPicker({
                     }`}
                   />
                 </div>
-                <motion.ul
+                <motion.div
                   variants={containerVariants}
                   initial="hidden"
                   animate="show"
-                  className="space-y-2.5 max-h-[min(45vh,320px)] overflow-y-auto px-0.5 scrollbar-thin"
+                  className="grid grid-cols-2 gap-2.5 max-h-[min(45vh,350px)] overflow-y-auto px-0.5 scrollbar-thin"
                 >
-                  {filteredDistricts.map((d) => {
-                    const selected = districtId === d.id;
-                    return (
-                      <motion.li key={d.id} variants={itemVariants}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDistrictId(d.id);
-                            setErr('');
-                          }}
-                          className={`flex w-full items-center gap-3.5 rounded-2xl border p-3.5 text-left transition-all duration-300 ${
-                            selected
-                              ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-md shadow-primary/5 scale-[1.01]'
-                              : isDark
-                                ? 'border-slate-800/80 bg-slate-900/60 hover:border-slate-700 backdrop-blur-sm'
-                                : 'border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-sm'
-                          } active:scale-[0.98]`}
-                        >
-                          {d.logoUrl ? (
-                            <img src={d.logoUrl} alt="" className="h-10 w-10 rounded-xl object-contain bg-white p-0.5 border border-slate-100 dark:border-slate-800" />
-                          ) : (
-                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                              <Building2 className="h-5 w-5" />
-                            </div>
-                          )}
-                          <span className="min-w-0 flex-1 truncate text-sm font-semibold">{d.displayName}</span>
-                          {selected ? <Check className="h-5 w-5 shrink-0 text-primary" /> : null}
-                        </button>
-                      </motion.li>
-                    );
-                  })}
-                </motion.ul>
-                {filteredDistricts.length === 0 ? (
-                  <p className="py-4 text-center text-xs text-slate-500">{t('tenant.noDistrictMatch', lang)}</p>
-                ) : null}
+                  {filteredProvinces.map((p) => (
+                    <motion.div key={p.plateCode} variants={itemVariants}>
+                      <button
+                        type="button"
+                        onClick={() => void handleProvinceClick(p)}
+                        className={`flex w-full items-center justify-between rounded-2xl border p-3.5 text-left transition-all duration-300 ${
+                          isDark
+                            ? 'border-slate-800/80 bg-slate-900/60 hover:border-slate-700 backdrop-blur-sm'
+                            : 'border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-sm'
+                        } active:scale-[0.98]`}
+                      >
+                        <span className="text-sm font-semibold truncate">{p.nameTr}</span>
+                      </button>
+                    </motion.div>
+                  ))}
+                </motion.div>
+                {filteredProvinces.length === 0 && (
+                  <p className="py-4 text-center text-xs text-slate-500">İl bulunamadı.</p>
+                )}
               </section>
             ) : (
-              <p className="py-4 text-center text-xs text-slate-400 font-medium">{t('tenant.selectProvinceFirst', lang)}</p>
+              <section className="space-y-4">
+                <div className={`p-4 rounded-2xl border flex items-center justify-between gap-4 ${
+                  isDark ? 'border-primary/20 bg-primary/5' : 'border-primary/15 bg-primary/5'
+                }`}>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <Building2 className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Seçilen İl</p>
+                      <p className="text-sm font-bold text-primary">{selectedProvince.nameTr}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedProvince(null);
+                      setSelectedDistrict(null);
+                      setDistricts([]);
+                      setDistrictSearch('');
+                      setErr('');
+                    }}
+                    className="text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors"
+                  >
+                    İl Değiştir
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    {t('tenant.district', lang)}
+                  </p>
+                  <div className="relative">
+                    <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="search"
+                      value={districtSearch}
+                      onChange={(e) => setDistrictSearch(e.target.value)}
+                      placeholder={t('tenant.searchDistrict', lang)}
+                      className={`w-full rounded-2xl border py-3.5 pl-10 pr-4 text-sm transition-all duration-300 outline-none ${
+                        isDark
+                          ? 'border-slate-700/80 bg-slate-900/40 text-white placeholder:text-slate-500 focus:border-primary focus:ring-2 focus:ring-primary/25'
+                          : 'border-slate-300/70 bg-white text-slate-900 placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary/15'
+                      }`}
+                    />
+                  </div>
+                  <motion.ul
+                    variants={containerVariants}
+                    initial="hidden"
+                    animate="show"
+                    className="space-y-2.5 max-h-[min(40vh,300px)] overflow-y-auto px-0.5 scrollbar-thin"
+                  >
+                    {filteredDistricts.map((d) => {
+                      const selected = selectedDistrict?.id === d.id;
+                      const tenant = tenants.find(t => t.id === d.municipalityId);
+                      const logoUrl = tenant?.logoUrl;
+                      return (
+                        <motion.li key={d.id} variants={itemVariants}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedDistrict(d);
+                              setErr('');
+                            }}
+                            className={`flex w-full items-center gap-3.5 rounded-2xl border p-3.5 text-left transition-all duration-300 ${
+                              selected
+                                ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-md shadow-primary/5 scale-[1.01]'
+                                : isDark
+                                  ? 'border-slate-800/80 bg-slate-900/60 hover:border-slate-700 backdrop-blur-sm'
+                                  : 'border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-sm'
+                            } active:scale-[0.98]`}
+                          >
+                            {logoUrl ? (
+                              <img src={logoUrl} alt="" className="h-10 w-10 rounded-xl object-contain bg-white p-0.5 border border-slate-100 dark:border-slate-800" />
+                            ) : (
+                              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                                <Building2 className="h-5 w-5" />
+                              </div>
+                            )}
+                            <span className="min-w-0 flex-1 truncate text-sm font-semibold">{d.nameTr} Belediyesi</span>
+                            {selected ? <Check className="h-5 w-5 shrink-0 text-primary" /> : null}
+                          </button>
+                        </motion.li>
+                      );
+                    })}
+                  </motion.ul>
+                  {filteredDistricts.length === 0 ? (
+                    <p className="py-4 text-center text-xs text-slate-500">{t('tenant.noDistrictMatch', lang)}</p>
+                  ) : null}
+                </div>
+              </section>
             )}
 
             {selectedDistrict ? (
               <div className={`${kentivaCard(isDark)} border-primary/20 bg-primary/5 dark:bg-primary/10 shadow-inner`}>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t('tenant.selected', lang)}</p>
-                <p className="mt-1 text-sm font-bold text-primary">{selectedDistrict.displayName}</p>
+                <p className="mt-1 text-sm font-bold text-primary">{selectedDistrict.nameTr} Belediyesi</p>
               </div>
             ) : null}
           </div>
@@ -315,9 +389,9 @@ export default function MunicipalityPicker({
         <button
           type="button"
           onClick={confirmManual}
-          disabled={!districtId}
+          disabled={!selectedDistrict}
           className={`w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-bold text-white shadow-lg transition-all duration-300 active:scale-[0.98] ${
-            !districtId
+            !selectedDistrict
               ? 'bg-slate-300 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed shadow-none'
               : 'bg-primary shadow-primary/25 hover:brightness-105'
           }`}

@@ -3,18 +3,23 @@ package com.burak.belediyeapp.service.publicapi;
 import com.burak.belediyeapp.dto.response.publicapi.PublicMunicipalityDetailDto;
 import com.burak.belediyeapp.dto.response.publicapi.PublicMunicipalitySummaryDto;
 import com.burak.belediyeapp.dto.response.publicapi.PublicResolvedReportDto;
+import com.burak.belediyeapp.dto.response.publicapi.PublicProvinceDto;
+import com.burak.belediyeapp.dto.response.publicapi.PublicDistrictDto;
 import com.burak.belediyeapp.entity.Municipality;
 import com.burak.belediyeapp.entity.MunicipalityType;
 import com.burak.belediyeapp.entity.Report;
 import com.burak.belediyeapp.exception.ResourceNotFoundException;
 import com.burak.belediyeapp.repository.IMunicipalityRepository;
 import com.burak.belediyeapp.repository.IReportRepository;
+import com.burak.belediyeapp.repository.ITurkeyProvinceRepository;
+import com.burak.belediyeapp.repository.ITurkeyDistrictRepository;
 import com.burak.belediyeapp.service.ai.GeminiService;
 import com.burak.belediyeapp.service.geo.DistrictResolutionService;
 import com.burak.belediyeapp.config.CacheNames;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +40,21 @@ public class PublicMunicipalityService {
     private final IReportRepository reportRepository;
     private final GeminiService geminiService;
     private final JdbcTemplate jdbcTemplate;
+    private final ITurkeyProvinceRepository turkeyProvinceRepository;
+    private final ITurkeyDistrictRepository turkeyDistrictRepository;
+    private final com.burak.belediyeapp.service.media.MediaSignedUrlService mediaSignedUrlService;
+
+    @Transactional(readOnly = true)
+    public List<PublicProvinceDto> listProvinces() {
+        return turkeyProvinceRepository.findAll(Sort.by(Sort.Direction.ASC, "nameTr")).stream()
+                .map(p -> new PublicProvinceDto(p.getPlateCode(), p.getNameTr(), p.getSlug()))
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<PublicDistrictDto> listDistricts(String plateCode) {
+        return turkeyDistrictRepository.findPublicDistrictsByProvince(plateCode);
+    }
 
     @Transactional(readOnly = true)
     @Cacheable(value = CacheNames.PUBLIC_MUNICIPALITIES, key = "'list-district'")
@@ -66,13 +86,20 @@ public class PublicMunicipalityService {
     private PublicMunicipalitySummaryDto toSummary(Municipality m) {
         String display = displayOf(m);
         Municipality parent = m.getParentMunicipality();
+        
+        String memberId = m.getDistrict() != null ? m.getDistrict().getMemberId() : null;
+        String plateCode = m.getDistrict() != null && m.getDistrict().getProvince() != null 
+                ? m.getDistrict().getProvince().getPlateCode() : null;
+        String resolvedProvince = m.getDistrict() != null && m.getDistrict().getProvince() != null 
+                ? m.getDistrict().getProvince().getNameTr() : resolveProvinceName(m);
+
         return new PublicMunicipalitySummaryDto(
                 m.getId(),
                 m.getSlug(),
                 display,
-                resolveProvinceName(m),
+                resolvedProvince,
                 parent != null ? parent.getId() : null,
-                m.getLogoUrl(),
+                mediaSignedUrlService.signForClient(m.getLogoUrl()),
                 m.getPrimaryColor(),
                 m.getSecondaryColor(),
                 m.getAccentColor(),
@@ -80,17 +107,31 @@ public class PublicMunicipalityService {
                 m.getCenterLat(),
                 m.getCenterLng(),
                 m.isActive(),
-                m.isOnboarded()
+                m.isOnboarded(),
+                m.getReputationDeltaReportCreated(),
+                m.getReputationDeltaReportResolved(),
+                m.getReputationDeltaReportRejected(),
+                m.getReputationDeltaInappropriateMedia(),
+                m.getAutoSuspensionThreshold(),
+                m.getAutoSuspensionDays(),
+                memberId,
+                plateCode
         );
     }
 
     private PublicMunicipalityDetailDto toDetail(Municipality m) {
         String display = displayOf(m);
+        String memberId = m.getDistrict() != null ? m.getDistrict().getMemberId() : null;
+        String plateCode = m.getDistrict() != null && m.getDistrict().getProvince() != null 
+                ? m.getDistrict().getProvince().getPlateCode() : null;
+        String provinceName = m.getDistrict() != null && m.getDistrict().getProvince() != null 
+                ? m.getDistrict().getProvince().getNameTr() : resolveProvinceName(m);
+
         return new PublicMunicipalityDetailDto(
                 m.getId(),
                 m.getSlug(),
                 display,
-                m.getLogoUrl(),
+                mediaSignedUrlService.signForClient(m.getLogoUrl()),
                 m.getPrimaryColor(),
                 m.getSecondaryColor(),
                 m.getAccentColor(),
@@ -102,7 +143,10 @@ public class PublicMunicipalityService {
                 m.getWebsiteUrl(),
                 m.isActive(),
                 m.isOnboarded(),
-                m.isPublicStatsEnabled()
+                m.isPublicStatsEnabled(),
+                memberId,
+                plateCode,
+                provinceName
         );
     }
 

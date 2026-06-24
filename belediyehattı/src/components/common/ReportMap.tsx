@@ -4,24 +4,36 @@ import 'leaflet/dist/leaflet.css';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import type { ApiReportListResponse } from '../../api';
 
-// Custom red icon for nearby reports
-const redIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-  shadowUrl: markerShadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
+// Custom red divIcon for nearby reports
+const redIcon = L.divIcon({
+  className: 'custom-report-marker-container',
+  html: `
+    <div style="display: flex; flex-direction: column; align-items: center; width: 30px; height: 36px;">
+      <!-- Outer Circle -->
+      <div style="width: 30px; height: 30px; border-radius: 50%; background-color: #f43f5e; border: 2px solid white; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); display: flex; align-items: center; justify-content: center; transition: transform 0.2s;">
+        <!-- Inner White Dot -->
+        <div style="width: 8px; height: 8px; border-radius: 50%; background-color: white;"></div>
+      </div>
+      <!-- Triangle Pointer -->
+      <div style="width: 8px; height: 8px; background-color: #f43f5e; transform: rotate(45deg); margin-top: -5px; border-right: 2px solid white; border-bottom: 2px solid white;"></div>
+    </div>
+  `,
+  iconSize: [30, 36],
+  iconAnchor: [15, 36]
 });
 
-// Custom blue icon for current user location
-const blueIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-  shadowUrl: markerShadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
+// Custom blue divIcon for current user location (pulsing dot)
+const blueIcon = L.divIcon({
+  className: 'custom-user-marker-container',
+  html: `
+    <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px;">
+      <div class="animate-marker-ping"
+           style="position: absolute; width: 22px; height: 22px; border-radius: 50%; background-color: #3b82f6; opacity: 0.4;"></div>
+      <div style="position: relative; width: 14px; height: 14px; border-radius: 50%; background-color: #2563eb; border: 2px solid white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.15);"></div>
+    </div>
+  `,
+  iconSize: [32, 32],
+  iconAnchor: [16, 16]
 });
 
 interface ReportMapProps {
@@ -86,8 +98,8 @@ export const ReportMap = React.memo(function ReportMap({
   }, [latitude, longitude, isDark, nearbyReports]);
 
   return (
-    <div className="w-full h-full relative" style={{ zIndex: 10 }}>
-      <div ref={mapContainerRef} className="absolute inset-0 w-full h-full" />
+    <div className="w-full h-full relative font-sans" style={{ zIndex: 10 }}>
+      <div ref={mapContainerRef} className="absolute inset-0 w-full h-full grayscale-map" />
       <div className="absolute inset-0 pointer-events-none z-[1000] mix-blend-color opacity-10 bg-slate-500" />
       <div className="absolute bottom-2 left-2 z-[1000] rounded-md px-2 py-0.5 text-[9px] font-bold bg-white/85 text-slate-600 dark:bg-slate-950/85 dark:text-slate-400">
         {lang === 'tr' ? 'Çevre İhbarları Gösteriliyor' : 'Showing Nearby Reports'}

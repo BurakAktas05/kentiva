@@ -38,6 +38,7 @@ const STATUS_LABELS: Record<string, { tr: string; en: string; ar: string }> = {
   PROCESSING: { tr: 'İşlemde', en: 'In progress', ar: 'قيد المعالجة' },
   RESOLVED: { tr: 'Çözüldü', en: 'Resolved', ar: 'تم الحل' },
   REJECTED: { tr: 'Reddedildi', en: 'Rejected', ar: 'مرفوض' },
+  OUT_OF_JURISDICTION: { tr: 'Reddedildi', en: 'Rejected', ar: 'مرفوض' },
   FORWARDED: { tr: 'Yönlendirildi', en: 'Forwarded', ar: 'تم التحويل' },
 };
 
@@ -149,11 +150,11 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
   // Stepper calculations
   const stepperInfo = useMemo(() => {
     if (!detail) return { activeStep: 0, isRejected: false };
-    const isRejected = detail.status === 'REJECTED';
+    const isRejected = detail.status === 'REJECTED' || detail.status === 'OUT_OF_JURISDICTION';
     let activeStep = 0;
     if (detail.status === 'PROCESSING' || detail.status === 'FORWARDED') {
       activeStep = 1;
-    } else if (detail.status === 'RESOLVED' || detail.status === 'REJECTED') {
+    } else if (detail.status === 'RESOLVED' || detail.status === 'REJECTED' || detail.status === 'OUT_OF_JURISDICTION') {
       activeStep = 2;
     }
     return { activeStep, isRejected };
@@ -240,11 +241,11 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
                 onScroll={handleScroll}
               >
                 {detail.mediaUrls.map((url, i) => (
-                  <div key={i} className="w-full h-full shrink-0 snap-center relative">
+                  <div key={i} className="w-full h-full shrink-0 snap-center relative overflow-hidden">
                     <img
                       src={resolveMediaUrl(url)}
                       alt=""
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover scale-110 origin-center transition-transform duration-500 hover:scale-115"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = 'none';
                       }}

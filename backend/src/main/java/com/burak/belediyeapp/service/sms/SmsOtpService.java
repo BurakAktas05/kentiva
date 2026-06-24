@@ -11,7 +11,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadLocalRandom;
+import java.security.SecureRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -57,6 +57,7 @@ public class SmsOtpService {
 
     private final Map<String, OtpEntry> otpStore = new ConcurrentHashMap<>();
     private final Map<String, SendThrottle> throttleStore = new ConcurrentHashMap<>();
+    private final SecureRandom secureRandom = new SecureRandom();
 
     private static final int OTP_EXPIRY_SECONDS = 300;       // 5 dakika
     private static final long DAILY_WINDOW_MS = 24L * 60 * 60 * 1000;
@@ -76,7 +77,7 @@ public class SmsOtpService {
             log.warn("OTP gönderimi throttle nedeniyle engellendi: {}", maskPhone(normalized));
             return false;
         }
-        String code = String.valueOf(100000 + ThreadLocalRandom.current().nextInt(900000));
+        String code = String.valueOf(100000 + secureRandom.nextInt(900000));
         long expiresAt = System.currentTimeMillis() + (OTP_EXPIRY_SECONDS * 1000L);
         otpStore.put(normalized, new OtpEntry(code, expiresAt, new AtomicInteger(0)));
 

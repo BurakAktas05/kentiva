@@ -29,6 +29,7 @@ import {
   X,
   MessageSquare,
   Bus,
+  Gift,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api, { clearAuthStorage, type PredictiveInsight, type Stats } from './api';
@@ -54,7 +55,6 @@ const LiveMap = lazy(() => import('./LiveMap'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 const ReportDetailPage = lazy(() => import('./pages/ReportDetailPage'));
 const StatisticsPage = lazy(() => import('./pages/StatisticsPage'));
-const ScheduledExportsPage = lazy(() => import('./pages/ScheduledExportsPage'));
 const DepartmentsPage = lazy(() => import('./pages/DepartmentsPage'));
 const UsersPage = lazy(() => import('./pages/UsersPage'));
 const MunicipalitySettingsPage = lazy(() => import('./pages/MunicipalitySettingsPage'));
@@ -71,6 +71,8 @@ const SystemFeedbackPage = lazy(() => import('./pages/SystemFeedbackPage'));
 const EventsAndOutagesPage = lazy(() => import('./pages/EventsAndOutagesPage'));
 const SuperAdminRecentReportsPage = lazy(() => import('./pages/SuperAdminRecentReportsPage'));
 const BusRoutesManagementPage = lazy(() => import('./pages/BusRoutesManagementPage'));
+const RewardsPage = lazy(() => import('./pages/RewardsPage'));
+const ScheduledExportsPage = lazy(() => import('./pages/ScheduledExportsPage'));
 
 const PageFallback = () => (
   <motion.div
@@ -150,6 +152,8 @@ const Sidebar = ({
         if (user.roles.includes('ROLE_ADMIN') && user.municipality) {
           prItems.push({ name: t('events_outages'), icon: CalendarClock, path: '/events-outages' });
           prItems.push({ name: t('bus_routes'), icon: Bus, path: '/bus-routes' });
+          prItems.push({ name: t('rewards'), icon: Gift, path: '/rewards' });
+          prItems.push({ name: t('scheduled_exports') || 'Planlı Dışa Aktarma', icon: Download, path: '/scheduled-exports' });
         }
 
         const orgItems: MenuItem[] = [
@@ -161,9 +165,7 @@ const Sidebar = ({
         if (user.roles.includes('ROLE_ADMIN') && user.municipality) {
           systemItems.push({ name: t('municipality_settings'), icon: SettingsIcon, path: '/municipality-settings' });
         }
-        if (user.roles.some((r) => ['ROLE_ADMIN', 'ROLE_DEPT_MANAGER', 'ROLE_SUPER_ADMIN'].includes(r))) {
-          systemItems.push({ name: t('scheduled_exports'), icon: CalendarClock, path: '/scheduled-exports' });
-        }
+
         if (user.roles.some((r) => ['ROLE_ADMIN', 'ROLE_SUPER_ADMIN'].includes(r))) {
           systemItems.push({ name: t('audit_logs'), icon: Shield, path: '/audit-logs' });
         }
@@ -952,21 +954,7 @@ const App = () => {
                         </ProtectedRoute>
                       }
                     />
-                    <Route
-                      path="/scheduled-exports"
-                      element={
-                        <ProtectedRoute
-                          user={user}
-                          allow={(u) =>
-                            u.roles.some((r) =>
-                              ['ROLE_ADMIN', 'ROLE_DEPT_MANAGER', 'ROLE_SUPER_ADMIN'].includes(r),
-                            )
-                          }
-                        >
-                          <ScheduledExportsPage />
-                        </ProtectedRoute>
-                      }
-                    />
+
                     <Route
                       path="/staff"
                       element={<UsersPage />}
@@ -1041,6 +1029,22 @@ const App = () => {
                       element={
                         <ProtectedRoute user={user} allow={(u) => u.roles.includes('ROLE_ADMIN') && Boolean(u.municipality)}>
                           <BusRoutesManagementPage municipalityId={user.municipality?.id ?? ''} />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/rewards"
+                      element={
+                        <ProtectedRoute user={user} allow={(u) => u.roles.includes('ROLE_ADMIN') && Boolean(u.municipality)}>
+                          <RewardsPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/scheduled-exports"
+                      element={
+                        <ProtectedRoute user={user} allow={(u) => u.roles.includes('ROLE_ADMIN') && Boolean(u.municipality)}>
+                          <ScheduledExportsPage />
                         </ProtectedRoute>
                       }
                     />

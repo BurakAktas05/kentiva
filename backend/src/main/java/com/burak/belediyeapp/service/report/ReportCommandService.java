@@ -132,6 +132,8 @@ public class ReportCommandService {
         Report saved = reportRepository.save(report);
         if (request.status() == ReportStatus.RESOLVED) {
             citizenReputationService.onReportResolved(saved);
+        } else if (request.status() == ReportStatus.REJECTED || request.status() == ReportStatus.OUT_OF_JURISDICTION) {
+            citizenReputationService.onReportRejected(saved, false);
         }
         notificationService.notifyReportStatusChanged(saved);
 
@@ -363,9 +365,7 @@ public class ReportCommandService {
      */
     @PreAuthorize("hasAnyAuthority('ROLE_FIELD_OFFICER','ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     public void performAiAnalysis(String reportId, ReportStatus status, AppUser currentUser) {
-        // self üzerinden çağırarak @Transactional proxy'sini garanti altına alırız.
-        AiContext ctx = self.loadReportWithTenantCheck(reportId, currentUser);
-        applyAiAnalysisOutsideTx(reportId, ctx, status);
+        log.info("AI analizi devre dışı bırakıldı: reportId={}", reportId);
     }
 
     /**
@@ -374,8 +374,7 @@ public class ReportCommandService {
      * yine de raporun belediye kapsamına bağlanır.
      */
     public void performAiAnalysisAsSystem(String reportId) {
-        AiContext ctx = self.loadReportForSystemAi(reportId);
-        applyAiAnalysisOutsideTx(reportId, ctx, null);
+        log.info("Sistem AI analizi devre dışı bırakıldı: reportId={}", reportId);
     }
 
     /**

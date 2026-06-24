@@ -49,6 +49,7 @@ public class AuthService {
     private final com.burak.belediyeapp.service.security.KvkkConsentSigningService kvkkConsentSigningService;
     private final JwtAuthenticationSupport jwtAuthenticationSupport;
     private final TokenBlacklistService tokenBlacklistService;
+    private final com.burak.belediyeapp.service.media.MediaSignedUrlService mediaSignedUrlService;
 
     @Value("${app.security.jwt.refresh-token-expiration-days}")
     private long refreshTokenExpirationDays;
@@ -238,7 +239,7 @@ public class AuthService {
                 .collect(Collectors.toSet());
 
         com.burak.belediyeapp.dto.response.municipality.MunicipalityDto municipalityDto =
-                com.burak.belediyeapp.dto.response.municipality.MunicipalityDto.fromEntity(user.getMunicipality());
+                com.burak.belediyeapp.dto.response.municipality.MunicipalityDto.fromEntity(user.getMunicipality(), mediaSignedUrlService);
 
         return AuthResponse.of(
                 accessToken,

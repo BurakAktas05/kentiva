@@ -103,11 +103,14 @@ public class ReportCreatedEventListener {
         }
 
         // 3. AI analizi — fail-soft, sistem context (kullanıcı oturumu yok).
+        // Devre dışı bırakıldı (sistem hızlandırma)
+        /*
         try {
             reportService.performAiAnalysisAsSystem(event.reportId());
         } catch (Exception e) {
             log.warn("Rapor AI analizi tamamlanamadı: reportId={}, reason={}", event.reportId(), e.getMessage());
         }
+        */
 
         // 4. Mükerrer ihbar analizi — asenkron, db txn dışında.
         try {

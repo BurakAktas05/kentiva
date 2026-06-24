@@ -101,6 +101,7 @@ Yerel ortamda backend ayağa kalktıktan sonra, tüm API uç noktalarını incel
 ## 📂 Yardımcı Belgeler ve Kaynaklar
 - 📝 **Yayınlama ve APK Oluşturma Rehberi:** [`deployment/YAYINLAMA.md`](deployment/YAYINLAMA.md)
 - 🧪 **Yerel Manuel Test ve ngrok Rehberi:** [`scripts/YEREL-MANUEL-TEST.md`](scripts/YEREL-MANUEL-TEST.md)
+- 🗺️ **Versiyon 2 Hazırlık ve Planlama Dosyası:** [`versiyon2_hazirlik_dosyasi.md`](versiyon2_hazirlik_dosyasi.md)
 - 🗝️ **Çevre Değişkenleri Şablonu:** [`deployment/ANAHTARLAR.template.env`](deployment/ANAHTARLAR.template.env)
 - 🛡️ **Kötüye Kullanımı Önleme Kılavuzu:** [`todo.md`](todo.md)
 

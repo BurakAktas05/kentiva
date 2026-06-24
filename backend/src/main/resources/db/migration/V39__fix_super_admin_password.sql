@@ -1,33 +1,29 @@
 -- ============================================================
--- V39: Super admin sifresini (admin123) dogru BCrypt hash ile yaz.
--- Hash: $2b$10$WrjhDXizBAfA6ND.hSEZM.nrqqrjiT5Zq4tLRZSJ6iubCrlFTUNn2
--- Bu migration idempotent calisir.
+-- V39: Super admin rolünü ve kullanıcıyı hazırla.
+-- ŞİFRE: Flyway migration'dan değil, /api/v1/setup endpoint'i
+-- veya APP_SETUP_TOKEN ile güvenli şekilde oluşturulmalıdır.
+-- Bu migration sadece roller ve admin kullanıcı iskeletini sağlar.
 -- ============================================================
 
--- Eger kullanici e-posta ile varsa hash'i guncelle
-UPDATE app_users
-SET password   = '$2b$10$WrjhDXizBAfA6ND.hSEZM.nrqqrjiT5Zq4tLRZSJ6iubCrlFTUNn2',
-    enabled    = true,
-    updated_at = CURRENT_TIMESTAMP
-WHERE email = 'admin@kentiva.app';
-
--- Eger yoksa (production fresh install) olustur
+-- Eğer admin kullanıcısı yoksa, devre dışı olarak oluştur
+-- (şifre sıfırlanmadan giriş yapılamaz)
 INSERT INTO app_users (id, email, password, first_name, last_name, phone_number, enabled, created_at, updated_at)
 SELECT
     gen_random_uuid()::text,
     'admin@kentiva.app',
-    '$2b$10$WrjhDXizBAfA6ND.hSEZM.nrqqrjiT5Zq4tLRZSJ6iubCrlFTUNn2',
+    -- Rastgele geçersiz hash — /api/v1/setup ile şifre belirlenmeli
+    '$2b$10$PLACEHOLDER_HASH_DO_NOT_USE_SETUP_ENDPOINT_REQUIRED',
     'Super',
     'Admin',
-    '05555555555',
-    true,
+    '00000000000',
+    false,
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
 WHERE NOT EXISTS (
     SELECT 1 FROM app_users WHERE email = 'admin@kentiva.app'
 );
 
--- SUPER_ADMIN rolunu garantile (eger yoksa ekle)
+-- SUPER_ADMIN rolünü garantile
 INSERT INTO user_roles (user_id, role_id)
 SELECT u.id, r.id
 FROM app_users u

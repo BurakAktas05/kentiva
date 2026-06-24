@@ -96,6 +96,10 @@ public class GeminiService {
             default -> "Turkish";
         };
 
+        // Kategoriye özel ton ve terminoloji belirleme
+        String categoryName = report.getCategory().getName();
+        String categoryContext = buildCategoryContext(categoryName);
+
         String replyDraftInstruction;
         if (targetStatus == ReportStatus.OUT_OF_JURISDICTION) {
             replyDraftInstruction = "vatandaşa gönderilecek, konunun belediyenin yetki/görev alanı dışında kaldığını (örneğin karayolları genel müdürlüğü, elektrik dağıtım şirketi vb. kurumlara ait olduğunu) belirten, durumu kibarca açıklayan resmi bir bilgilendirme yanıtı — mutlaka %s dilinde";
@@ -115,14 +119,20 @@ public class GeminiService {
                 Geçerli kategori adları (yalnızca bunlardan birini öner): [%s]
                 Mevcut seçilen kategori: %s
                 Rapor içerik dili: %s
+                
+                ÖNEMLİ — Kategoriye Özel Yanıt Tonu:
+                %s
+                Yanıt taslağını (reply_draft) oluştururken mutlaka bu kategorinin terminolojisini, tonunu ve bağlamını kullan. Genel/jenerik yanıtlar üretme; kategoriye özgü, profesyonel ve empatik bir dil kullan.
+                
                 JSON döndür (İngilizce anahtarlar):
                 {"priority":"LOW|MEDIUM|HIGH|CRITICAL","summary":"max 25 kelime, staff için Türkçe","is_category_correct":true/false,"suggested_category_name":"yalnızca listeden bir ad veya mevcut kategori","suggested_title":"kısa başlık (rapor diliyle uyumlu, max 10 kelime)","sla_risk":"LOW|MEDIUM|HIGH","duplicate_hint":"mükerrer notu Türkçe veya boş","reply_draft":"%s","priority_rationale":"öncelik gerekçesi Türkçe, max 20 kelime"}
                 Başlık: %s
                 Açıklama: %s
                 """,
                 categoryOptions,
-                report.getCategory().getName(),
+                categoryName,
                 lang,
+                categoryContext,
                 String.format(replyDraftInstruction, replyLanguage),
                 report.getTitle(),
                 report.getDescription()
@@ -999,6 +1009,50 @@ public class GeminiService {
             }
         }
         existingDay.put(key, new JSONArray(timeSet));
+    }
+
+    /**
+     * İhbar kategorisine göre AI yanıt tonu ve terminoloji bağlamı oluşturur.
+     * Bu bağlam, reply_draft üretiminde kategoriye özgü dil ve empati kullanılmasını sağlar.
+     */
+    private String buildCategoryContext(String categoryName) {
+        if (categoryName == null || categoryName.isBlank()) {
+            return "Genel belediye hizmetleri bağlamında profesyonel ve nazik bir ton kullan.";
+        }
+        String lower = categoryName.toLowerCase().replaceAll("[^a-zçğıöşü\\s]", "");
+        
+        if (lower.contains("yol") || lower.contains("asfalt") || lower.contains("kaldırım") || lower.contains("altyapı")) {
+            return "Bu bir yol/altyapı bakım bildirimidir. Teknik dil kullan (asfalt onarımı, yol yüzeyi, kaldırım düzenlemesi, altyapı çalışması vb.). Trafik güvenliği vurgusunu ekle. Çözüm sürecinde hangi teknik ekiplerin görevlendirildiğini belirt.";
+        }
+        if (lower.contains("park") || lower.contains("bahçe") || lower.contains("yeşil") || lower.contains("ağaç")) {
+            return "Bu bir park ve yeşil alan bildirimidir. Çevre-dostu ve doğa koruma odaklı bir dil kullan. Yeşil alan bakımı, peyzaj düzenlemesi, ağaç budama gibi terminolojiyi tercih et. Yaşam kalitesine katkısını vurgula.";
+        }
+        if (lower.contains("aydınlatma") || lower.contains("lamba") || lower.contains("ışık") || lower.contains("elektrik")) {
+            return "Bu bir aydınlatma/elektrik bildirimidir. Güvenlik vurgusunu ön plana çıkar. Sokak aydınlatması, trafik sinyalizasyonu, enerji verimliliği gibi terimleri kullan. Gece güvenliği ve yaya emniyetine değin.";
+        }
+        if (lower.contains("çöp") || lower.contains("temizlik") || lower.contains("atık") || lower.contains("çevre")) {
+            return "Bu bir çevre temizliği bildirimidir. Halk sağlığı ve çevre koruma vurgusunu kullan. Atık toplama, geri dönüşüm, çevre kirliliği, dezenfeksiyon gibi terimleri tercih et. Sağlıklı yaşam çevresi mesajını ver.";
+        }
+        if (lower.contains("su") || lower.contains("kanalizasyon") || lower.contains("boru") || lower.contains("taşkın")) {
+            return "Bu bir su/kanalizasyon altyapısı bildirimidir. Su şebekesi, kanalizasyon hattı, yağmur suyu tahliyesi, su arıtma gibi teknik terimleri kullan. İçme suyu güvenliği veya sel/taşkın riskine değin.";
+        }
+        if (lower.contains("trafik") || lower.contains("ulaşım") || lower.contains("otopark") || lower.contains("tabela")) {
+            return "Bu bir ulaşım/trafik bildirimidir. Trafik düzeni, yol işaretleme, sinyalizasyon, otopark kapasitesi, toplu taşıma erişimi gibi terimleri kullan. Trafik güvenliği ve düzenini vurgula.";
+        }
+        if (lower.contains("imar") || lower.contains("yapı") || lower.contains("inşaat") || lower.contains("ruhsat")) {
+            return "Bu bir imar/yapı denetimi bildirimidir. İmar mevzuatı, yapı denetimi, ruhsat kontrolü gibi resmi terminolojiyi kullan. Kentsel düzen ve yapı güvenliğini vurgula. Mevzuata uygunluk mesajını ver.";
+        }
+        if (lower.contains("hayvan") || lower.contains("sokak") || lower.contains("barınak") || lower.contains("veteriner")) {
+            return "Bu bir hayvan hakları/sokak hayvanları bildirimidir. Hayvan refahı, barınak hizmetleri, kısırlaştırma, aşılama gibi terimleri kullan. Empati ve şefkat dolu bir dil tercih et. Hayvan hakları duyarlılığını göster.";
+        }
+        if (lower.contains("gürültü") || lower.contains("ses") || lower.contains("rahatsızlık")) {
+            return "Bu bir gürültü/çevre rahatsızlığı bildirimidir. Gürültü kirliliği, yaşam hakkı, çevre sağlığı gibi terimleri kullan. Vatandaşın yaşam konforunun korunmasına vurgu yap.";
+        }
+        if (lower.contains("zabıta") || lower.contains("ruhsat") || lower.contains("denetim") || lower.contains("işgal")) {
+            return "Bu bir zabıta/denetim bildirimidir. Belediye mevzuatı, denetim, kaldırım işgali, ruhsatsız faaliyet gibi terimleri kullan. Kamu düzeni ve mevzuata uygunluk vurgusunu yap.";
+        }
+        // Varsayılan bağlam
+        return "Bu bir '" + categoryName + "' kategorisinde vatandaş bildirimidir. Bu kategoriye uygun profesyonel terminoloji ve empati ile yanıt oluştur. Belediye hizmet kalitesini ve vatandaş memnuniyetini ön plana çıkar.";
     }
 
     private static SimpleClientHttpRequestFactory requestFactory() {

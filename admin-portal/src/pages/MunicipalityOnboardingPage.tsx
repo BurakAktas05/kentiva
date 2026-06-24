@@ -131,6 +131,45 @@ export default function MunicipalityOnboardingPage() {
   const [accentColor, setAccentColor] = useState('#F59E0B');
   const [workflowMode, setWorkflowMode] = useState<'SIMPLE' | 'DEPARTMENTAL'>('SIMPLE');
 
+  // Reference Catalog State
+  const [provinces, setProvinces] = useState<{ plateCode: string; nameTr: string }[]>([]);
+  const [districts, setDistricts] = useState<{ id: number; memberId: string; nameTr: string; districtSlug: string; onboarded: boolean }[]>([]);
+  const [selectedProvinceCode, setSelectedProvinceCode] = useState('');
+  const [selectedDistrictId, setSelectedDistrictId] = useState<number | ''>('');
+
+  useEffect(() => {
+    api.get('/admin/municipalities/catalog/provinces')
+      .then(res => setProvinces(res.data?.data || []))
+      .catch(err => console.error('İl kataloğu yüklenemedi', err));
+  }, []);
+
+  useEffect(() => {
+    if (!selectedProvinceCode) {
+      setDistricts([]);
+      setSelectedDistrictId('');
+      return;
+    }
+    api.get(`/admin/municipalities/catalog/districts?plateCode=${selectedProvinceCode}`)
+      .then(res => setDistricts(res.data?.data || []))
+      .catch(err => console.error('İlçe kataloğu yüklenemedi', err));
+  }, [selectedProvinceCode]);
+
+  const handleDistrictChange = (districtIdVal: number | '') => {
+    setSelectedDistrictId(districtIdVal);
+    if (!districtIdVal) return;
+    const dist = districts.find(d => d.id === Number(districtIdVal));
+    if (dist) {
+      setName(`${dist.nameTr} Belediyesi`);
+      setSlug(dist.districtSlug);
+      setDisplayName(dist.nameTr);
+      setWidgetDistrictSlug(dist.districtSlug);
+      const prov = provinces.find(p => p.plateCode === selectedProvinceCode);
+      if (prov) {
+        setWidgetCitySlug(slugify(prov.nameTr));
+      }
+    }
+  };
+
   // Step 2: Boundaries & Coordinates
   const [centerLatStr, setCenterLatStr] = useState('41.0082');
   const [centerLngStr, setCenterLngStr] = useState('28.9784');
@@ -212,6 +251,7 @@ export default function MunicipalityOnboardingPage() {
       case 'municipality':
         return (
           name.trim().length >= 2 &&
+          selectedDistrictId !== '' &&
           (!slug.trim() || /^[a-z0-9-]+$/.test(slug.trim()))
         );
       case 'boundaries':
@@ -389,6 +429,8 @@ export default function MunicipalityOnboardingPage() {
           slogan: slogan.trim() || null,
           parentMunicipalityId: null,
           workflowMode,
+          districtId: selectedDistrictId || null,
+          memberId: districts.find(d => d.id === selectedDistrictId)?.memberId || null,
         },
         admin: {
           email: adminEmail.trim(),
@@ -554,6 +596,38 @@ export default function MunicipalityOnboardingPage() {
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block text-xs font-bold text-slate-500">
+                    İl Seçin *
+                    <select
+                      required
+                      className={`mt-1.5 ${inputClass}`}
+                      value={selectedProvinceCode}
+                      onChange={(e) => setSelectedProvinceCode(e.target.value)}
+                    >
+                      <option value="">İl Seçiniz...</option>
+                      {provinces.map(p => (
+                        <option key={p.plateCode} value={p.plateCode}>{p.nameTr}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block text-xs font-bold text-slate-500">
+                    İlçe Seçin *
+                    <select
+                      required
+                      disabled={!selectedProvinceCode}
+                      className={`mt-1.5 ${inputClass}`}
+                      value={selectedDistrictId}
+                      onChange={(e) => handleDistrictChange(e.target.value ? Number(e.target.value) : '')}
+                    >
+                      <option value="">İlçe Seçiniz...</option>
+                      {districts.map(d => (
+                        <option key={d.id} value={d.id} disabled={d.onboarded}>
+                          {d.nameTr} {d.onboarded ? '(Zaten Kayıtlı)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
                   <label className="block text-xs font-bold text-slate-500 sm:col-span-2">
                     Resmi Belediye Adı *
                     <input
@@ -561,7 +635,7 @@ export default function MunicipalityOnboardingPage() {
                       className={`mt-1.5 ${inputClass}`}
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="Kadıköy Belediyesi"
+                      placeholder="Başakşehir Belediyesi"
                     />
                   </label>
                   <label className="block text-xs font-bold text-slate-500">

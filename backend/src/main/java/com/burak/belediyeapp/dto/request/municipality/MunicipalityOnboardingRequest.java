@@ -28,7 +28,9 @@ public record MunicipalityOnboardingRequest(
             Integer defaultZoom,
             @Size(max = 255) String slogan,
             String parentMunicipalityId,
-            String workflowMode
+            String workflowMode,
+            Long districtId,
+            String memberId
     ) {}
 
     public record AdminPart(

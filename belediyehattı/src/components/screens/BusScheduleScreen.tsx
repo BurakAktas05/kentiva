@@ -341,6 +341,20 @@ export default function BusScheduleScreen({ lang, isDark, municipality, onBack }
                   <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
                   <p className={`text-xs ${textMuted}`}>Hatlar yükleniyor...</p>
                 </div>
+              ) : routes.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 px-6 text-center rounded-2xl border border-dashed border-slate-350 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+                  <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-inner">
+                    <Bus className="h-7 w-7" />
+                  </div>
+                  <p className="text-sm font-bold text-slate-800 dark:text-white">
+                    {lang === 'tr' ? 'Sefer Bilgisi Bulunmuyor' : 'No Schedule Information'}
+                  </p>
+                  <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400 font-semibold max-w-xs">
+                    {lang === 'tr'
+                      ? 'Otobüs seferleri entegrasyonumuz devam ediyor, en kısa zamanda aktif olacaktır.'
+                      : 'Our bus schedules integration is ongoing, it will be active as soon as possible.'}
+                  </p>
+                </div>
               ) : (
                 <>
                   {/* Starred Dashboard */}

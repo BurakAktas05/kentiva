@@ -43,6 +43,7 @@ public class MunicipalityOnboardingService {
     private final com.burak.belediyeapp.repository.IDepartmentRepository departmentRepository;
     private final PasswordEncoder passwordEncoder;
     private final DepartmentService departmentService;
+    private final com.burak.belediyeapp.service.media.MediaSignedUrlService mediaSignedUrlService;
 
     @Transactional
     @CacheEvict(value = CacheNames.CATEGORIES, allEntries = true)
@@ -66,7 +67,9 @@ public class MunicipalityOnboardingService {
                         m.centerLat(),
                         m.centerLng(),
                         m.defaultZoom(),
-                        m.slogan()));
+                        m.slogan(),
+                        m.districtId(),
+                        m.memberId()));
 
         Municipality municipality = municipalityRepository.findById(municipalityDto.id())
                 .orElseThrow(() -> new IllegalStateException("Belediye kaydı oluşturulamadı"));
@@ -212,7 +215,7 @@ public class MunicipalityOnboardingService {
     }
 
     private UserResponse toUserResponse(AppUser user) {
-        MunicipalityDto municipalityDto = MunicipalityDto.fromEntity(user.getMunicipality());
+        MunicipalityDto municipalityDto = MunicipalityDto.fromEntity(user.getMunicipality(), mediaSignedUrlService);
         int score = user.getReputationScore();
         return new UserResponse(
                 user.getId(),
@@ -223,10 +226,29 @@ public class MunicipalityOnboardingService {
                 user.getRoles().stream().map(Role::getName).toList(),
                 user.getDistrict(),
                 municipalityDto,
-                com.burak.belediyeapp.dto.response.municipality.MunicipalityDto.fromEntity(user.getPreferredMunicipality()),
+                com.burak.belediyeapp.dto.response.municipality.MunicipalityDto.fromEntity(user.getPreferredMunicipality(), mediaSignedUrlService),
                 score,
                 com.burak.belediyeapp.service.citizen.CitizenReputationService.levelForScore(score),
                 user.getSuspendedUntil(),
                 user.getSuspensionReason());
+    }
+
+    @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
+    public void reportUnmatchedTenants() {
+        log.info("Eşleşmeyen belediye / ilçe katalog kontrolleri yapılıyor...");
+        List<Municipality> municipalities = municipalityRepository.findAll();
+        long unmatched = 0;
+        for (Municipality m : municipalities) {
+            if (m.isOnboarded() && m.getDistrict() == null) {
+                log.warn("Eşleşmeyen Belediye: id='{}', name='{}', widget_district_slug='{}'",
+                        m.getId(), m.getName(), m.getWidgetDistrictSlug());
+                unmatched++;
+            }
+        }
+        if (unmatched > 0) {
+            log.warn("Toplam {} adet belediye referans katalogdaki bir ilçe ile eşleştirilemedi!", unmatched);
+        } else {
+            log.info("Tüm aktif belediyeler başarıyla referans katalogla eşleşti.");
+        }
     }
 }

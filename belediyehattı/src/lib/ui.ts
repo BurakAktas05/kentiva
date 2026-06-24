@@ -92,6 +92,7 @@ export function reportStatusBadgeClass(status: string): string {
     case 'PROCESSING':
       return 'rounded-full bg-sky-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-sky-800 dark:bg-sky-900/35 dark:text-sky-200';
     case 'REJECTED':
+    case 'OUT_OF_JURISDICTION':
       return 'rounded-full bg-red-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-red-700 dark:bg-red-900/30 dark:text-red-400';
     default:
       return 'rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900/30 dark:text-amber-300';

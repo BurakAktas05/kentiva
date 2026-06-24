@@ -7,7 +7,6 @@ import {
   Layers,
   MapPin,
   ShieldAlert,
-  Sparkles,
   Tag,
   User as UserIcon,
   UserCheck,
@@ -32,6 +31,17 @@ import { reportStatusBadgeClass } from '../lib/ui';
 /* ------------------------------------------------------------------ */
 /*  TYPES & HELPERS                                                    */
 /* ------------------------------------------------------------------ */
+function isDefaultPendingNote(text: string) {
+  if (!text) return true;
+  const trimmed = text.trim();
+  return trimmed === "Bildiriminiz için teşekkür ederiz. Ekiplerimiz konuyu değerlendirmektedir; süreç hakkında bilgilendirileceksiniz."
+    || trimmed === "Thank you for your report. Our teams are working on it and we will update you as soon as possible."
+    || trimmed === "شكراً لبلاğكم. فرقنا تعمل على المعالجة وسنبلغكم عند اكتمal الإجراء."
+    || trimmed.includes("Bildiriminiz için teşekkür ederiz")
+    || trimmed.includes("Thank you for your report")
+    || trimmed.includes("%s")
+    || trimmed.includes("شكراً لبلاغكم");
+}
 type ReportDetailPageProps = {
   reportId?: string;
   embedded?: boolean;
@@ -125,7 +135,7 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [duplicateGroup, setDuplicateGroup] = useState<ReportListItem[]>([]);
   const [bulkBusy, setBulkBusy] = useState<'RESOLVED' | null>(null);
-  const [aiBusy, setAiBusy] = useState(false);
+
   const [noteText, setNoteText] = useState('');
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [resolvedFiles, setResolvedFiles] = useState<File[]>([]);
@@ -170,6 +180,29 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
     return () => { cancelled = true; };
   }, [id]);
 
+  // Clear default "Thank you" reply note when switching to an action state
+  useEffect(() => {
+    if (actionStep === 'ACCEPT' || actionStep === 'REJECT') {
+      setNoteText((prev) => {
+        if (isDefaultPendingNote(prev)) {
+          return '';
+        }
+        return prev;
+      });
+    }
+  }, [actionStep]);
+
+  useEffect(() => {
+    if (report && (report.status === 'PROCESSING' || report.status === 'FORWARDED')) {
+      setNoteText((prev) => {
+        if (isDefaultPendingNote(prev)) {
+          return '';
+        }
+        return prev;
+      });
+    }
+  }, [report?.status]);
+
   /* ---------- derived ---------- */
   const canResolve = currentUser?.departmentId != null || currentUser?.roles?.includes('ROLE_SUPER_ADMIN');
   const isWhiteDesk = currentUser?.roles?.includes('ROLE_WHITE_DESK');
@@ -191,30 +224,6 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
     setActiveMediaTab(next.mediaUrls?.length ? 'BEFORE' : next.resolvedMediaUrls?.length ? 'AFTER' : 'BEFORE');
   };
 
-  /* ---------- AI Reply Generation ---------- */
-  const generateAiReply = async (targetStatus: string) => {
-    if (!id) return;
-    setAiBusy(true);
-    setError(null);
-    try {
-      const res = await api.post(`/reports/${id}/ai-analysis?status=${targetStatus}`);
-      const data = res.data?.data as Report | undefined;
-      if (data) {
-        setReport(data);
-        if (data.aiReplyDraft) {
-          setNoteText(data.aiReplyDraft);
-          setSuccessMsg('AI yanıt taslağı oluşturuldu.');
-        } else {
-          setSuccessMsg('AI analizi tamamlandı ancak yanıt taslağı oluşturulamadı.');
-        }
-      }
-      window.setTimeout(() => setSuccessMsg(null), 4000);
-    } catch (err: unknown) {
-      setError(errorMessage(err, 'AI yanıt oluşturulamadı. Lütfen tekrar deneyin.'));
-    } finally {
-      setAiBusy(false);
-    }
-  };
 
   /* ---------- Patch status ---------- */
   const patchStatus = async (status: string) => {
@@ -561,9 +570,6 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
                     noteText={noteText}
                     setNoteText={setNoteText}
                     disabled={actionBusy}
-                    aiBusy={aiBusy}
-                    onGenerateAI={() => void generateAiReply('PROCESSING')}
-                    aiLabel="İşlemde"
                     placeholder="Vatandaşa iletilecek not (opsiyonel)..."
                   />
 
@@ -601,9 +607,6 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
                     noteText={noteText}
                     setNoteText={setNoteText}
                     disabled={actionBusy}
-                    aiBusy={aiBusy}
-                    onGenerateAI={() => void generateAiReply(rejectReason)}
-                    aiLabel={rejectReason === 'REJECTED' ? 'Red' : 'Yetki Dışı'}
                     label="Red Gerekçesi"
                     placeholder="Vatandaşa iletilecek red gerekçesi..."
                   />
@@ -656,9 +659,6 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
                       noteText={noteText}
                       setNoteText={setNoteText}
                       disabled={actionBusy}
-                      aiBusy={aiBusy}
-                      onGenerateAI={() => void generateAiReply('RESOLVED')}
-                      aiLabel="Çözüm"
                       label="Çözüm Notu"
                       placeholder="Vatandaşa iletilecek çözüm açıklaması..."
                     />
@@ -727,18 +727,12 @@ function NoteWithAI({
   noteText,
   setNoteText,
   disabled,
-  aiBusy,
-  onGenerateAI,
-  aiLabel,
   label = 'Vatandaşa Not',
   placeholder = 'Vatandaşa iletilecek not...',
 }: {
   noteText: string;
   setNoteText: (v: string) => void;
   disabled: boolean;
-  aiBusy: boolean;
-  onGenerateAI: () => void;
-  aiLabel: string;
   label?: string;
   placeholder?: string;
 }) {
@@ -746,10 +740,6 @@ function NoteWithAI({
     <div>
       <div className="flex items-center justify-between mb-1.5">
         <label htmlFor="statusNote" className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{label}</label>
-        <button type="button" disabled={aiBusy || disabled} onClick={onGenerateAI} className="inline-flex items-center gap-1 rounded-lg bg-violet-600 hover:bg-violet-700 text-white px-2.5 py-1 text-[11px] font-bold transition shadow-xs disabled:opacity-50 cursor-pointer">
-          <Sparkles className="h-3 w-3" />
-          {aiBusy ? 'Üretiliyor...' : `AI Yanıtı (${aiLabel})`}
-        </button>
       </div>
       <textarea id="statusNote" rows={3} value={noteText} onChange={(e) => setNoteText(e.target.value)} disabled={disabled} placeholder={placeholder} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white leading-relaxed" />
     </div>

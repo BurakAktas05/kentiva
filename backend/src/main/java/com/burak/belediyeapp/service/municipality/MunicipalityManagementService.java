@@ -4,6 +4,7 @@ import com.burak.belediyeapp.dto.request.municipality.CreateMunicipalityRequest;
 import com.burak.belediyeapp.dto.request.municipality.GenerateNotificationTemplateRequest;
 import com.burak.belediyeapp.dto.request.municipality.MunicipalityPatchRequest;
 import com.burak.belediyeapp.dto.response.municipality.MunicipalityDto;
+import com.burak.belediyeapp.dto.response.municipality.MunicipalityBoundaryDto;
 import com.burak.belediyeapp.dto.response.municipality.NotificationTemplateAiResponse;
 import com.burak.belediyeapp.service.ai.GeminiService;
 import com.burak.belediyeapp.entity.AppUser;
@@ -13,6 +14,8 @@ import com.burak.belediyeapp.exception.BusinessException;
 import com.burak.belediyeapp.exception.ResourceNotFoundException;
 import com.burak.belediyeapp.config.EvictMunicipalityCaches;
 import com.burak.belediyeapp.repository.IMunicipalityRepository;
+import com.burak.belediyeapp.repository.ITurkeyDistrictRepository;
+import com.burak.belediyeapp.entity.TurkeyDistrict;
 import com.burak.belediyeapp.service.geo.MunicipalityBoundaryAutoSyncService;
 import com.burak.belediyeapp.service.media.MediaGuardClient;
 import com.burak.belediyeapp.service.storage.StorageService;
@@ -34,22 +37,25 @@ import java.util.UUID;
 public class MunicipalityManagementService {
 
     private final IMunicipalityRepository municipalityRepository;
+    private final ITurkeyDistrictRepository turkeyDistrictRepository;
+    private final com.burak.belediyeapp.repository.ITurkeyProvinceRepository turkeyProvinceRepository;
     private final StorageService storageService;
     private final MediaGuardClient mediaGuardClient;
     private final GeminiService geminiService;
     private final MunicipalityBoundaryAutoSyncService boundaryAutoSyncService;
+    private final com.burak.belediyeapp.service.media.MediaSignedUrlService mediaSignedUrlService;
 
     @Transactional(readOnly = true)
     public Page<MunicipalityDto> listAll(Pageable pageable) {
         return municipalityRepository.findAll(pageable)
-                .map(MunicipalityDto::fromEntity);
+                .map(m -> MunicipalityDto.fromEntity(m, mediaSignedUrlService));
     }
 
     @Transactional(readOnly = true)
     public MunicipalityDto getById(String municipalityId) {
         Municipality m = municipalityRepository.findById(municipalityId)
                 .orElseThrow(() -> new ResourceNotFoundException("Belediye", "id", municipalityId));
-        return MunicipalityDto.fromEntity(m);
+        return MunicipalityDto.fromEntity(m, mediaSignedUrlService);
     }
 
     @Transactional(readOnly = true)
@@ -57,20 +63,45 @@ public class MunicipalityManagementService {
         if (user.getMunicipality() == null) {
             throw new BusinessException("Bu hesap bir belediyeye bağlı değil", "MUNICIPALITY_NOT_ASSIGNED");
         }
-        return MunicipalityDto.fromEntity(user.getMunicipality());
+        return MunicipalityDto.fromEntity(user.getMunicipality(), mediaSignedUrlService);
     }
 
     @Transactional
     @EvictMunicipalityCaches
     public MunicipalityDto create(CreateMunicipalityRequest req) {
-        String slug = resolveUniqueSlug(req.slug(), req.name());
+        TurkeyDistrict district = null;
+        if (req.districtId() != null) {
+            district = turkeyDistrictRepository.findById(req.districtId())
+                    .orElseThrow(() -> new ResourceNotFoundException("İlçe Kataloğu", "districtId", req.districtId()));
+        } else if (req.memberId() != null && !req.memberId().isBlank()) {
+            district = turkeyDistrictRepository.findByMemberId(req.memberId().trim())
+                    .orElseThrow(() -> new ResourceNotFoundException("İlçe Kataloğu", "memberId", req.memberId()));
+        }
+
+        if (district == null) {
+            throw new BusinessException("Lütfen ilçe kataloğundan geçerli bir ilçe seçin.", "DISTRICT_REQUIRED");
+        }
+
+        boolean alreadyOnboarded = municipalityRepository.existsByDistrictIdAndOnboardedTrue(district.getId());
+        if (alreadyOnboarded) {
+            throw new BusinessException("Bu ilçe için zaten aktif bir belediye kaydı bulunuyor: " + district.getNameTr(), "DISTRICT_ALREADY_ONBOARDED");
+        }
+
+        String resolvedName = req.name() != null && !req.name().isBlank() ? req.name().trim() : district.getNameTr() + " Belediyesi";
+        String resolvedSlug = req.slug() != null && !req.slug().isBlank() ? req.slug().trim() : district.getDistrictSlug();
+        String slug = resolveUniqueSlug(resolvedSlug, resolvedName);
+
+        double defaultLat = district.getCentroid() != null ? district.getCentroid().getY() : 41.0082;
+        double defaultLng = district.getCentroid() != null ? district.getCentroid().getX() : 28.9784;
+
         Municipality.MunicipalityBuilder b = Municipality.builder()
-                .name(req.name())
+                .name(resolvedName)
                 .type(req.type())
                 .slug(slug)
-                .displayName(req.displayName() != null && !req.displayName().isBlank() ? req.displayName() : req.name())
-                .centerLat(req.centerLat() != null ? req.centerLat() : 41.0082)
-                .centerLng(req.centerLng() != null ? req.centerLng() : 28.9784)
+                .district(district)
+                .displayName(req.displayName() != null && !req.displayName().isBlank() ? req.displayName().trim() : district.getNameTr())
+                .centerLat(req.centerLat() != null ? req.centerLat() : defaultLat)
+                .centerLng(req.centerLng() != null ? req.centerLng() : defaultLng)
                 .defaultZoom(req.defaultZoom() != null ? req.defaultZoom() : 12)
                 .slogan(req.slogan() != null && !req.slogan().isBlank() ? req.slogan().trim() : null)
                 .active(true)
@@ -78,6 +109,7 @@ public class MunicipalityManagementService {
                 .publicStatsEnabled(false)
                 .subscriptionPlan(SubscriptionPlan.TRIAL)
                 .subscriptionEndsAt(LocalDateTime.now().plusDays(30));
+
         Municipality entity = b.build();
         if (req.parentMunicipalityId() != null && !req.parentMunicipalityId().isBlank()) {
             Municipality parent = municipalityRepository.findById(req.parentMunicipalityId())
@@ -86,10 +118,10 @@ public class MunicipalityManagementService {
         }
         Municipality saved = municipalityRepository.save(entity);
         log.info("Yeni belediye oluşturuldu: {} ({})", saved.getName(), saved.getId());
+        
         // Sınır OpenStreetMap'ten otomatik çekilsin — admin manuel girmek zorunda kalmaz.
-        // Asenkron + REQUIRES_NEW transaction; create yanıtını bloklamaz.
         boundaryAutoSyncService.syncAsync(saved.getId());
-        return MunicipalityDto.fromEntity(saved);
+        return MunicipalityDto.fromEntity(saved, mediaSignedUrlService);
     }
 
     @Transactional
@@ -98,7 +130,7 @@ public class MunicipalityManagementService {
         Municipality m = municipalityRepository.findById(municipalityId)
                 .orElseThrow(() -> new ResourceNotFoundException("Belediye", "id", municipalityId));
         applyPatch(m, patch, true);
-        return MunicipalityDto.fromEntity(municipalityRepository.save(m));
+        return MunicipalityDto.fromEntity(municipalityRepository.save(m), mediaSignedUrlService);
     }
 
     @Transactional
@@ -128,7 +160,7 @@ public class MunicipalityManagementService {
         Municipality m = municipalityRepository.findById(admin.getMunicipality().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Belediye", "id", admin.getMunicipality().getId()));
         applyPatch(m, patch, false);
-        return MunicipalityDto.fromEntity(municipalityRepository.save(m));
+        return MunicipalityDto.fromEntity(municipalityRepository.save(m), mediaSignedUrlService);
     }
 
     private void applyPatch(Municipality m, MunicipalityPatchRequest p, boolean superAdminFields) {
@@ -136,7 +168,7 @@ public class MunicipalityManagementService {
             m.setDisplayName(p.displayName().isBlank() ? null : p.displayName());
         }
         if (p.logoUrl() != null) {
-            m.setLogoUrl(p.logoUrl().isBlank() ? null : p.logoUrl());
+            m.setLogoUrl(p.logoUrl().isBlank() ? null : mediaSignedUrlService.persistableStoragePath(p.logoUrl()));
         }
         if (p.primaryColor() != null) {
             m.setPrimaryColor(p.primaryColor().isBlank() ? null : p.primaryColor());
@@ -275,7 +307,7 @@ public class MunicipalityManagementService {
         String url = storageService.uploadBytes(bytes, ct, "branding/" + municipalityId, file.getOriginalFilename());
         Municipality m = municipalityRepository.findById(municipalityId)
                 .orElseThrow(() -> new ResourceNotFoundException("Belediye", "id", municipalityId));
-        m.setLogoUrl(url);
+        m.setLogoUrl(mediaSignedUrlService.persistableStoragePath(url));
         municipalityRepository.save(m);
         return url;
     }
@@ -338,5 +370,44 @@ public class MunicipalityManagementService {
             candidate = base + "-" + i++;
         }
         return candidate;
+    }
+
+    @Transactional(readOnly = true)
+    public List<com.burak.belediyeapp.dto.response.publicapi.PublicProvinceDto> listProvincesForAdmin() {
+        return turkeyProvinceRepository.findAll(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.ASC, "nameTr")).stream()
+                .map(p -> new com.burak.belediyeapp.dto.response.publicapi.PublicProvinceDto(p.getPlateCode(), p.getNameTr(), p.getSlug()))
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<com.burak.belediyeapp.dto.response.municipality.AdminDistrictCatalogDto> listDistrictsForAdmin(String plateCode) {
+        if (plateCode != null && !plateCode.isBlank()) {
+            return turkeyDistrictRepository.findAdminCatalogByProvince(plateCode.trim());
+        }
+        return turkeyDistrictRepository.findAllAdminCatalog();
+    }
+
+    @Transactional(readOnly = true)
+    public String getDistrictBoundaryGeoJson(Long id) {
+        return turkeyDistrictRepository.findBoundaryGeoJsonById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("İlçe Kataloğu Sınırı", "id", id));
+    }
+
+    @Transactional(readOnly = true)
+    public String getMunicipalityBoundaryGeoJson(String id) {
+        return turkeyDistrictRepository.findBoundaryGeoJsonByMunicipalityId(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Belediye Sınırı", "id", id));
+    }
+
+    @Transactional(readOnly = true)
+    public List<MunicipalityBoundaryDto> getAllBoundariesGeoJson() {
+        return municipalityRepository.findAllOnboardedBoundariesRaw().stream()
+                .map(row -> new MunicipalityBoundaryDto(
+                        (String) row[0],
+                        (String) row[1],
+                        (String) row[2],
+                        (String) row[3]
+                ))
+                .collect(java.util.stream.Collectors.toList());
     }
 }

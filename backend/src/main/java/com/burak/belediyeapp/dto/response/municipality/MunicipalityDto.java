@@ -49,15 +49,34 @@ public record MunicipalityDto(
         Integer reputationDeltaInappropriateMedia,
         Integer autoSuspensionThreshold,
         Integer autoSuspensionDays,
-        Boolean aiMediaModerationEnabled
+        Boolean aiMediaModerationEnabled,
+        String memberId,
+        String plateCode,
+        String provinceName
 ) {
     public static MunicipalityDto fromEntity(Municipality m) {
+        return fromEntity(m, null);
+    }
+
+    public static MunicipalityDto fromEntity(Municipality m, com.burak.belediyeapp.service.media.MediaSignedUrlService signedUrlService) {
         if (m == null) {
             return null;
         }
         String display = m.getDisplayName() != null && !m.getDisplayName().isBlank()
                 ? m.getDisplayName()
                 : m.getName();
+
+        String memberId = m.getDistrict() != null ? m.getDistrict().getMemberId() : null;
+        String plateCode = m.getDistrict() != null && m.getDistrict().getProvince() != null 
+                ? m.getDistrict().getProvince().getPlateCode() : null;
+        String provinceName = m.getDistrict() != null && m.getDistrict().getProvince() != null 
+                ? m.getDistrict().getProvince().getNameTr() : null;
+
+        String logoUrl = m.getLogoUrl();
+        if (signedUrlService != null && logoUrl != null && !logoUrl.isBlank()) {
+            logoUrl = signedUrlService.signForClient(logoUrl);
+        }
+
         return new MunicipalityDto(
                 m.getId(),
                 m.getName(),
@@ -68,7 +87,7 @@ public record MunicipalityDto(
                 m.getDefaultZoom(),
                 m.getSlug(),
                 display,
-                m.getLogoUrl(),
+                logoUrl,
                 m.getPrimaryColor(),
                 m.getSecondaryColor(),
                 m.getAccentColor(),
@@ -101,7 +120,10 @@ public record MunicipalityDto(
                 m.getReputationDeltaInappropriateMedia(),
                 m.getAutoSuspensionThreshold(),
                 m.getAutoSuspensionDays(),
-                m.isAiMediaModerationEnabled()
+                m.isAiMediaModerationEnabled(),
+                memberId,
+                plateCode,
+                provinceName
         );
     }
 }

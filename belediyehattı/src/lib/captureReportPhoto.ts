@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { Camera, CameraResultType, CameraSource, CameraDirection } from '@capacitor/camera';
 
 export class PhotoCaptureCancelledError extends Error {
   constructor() {
@@ -22,6 +22,8 @@ export async function captureReportPhotoFile(): Promise<CaptureResult> {
         resultType: CameraResultType.Uri,
         source: CameraSource.Camera,
         saveToGallery: false,
+        direction: CameraDirection.Rear,
+        cameraDirection: CameraDirection.Rear,
       });
       if (!photo.webPath) {
         throw new PhotoCaptureCancelledError();

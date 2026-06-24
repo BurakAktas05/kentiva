@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
+import java.util.List;
 
 /**
  * Belediye sınırlarını OpenStreetMap'ten otomatik çeker.
@@ -63,6 +64,38 @@ public class MunicipalityBoundaryAutoSyncService {
         }
     }
 
+    /**
+     * Uygulama başlarken sınır verisi eksik olan aktif belediyelerin sınırlarını
+     * OpenStreetMap'ten arka planda otomatik ve sıralı olarak çeker.
+     */
+    @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
+    public void syncMissingBoundariesOnStartup() {
+        self.syncAllMissingAsync();
+    }
+
+    @Async
+    public void syncAllMissingAsync() {
+        log.info("Sınırı eksik olan aktif belediyeler kontrol ediliyor...");
+        List<Municipality> activeMunicipalities = municipalityRepository.findAllWithDistrictAndProvince();
+        int count = 0;
+        for (Municipality m : activeMunicipalities) {
+            if (m.isOnboarded() && m.isActive() && m.getDistrict() != null && m.getDistrict().getBoundaries() == null) {
+                log.info("Belediye sınırı eksik, OSM'den otomatik çekiliyor: {} ({})", m.getName(), m.getDistrict().getNameTr());
+                try {
+                    boolean success = syncNow(m.getId());
+                    if (success) {
+                        count++;
+                    }
+                } catch (Exception e) {
+                    log.warn("Başlangıç sınır çekme hatası ({}): {}", m.getName(), e.getMessage());
+                }
+            }
+        }
+        if (count > 0) {
+            log.info("Başlangıçta {} adet belediyenin sınırları OSM'den başarıyla çekildi.", count);
+        }
+    }
+
     /** Belediye adı + parent (varsa) bilgisini ayrı kısa bir read-only txn'de okur. */
     @Transactional(readOnly = true)
     public Resolved resolveQueryReadOnly(String municipalityId) {
@@ -99,9 +132,15 @@ public class MunicipalityBoundaryAutoSyncService {
 
     /**
      * Belediye adı + (varsa) parent büyükşehir adından OSM sorgu parametrelerini üretir.
-     * METROPOLITAN için sadece kendi adı, DISTRICT için parent adı (il) eklenir.
+     * Referans katalog tanımlıysa doğrudan resmi adları kullanır; aksi takdirde eski mantığa düşer.
      */
     private Resolved resolveQuery(Municipality m) {
+        if (m.getDistrict() != null) {
+            String district = m.getDistrict().getNameTr();
+            String city = m.getDistrict().getProvince() != null ? m.getDistrict().getProvince().getNameTr() : null;
+            return new Resolved(district, city);
+        }
+
         String district = preferred(m.getDisplayName(), m.getName());
         String city = null;
         if (m.getType() == MunicipalityType.DISTRICT && m.getParentMunicipality() != null) {

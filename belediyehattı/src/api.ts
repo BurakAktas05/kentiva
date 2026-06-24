@@ -25,6 +25,16 @@ export function apiBase(): string {
 /** Göreli imzalı medya yolunu tam URL yapar (img src için). Sunucunun localhost tabanlı imzasını istemci API köküne çevirir. */
 export function resolveMediaUrl(url: string | null | undefined): string {
   if (!url) return '';
+
+  try {
+    const cached = localStorage.getItem('media_cache_' + url);
+    if (cached) {
+      return cached;
+    }
+  } catch {
+    // ignore
+  }
+
   const origin = apiOriginFromBase(apiBase());
 
   const accessMatch = url.match(/\/api\/v1\/media\/access\?token=[^&\s]+/);
@@ -105,6 +115,15 @@ export interface PublicTenant {
   centerLng: number;
   active: boolean;
   onboarded: boolean;
+  contactPhone?: string | null;
+  contactEmail?: string | null;
+  websiteUrl?: string | null;
+  reputationDeltaReportCreated?: number;
+  reputationDeltaReportResolved?: number;
+  reputationDeltaReportRejected?: number;
+  reputationDeltaInappropriateMedia?: number;
+  autoSuspensionThreshold?: number;
+  autoSuspensionDays?: number;
 }
 
 export interface PublicDepartment {
@@ -398,6 +417,30 @@ async function publicFetch<T>(path: string): Promise<T> {
     throw new Error(json.message || 'Hata oluştu');
   }
   return json.data as T;
+}
+
+export interface PublicProvince {
+  plateCode: string;
+  nameTr: string;
+  slug: string;
+}
+
+export interface PublicDistrict {
+  id: number;
+  memberId: string;
+  plateCode: string;
+  districtSlug: string;
+  nameTr: string;
+  onboarded: boolean;
+  municipalityId: string | null;
+}
+
+export async function fetchPublicProvinces(): Promise<PublicProvince[]> {
+  return publicFetch<PublicProvince[]>('/public/provinces');
+}
+
+export async function fetchPublicDistricts(plateCode: string): Promise<PublicDistrict[]> {
+  return publicFetch<PublicDistrict[]>(`/public/provinces/${encodeURIComponent(plateCode)}/districts`);
 }
 
 export async function fetchPublicMunicipalities(): Promise<PublicTenant[]> {
@@ -1010,4 +1053,57 @@ export async function submitSystemFeedback(rating: number, content: string): Pro
     body: JSON.stringify({ rating, content }),
   });
 }
+
+// ============================================
+//  Ödüller & Gamification API
+// ============================================
+
+export interface ApiReward {
+  id: string;
+  municipalityId: string;
+  municipalityName: string;
+  title: string;
+  description: string | null;
+  pointCost: number;
+  stock: number;
+  imageUrl: string | null;
+  active: boolean;
+}
+
+export interface ApiRedeemedReward {
+  id: string;
+  rewardId: string;
+  rewardTitle: string;
+  rewardImageUrl: string | null;
+  redemptionCode: string;
+  status: string;
+  redeemedAt: string;
+  userEmail: string;
+  userFullName: string;
+  pointCost: number;
+}
+
+export async function fetchRewards(municipalityId: string): Promise<ApiReward[]> {
+  try {
+    return await apiFetch<ApiReward[]>(`/public/municipalities/${encodeURIComponent(municipalityId)}/rewards`);
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchRedeemedRewards(): Promise<ApiRedeemedReward[]> {
+  try {
+    return await apiFetch<ApiRedeemedReward[]>('/users/me/rewards/redeemed');
+  } catch {
+    return [];
+  }
+}
+
+export async function redeemReward(rewardId: string): Promise<ApiRedeemedReward> {
+  return await apiFetch<ApiRedeemedReward>('/users/me/rewards/redeem', {
+    method: 'POST',
+    body: JSON.stringify({ rewardId }),
+  });
+}
+
 

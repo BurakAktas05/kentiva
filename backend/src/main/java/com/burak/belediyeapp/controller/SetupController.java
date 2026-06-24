@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.burak.belediyeapp.security.RateLimit;
 
 @RestController
 @RequestMapping("/api/v1/setup")
@@ -25,12 +26,14 @@ public class SetupController {
     private final PlatformSetupService platformSetupService;
 
     @GetMapping("/status")
+    @RateLimit(requests = 10, window = 60)
     @Operation(summary = "Kurulum gerekli mi?")
     public ResponseEntity<ApiResponse<SetupStatusResponse>> status() {
         return ResponseEntity.ok(ApiResponse.success(platformSetupService.status()));
     }
 
     @PostMapping("/bootstrap-super-admin")
+    @RateLimit(requests = 3, window = 60)
     @Operation(summary = "İlk süper admin hesabını oluştur (X-Setup-Token gerekli)")
     public ResponseEntity<ApiResponse<Void>> bootstrap(
             @RequestHeader(value = "X-Setup-Token", required = false) String setupToken,

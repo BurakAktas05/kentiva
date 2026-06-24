@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { MapPin, Bus, ChevronRight } from 'lucide-react';
+import { MapPin, Bus, ChevronRight, Gift } from 'lucide-react';
 import { fetchPublicStatsOverview, type PublicDepartment, type PublicStatsOverview, type PublicTenant } from '../../api';
 import { Lang, t } from '../../i18n';
 import { screenHeadingClass, screenSubtitleClass } from '../../lib/ui';
@@ -14,9 +14,10 @@ interface KentScreenProps {
   isDark: boolean;
   onSelectMunicipality?: () => void;
   onOpenBusSchedules?: () => void;
+  onOpenRewards?: () => void;
 }
 
-export default function KentScreen({ municipality, department, lang, isDark, onSelectMunicipality, onOpenBusSchedules }: KentScreenProps) {
+export default function KentScreen({ municipality, department, lang, isDark, onSelectMunicipality, onOpenBusSchedules, onOpenRewards }: KentScreenProps) {
   const [publicOverview, setPublicOverview] = useState<PublicStatsOverview | null>(null);
   const cardStyle = isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200/80 bg-white';
 
@@ -98,6 +99,7 @@ export default function KentScreen({ municipality, department, lang, isDark, onS
             </div>
             <ChevronRight className={`w-5 h-5 shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
           </section>
+
         </div>
       )}
 

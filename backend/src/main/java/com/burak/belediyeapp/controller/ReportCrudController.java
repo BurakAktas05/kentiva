@@ -30,6 +30,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import com.burak.belediyeapp.security.RateLimit;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,6 +48,7 @@ public class ReportCrudController {
     private final ImageAnonymizationService imageAnonymizationService;
 
     @PostMapping("/upload")
+    @RateLimit(requests = 5, window = 60)
     @Operation(summary = "Rapor için fotoğraf yükle (medya doğrulama ile)")
     public ResponseEntity<ApiResponse<List<String>>> uploadMedia(
             @RequestParam("files") List<MultipartFile> files) {
@@ -73,6 +75,7 @@ public class ReportCrudController {
             } catch (Exception e) {
                 throw new BusinessException("Dosya okunamadı.", "FILE_READ_ERROR");
             }
+            mediaGuardClient.validateImageOrThrow(bytes, ct);
             urls.add(storageService.uploadBytes(bytes, ct, "reports", file.getOriginalFilename()));
         }
 
@@ -80,6 +83,7 @@ public class ReportCrudController {
     }
 
     @PostMapping("/analyze-draft")
+    @RateLimit(requests = 5, window = 60)
     @Operation(summary = "İhbar taslağı AI analizi (Gemini veya kural tabanlı)")
     public ResponseEntity<ApiResponse<ReportDraftAnalysisResponse>> analyzeDraft(
             @Valid @RequestBody ReportDraftAnalysisRequest request,
@@ -88,6 +92,7 @@ public class ReportCrudController {
     }
 
     @PostMapping
+    @RateLimit(requests = 5, window = 60)
     @Operation(summary = "Yeni rapor oluştur (Vatandaş)")
     public ResponseEntity<ApiResponse<ReportResponse>> createReport(
             @Valid @RequestBody CreateReportRequest request,

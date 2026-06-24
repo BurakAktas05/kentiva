@@ -90,7 +90,8 @@ class KentivaFlowIntegrationTest {
                 "Kadıköy Belediyesi",
                 40.99, 29.02, 13,
                 "Gülümseyen Kadıköy",
-                null, "SIMPLE"
+                null, "SIMPLE",
+                null, "34-kadikoy"
         );
         MunicipalityOnboardingRequest.AdminPart adminPartA = new MunicipalityOnboardingRequest.AdminPart(
                 "admin_kadikoy@kentiva.app",
@@ -135,7 +136,8 @@ class KentivaFlowIntegrationTest {
                 "Beşiktaş Belediyesi",
                 41.04, 29.00, 13,
                 "Beşiktaşım",
-                null, "SIMPLE"
+                null, "SIMPLE",
+                null, "34-besiktas"
         );
         MunicipalityOnboardingRequest.AdminPart adminPartB = new MunicipalityOnboardingRequest.AdminPart(
                 "admin_besiktas@kentiva.app",

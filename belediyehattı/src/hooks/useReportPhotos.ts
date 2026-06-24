@@ -8,6 +8,15 @@ interface UseReportPhotosProps {
   maxPhotos?: number;
 }
 
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = (error) => reject(error);
+    reader.readAsDataURL(file);
+  });
+}
+
 export function useReportPhotos({ lang, maxPhotos = 3 }: UseReportPhotosProps) {
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [localPhotoPreviews, setLocalPhotoPreviews] = useState<string[]>([]);
@@ -36,6 +45,17 @@ export function useReportPhotos({ lang, maxPhotos = 3 }: UseReportPhotosProps) {
         return;
       }
       setMediaUrls((prev) => [...prev, urls[0]]);
+
+      try {
+        const base64 = await fileToBase64(file);
+        localStorage.setItem('media_cache_' + urls[0], base64);
+      } catch {
+        try {
+          localStorage.setItem('media_cache_' + urls[0], previewUrl);
+        } catch {
+          // ignore cache errors (e.g. quota exceeded)
+        }
+      }
     } catch (err: unknown) {
       if (err instanceof PhotoCaptureCancelledError) return;
       setError(err instanceof Error ? err.message : lang === 'tr' ? 'Fotoğraf yüklenemedi.' : 'Upload failed.');

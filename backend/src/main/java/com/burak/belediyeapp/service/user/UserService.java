@@ -47,6 +47,7 @@ public class UserService {
     private final JwtAuthenticationSupport jwtAuthenticationSupport;
     private final TokenBlacklistService tokenBlacklistService;
     private final com.burak.belediyeapp.service.notification.NotificationService notificationService;
+    private final com.burak.belediyeapp.service.media.MediaSignedUrlService mediaSignedUrlService;
 
     @Transactional(readOnly = true)
     public UserResponse getUserProfile(AppUser currentUser) {
@@ -353,9 +354,9 @@ public class UserService {
 
     private UserResponse mapToResponse(AppUser user) {
         com.burak.belediyeapp.dto.response.municipality.MunicipalityDto municipalityDto =
-                com.burak.belediyeapp.dto.response.municipality.MunicipalityDto.fromEntity(user.getMunicipality());
+                com.burak.belediyeapp.dto.response.municipality.MunicipalityDto.fromEntity(user.getMunicipality(), mediaSignedUrlService);
         com.burak.belediyeapp.dto.response.municipality.MunicipalityDto preferredDto =
-                com.burak.belediyeapp.dto.response.municipality.MunicipalityDto.fromEntity(user.getPreferredMunicipality());
+                com.burak.belediyeapp.dto.response.municipality.MunicipalityDto.fromEntity(user.getPreferredMunicipality(), mediaSignedUrlService);
         int score = user.getReputationScore();
 
         return new UserResponse(

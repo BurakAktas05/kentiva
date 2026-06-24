@@ -9,6 +9,7 @@ import com.burak.belediyeapp.security.SsrfProtectionInterceptor;
 
 import java.util.Locale;
 import java.util.Optional;
+import com.burak.belediyeapp.util.SlugUtils;
 
 /**
  * Konum → il / ilçe (Nominatim — yalnızca resmi nöbetçi eczane API sorgusu için).
@@ -107,21 +108,7 @@ public class NominatimReverseGeocodeService {
     }
 
     static String slugify(String input) {
-        if (input == null || input.isBlank()) {
-            return "";
-        }
-        String normalized = input.trim().toLowerCase(Locale.forLanguageTag("tr"));
-        normalized = normalized
-                .replace('ı', 'i')
-                .replace('ğ', 'g')
-                .replace('ü', 'u')
-                .replace('ş', 's')
-                .replace('ö', 'o')
-                .replace('ç', 'c')
-                .replace('İ', 'i');
-        return normalized
-                .replaceAll("[^a-z0-9]+", "-")
-                .replaceAll("^-|-$", "");
+        return SlugUtils.slugify(input);
     }
 
     private static SimpleClientHttpRequestFactory factory() {

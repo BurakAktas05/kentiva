@@ -38,6 +38,15 @@ public class ProductionSecretsValidator {
     @Value("${app.storage.s3.secret-key:}")
     private String s3SecretKey;
 
+    @Value("${app.cors.allowed-origins:}")
+    private String corsAllowedOrigins;
+
+    @Value("${app.ai.gemini.api-key:}")
+    private String geminiApiKey;
+
+    @Value("${app.firebase.config-base64:}")
+    private String firebaseConfigBase64;
+
     @EventListener(ApplicationReadyEvent.class)
     public void validateRequiredSecrets() {
         if (jwtSecret == null || jwtSecret.isBlank() || PLACEHOLDER_JWT.equalsIgnoreCase(jwtSecret.trim())) {
@@ -54,6 +63,21 @@ public class ProductionSecretsValidator {
                         "APP_STORAGE_TYPE=s3 iken S3_ACCESS_KEY ve S3_SECRET_KEY tanımlanmalıdır.");
             }
         }
+
+        // CORS — zorunlu: boşsa frontend hiç çalışmaz
+        if (corsAllowedOrigins == null || corsAllowedOrigins.isBlank()) {
+            throw new IllegalStateException(
+                    "APP_CORS_ALLOWED_ORIGINS production için zorunludur. Frontend origin'lerini virgülle ayırarak girin.");
+        }
+
+        // Opsiyonel ama önemli: eksik olduğunda kullanıcıyı bilgilendir
+        if (geminiApiKey == null || geminiApiKey.isBlank()) {
+            log.warn("⚠ GEMINI_API_KEY tanımlanmadı. AI özellikleri (analiz, anonimleştirme, bildirim şablonu) devre dışı kalacak.");
+        }
+        if (firebaseConfigBase64 == null || firebaseConfigBase64.isBlank()) {
+            log.warn("⚠ FIREBASE_CONFIG_BASE64 tanımlanmadı. Push bildirimleri devre dışı kalacak.");
+        }
+
         log.info("Production secret validation passed.");
     }
 
@@ -67,3 +91,4 @@ public class ProductionSecretsValidator {
                 && (url.startsWith("jdbc:") || url.startsWith("postgres://") || url.startsWith("postgresql://"));
     }
 }
+

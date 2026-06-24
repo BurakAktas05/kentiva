@@ -93,10 +93,13 @@ if (-not $SkipTunnel) {
 if (-not $SkipFrontends -and -not $NoNewWindows) {
     Write-Host '[4/5] Admin panel...' -ForegroundColor Cyan
     Write-Host '[5/5] Kamu sitesi...' -ForegroundColor Cyan
+    Write-Host 'Mobil uygulama...' -ForegroundColor Cyan
     $adminDir = Join-Path $root 'admin-portal'
     $publicDir = Join-Path $root 'public-site'
-    foreach ($dir in @($adminDir, $publicDir)) {
+    $mobileDir = Get-CitizenAppDir
+    foreach ($dir in @($adminDir, $publicDir, $mobileDir)) {
         if (-not (Test-Path (Join-Path $dir 'node_modules'))) {
+            Write-Host "  $($dir | Split-Path -Leaf) için node_modules kuruluyor..." -ForegroundColor Yellow
             Push-Location $dir
             npm install
             Pop-Location
@@ -104,13 +107,15 @@ if (-not $SkipFrontends -and -not $NoNewWindows) {
     }
     Start-DevServerWindow -Title 'Admin + Süper Admin (5173)' -WorkingDirectory $adminDir -Command 'npm run dev'
     Start-DevServerWindow -Title 'Kamu sitesi (5174)' -WorkingDirectory $publicDir -Command 'npm run dev'
+    Start-DevServerWindow -Title 'Mobil Uygulama (3000)' -WorkingDirectory $mobileDir -Command 'npm run dev'
 }
 
 Write-Host ''
-Write-LocalTestBanner 'Adımlar 1–5 tamam'
+Write-LocalTestBanner 'Adımlar 1–5 + Mobil tamam'
 Write-Host '  Kurulum : http://localhost:5173/setup' -ForegroundColor White
 Write-Host '  Giriş   : http://localhost:5173/login' -ForegroundColor White
 Write-Host '  Kamu    : http://localhost:5174/' -ForegroundColor White
+Write-Host '  Mobil   : http://localhost:3000/' -ForegroundColor White
 Write-Host '  Dev SA  : admin@kentiva.app / admin123' -ForegroundColor DarkGray
 Write-Host ''
 Write-Host '  [6] APK (EN SON — tünel doğrulandıktan sonra):' -ForegroundColor Cyan

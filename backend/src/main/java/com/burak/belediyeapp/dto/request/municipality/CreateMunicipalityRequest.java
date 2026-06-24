@@ -16,5 +16,7 @@ public record CreateMunicipalityRequest(
         Double centerLat,
         Double centerLng,
         Integer defaultZoom,
-        String slogan
+        String slogan,
+        Long districtId,
+        String memberId
 ) {}

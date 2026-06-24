@@ -200,7 +200,7 @@ function Start-LocaltunnelTunnel {
     foreach ($f in @($lt, $ltErr)) { if (Test-Path $f) { Remove-Item $f -Force } }
     $npx = if (Test-CommandExists 'npx.cmd') { 'npx.cmd' } else { 'npx' }
     $proc = Start-Process -FilePath $npx -ArgumentList @(
-        '--yes', 'localtunnel', '--port', "$Port"
+        '--yes', 'localtunnel', '--port', "$Port", '--local-host', '127.0.0.1'
     ) -PassThru -WindowStyle Hidden -RedirectStandardOutput $lt -RedirectStandardError $ltErr
     $deadline = (Get-Date).AddSeconds(60)
     $url = $null

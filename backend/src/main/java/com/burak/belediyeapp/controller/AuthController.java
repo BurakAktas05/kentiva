@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final com.burak.belediyeapp.service.media.MediaSignedUrlService mediaSignedUrlService;
 
     @PostMapping("/register")
     @Operation(summary = "Vatandaş kaydı")
@@ -74,7 +75,7 @@ public class AuthController {
                 .collect(java.util.stream.Collectors.toSet());
 
         var municipality = com.burak.belediyeapp.dto.response.municipality.MunicipalityDto.fromEntity(
-                currentUser.getMunicipality());
+                currentUser.getMunicipality(), mediaSignedUrlService);
 
         String departmentId = currentUser.getDepartment() != null ? currentUser.getDepartment().getId() : null;
         String departmentName = currentUser.getDepartment() != null ? currentUser.getDepartment().getName() : null;
