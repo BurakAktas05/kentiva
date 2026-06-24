@@ -1027,7 +1027,7 @@ export default function SocialAds({
                           <Camera className="w-6 h-6 text-slate-400 mb-2" />
                           <span className="text-[10px] text-slate-400 font-bold">Fotoğraf Seç</span>
                         </div>
-                        <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+                        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleImageChange} />
                       </label>
 
                       {petImagePreview && (
@@ -1154,7 +1154,7 @@ export default function SocialAds({
                     <div className="flex gap-3 items-center">
                       <label className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
                         <Camera className="h-5 w-5 text-slate-400" />
-                        <input type="file" accept="image/*" className="hidden" onChange={handleItemImageChange} />
+                        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleItemImageChange} />
                       </label>
                       {itemImagePreview && (
                         <img src={itemImagePreview} alt="" className="h-24 w-24 rounded-xl object-cover" />

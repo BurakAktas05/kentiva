@@ -48,10 +48,7 @@ Platform, tek bir altyapı üzerinde birden fazla belediyenin tamamen izole bir 
 
 ## 🎯 Yayın Öncesi & Kötüye Kullanım Kontrol Listesi
 
-Uygulamayı canlı ortama (production) almadan önce sistemin güvenliğini ve kararlılığını sağlamak için tasarlanan tüm kurallar detaylı kılavuzda yer almaktadır:
-
-> [!TIP]
-> Kötüye kullanım koruma kuralları, görsel müstehcenlik analizleri, itibar puanlama sınırları ve yayın öncesi teknik kontrol adımları için mutlaka **[todo.md](todo.md)** dosyasını inceleyin.
+Uygulamayı canlı ortama (production) almadan önce sistemin güvenliğini ve kararlılığını sağlamak için tasarlanan tüm kuralların kontrol listesi aşağıda yer almaktadır:
 
 ### Özet Kontrol Maddeleri:
 - [x] **Asenkron KVKK Anonimleştirme:** Yüz/plaka maskeleme ve tescil taramaları asenkron event kuyruğuna taşındı.
@@ -101,9 +98,7 @@ Yerel ortamda backend ayağa kalktıktan sonra, tüm API uç noktalarını incel
 ## 📂 Yardımcı Belgeler ve Kaynaklar
 - 📝 **Yayınlama ve APK Oluşturma Rehberi:** [`deployment/YAYINLAMA.md`](deployment/YAYINLAMA.md)
 - 🧪 **Yerel Manuel Test ve ngrok Rehberi:** [`scripts/YEREL-MANUEL-TEST.md`](scripts/YEREL-MANUEL-TEST.md)
-- 🗺️ **Versiyon 2 Hazırlık ve Planlama Dosyası:** [`versiyon2_hazirlik_dosyasi.md`](versiyon2_hazirlik_dosyasi.md)
 - 🗝️ **Çevre Değişkenleri Şablonu:** [`deployment/ANAHTARLAR.template.env`](deployment/ANAHTARLAR.template.env)
-- 🛡️ **Kötüye Kullanımı Önleme Kılavuzu:** [`todo.md`](todo.md)
 
 ---
 

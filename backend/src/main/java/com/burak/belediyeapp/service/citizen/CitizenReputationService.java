@@ -4,8 +4,10 @@ import com.burak.belediyeapp.entity.AppUser;
 import com.burak.belediyeapp.entity.Municipality;
 import com.burak.belediyeapp.entity.Report;
 import com.burak.belediyeapp.entity.ReportStatus;
+import com.burak.belediyeapp.entity.ReputationAuditLog;
 import com.burak.belediyeapp.repository.IAppUserRepository;
 import com.burak.belediyeapp.repository.IReportRepository;
+import com.burak.belediyeapp.repository.IReputationAuditLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,6 +34,7 @@ public class CitizenReputationService {
     private final IAppUserRepository userRepository;
     private final IReportRepository reportRepository;
     private final JwtAuthenticationSupport jwtAuthenticationSupport;
+    private final IReputationAuditLogRepository reputationAuditLogRepository;
 
     @Transactional
     public void onReportCreated(AppUser reporter, Municipality municipality) {
@@ -86,10 +89,22 @@ public class CitizenReputationService {
             if (!isCitizen(user)) {
                 return;
             }
-            int next = clamp(user.getReputationScore() + delta);
+            int prev = user.getReputationScore();
+            int next = clamp(prev + delta);
             user.setReputationScore(next);
             userRepository.save(user);
             jwtAuthenticationSupport.evictCache(user.getEmail());
+
+            // Save to audit logs
+            ReputationAuditLog auditLog = ReputationAuditLog.builder()
+                    .user(user)
+                    .previousScore(prev)
+                    .newScore(next)
+                    .delta(delta)
+                    .reason(reason)
+                    .build();
+            reputationAuditLogRepository.save(auditLog);
+
             log.info("Vatandaş puanı güncellendi: user={} delta={} reason={} yeni={}",
                     userId, delta, reason, next);
         });

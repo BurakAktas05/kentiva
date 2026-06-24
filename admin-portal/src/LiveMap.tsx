@@ -144,6 +144,7 @@ const LiveMap = ({
     let reconnectTimeoutId: any = null;
     let isCurrentEffect = true;
     let retryCount = 0;
+    let isWsConnected = false;
 
     const connect = () => {
       if (!isCurrentEffect) return;
@@ -159,6 +160,7 @@ const LiveMap = ({
         connectHeaders,
         () => {
           if (!isCurrentEffect) return;
+          isWsConnected = true;
           setWsConnected(true);
           retryCount = 0; // reset on success
           stompClient.subscribe(topic, (msg: any) => {
@@ -172,6 +174,7 @@ const LiveMap = ({
         },
         () => {
           if (!isCurrentEffect) return;
+          isWsConnected = false;
           setWsConnected(false);
           // Exponential backoff reconnect
           const delay = Math.min(30000, Math.pow(2, retryCount) * 1000 + Math.random() * 1000);
@@ -181,10 +184,22 @@ const LiveMap = ({
       );
     };
 
+    const handleOnline = () => {
+      if (!isWsConnected && isCurrentEffect) {
+        if (reconnectTimeoutId) {
+          clearTimeout(reconnectTimeoutId);
+        }
+        retryCount = 0;
+        connect();
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
     connect();
 
     return () => {
       isCurrentEffect = false;
+      window.removeEventListener('online', handleOnline);
       if (reconnectTimeoutId) {
         clearTimeout(reconnectTimeoutId);
       }

@@ -187,7 +187,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'status.PROCESSING': 'İşlemde',
     'status.RESOLVED': 'Çözüldü',
     'status.REJECTED': 'Reddedildi',
-    'status.OUT_OF_JURISDICTION': 'Reddedildi',
+    'status.OUT_OF_JURISDICTION': 'Yetki Dışı',
 
     // Profile
     'profile.points': 'Toplam Puan',
@@ -596,7 +596,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'status.PROCESSING': 'Processing',
     'status.RESOLVED': 'Resolved',
     'status.REJECTED': 'Rejected',
-    'status.OUT_OF_JURISDICTION': 'Rejected',
+    'status.OUT_OF_JURISDICTION': 'Out of Jurisdiction',
     'profile.points': 'Total Points',
     'profile.reports': 'Reports',
     'profile.resolved': 'Resolved',
@@ -1006,7 +1006,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'status.PROCESSING': 'قيد المعالجة',
     'status.RESOLVED': 'تم الحل',
     'status.REJECTED': 'مرفوض',
-    'status.OUT_OF_JURISDICTION': 'مرفوض',
+    'status.OUT_OF_JURISDICTION': 'خارج نطاق الصلاحية',
     'profile.points': 'مجموع النقاط',
     'profile.reports': 'البلاغات',
     'profile.resolved': 'المحلولة',
