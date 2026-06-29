@@ -11,4 +11,6 @@ public interface IUserNotificationPreferenceRepository extends JpaRepository<Use
     Optional<UserNotificationPreference> findByUserId(String userId);
 
     List<UserNotificationPreference> findAllByUserIdIn(List<String> userIds);
+
+    void deleteByUserId(String userId);
 }

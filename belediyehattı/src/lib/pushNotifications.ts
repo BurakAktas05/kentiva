@@ -24,11 +24,8 @@ export function setupCitizenPush(onOpenReport: PushNavigationHandler): () => voi
   });
 
   const addRegListener = PushNotifications.addListener('registration', (token) => {
-    console.log('Push registration success, token:', token.value);
     updateFcmToken(token.value)
-      .then(() => {
-        console.log('FCM token registered to backend:', token.value);
-      })
+      .then(() => undefined)
       .catch((err) => {
         console.error('Failed to register FCM token to backend:', err);
       });
@@ -41,7 +38,6 @@ export function setupCitizenPush(onOpenReport: PushNavigationHandler): () => voi
   const addNotificationListener = PushNotifications.addListener(
     'pushNotificationActionPerformed',
     (notification) => {
-      console.log('Push action performed:', notification);
       const reportId = extractReportId(notification.notification.data);
       if (reportId) {
         onOpenReport(reportId);

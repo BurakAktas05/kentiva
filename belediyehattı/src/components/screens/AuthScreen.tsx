@@ -1,17 +1,18 @@
 import { useState, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Mail, Lock, User, Phone, ArrowRight, Building2, Loader2, KeyRound, ShieldCheck, X } from 'lucide-react';
-import { login, register, AuthUser, apiBase } from '../../api';
+import { login, register, sendRegistrationOtp, AuthUser, apiBase, readFriendlyApiError } from '../../api';
 import type { AuthMeta } from '../../lib/authTypes';
 import { Lang, t } from '../../i18n';
 
 interface AuthScreenProps {
   onAuth: (user: AuthUser, meta?: AuthMeta) => void;
+  onContinueAsGuest?: () => void;
   lang: Lang;
   isDark?: boolean;
 }
 
-export default function AuthScreen({ onAuth, lang, isDark = false }: AuthScreenProps) {
+export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = false }: AuthScreenProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,6 +23,10 @@ export default function AuthScreen({ onAuth, lang, isDark = false }: AuthScreenP
   const [loading, setLoading] = useState(false);
   const [kvkkApproved, setKvkkApproved] = useState(false);
   const [showKvkk, setShowKvkk] = useState(false);
+  const [registerStep, setRegisterStep] = useState<1 | 2>(1);
+  const [registrationOtpCode, setRegistrationOtpCode] = useState('');
+  const [registrationOtpMessage, setRegistrationOtpMessage] = useState('');
+  const [registrationOtpLoading, setRegistrationOtpLoading] = useState(false);
 
   // Şifre sıfırlama
   const [forgotMode, setForgotMode] = useState<'off' | 'phone' | 'otp' | 'newpass'>('off');
@@ -40,8 +45,43 @@ export default function AuthScreen({ onAuth, lang, isDark = false }: AuthScreenP
         user = await login(email, password);
         onAuth(user);
       } else {
-        user = await register(firstName, lastName, email, password, phone || undefined, kvkkApproved);
-        onAuth(user, { isNewUser: true });
+        if (!phone.trim()) {
+          setError(lang === 'tr' ? 'Telefon numarası zorunludur.' : 'Phone number is required.');
+          setLoading(false);
+          return;
+        }
+        if (registerStep === 1) {
+          setRegistrationOtpLoading(true);
+          try {
+            const result = await sendRegistrationOtp(phone.trim());
+            setRegistrationOtpMessage(
+              result.devOtpCode
+                ? (lang === 'tr' ? `Yerel doğrulama kodu: ${result.devOtpCode}` : `Local verification code: ${result.devOtpCode}`)
+                : t('auth.otpSent', lang),
+            );
+            setRegisterStep(2);
+          } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : t('auth.error', lang));
+          } finally {
+            setRegistrationOtpLoading(false);
+          }
+        } else {
+          if (registrationOtpCode.length !== 6) {
+            setError(lang === 'tr' ? '6 haneli SMS doğrulama kodunu girin.' : 'Enter the 6-digit SMS verification code.');
+            setLoading(false);
+            return;
+          }
+          user = await register(
+            firstName,
+            lastName,
+            email,
+            password,
+            phone,
+            registrationOtpCode,
+            kvkkApproved
+          );
+          onAuth(user, { isNewUser: true });
+        }
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '';
@@ -59,6 +99,28 @@ export default function AuthScreen({ onAuth, lang, isDark = false }: AuthScreenP
     }
   };
 
+  const handleSendRegistrationOtp = async () => {
+    setError('');
+    setRegistrationOtpMessage('');
+    if (!phone.trim()) {
+      setError(lang === 'tr' ? 'Önce telefon numaranızı girin.' : 'Enter your phone number first.');
+      return;
+    }
+    setRegistrationOtpLoading(true);
+    try {
+      const result = await sendRegistrationOtp(phone.trim());
+      setRegistrationOtpMessage(
+        result.devOtpCode
+          ? (lang === 'tr' ? `Yerel doğrulama kodu: ${result.devOtpCode}` : `Local verification code: ${result.devOtpCode}`)
+          : t('auth.otpSent', lang),
+      );
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : t('auth.error', lang));
+    } finally {
+      setRegistrationOtpLoading(false);
+    }
+  };
+
   const handleForgotPassword = async () => {
     setLoading(true);
     setResetMsg('');
@@ -73,8 +135,9 @@ export default function AuthScreen({ onAuth, lang, isDark = false }: AuthScreenP
           },
           body: JSON.stringify({ phoneNumber: resetPhone }),
         }).then(async r => {
-          const data = await r.json();
-          if (!r.ok) throw new Error(data.message || 'Hata');
+          if (!r.ok) {
+            throw new Error(await readFriendlyApiError(r, 'Doğrulama kodu gönderilemedi.'));
+          }
         });
         setForgotMode('otp');
         setResetMsg(t('auth.otpSent', lang));
@@ -90,8 +153,9 @@ export default function AuthScreen({ onAuth, lang, isDark = false }: AuthScreenP
           },
           body: JSON.stringify({ phoneNumber: resetPhone, otpCode, newPassword }),
         }).then(async r => {
-          const data = await r.json();
-          if (!r.ok) throw new Error(data.message || 'Hata');
+          if (!r.ok) {
+            throw new Error(await readFriendlyApiError(r, 'Şifre sıfırlanamadı.'));
+          }
         });
         setResetMsg(t('auth.passwordReset', lang));
         setTimeout(() => {
@@ -129,7 +193,7 @@ export default function AuthScreen({ onAuth, lang, isDark = false }: AuthScreenP
         <div className={`flex rounded-2xl p-1.5 mb-8 ${isDark ? 'bg-slate-800/60' : 'bg-slate-200/60'}`}>
           <button
             type="button"
-            onClick={() => { setIsLogin(true); setError(''); }}
+            onClick={() => { setIsLogin(true); setError(''); setRegisterStep(1); }}
             className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${
               isLogin ? (isDark ? 'bg-slate-900 text-secondary shadow-md shadow-slate-950/50' : 'bg-white text-primary shadow-md shadow-slate-300/50') : (isDark ? 'text-slate-400' : 'text-slate-500')
             }`}
@@ -138,7 +202,7 @@ export default function AuthScreen({ onAuth, lang, isDark = false }: AuthScreenP
           </button>
           <button
             type="button"
-            onClick={() => { setIsLogin(false); setError(''); }}
+            onClick={() => { setIsLogin(false); setError(''); setRegisterStep(1); }}
             className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${
               !isLogin ? (isDark ? 'bg-slate-900 text-secondary shadow-md shadow-slate-950/50' : 'bg-white text-primary shadow-md shadow-slate-300/50') : (isDark ? 'text-slate-400' : 'text-slate-500')
             }`}
@@ -148,90 +212,165 @@ export default function AuthScreen({ onAuth, lang, isDark = false }: AuthScreenP
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <AnimatePresence mode="wait" initial={false}>
-            {!isLogin && (
-              <motion.div
-                key="register-fields"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="space-y-4"
-              >
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <div className="flex-1 relative min-w-0">
-                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <input
-                      type="text"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      placeholder={t('auth.firstname', lang)}
-                      required={!isLogin}
-                      className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
-                    />
-                  </div>
-                  <div className="flex-1 relative min-w-0">
-                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <input
-                      type="text"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      placeholder={t('auth.lastname', lang)}
-                      required={!isLogin}
-                      className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
-                    />
-                  </div>
-                </div>
-                  <div className="relative">
-                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <input
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder={t('auth.phone', lang) + ' (' + (lang === 'tr' ? 'isteğe bağlı' : 'optional') + ')'}
-                      className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
-                    />
-                  </div>
-                {/* KVKK onay */}
-                <label className="flex items-start gap-3 cursor-pointer mt-1">
+          {isLogin ? (
+            // Giriş Formu
+            <>
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder={t('auth.email', lang)}
+                  required
+                  className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
+                />
+              </div>
+
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={t('auth.password', lang)}
+                  required
+                  minLength={8}
+                  className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
+                />
+              </div>
+            </>
+          ) : registerStep === 1 ? (
+            // Kayıt Adım 1: Kullanıcı Bilgileri
+            <>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <div className="flex-1 relative min-w-0">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
-                    type="checkbox"
-                    checked={kvkkApproved}
-                    onChange={(e) => setKvkkApproved(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder={t('auth.firstname', lang)}
+                    required
+                    className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
                   />
-                  <span className={`text-xs leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                    {t('auth.kvkkLabel', lang)}{' '}
-                    <button type="button" onClick={(e) => { e.preventDefault(); setShowKvkk(true); }} className="text-primary font-semibold underline">{t('auth.kvkkLink', lang)}</button>
-                  </span>
-                </label>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                </div>
+                <div className="flex-1 relative min-w-0">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder={t('auth.lastname', lang)}
+                    required
+                    className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
+                  />
+                </div>
+              </div>
 
-          <div className="relative">
-            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder={t('auth.email', lang)}
-              required
-              className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
-            />
-          </div>
+              <div className="relative min-w-0">
+                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => {
+                    setPhone(e.target.value);
+                    setRegistrationOtpMessage('');
+                    setRegistrationOtpCode('');
+                  }}
+                  placeholder={t('auth.phone', lang)}
+                  required
+                  className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
+                />
+              </div>
 
-          <div className="relative">
-            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={t('auth.password', lang)}
-              required
-              minLength={8}
-              className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
-            />
-          </div>
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder={t('auth.email', lang)}
+                  required
+                  className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
+                />
+              </div>
+
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={t('auth.password', lang)}
+                  required
+                  minLength={8}
+                  className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
+                />
+              </div>
+
+              <label className="flex items-start gap-3 cursor-pointer mt-1">
+                <input
+                  type="checkbox"
+                  checked={kvkkApproved}
+                  onChange={(e) => setKvkkApproved(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                />
+                <span className={`text-xs leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                  {t('auth.kvkkLabel', lang)}{' '}
+                  <button type="button" onClick={(e) => { e.preventDefault(); setShowKvkk(true); }} className="text-primary font-semibold underline">{t('auth.kvkkLink', lang)}</button>
+                </span>
+              </label>
+            </>
+          ) : (
+            // Kayıt Adım 2: SMS Doğrulama Kodu
+            <>
+              <div className="text-center py-2">
+                <p className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  {lang === 'tr'
+                    ? `${phone} numarasına bir doğrulama kodu gönderildi.`
+                    : `A verification code was sent to ${phone}.`}
+                </p>
+              </div>
+
+              <div className="relative">
+                <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={registrationOtpCode}
+                  onChange={(e) => setRegistrationOtpCode(e.target.value.replace(/\D/g, ''))}
+                  placeholder={lang === 'tr' ? 'SMS doğrulama kodu' : 'SMS verification code'}
+                  required
+                  className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-center text-sm font-bold tracking-[0.24em] focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
+                />
+                {registrationOtpMessage && (
+                  <p className="mt-2 rounded-xl bg-primary/5 px-3 py-2 text-xs font-semibold text-primary">
+                    {registrationOtpMessage}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRegisterStep(1)}
+                  className="kentiva-btn-secondary"
+                >
+                  {lang === 'tr' ? 'Geri Git' : 'Go Back'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSendRegistrationOtp}
+                  disabled={registrationOtpLoading}
+                  className="flex-1 rounded-xl border border-slate-200 py-3 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  {registrationOtpLoading ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : (lang === 'tr' ? 'Kodu Tekrar Gönder' : 'Resend Code')}
+                </button>
+              </div>
+            </>
+          )}
 
           {error && (
             <motion.div
@@ -247,7 +386,7 @@ export default function AuthScreen({ onAuth, lang, isDark = false }: AuthScreenP
 
           <button
             type="submit"
-            disabled={loading || (!isLogin && !kvkkApproved)}
+            disabled={loading || (!isLogin && registerStep === 1 && (!kvkkApproved || !phone.trim())) || (!isLogin && registerStep === 2 && registrationOtpCode.length !== 6)}
             className="kentiva-btn-primary"
           >
             {loading ? (
@@ -267,6 +406,20 @@ export default function AuthScreen({ onAuth, lang, isDark = false }: AuthScreenP
               className="w-full text-center text-xs font-semibold text-primary mt-2 py-2"
             >
               {t('auth.forgotPassword', lang)}
+            </button>
+          )}
+
+          {onContinueAsGuest && (
+            <button
+              type="button"
+              onClick={onContinueAsGuest}
+              className={`w-full text-center text-xs font-bold py-3.5 border border-dashed rounded-2xl transition-all cursor-pointer mt-2 ${
+                isDark 
+                  ? 'border-slate-700 text-slate-400 hover:text-sky-400 hover:border-sky-400/50' 
+                  : 'border-slate-300 text-slate-500 hover:text-primary hover:border-primary/50'
+              }`}
+            >
+              {lang === 'tr' ? 'Giriş Yapmadan Devam Et (Misafir)' : 'Continue without Logging In (Guest)'}
             </button>
           )}
         </form>

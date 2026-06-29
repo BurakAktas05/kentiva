@@ -6,7 +6,6 @@ import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.http.server.ServletServerHttpRequest;
 import org.springframework.lang.NonNull;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
@@ -35,6 +34,9 @@ public class JwtWebSocketHandshakeInterceptor implements HandshakeInterceptor {
             @NonNull Map<String, Object> attributes
     ) {
         String token = resolveToken(request);
+        if (token == null || token.isBlank()) {
+            return true;
+        }
         return jwtAuthenticationSupport.authenticate(token)
                 .map(auth -> {
                     attributes.put(AUTH_ATTRIBUTE, auth);

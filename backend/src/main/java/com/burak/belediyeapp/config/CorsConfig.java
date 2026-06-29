@@ -33,17 +33,14 @@ public class CorsConfig {
         List<String> origins = parseCsv(allowedOrigins);
         
         boolean isProd = activeProfiles != null && activeProfiles.contains("prod");
-        if (isProd) {
-            if (!origins.isEmpty()) {
-                configuration.setAllowedOrigins(origins);
-            }
-        } else {
-            if (!patterns.isEmpty()) {
-                configuration.setAllowedOriginPatterns(patterns);
-            }
-            if (!origins.isEmpty()) {
-                configuration.setAllowedOrigins(origins);
-            }
+        if (!patterns.isEmpty()) {
+            configuration.setAllowedOriginPatterns(patterns);
+        }
+        if (!origins.isEmpty()) {
+            configuration.setAllowedOrigins(origins);
+        }
+        if (!isProd && patterns.isEmpty() && origins.isEmpty()) {
+            configuration.setAllowedOrigins(List.of("http://localhost:5173"));
         }
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));

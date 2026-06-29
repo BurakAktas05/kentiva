@@ -17,8 +17,6 @@ import {
   AlertCircle,
   AlertTriangle,
   TrendingUp,
-  Moon,
-  Sun,
   Settings as SettingsIcon,
   MapPinned,
   ArrowRight,
@@ -28,7 +26,6 @@ import {
   BarChart3,
   X,
   MessageSquare,
-  Bus,
   Gift,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -70,7 +67,6 @@ const SurveysPage = lazy(() => import('./pages/SurveysPage'));
 const SystemFeedbackPage = lazy(() => import('./pages/SystemFeedbackPage'));
 const EventsAndOutagesPage = lazy(() => import('./pages/EventsAndOutagesPage'));
 const SuperAdminRecentReportsPage = lazy(() => import('./pages/SuperAdminRecentReportsPage'));
-const BusRoutesManagementPage = lazy(() => import('./pages/BusRoutesManagementPage'));
 const RewardsPage = lazy(() => import('./pages/RewardsPage'));
 const ScheduledExportsPage = lazy(() => import('./pages/ScheduledExportsPage'));
 
@@ -151,7 +147,6 @@ const Sidebar = ({
         ];
         if (user.roles.includes('ROLE_ADMIN') && user.municipality) {
           prItems.push({ name: t('events_outages'), icon: CalendarClock, path: '/events-outages' });
-          prItems.push({ name: t('bus_routes'), icon: Bus, path: '/bus-routes' });
           prItems.push({ name: t('rewards'), icon: Gift, path: '/rewards' });
           prItems.push({ name: t('scheduled_exports') || 'Planlı Dışa Aktarma', icon: Download, path: '/scheduled-exports' });
         }
@@ -273,13 +268,9 @@ interface SystemNotification {
 const Header = ({
   user,
   setSidebarOpen,
-  darkMode,
-  onToggleDark,
 }: {
   user: AuthenticatedPortalUser | null;
   setSidebarOpen: (o: boolean) => void;
-  darkMode: boolean;
-  onToggleDark: () => void;
 }) => {
   const navigate = useNavigate();
   const { language, setLanguage } = useTranslation();
@@ -421,15 +412,7 @@ const Header = ({
           <option value="en">EN</option>
           <option value="ar">AR</option>
         </select>
-        <button
-          type="button"
-          onClick={onToggleDark}
-          className="kentiva-btn-icon"
-          title={darkMode ? 'Açık tema' : 'Koyu tema'}
-          aria-label={darkMode ? 'Açık tema' : 'Koyu tema'}
-        >
-          {darkMode ? <Sun size={19} /> : <Moon size={19} />}
-        </button>
+
 
         <div className="relative" ref={dropdownRef}>
           <button
@@ -837,7 +820,7 @@ const App = () => {
   const [user, setUser] = useState<AuthenticatedPortalUser | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(() => Boolean(localStorage.getItem('token')));
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('kentiva_theme') === 'dark');
+  const [darkMode] = useState(() => localStorage.getItem('kentiva_theme') === 'dark');
   const hostPortal = typeof window !== 'undefined' ? portalForHostname(window.location.hostname) : null;
   const loginRedirectPath = loginPathForCurrentHost();
 
@@ -907,8 +890,6 @@ const App = () => {
                 <Header
                   user={user}
                   setSidebarOpen={setSidebarOpen}
-                  darkMode={darkMode}
-                  onToggleDark={() => setDarkMode((d) => !d)}
                 />
                 <main className="flex-1 overflow-x-hidden">
                   <Suspense fallback={<PageFallback />}>
@@ -1021,14 +1002,6 @@ const App = () => {
                       element={
                         <ProtectedRoute user={user} allow={(u) => u.roles.includes('ROLE_SUPER_ADMIN')}>
                           <MunicipalityOnboardingPage />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/bus-routes"
-                      element={
-                        <ProtectedRoute user={user} allow={(u) => u.roles.includes('ROLE_ADMIN') && Boolean(u.municipality)}>
-                          <BusRoutesManagementPage municipalityId={user.municipality?.id ?? ''} />
                         </ProtectedRoute>
                       }
                     />

@@ -52,6 +52,7 @@ const DEFAULT_DEPARTMENTS: Omit<DepartmentRow, 'id'>[] = [
   { name: 'Park ve Bahçeler', description: 'Yeşil alan, park ve peyzaj işleri', enabled: true },
   { name: 'Temizlik İşleri', description: 'Atık, temizlik ve konteyner süreçleri', enabled: true },
   { name: 'Zabıta', description: 'Denetim, güvenlik ve saha yönlendirmeleri', enabled: true },
+  { name: 'Esnek', description: 'Esnek / Genel görevli birim', enabled: true },
 ];
 
 const inputClass =
@@ -62,7 +63,6 @@ const stepLabels = {
   boundaries: 'Sınırlar',
   admin: 'Hesaplar',
   operational: 'Departmanlar',
-  transit: 'Ulaşım',
   integrations: 'Entegrasyon',
   review: 'Özet',
 } as const;
@@ -198,10 +198,7 @@ export default function MunicipalityOnboardingPage() {
   const [categories, setCategories] = useState<CategoryRow[]>(newCategoryRows);
   const [departments, setDepartments] = useState<DepartmentRow[]>(newDepartmentRows);
 
-  // Step 5: Transit
-  const [transitFiles, setTransitFiles] = useState<File[]>([]);
-
-  // Step 6: Integrations
+  // Step 5: Integrations
   const [smsSenderHeader, setSmsSenderHeader] = useState('');
   const [webhookUrl, setWebhookUrl] = useState('');
   const [webhookEnabled, setWebhookEnabled] = useState(false);
@@ -222,11 +219,8 @@ export default function MunicipalityOnboardingPage() {
   }, [workflowMode]);
 
   const steps = useMemo<StepId[]>(
-    () =>
-      workflowMode === 'DEPARTMENTAL'
-        ? ['municipality', 'boundaries', 'admin', 'operational', 'transit', 'integrations', 'review']
-        : ['municipality', 'boundaries', 'admin', 'operational', 'transit', 'integrations', 'review'],
-    [workflowMode],
+    () => ['municipality', 'boundaries', 'admin', 'operational', 'integrations', 'review'],
+    []
   );
 
   const currentStep = steps[Math.min(stepIndex, steps.length - 1)];
@@ -268,7 +262,6 @@ export default function MunicipalityOnboardingPage() {
           return catValid && enabledDepartments.length > 0;
         }
         return catValid;
-      case 'transit':
       case 'integrations':
       case 'review':
       default:
@@ -510,17 +503,6 @@ export default function MunicipalityOnboardingPage() {
         };
 
         await api.put(`/admin/municipalities/${municipalityId}/boundaries`, geoJsonPolygon);
-      }
-
-      // 5. Upload bus routes / transit files if provided
-      if (transitFiles.length > 0) {
-        const formData = new FormData();
-        transitFiles.forEach((file) => {
-          formData.append('files', file);
-        });
-        await api.post(`/admin/municipalities/${municipalityId}/bus-routes/import`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
       }
 
       const label = data.municipality.displayName || data.municipality.name;
@@ -806,10 +788,10 @@ export default function MunicipalityOnboardingPage() {
                   </div>
 
                   <div className="h-80 w-full rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
-                    <MapContainer center={centerCoordinates} zoom={parseOptNumber(defaultZoomStr) || 12} className="h-full w-full">
+                    <MapContainer center={centerCoordinates} zoom={parseOptNumber(defaultZoomStr) || 12} className="h-full w-full grayscale-map">
                       <TileLayer
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        attribution='&copy; Google Maps'
+                        url="https://mt1.google.com/vt/lyrs=m&hl=tr&x={x}&y={y}&z={z}"
                       />
                       <MapRefCapture onMap={(m) => { mapRef.current = m; }} />
                       <MapClickEvent onMapClick={handleMapClick} />
@@ -1075,52 +1057,7 @@ export default function MunicipalityOnboardingPage() {
               </div>
             )}
 
-            {/* STEP 5: Transit */}
-            {currentStep === 'transit' && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-base font-bold text-slate-950 dark:text-white flex items-center gap-1.5">
-                    <Sparkles size={18} className="text-primary" />
-                    Otobüs Hatları ve Sefer Saatleri (İsteğe Bağlı)
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Otobüs durak, hat ve saat bilgilerini içeren PDF veya Excel dosyalarını yükleyin. Gemini AI bu belgeleri otomatik okuyarak hat verilerini işleyecektir.
-                  </p>
-                </div>
-
-                <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200/80 p-8 text-center dark:border-slate-800/80 bg-slate-50/30 dark:bg-slate-950/10">
-                  <Upload size={36} className="text-slate-400 mb-2" />
-                  <label className="cursor-pointer text-xs font-bold text-primary hover:underline">
-                    Dosya Seçin (PDF, Excel, TXT, CSV)
-                    <input
-                      type="file"
-                      multiple
-                      accept=".pdf,.xlsx,.xls,.txt,.csv"
-                      className="hidden"
-                      onChange={(e) => {
-                        if (e.target.files) {
-                          setTransitFiles(Array.from(e.target.files));
-                        }
-                      }}
-                    />
-                  </label>
-                  <p className="mt-1 text-[10px] text-slate-400">Birden fazla dosya seçebilirsiniz.</p>
-
-                  {transitFiles.length > 0 && (
-                    <div className="mt-4 w-full max-w-xs space-y-1.5 text-left border-t border-slate-100 pt-3 dark:border-slate-800">
-                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Seçilen Dosyalar:</p>
-                      {transitFiles.map((file, i) => (
-                        <div key={i} className="text-xs text-slate-600 dark:text-slate-400 truncate font-medium">
-                          • {file.name} ({(file.size / 1024).toFixed(0)} KB)
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* STEP 6: Integrations */}
+            {/* STEP 5: Integrations */}
             {currentStep === 'integrations' && (
               <div className="space-y-6">
                 <div>
@@ -1256,7 +1193,7 @@ export default function MunicipalityOnboardingPage() {
               </div>
             )}
 
-            {/* STEP 7: Review & confirm */}
+            {/* STEP 6: Review & confirm */}
             {currentStep === 'review' && (
               <div className="space-y-6">
                 <div>

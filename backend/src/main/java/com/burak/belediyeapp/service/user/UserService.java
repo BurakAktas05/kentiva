@@ -8,16 +8,25 @@ import com.burak.belediyeapp.dto.request.user.UpdateUserRolesRequest;
 import com.burak.belediyeapp.dto.response.user.UserResponse;
 import com.burak.belediyeapp.entity.AppUser;
 import com.burak.belediyeapp.entity.Department;
+import com.burak.belediyeapp.entity.ItemDonationAd;
+import com.burak.belediyeapp.entity.LostPetAd;
+import com.burak.belediyeapp.entity.Municipality;
 import com.burak.belediyeapp.entity.Role;
 import com.burak.belediyeapp.exception.BusinessException;
 import com.burak.belediyeapp.exception.ResourceNotFoundException;
 import com.burak.belediyeapp.repository.IAppUserRepository;
+import com.burak.belediyeapp.repository.IBloodSearchAdRepository;
 import com.burak.belediyeapp.repository.IDepartmentRepository;
+import com.burak.belediyeapp.repository.IItemDonationAdRepository;
 import com.burak.belediyeapp.repository.IRefreshTokenRepository;
 import com.burak.belediyeapp.repository.IRoleRepository;
 import com.burak.belediyeapp.repository.IMunicipalityRepository;
+import com.burak.belediyeapp.repository.ILostPetAdRepository;
+import com.burak.belediyeapp.repository.IMunicipalitySurveyVoteRepository;
+import com.burak.belediyeapp.repository.INotificationRepository;
+import com.burak.belediyeapp.repository.ISystemFeedbackRepository;
+import com.burak.belediyeapp.repository.IUserNotificationPreferenceRepository;
 import com.burak.belediyeapp.service.citizen.CitizenReputationService;
-import com.burak.belediyeapp.entity.Municipality;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -31,6 +40,7 @@ import com.burak.belediyeapp.security.TokenBlacklistService;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,15 +49,24 @@ import java.util.stream.Collectors;
 public class UserService {
 
     private final IAppUserRepository userRepository;
+    private final IBloodSearchAdRepository bloodSearchAdRepository;
     private final IRoleRepository roleRepository;
     private final IDepartmentRepository departmentRepository;
+    private final ILostPetAdRepository lostPetAdRepository;
+    private final IItemDonationAdRepository itemDonationAdRepository;
     private final IRefreshTokenRepository refreshTokenRepository;
+    private final IUserNotificationPreferenceRepository userNotificationPreferenceRepository;
+    private final INotificationRepository notificationRepository;
+    private final ISystemFeedbackRepository systemFeedbackRepository;
+    private final IMunicipalitySurveyVoteRepository municipalitySurveyVoteRepository;
     private final PasswordEncoder passwordEncoder;
     private final IMunicipalityRepository municipalityRepository;
     private final JwtAuthenticationSupport jwtAuthenticationSupport;
     private final TokenBlacklistService tokenBlacklistService;
     private final com.burak.belediyeapp.service.notification.NotificationService notificationService;
     private final com.burak.belediyeapp.service.media.MediaSignedUrlService mediaSignedUrlService;
+    private final com.burak.belediyeapp.service.security.PasswordPolicyService passwordPolicyService;
+    private final com.burak.belediyeapp.service.storage.StorageService storageService;
 
     @Transactional(readOnly = true)
     public UserResponse getUserProfile(AppUser currentUser) {
@@ -98,15 +117,32 @@ public class UserService {
     @Transactional
     @AuditAction(action = "STAFF_CREATE", description = "Yeni personel oluşturuldu")
     public UserResponse createStaff(CreateStaffRequest request, AppUser currentUser) {
-        if (userRepository.existsByEmail(request.email())) {
-            throw new BusinessException("Bu email adresi zaten kullanımda: " + request.email(), "EMAIL_ALREADY_EXISTS");
+        String email = request.email();
+        if (email == null || email.isBlank()) {
+            email = "staff_" + java.util.UUID.randomUUID().toString().substring(0, 8) + "@kentiva.local";
+        } else if (userRepository.existsByEmail(email)) {
+            throw new BusinessException("Bu email adresi zaten kullanımda: " + email, "EMAIL_ALREADY_EXISTS");
+        }
+
+        String rawPassword = request.password();
+        if (rawPassword == null || rawPassword.isBlank()) {
+            rawPassword = passwordPolicyService.generateStrongPassword(16, true);
+        }
+        passwordPolicyService.validatePrivilegedPassword(
+                rawPassword,
+                email,
+                request.firstName(),
+                request.lastName());
+
+        if (request.departmentId() == null || request.departmentId().isBlank()) {
+            throw new BusinessException("Departman seçimi zorunludur", "DEPARTMENT_REQUIRED");
         }
 
         AppUser user = new AppUser();
         user.setFirstName(request.firstName());
         user.setLastName(request.lastName());
-        user.setEmail(request.email());
-        user.setPassword(passwordEncoder.encode(request.password()));
+        user.setEmail(email);
+        user.setPassword(passwordEncoder.encode(rawPassword));
         user.setPhoneNumber(request.phoneNumber());
 
         // Rolleri ata
@@ -262,6 +298,36 @@ public class UserService {
         jwtAuthenticationSupport.evictCache(saved.getEmail());
     }
 
+    @Transactional
+    @AuditAction(action = "SELF_DATA_ERASURE", description = "Vatandas hesabi anonimlestirildi")
+    public void eraseCitizenAccount(String userId) {
+        AppUser user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Kullanici", "id", userId));
+
+        ensureSelfServiceCitizenAccount(user);
+        if (isAlreadyErased(user)) {
+            refreshTokenRepository.revokeAllByUserId(userId);
+            tokenBlacklistService.blacklistCurrentToken();
+            return;
+        }
+
+        String previousEmail = user.getEmail();
+
+        deleteUserOwnedSocialContent(userId);
+        userNotificationPreferenceRepository.deleteByUserId(userId);
+        notificationRepository.deleteAllByUserId(userId);
+        systemFeedbackRepository.deleteAllByUserId(userId);
+        municipalitySurveyVoteRepository.deleteAllByUserId(userId);
+        refreshTokenRepository.revokeAllByUserId(userId);
+
+        anonymizeUser(user);
+        AppUser saved = userRepository.save(user);
+        jwtAuthenticationSupport.evictCache(previousEmail);
+        jwtAuthenticationSupport.evictCache(saved.getEmail());
+        tokenBlacklistService.blacklistCurrentToken();
+        log.info("Vatandas hesabi anonimlestirildi: {}", previousEmail);
+    }
+
     // =====================================================
     //  Profil Güncelleme & Şifre Değiştirme
     // =====================================================
@@ -313,6 +379,11 @@ public class UserService {
             throw new BusinessException("Yeni şifre eski şifre ile aynı olamaz", "SAME_PASSWORD");
         }
 
+        passwordPolicyService.validateCitizenPassword(
+                request.newPassword(),
+                user.getEmail(),
+                user.getFirstName(),
+                user.getLastName());
         user.setPassword(passwordEncoder.encode(request.newPassword()));
         userRepository.save(user);
         jwtAuthenticationSupport.evictCache(user.getEmail());
@@ -352,12 +423,72 @@ public class UserService {
         }
     }
 
+    private void deleteUserOwnedSocialContent(String userId) {
+        List<LostPetAd> lostPetAds = lostPetAdRepository.findAllByUserId(userId);
+        for (LostPetAd ad : lostPetAds) {
+            if (ad.getMediaUrl() != null && !ad.getMediaUrl().isBlank()) {
+                storageService.deleteFile(ad.getMediaUrl());
+            }
+        }
+        lostPetAdRepository.hardDeleteAllByUserId(userId);
+
+        List<ItemDonationAd> itemDonationAds = itemDonationAdRepository.findAllByUserId(userId);
+        for (ItemDonationAd ad : itemDonationAds) {
+            if (ad.getMediaUrl() != null && !ad.getMediaUrl().isBlank()) {
+                storageService.deleteFile(ad.getMediaUrl());
+            }
+        }
+        itemDonationAdRepository.hardDeleteAllByUserId(userId);
+
+        bloodSearchAdRepository.hardDeleteAllByUserId(userId);
+    }
+
+    private void anonymizeUser(AppUser user) {
+        user.setEmail("deleted+" + user.getId() + "@deleted.kentiva.local");
+        user.setFirstName("Deleted");
+        user.setLastName("Citizen");
+        user.setPhoneNumber(null);
+        user.setPassword(passwordEncoder.encode(UUID.randomUUID() + "-deleted-user"));
+        user.setEnabled(false);
+        user.setDepartment(null);
+        user.setDistrict(null);
+        user.setMunicipality(null);
+        user.setPreferredMunicipality(null);
+        user.setFcmToken(null);
+        user.setKvkkApproved(false);
+        user.setKvkkApprovedAt(null);
+        user.setKvkkSignature(null);
+        user.setSuspendedUntil(null);
+        user.setSuspensionReason("SELF_DATA_ERASURE");
+        user.setReputationScore(0);
+        user.setLoyaltyPoints(0);
+    }
+
+    private void ensureSelfServiceCitizenAccount(AppUser user) {
+        boolean citizenOnly = user.hasRole("ROLE_CITIZEN")
+                && user.getRoles().stream().map(Role::getName).allMatch("ROLE_CITIZEN"::equals);
+        if (!citizenOnly) {
+            throw new BusinessException(
+                    "Personel hesaplari icin self-servis veri silme kullanilamaz. Lutfen platform yoneticinize basvurun.",
+                    "SELF_ERASURE_NOT_ALLOWED");
+        }
+    }
+
+    private boolean isAlreadyErased(AppUser user) {
+        return !user.isEnabled()
+                && user.getEmail() != null
+                && user.getEmail().endsWith("@deleted.kentiva.local");
+    }
+
     private UserResponse mapToResponse(AppUser user) {
         com.burak.belediyeapp.dto.response.municipality.MunicipalityDto municipalityDto =
                 com.burak.belediyeapp.dto.response.municipality.MunicipalityDto.fromEntity(user.getMunicipality(), mediaSignedUrlService);
         com.burak.belediyeapp.dto.response.municipality.MunicipalityDto preferredDto =
                 com.burak.belediyeapp.dto.response.municipality.MunicipalityDto.fromEntity(user.getPreferredMunicipality(), mediaSignedUrlService);
         int score = user.getReputationScore();
+
+        String departmentId = user.getDepartment() != null ? user.getDepartment().getId() : null;
+        String departmentName = user.getDepartment() != null ? user.getDepartment().getName() : null;
 
         return new UserResponse(
                 user.getId(),
@@ -370,9 +501,12 @@ public class UserService {
                 municipalityDto,
                 preferredDto,
                 score,
+                user.getLoyaltyPoints(),
                 CitizenReputationService.levelForScore(score),
                 user.getSuspendedUntil(),
-                user.getSuspensionReason()
+                user.getSuspensionReason(),
+                departmentId,
+                departmentName
         );
     }
 }

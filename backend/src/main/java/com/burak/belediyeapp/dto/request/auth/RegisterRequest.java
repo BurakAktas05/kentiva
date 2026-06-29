@@ -7,9 +7,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
- * Vatandas kayit istegi.
- * Belediye personeli (field officer, manager) admin tarafindan sisteme eklenir.
- * phoneNumber opsiyoneldir — vatandas kaydi icin zorunlu degil.
+ * Citizen registration request.
+ * Municipality staff accounts are created by admins.
  */
 public record RegisterRequest(
 
@@ -29,10 +28,26 @@ public record RegisterRequest(
         @Size(min = 8, message = "Sifre en az 8 karakter olmalidir")
         String password,
 
+        @NotBlank(message = "Telefon numarasi zorunludur")
         @Size(max = 20, message = "Gecerli bir telefon numarasi giriniz")
         String phoneNumber,
 
-        @NotNull(message = "KVKK onayı zorunludur")
-        @AssertTrue(message = "Kişisel verilerin işlenmesine onay vermeniz gerekmektedir")
-        Boolean kvkkApproved
-) {}
+        @NotBlank(message = "SMS dogrulama kodu zorunludur")
+        @Size(min = 6, max = 6, message = "SMS dogrulama kodu 6 haneli olmalidir")
+        String smsOtpCode,
+
+        @NotNull(message = "KVKK onayi zorunludur")
+        @AssertTrue(message = "Kisisel verilerin islenmesine onay vermeniz gerekmektedir")
+        Boolean kvkkApproved,
+
+        String tcNo,
+        Integer birthYear
+) {
+    public RegisterRequest(String firstName, String lastName, String email, String password, String phoneNumber, Boolean kvkkApproved) {
+        this(firstName, lastName, email, password, phoneNumber, null, kvkkApproved, null, null);
+    }
+
+    public RegisterRequest(String firstName, String lastName, String email, String password, String phoneNumber, String smsOtpCode, Boolean kvkkApproved) {
+        this(firstName, lastName, email, password, phoneNumber, smsOtpCode, kvkkApproved, null, null);
+    }
+}

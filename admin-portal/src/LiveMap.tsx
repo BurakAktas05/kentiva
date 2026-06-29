@@ -7,7 +7,7 @@ import SockJS from 'sockjs-client';
 import Stomp from 'stompjs';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertCircle, Flame, MapPin, Layers } from 'lucide-react';
-import api, { TOKEN_KEY, type Report, type ReportListItem } from './api';
+import api, { getStoredAccessToken, type Report, type ReportListItem } from './api';
 import { getSockJsUrl } from './lib/env';
 import { heatMapGradient, reportStatusBadgeClass } from './lib/ui';
 
@@ -93,15 +93,6 @@ const LiveMap = ({
   const [layerMode, setLayerMode] = useState<MapLayerMode>('both');
   const [wsConnected, setWsConnected] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
-
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setIsDark(document.documentElement.classList.contains('dark'));
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-    return () => observer.disconnect();
-  }, []);
 
   const mergeReport = useCallback((incoming: Report) => {
     setReports((prev) => {
@@ -135,7 +126,7 @@ const LiveMap = ({
     if (!municipalityId) {
       return;
     }
-    const token = localStorage.getItem(TOKEN_KEY);
+    const token = getStoredAccessToken();
     if (!token) {
       return;
     }
@@ -149,9 +140,9 @@ const LiveMap = ({
     const connect = () => {
       if (!isCurrentEffect) return;
 
-      const wsUrl = `${getSockJsUrl()}?token=${encodeURIComponent(token)}`;
-      const socket = new SockJS(wsUrl);
-      stompClient = Stomp.over(socket);
+      const socket = new SockJS(getSockJsUrl());
+      const StompObj = (Stomp as any).default || Stomp;
+      stompClient = StompObj.over(socket);
       stompClient.debug = () => {};
       const topic = `/topic/municipality/${municipalityId}/reports`;
       const connectHeaders = { Authorization: `Bearer ${token}` };
@@ -266,13 +257,10 @@ const LiveMap = ({
         </div>
       )}
 
-      <MapContainer center={[centerLat || 41.0082, centerLng || 28.9784]} zoom={zoom || 11} className="h-full w-full">
+      <MapContainer center={[centerLat || 41.0082, centerLng || 28.9784]} zoom={zoom || 11} className="h-full w-full grayscale-map">
         <TileLayer
-          url={isDark
-            ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-            : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'}
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          subdomains={['a', 'b', 'c']}
+          url="https://mt1.google.com/vt/lyrs=m&hl=tr&x={x}&y={y}&z={z}"
+          attribution='&copy; Google Maps'
         />
         {showHeat && heatPoints.length > 0 && <HeatLayer points={heatPoints} />}
         {showMarkers &&

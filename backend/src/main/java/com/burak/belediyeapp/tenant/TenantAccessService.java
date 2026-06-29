@@ -84,11 +84,14 @@ public class TenantAccessService {
     }
 
     public void ensureCanViewReport(Report report, AppUser user) {
+        if (user == null) {
+            throw new BusinessException("Oturum gerekli", "UNAUTHORIZED");
+        }
         if (isSuperAdmin(user)) {
             return;
         }
         if (report.isHiddenFromMunicipality()) {
-            if (user != null && report.getReporter() != null && report.getReporter().getId().equals(user.getId())) {
+            if (report.getReporter() != null && report.getReporter().getId().equals(user.getId())) {
                 return;
             }
             throw new BusinessException("Bu rapora erişim yetkiniz yok", "ACCESS_DENIED");

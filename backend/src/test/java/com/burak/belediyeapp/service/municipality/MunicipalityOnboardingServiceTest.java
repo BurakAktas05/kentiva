@@ -11,6 +11,7 @@ import com.burak.belediyeapp.repository.IAppUserRepository;
 import com.burak.belediyeapp.repository.IMunicipalityRepository;
 import com.burak.belediyeapp.repository.IReportCategoryRepository;
 import com.burak.belediyeapp.repository.IRoleRepository;
+import com.burak.belediyeapp.service.department.DepartmentService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -39,6 +40,10 @@ class MunicipalityOnboardingServiceTest {
     @Mock IRoleRepository roleRepository;
     @Mock IReportCategoryRepository categoryRepository;
     @Mock PasswordEncoder passwordEncoder;
+    @Mock com.burak.belediyeapp.service.security.PasswordPolicyService passwordPolicyService;
+    @Mock com.burak.belediyeapp.repository.IDepartmentRepository departmentRepository;
+    @Mock DepartmentService departmentService;
+    @Mock com.burak.belediyeapp.service.media.MediaSignedUrlService mediaSignedUrlService;
 
     @InjectMocks MunicipalityOnboardingService municipalityOnboardingService;
 

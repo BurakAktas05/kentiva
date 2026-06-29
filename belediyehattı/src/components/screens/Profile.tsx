@@ -90,6 +90,7 @@ export default function Profile({
 
 
 
+
   const points = profile?.reputationScore ?? 100;
   const level = profile?.reputationLevel ?? (lang === 'tr' ? 'Yeni Üye' : 'New member');
 
@@ -290,6 +291,7 @@ export default function Profile({
             <span className="text-sm font-semibold">{t('profile.logout', lang)}</span>
           </div>
         </button>
+
       </div>
     </div>
   );

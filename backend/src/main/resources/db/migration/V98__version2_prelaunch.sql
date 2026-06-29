@@ -1,8 +1,8 @@
 -- V98__version2_prelaunch.sql
 -- Pre-launch optimizations, indexes, and reputation score audit logging.
 
--- 1. Spatial indexing on municipalities boundary (boundaries)
-CREATE INDEX IF NOT EXISTS idx_municipality_boundaries_geom ON municipalities USING GIST (boundaries);
+-- 1. Spatial indexing on municipalities boundary (boundaries) - NOTE: boundaries column was dropped in V72, indexing is skipped.
+-- CREATE INDEX IF NOT EXISTS idx_municipality_boundaries_geom ON municipalities USING GIST (boundaries);
 
 -- 2. Multi-tenancy composite index on reports
 CREATE INDEX IF NOT EXISTS idx_reports_muni_status ON reports (municipality_id, report_status);

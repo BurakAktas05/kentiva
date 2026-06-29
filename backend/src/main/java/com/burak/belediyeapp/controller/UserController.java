@@ -30,6 +30,15 @@ public class UserController {
 
     private final UserService userService;
 
+    @DeleteMapping("/me")
+    @PreAuthorize("hasRole('CITIZEN')")
+    @Operation(summary = "Vatandas hesabini anonimlestir ve aktif oturumlari kapat")
+    public ResponseEntity<ApiResponse<Void>> deleteMyAccount(
+            @AuthenticationPrincipal AppUser currentUser) {
+        userService.eraseCitizenAccount(currentUser.getId());
+        return ResponseEntity.ok(ApiResponse.success("Hesap anonimlestirildi", null));
+    }
+
     // =====================================================
     //  Kendi Profili — tüm oturum açmış kullanıcılar
     // =====================================================
@@ -147,4 +156,3 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success("Kullanıcı askıya alındı", response));
     }
 }
-

@@ -10,6 +10,7 @@ public record DashboardStatsResponse(
         long resolvedReports,
         long rejectedReports,
         long forwardedReports,
+        long outOfJurisdictionReports,
         long totalUsers,
         long totalDepartments,
         long totalCategories,

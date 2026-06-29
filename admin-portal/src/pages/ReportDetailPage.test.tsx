@@ -39,7 +39,7 @@ describe('ReportDetailPage', () => {
 
   const mockUserMe = {
     id: 'user-admin',
-    roles: ['ROLE_ADMIN', 'ROLE_WHITE_DESK'],
+    roles: ['ROLE_ADMIN'],
     departmentId: 'dept-1',
   };
 
@@ -55,7 +55,15 @@ describe('ReportDetailPage', () => {
 
   const mockOfficers = {
     content: [
-      { id: 'officer-1', firstName: 'Ahmet', lastName: 'Yilmaz', role: 'ROLE_FIELD_OFFICER' },
+      {
+        id: 'officer-1',
+        firstName: 'Ahmet',
+        lastName: 'Yilmaz',
+        email: 'ahmet.yilmaz@kentiva.test',
+        roles: ['ROLE_FIELD_OFFICER'],
+        departmentId: 'dept-1',
+        departmentName: 'Fen Isleri',
+      },
     ],
   };
 

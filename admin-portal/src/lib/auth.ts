@@ -89,6 +89,7 @@ export function loginPathForCurrentHost(fallbackPortal?: LoginPortalKind): strin
     if (hostPortal) {
       return loginPathForPortal(hostPortal);
     }
+    return '/login';
   }
 
   return loginPathForPortal(fallbackPortal ?? getPreferredLoginPortal());

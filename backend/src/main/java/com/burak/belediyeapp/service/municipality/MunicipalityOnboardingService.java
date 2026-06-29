@@ -217,6 +217,8 @@ public class MunicipalityOnboardingService {
     private UserResponse toUserResponse(AppUser user) {
         MunicipalityDto municipalityDto = MunicipalityDto.fromEntity(user.getMunicipality(), mediaSignedUrlService);
         int score = user.getReputationScore();
+        String departmentId = user.getDepartment() != null ? user.getDepartment().getId() : null;
+        String departmentName = user.getDepartment() != null ? user.getDepartment().getName() : null;
         return new UserResponse(
                 user.getId(),
                 user.getFirstName(),
@@ -228,9 +230,12 @@ public class MunicipalityOnboardingService {
                 municipalityDto,
                 com.burak.belediyeapp.dto.response.municipality.MunicipalityDto.fromEntity(user.getPreferredMunicipality(), mediaSignedUrlService),
                 score,
+                user.getLoyaltyPoints(),
                 com.burak.belediyeapp.service.citizen.CitizenReputationService.levelForScore(score),
                 user.getSuspendedUntil(),
-                user.getSuspensionReason());
+                user.getSuspensionReason(),
+                departmentId,
+                departmentName);
     }
 
     @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)

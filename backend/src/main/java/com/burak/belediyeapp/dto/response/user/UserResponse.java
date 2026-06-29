@@ -13,7 +13,10 @@ public record UserResponse(
         com.burak.belediyeapp.dto.response.municipality.MunicipalityDto municipality,
         com.burak.belediyeapp.dto.response.municipality.MunicipalityDto preferredMunicipality,
         int reputationScore,
+        int loyaltyPoints,
         String reputationLevel,
         java.time.LocalDateTime suspendedUntil,
-        String suspensionReason
+        String suspensionReason,
+        String departmentId,
+        String departmentName
 ) {}

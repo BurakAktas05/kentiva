@@ -8,14 +8,15 @@ import com.burak.belediyeapp.dto.response.integration.WebhookSettingsResponse;
 import com.burak.belediyeapp.entity.AppUser;
 import com.burak.belediyeapp.entity.Municipality;
 import com.burak.belediyeapp.entity.MunicipalityApiKey;
+import com.burak.belediyeapp.entity.WebhookDeliveryLog;
 import com.burak.belediyeapp.exception.BusinessException;
 import com.burak.belediyeapp.exception.ResourceNotFoundException;
 import com.burak.belediyeapp.integration.ApiKeyHasher;
 import com.burak.belediyeapp.integration.ApiKeyScope;
-import com.burak.belediyeapp.entity.WebhookDeliveryLog;
 import com.burak.belediyeapp.repository.IMunicipalityApiKeyRepository;
 import com.burak.belediyeapp.repository.IMunicipalityRepository;
 import com.burak.belediyeapp.repository.IWebhookDeliveryLogRepository;
+import com.burak.belediyeapp.security.SsrfProtectionInterceptor;
 import com.burak.belediyeapp.tenant.TenantAccessService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,7 +38,10 @@ public class MunicipalityApiKeyService {
     private final IWebhookDeliveryLogRepository webhookDeliveryLogRepository;
 
     @Transactional(readOnly = true)
-    public org.springframework.data.domain.Page<WebhookDeliveryLog> getWebhookLogs(AppUser admin, org.springframework.data.domain.Pageable pageable) {
+    public org.springframework.data.domain.Page<WebhookDeliveryLog> getWebhookLogs(
+            AppUser admin,
+            org.springframework.data.domain.Pageable pageable
+    ) {
         String municipalityId = tenantAccess.requireStaffMunicipalityId(admin);
         return webhookDeliveryLogRepository.findByMunicipalityId(municipalityId, pageable);
     }
@@ -69,7 +73,7 @@ public class MunicipalityApiKeyService {
                 .build();
 
         MunicipalityApiKey saved = apiKeyRepository.save(entity);
-        log.info("API anahtarı oluşturuldu: {} — belediye={}", saved.getId(), municipalityId);
+        log.info("API anahtari olusturuldu: {} - belediye={}", saved.getId(), municipalityId);
         return ApiKeyCreatedResponse.of(saved, rawKey);
     }
 
@@ -77,35 +81,44 @@ public class MunicipalityApiKeyService {
     public void revokeKey(AppUser admin, String keyId) {
         String municipalityId = tenantAccess.requireStaffMunicipalityId(admin);
         MunicipalityApiKey key = apiKeyRepository.findByIdAndMunicipalityId(keyId, municipalityId)
-                .orElseThrow(() -> new ResourceNotFoundException("API anahtarı", "id", keyId));
+                .orElseThrow(() -> new ResourceNotFoundException("API anahtari", "id", keyId));
         key.setActive(false);
         apiKeyRepository.save(key);
-        log.info("API anahtarı iptal edildi: {}", keyId);
+        log.info("API anahtari iptal edildi: {}", keyId);
     }
 
     @Transactional(readOnly = true)
     public WebhookSettingsResponse getWebhookSettings(AppUser admin) {
-        Municipality m = loadOwnMunicipality(admin);
-        return WebhookSettingsResponse.from(m);
+        Municipality municipality = loadOwnMunicipality(admin);
+        return WebhookSettingsResponse.from(municipality);
     }
 
     @Transactional
     public WebhookSettingsResponse updateWebhookSettings(AppUser admin, WebhookSettingsRequest request) {
-        Municipality m = loadOwnMunicipality(admin);
+        Municipality municipality = loadOwnMunicipality(admin);
         if (request.webhookUrl() != null) {
             String url = request.webhookUrl().isBlank() ? null : request.webhookUrl().trim();
             if (url != null && !url.startsWith("https://")) {
-                throw new BusinessException("Webhook URL yalnızca https:// ile başlamalıdır.", "INVALID_WEBHOOK_URL");
+                throw new BusinessException("Webhook URL yalnizca https:// ile baslamalidir.", "INVALID_WEBHOOK_URL");
             }
-            m.setWebhookUrl(url);
+            if (url != null) {
+                try {
+                    SsrfProtectionInterceptor.validatePublicHttpUri(url);
+                } catch (Exception e) {
+                    throw new BusinessException(
+                            "Webhook URL yalnizca herkese acik bir https adresi olmalidir.",
+                            "INVALID_WEBHOOK_URL");
+                }
+            }
+            municipality.setWebhookUrl(url);
         }
         if (request.webhookEnabled() != null) {
-            m.setWebhookEnabled(request.webhookEnabled());
+            municipality.setWebhookEnabled(request.webhookEnabled());
         }
         if (request.webhookSecret() != null) {
-            m.setWebhookSecret(request.webhookSecret().isBlank() ? null : request.webhookSecret().trim());
+            municipality.setWebhookSecret(request.webhookSecret().isBlank() ? null : request.webhookSecret().trim());
         }
-        return WebhookSettingsResponse.from(municipalityRepository.save(m));
+        return WebhookSettingsResponse.from(municipalityRepository.save(municipality));
     }
 
     private Municipality loadOwnMunicipality(AppUser admin) {
@@ -119,13 +132,13 @@ public class MunicipalityApiKeyService {
             return ApiKeyScope.defaultScopes();
         }
         Set<String> scopes = new LinkedHashSet<>();
-        for (String s : requested) {
-            if (s == null || s.isBlank()) {
+        for (String scope : requested) {
+            if (scope == null || scope.isBlank()) {
                 continue;
             }
-            String code = s.trim();
+            String code = scope.trim();
             if (!ApiKeyScope.isValid(code)) {
-                throw new BusinessException("Geçersiz kapsam: " + code, "INVALID_API_KEY_SCOPE");
+                throw new BusinessException("Gecersiz kapsam: " + code, "INVALID_API_KEY_SCOPE");
             }
             scopes.add(code);
         }

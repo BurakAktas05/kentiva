@@ -133,3 +133,12 @@
 .dark .glass {
   @apply bg-slate-900/85 border-slate-700/40;
 }
+
+/* Report-focused flat color map (OSM-like flat styling) */
+.grayscale-map .leaflet-tile-pane {
+  filter: saturate(60%) contrast(90%) brightness(102%);
+}
+.dark .grayscale-map .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) saturate(65%) brightness(95%) contrast(85%);
+}
+

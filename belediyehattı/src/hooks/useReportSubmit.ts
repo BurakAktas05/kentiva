@@ -1,5 +1,12 @@
 import { useState } from 'react';
-import { fetchNearbyReportHints, analyzeReportDraft, createReport, type PublicTenant, type NearbyReportHint, type ReportDraftAnalysis } from '../api';
+import {
+  analyzeReportDraft,
+  createReport,
+  fetchNearbyReportHints,
+  type NearbyReportHint,
+  type PublicTenant,
+  type ReportDraftAnalysis,
+} from '../api';
 import { Lang } from '../i18n';
 import { storageService } from '../lib/storageService';
 
@@ -16,12 +23,47 @@ interface UseReportSubmitProps {
   minDescriptionLen?: number;
 }
 
+export type ReportAiNotice = {
+  tone: 'success' | 'info' | 'warning';
+  message: string;
+};
+
 function buildReportTitle(description: string, categoryName: string | undefined, lang: Lang): string {
   const trimmed = description.trim();
   if (trimmed.length >= 10) return trimmed.slice(0, 80);
   const prefix = categoryName || (lang === 'tr' ? 'Bildirim' : 'Report');
   const combined = `${prefix}: ${trimmed}`.slice(0, 80);
   return combined.length >= 10 ? combined : `${prefix} - ${new Date().toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US')}`;
+}
+
+function buildAiNotice(lang: Lang, analysisSource?: string | null, mode: 'success' | 'fallback' | 'unavailable' = 'success'): ReportAiNotice {
+  if (mode === 'unavailable') {
+    return {
+      tone: 'warning',
+      message:
+        lang === 'tr'
+          ? 'AI on incelemesi su an tamamlanamadi. Bildiriminiz yine de belediye ekiplerine iletilecek.'
+          : 'AI pre-check is currently unavailable. Your report will still be delivered to municipal teams.',
+    };
+  }
+
+  if (mode === 'fallback') {
+    return {
+      tone: 'info',
+      message:
+        lang === 'tr'
+          ? 'AI servisi yerine kural tabanli bir on inceleme kullanildi. Nihai degerlendirme belediye ekiplerince yapilir.'
+          : 'A rules-based pre-check was used instead of the AI service. Final evaluation is always made by municipal teams.',
+    };
+  }
+
+  return {
+    tone: 'success',
+    message:
+      lang === 'tr'
+        ? `AI on incelemesi tamamlandi${analysisSource ? ` (${analysisSource})` : ''}. Nihai karar belediye ekiplerine aittir.`
+        : `AI pre-check completed${analysisSource ? ` (${analysisSource})` : ''}. Final decisions always belong to municipal teams.`,
+  };
 }
 
 export function useReportSubmit({
@@ -34,7 +76,7 @@ export function useReportSubmit({
   selectedCategoryName,
   lang,
   onSubmit,
-  minDescriptionLen = 20
+  minDescriptionLen = 20,
 }: UseReportSubmitProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -45,6 +87,7 @@ export function useReportSubmit({
   const [aiScanOpen, setAiScanOpen] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<ReportDraftAnalysis | null>(null);
   const [aiAnalysisLoading, setAiAnalysisLoading] = useState(false);
+  const [aiNotice, setAiNotice] = useState<ReportAiNotice | null>(null);
 
   const checkDuplicatesAndProceed = async () => {
     if (description.trim().length < minDescriptionLen) {
@@ -63,7 +106,7 @@ export function useReportSubmit({
     try {
       const hints = await fetchNearbyReportHints(latitude, longitude, resolvedMunicipality.id, 75);
       const matchingCategoryHints = hints.filter(
-        (hint) => hint.categoryName?.trim().toLowerCase() === selectedCategoryName?.trim().toLowerCase()
+        (hint) => hint.categoryName?.trim().toLowerCase() === selectedCategoryName?.trim().toLowerCase(),
       );
       if (matchingCategoryHints.length > 0) {
         setNearbyHints(matchingCategoryHints);
@@ -78,11 +121,14 @@ export function useReportSubmit({
   };
 
   const runAiAnalysis = async () => {
+    setAiNotice(null);
+
     if (mediaUrls.length > 0 && categoryId) {
       setAiScanOpen(true);
       setAiAnalysisLoading(true);
       setAiAnalysis(null);
       const title = buildReportTitle(description, selectedCategoryName, lang);
+
       try {
         const result = await analyzeReportDraft({
           categoryId,
@@ -92,15 +138,23 @@ export function useReportSubmit({
           mediaUrl: mediaUrls[0],
         });
         setAiAnalysis(result);
+
+        const source = result.analysisSource?.toLowerCase() ?? '';
+        if (source.includes('kural') || source.includes('fallback')) {
+          setAiNotice(buildAiNotice(lang, result.analysisSource, 'fallback'));
+        } else {
+          setAiNotice(buildAiNotice(lang, result.analysisSource, 'success'));
+        }
         return true;
       } catch {
-        // AI analysis failed — proceed without it
+        setAiNotice(buildAiNotice(lang, null, 'unavailable'));
         setAiScanOpen(false);
         return false;
       } finally {
         setAiAnalysisLoading(false);
       }
     }
+
     return false;
   };
 
@@ -127,7 +181,6 @@ export function useReportSubmit({
       );
       onSubmit();
     } catch (err: unknown) {
-      // Offline fallback: save to StorageService queue
       if (!navigator.onLine || (err instanceof TypeError && err.message.includes('fetch'))) {
         try {
           const raw = storageService.getItem('belediye_offline_reports');
@@ -145,15 +198,13 @@ export function useReportSubmit({
             savedAt: new Date().toISOString(),
           });
           storageService.setItem('belediye_offline_reports', JSON.stringify(offlineReports));
-          alert(lang === 'tr'
-            ? 'İnternet bağlantınız yok. Raporunuz cihazınıza kaydedildi ve bağlantı sağlandığında otomatik gönderilecek.'
-            : 'You are offline. Your report has been saved locally and will be submitted when you reconnect.');
           onSubmit();
           return;
         } catch {
-          // fallback failure — fall through to show normal error
+          // fall through to regular error handling
         }
       }
+
       const message =
         err instanceof Error
           ? err.message
@@ -178,6 +229,7 @@ export function useReportSubmit({
     setAiScanOpen,
     aiAnalysis,
     aiAnalysisLoading,
+    aiNotice,
     checkDuplicatesAndProceed,
     runAiAnalysis,
     submitReport,

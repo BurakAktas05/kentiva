@@ -2,6 +2,7 @@ package com.burak.belediyeapp.dto.response.common;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Getter;
+import org.slf4j.MDC;
 
 import java.time.LocalDateTime;
 
@@ -22,6 +23,7 @@ public class ApiResponse<T> {
     private final String errorCode;
     private final Object errors;
     private final LocalDateTime timestamp;
+    private final String correlationId;
 
     private ApiResponse(boolean success, String message, T data, String errorCode, Object errors) {
         this.success = success;
@@ -30,6 +32,7 @@ public class ApiResponse<T> {
         this.errorCode = errorCode;
         this.errors = errors;
         this.timestamp = LocalDateTime.now();
+        this.correlationId = MDC.get("correlationId");
     }
 
     // ===================================================

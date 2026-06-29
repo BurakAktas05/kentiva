@@ -84,6 +84,9 @@ public class AppUser extends BaseEntity implements UserDetails, TenantAware {
     @Column(nullable = false)
     private int reputationScore = 100;
 
+    @Column(name = "loyalty_points", nullable = false)
+    private int loyaltyPoints = 100;
+
     /** FCM push token — bearer-equivalent secret, JSON yanıtlarda paylaşılmaz. */
     @JsonIgnore
     @Column(length = 255)

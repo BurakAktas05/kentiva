@@ -53,6 +53,11 @@ public class RedisConfig {
     }
 
     @Bean
+    public org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate(RedisConnectionFactory connectionFactory) {
+        return new org.springframework.data.redis.core.StringRedisTemplate(connectionFactory);
+    }
+
+    @Bean
     public CacheManager cacheManager(RedisConnectionFactory connectionFactory) {
         RedisCacheConfiguration base = RedisCacheConfiguration.defaultCacheConfig()
                 .entryTtl(Duration.ofHours(1))

@@ -12,9 +12,11 @@ import com.burak.belediyeapp.exception.ResourceNotFoundException;
 import com.burak.belediyeapp.mapper.IReportMapper;
 import com.burak.belediyeapp.repository.IAppUserRepository;
 import com.burak.belediyeapp.repository.IDepartmentRepository;
+import com.burak.belediyeapp.repository.IRefreshTokenRepository;
 import com.burak.belediyeapp.repository.IReportCategoryRepository;
 import com.burak.belediyeapp.repository.IReportHistoryRepository;
 import com.burak.belediyeapp.repository.IReportRepository;
+import com.burak.belediyeapp.security.JwtAuthenticationSupport;
 import com.burak.belediyeapp.service.ai.GeminiService;
 import com.burak.belediyeapp.service.ai.HeuristicReportAnalyzer;
 import com.burak.belediyeapp.service.citizen.CitizenReputationService;
@@ -46,6 +48,7 @@ public class ReportCommandService {
     private final IAppUserRepository userRepository;
     private final IReportHistoryRepository historyRepository;
     private final IDepartmentRepository departmentRepository;
+    private final IRefreshTokenRepository refreshTokenRepository;
     private final IReportMapper reportMapper;
     private final ReportSupport reportSupport;
     private final TenantAccessService tenantAccess;
@@ -55,6 +58,7 @@ public class ReportCommandService {
     private final WebhookDispatchService webhookDispatchService;
     private final CitizenReputationService citizenReputationService;
     private final MediaSignedUrlService mediaSignedUrlService;
+    private final JwtAuthenticationSupport jwtAuthenticationSupport;
 
     /**
      * Spring proxy SELF-CALL'ları yakalamadığı için iç @Transactional metotlarını
@@ -68,7 +72,7 @@ public class ReportCommandService {
     private SimpMessagingTemplate messagingTemplate;
 
     @Transactional
-    @PreAuthorize("hasAnyAuthority('ROLE_FIELD_OFFICER', 'ROLE_DEPT_MANAGER', 'ROLE_ADMIN', 'ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_FIELD_OFFICER', 'ROLE_DEPT_MANAGER', 'ROLE_ADMIN')")
     @CacheEvict(value = CacheNames.DASHBOARD_STATS, allEntries = true)
     @com.burak.belediyeapp.audit.AuditAction(action = "REPORT_STATUS_UPDATE", description = "Rapor durumu güncellendi")
     public ReportResponse updateReportStatus(String reportId, UpdateReportStatusRequest request, AppUser currentUser) {
@@ -201,13 +205,15 @@ public class ReportCommandService {
             if (reporter != null) {
                 reporter.setEnabled(false);
                 userRepository.save(reporter);
+                refreshTokenRepository.revokeAllByUserId(reporter.getId());
+                jwtAuthenticationSupport.evictCache(reporter.getEmail());
                 log.warn("Kullanıcı hesabı askıya alındı (müstehcen/uygunsuz görsel yükleme nedeniyle): {}", reporter.getEmail());
             }
         });
     }
 
     @Transactional
-    @PreAuthorize("hasAnyAuthority('ROLE_WHITE_DESK','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_WHITE_DESK','ROLE_ADMIN')")
     @CacheEvict(value = CacheNames.DASHBOARD_STATS, allEntries = true)
     @com.burak.belediyeapp.audit.AuditAction(action = "REPORT_FORWARD", description = "Rapor departmana yönlendirildi")
     public ReportResponse forwardReportToDepartment(
@@ -253,7 +259,7 @@ public class ReportCommandService {
     }
 
     @Transactional
-    @PreAuthorize("hasAnyAuthority('ROLE_WHITE_DESK','ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_WHITE_DESK','ROLE_DEPT_MANAGER','ROLE_ADMIN')")
     @CacheEvict(value = CacheNames.DASHBOARD_STATS, allEntries = true)
     public ReportResponse assignReport(String reportId, AssignReportRequest request, AppUser assignedBy) {
         Report report = reportSupport.findReportOrThrow(reportId);
@@ -266,9 +272,13 @@ public class ReportCommandService {
         AppUser assignee = userRepository.findByIdAndMunicipalityId(request.assigneeId(), municipalityId)
                 .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı", "id", request.assigneeId()));
 
-        if (!assignee.hasRole("ROLE_FIELD_OFFICER")) {
+        boolean isStaff = assignee.hasRole("ROLE_FIELD_OFFICER")
+                || assignee.hasRole("ROLE_WHITE_DESK")
+                || assignee.hasRole("ROLE_ADMIN")
+                || assignee.hasRole("ROLE_DEPT_MANAGER");
+        if (!isStaff) {
             throw new BusinessException(
-                    "Yalnızca saha görevlisi olan kullanıcılar atanabilir",
+                    "Yalnızca belediye personeli olan kullanıcılar atanabilir",
                     "INVALID_ASSIGNEE_ROLE");
         }
 
@@ -323,7 +333,7 @@ public class ReportCommandService {
      * tek bir başarısızlık tüm grubu rollback'e SÜRÜKLEMEZ ve uzun txn'ler DB connection'larını
      * tutmaz (audit gereğince hata satır bazlı raporlanır).
      */
-    @PreAuthorize("hasAnyAuthority('ROLE_WHITE_DESK','ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_WHITE_DESK','ROLE_DEPT_MANAGER','ROLE_ADMIN')")
     public BulkReportOperationResult bulkAssignReports(BulkAssignReportsRequest request, AppUser assignedBy) {
         List<String> ids = ReportSupport.distinctIds(request.reportIds());
         List<BulkReportOperationResult.BulkReportFailure> failures = new ArrayList<>();
@@ -339,7 +349,7 @@ public class ReportCommandService {
         return new BulkReportOperationResult(success, failures.size(), failures);
     }
 
-    @PreAuthorize("hasAnyAuthority('ROLE_FIELD_OFFICER', 'ROLE_DEPT_MANAGER', 'ROLE_ADMIN', 'ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_FIELD_OFFICER', 'ROLE_DEPT_MANAGER', 'ROLE_ADMIN')")
     @com.burak.belediyeapp.audit.AuditAction(action = "REPORT_STATUS_BULK_UPDATE", description = "Toplu rapor durumu güncellendi")
     public BulkReportOperationResult bulkUpdateReportStatus(
             BulkUpdateReportStatusRequest request, AppUser currentUser) {
@@ -363,7 +373,7 @@ public class ReportCommandService {
      * Çağıran kullanıcı raporun belediye kapsamında değilse erişim reddedilir.
      * Gemini HTTP çağrısı transaction DIŞINDA yapılır (DB connection bekletilmez).
      */
-    @PreAuthorize("hasAnyAuthority('ROLE_FIELD_OFFICER','ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_FIELD_OFFICER','ROLE_DEPT_MANAGER','ROLE_ADMIN')")
     public void performAiAnalysis(String reportId, ReportStatus status, AppUser currentUser) {
         log.info("AI analizi devre dışı bırakıldı: reportId={}", reportId);
     }

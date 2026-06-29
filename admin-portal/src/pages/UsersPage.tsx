@@ -37,7 +37,7 @@ export default function UsersPage() {
   const [password, setPassword] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [departmentId, setDepartmentId] = useState('');
-  const [role, setRole] = useState('ROLE_FIELD_OFFICER');
+  const [role, setRole] = useState('ROLE_WHITE_DESK');
 
   // Suspension modal states
   const [isSuspendModalOpen, setIsSuspendModalOpen] = useState(false);
@@ -110,7 +110,7 @@ export default function UsersPage() {
     setPassword('');
     setPhoneNumber('');
     setDepartmentId('');
-    setRole('ROLE_FIELD_OFFICER');
+    setRole('ROLE_WHITE_DESK');
     setFormError('');
     setIsModalOpen(true);
   };
@@ -118,6 +118,10 @@ export default function UsersPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
+    if (!departmentId) {
+      setFormError('Lütfen bir departman seçin.');
+      return;
+    }
     setSaving(true);
     
     try {
@@ -330,13 +334,13 @@ export default function UsersPage() {
               </div>
               
               <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">E-posta *</label>
-                <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="kentiva-input" />
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">E-posta</label>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="kentiva-input" />
               </div>
               
               <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Şifre *</label>
-                <input type="password" required value={password} onChange={e => setPassword(e.target.value)} className="kentiva-input" />
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Şifre</label>
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="kentiva-input" />
               </div>
 
               <div>
@@ -347,16 +351,14 @@ export default function UsersPage() {
               <div>
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Rol *</label>
                 <select value={role} onChange={e => setRole(e.target.value)} className="kentiva-input">
-                  <option value="ROLE_FIELD_OFFICER">Saha Görevlisi</option>
-                  <option value="ROLE_DEPT_MANAGER">Birim Müdürü</option>
                   <option value="ROLE_WHITE_DESK">Beyaz Masa</option>
-                  <option value="ROLE_ADMIN">Admin</option>
+                  <option value="ROLE_ADMIN">Belediye Başkanı</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Departman (Opsiyonel)</label>
-                <select value={departmentId} onChange={e => setDepartmentId(e.target.value)} className="kentiva-input">
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Departman *</label>
+                <select value={departmentId} required onChange={e => setDepartmentId(e.target.value)} className="kentiva-input">
                   <option value="">-- Departman Seçin --</option>
                   {departments.map((d) => (
                     <option key={d.id} value={d.id}>

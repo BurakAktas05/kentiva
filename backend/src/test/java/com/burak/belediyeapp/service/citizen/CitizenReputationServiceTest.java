@@ -6,6 +6,7 @@ import com.burak.belediyeapp.entity.ReportStatus;
 import com.burak.belediyeapp.entity.Role;
 import com.burak.belediyeapp.repository.IAppUserRepository;
 import com.burak.belediyeapp.repository.IReportRepository;
+import com.burak.belediyeapp.repository.IReputationAuditLogRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,6 +33,9 @@ class CitizenReputationServiceTest {
 
     @Mock
     private JwtAuthenticationSupport jwtAuthenticationSupport;
+
+    @Mock
+    private IReputationAuditLogRepository reputationAuditLogRepository;
 
     @InjectMocks
     private CitizenReputationService citizenReputationService;

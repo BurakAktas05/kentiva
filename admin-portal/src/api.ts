@@ -5,6 +5,7 @@ import { loginPathForCurrentHost } from './lib/auth';
 const REFRESH_KEY = 'refresh_token';
 const TOKEN_KEY = 'token';
 const THEME_KEY = 'kentiva_theme';
+const LEGACY_KEYS = [TOKEN_KEY, REFRESH_KEY] as const;
 
 const api = axios.create({
   baseURL: getApiBase(),
@@ -13,21 +14,80 @@ const api = axios.create({
   },
 });
 
+type ApiErrorBody = {
+  message?: string;
+  errorCode?: string;
+  errors?: unknown;
+};
+
 let refreshPromise: Promise<boolean> | null = null;
+
+function getSessionStorage(): Storage | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  return window.sessionStorage;
+}
+
+function getLocalStorage(): Storage | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  return window.localStorage;
+}
+
+function readAuthValue(key: (typeof LEGACY_KEYS)[number]): string | null {
+  const session = getSessionStorage();
+  const local = getLocalStorage();
+  const sessionValue = session?.getItem(key);
+  if (sessionValue) {
+    return sessionValue;
+  }
+  const legacyValue = local?.getItem(key);
+  if (legacyValue && session) {
+    session.setItem(key, legacyValue);
+    local?.removeItem(key);
+  }
+  return legacyValue ?? null;
+}
+
+function writeAuthValue(key: (typeof LEGACY_KEYS)[number], value: string) {
+  getSessionStorage()?.setItem(key, value);
+  getLocalStorage()?.removeItem(key);
+}
+
+function removeAuthValue(key: (typeof LEGACY_KEYS)[number]) {
+  getSessionStorage()?.removeItem(key);
+  getLocalStorage()?.removeItem(key);
+}
+
+function getStoredAccessToken() {
+  return readAuthValue(TOKEN_KEY);
+}
+
+function getStoredRefreshToken() {
+  return readAuthValue(REFRESH_KEY);
+}
+
+function setStoredAuthTokens(accessToken: string, refreshToken?: string | null) {
+  writeAuthValue(TOKEN_KEY, accessToken);
+  if (refreshToken) {
+    writeAuthValue(REFRESH_KEY, refreshToken);
+  } else {
+    removeAuthValue(REFRESH_KEY);
+  }
+}
 
 async function refreshAccessToken(): Promise<boolean> {
   if (refreshPromise) return refreshPromise;
   refreshPromise = (async () => {
-    const refresh = localStorage.getItem(REFRESH_KEY);
+    const refresh = getStoredRefreshToken();
     if (!refresh) return false;
     try {
       const res = await axios.post(`${getApiBase()}/auth/refresh`, { refreshToken: refresh });
       const data = res.data?.data;
       if (!data?.accessToken) return false;
-      localStorage.setItem(TOKEN_KEY, data.accessToken);
-      if (data.refreshToken) {
-        localStorage.setItem(REFRESH_KEY, data.refreshToken);
-      }
+      setStoredAuthTokens(data.accessToken, data.refreshToken ?? refresh);
       return true;
     } catch {
       return false;
@@ -39,8 +99,63 @@ async function refreshAccessToken(): Promise<boolean> {
 }
 
 function clearAuthStorage() {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(REFRESH_KEY);
+  removeAuthValue(TOKEN_KEY);
+  removeAuthValue(REFRESH_KEY);
+}
+
+function looksTechnical(message: string): boolean {
+  const lower = message.toLowerCase();
+  return [
+    'exception',
+    'java.',
+    'stack',
+    'trace',
+    'sql',
+    'constraint',
+    'nullpointer',
+    'undefined',
+    ' at ',
+  ].some((needle) => lower.includes(needle));
+}
+
+function friendlyApiMessage(status?: number, body?: ApiErrorBody): string {
+  const code = body?.errorCode;
+  if (code === 'RATE_LIMIT_EXCEEDED' || status === 429) {
+    return 'Çok fazla istek gönderildi. Lütfen biraz sonra tekrar deneyin.';
+  }
+  if (code === 'VALIDATION_ERROR') {
+    return 'Bilgileri kontrol edip tekrar deneyin.';
+  }
+  if (code === 'INVALID_CREDENTIALS' || status === 401) {
+    return 'E-posta veya şifre hatalı.';
+  }
+  if (status === 403) {
+    return 'Bu işlem için yetkiniz yok.';
+  }
+  if (status === 413) {
+    return 'Dosya boyutu çok büyük. Lütfen daha küçük bir dosya seçin.';
+  }
+  if (status && status >= 500) {
+    return 'Şu anda işlem tamamlanamadı. Lütfen biraz sonra tekrar deneyin.';
+  }
+
+  const message = typeof body?.message === 'string' ? body.message.trim() : '';
+  if (message && !looksTechnical(message)) {
+    return message;
+  }
+  return 'İşlem tamamlanamadı. Lütfen biraz sonra tekrar deneyin.';
+}
+
+function normalizeErrorMessage(error: AxiosError) {
+  const response = error.response;
+  if (!response || typeof response.data !== 'object' || response.data === null) {
+    return;
+  }
+  const data = response.data as ApiErrorBody;
+  response.data = {
+    ...data,
+    message: friendlyApiMessage(response.status, data),
+  };
 }
 
 function redirectToLogin() {
@@ -51,7 +166,7 @@ function redirectToLogin() {
 }
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = getStoredAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -61,6 +176,7 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
+    normalizeErrorMessage(error);
     const config = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
     const url = config?.url ?? '';
     if (error.response?.status !== 401 || url.includes('/auth/login')) {
@@ -78,12 +194,15 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
     config._retry = true;
-    config.headers.Authorization = `Bearer ${localStorage.getItem(TOKEN_KEY)}`;
+    const token = getStoredAccessToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     return api.request(config);
   },
 );
 
-export { REFRESH_KEY, TOKEN_KEY, THEME_KEY, clearAuthStorage };
+export { REFRESH_KEY, TOKEN_KEY, THEME_KEY, clearAuthStorage, getStoredAccessToken, setStoredAuthTokens };
 export default api;
 
 export interface Stats {
@@ -93,6 +212,7 @@ export interface Stats {
   resolvedReports: number;
   rejectedReports: number;
   forwardedReports: number;
+  outOfJurisdictionReports: number;
   totalUsers: number;
   totalDepartments: number;
   totalCategories: number;
@@ -174,6 +294,8 @@ export interface User {
   reputationLevel?: string;
   suspendedUntil?: string | null;
   suspensionReason?: string | null;
+  departmentId?: string | null;
+  departmentName?: string | null;
 }
 
 export type ExportFormat = 'EXCEL' | 'PDF';

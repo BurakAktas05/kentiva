@@ -22,7 +22,6 @@ export function useAppOfflineSync() {
       if (queue.length === 0) return;
 
       const remaining = [...queue];
-      let synced = 0;
       for (const r of queue) {
         try {
           await createReport(
@@ -32,15 +31,11 @@ export function useAppOfflineSync() {
           );
           const idx = remaining.indexOf(r);
           if (idx > -1) remaining.splice(idx, 1);
-          synced++;
         } catch {
           // Keep in queue for next attempt
         }
       }
       storageService.setItem('belediye_offline_reports', JSON.stringify(remaining));
-      if (synced > 0) {
-        console.log(`[Kentiva] ${synced} offline rapor başarıyla gönderildi.`);
-      }
     };
 
     const handler = () => { void syncOfflineReports(); };

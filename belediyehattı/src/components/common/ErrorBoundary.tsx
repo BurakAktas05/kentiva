@@ -1,6 +1,8 @@
 import React, { ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, FileText } from 'lucide-react';
 
+const SHOW_ERROR_DETAILS = import.meta.env.DEV;
+
 interface Props {
   children: ReactNode;
 }
@@ -81,20 +83,22 @@ export default class ErrorBoundary extends React.Component<Props, State> {
                   Yeniden Dene
                 </button>
 
-                <button
-                  onClick={() => this.setState(prev => ({ showDetails: !prev.showDetails }))}
-                  className={`flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl font-semibold text-sm transition-all border ${
-                    isDark 
-                      ? 'border-slate-800 text-slate-300 hover:bg-slate-800/50' 
-                      : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  <FileText className="w-4 h-4" />
-                  {this.state.showDetails ? 'Detayları Gizle' : 'Hata Detaylarını Göster'}
-                </button>
+                {SHOW_ERROR_DETAILS && (
+                  <button
+                    onClick={() => this.setState(prev => ({ showDetails: !prev.showDetails }))}
+                    className={`flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl font-semibold text-sm transition-all border ${
+                      isDark
+                        ? 'border-slate-800 text-slate-300 hover:bg-slate-800/50'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <FileText className="w-4 h-4" />
+                    {this.state.showDetails ? 'Detayları Gizle' : 'Hata Detaylarını Göster'}
+                  </button>
+                )}
               </div>
 
-              {this.state.showDetails && (
+              {SHOW_ERROR_DETAILS && this.state.showDetails && (
                 <div className={`mt-5 w-full text-left rounded-xl p-4 text-xs font-mono overflow-auto max-h-48 border ${
                   isDark ? 'bg-slate-950 border-slate-800 text-red-400' : 'bg-slate-100 border-slate-200 text-red-600'
                 }`}>

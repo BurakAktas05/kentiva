@@ -6,13 +6,14 @@ import com.burak.belediyeapp.entity.Report;
 import com.burak.belediyeapp.entity.ReportStatus;
 import com.burak.belediyeapp.entity.WebhookDeliveryLog;
 import com.burak.belediyeapp.repository.IWebhookDeliveryLogRepository;
+import com.burak.belediyeapp.security.SsrfProtectionInterceptor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
@@ -31,7 +32,10 @@ public class WebhookDispatchService {
     private final ObjectMapper objectMapper;
     private final MisIntegrationService misIntegrationService;
     private final IWebhookDeliveryLogRepository webhookDeliveryLogRepository;
-    private final RestClient http = RestClient.builder().build();
+    private final RestClient http = RestClient.builder()
+            .requestFactory(requestFactory())
+            .requestInterceptor(new SsrfProtectionInterceptor())
+            .build();
 
     public void dispatchReportStatusChanged(
             Municipality municipality,
@@ -52,7 +56,6 @@ public class WebhookDispatchService {
         if (ctx != null) {
             dispatchAsync(ctx);
         }
-        // MIS/EBYS entegrasyonu
         misIntegrationService.sendReportToMis(municipality, report);
     }
 
@@ -64,7 +67,6 @@ public class WebhookDispatchService {
     }
 
     @Async
-    @Transactional
     public void dispatchAsync(WebhookDispatchContext ctx) {
         ReportStatusWebhookPayload payload = new ReportStatusWebhookPayload(
                 ctx.event(),
@@ -87,7 +89,7 @@ public class WebhookDispatchService {
             payloadStr = objectMapper.writeValueAsString(payload);
             body = payloadStr.getBytes(StandardCharsets.UTF_8);
         } catch (Exception e) {
-            log.error("Webhook payload serileştirme hatası", e);
+            log.error("Webhook payload serialize edilemedi", e);
             return;
         }
 
@@ -130,11 +132,11 @@ public class WebhookDispatchService {
             logEntry.setNextAttemptAt(null);
         } catch (RestClientResponseException e) {
             logEntry.setStatusCode(e.getStatusCode().value());
-            logEntry.setErrorMessage(e.getResponseBodyAsString());
+            logEntry.setErrorMessage(truncateErrorMessage(e.getResponseBodyAsString()));
             handleFailure(logEntry);
         } catch (Exception e) {
             logEntry.setStatusCode(null);
-            logEntry.setErrorMessage(e.getMessage());
+            logEntry.setErrorMessage(truncateErrorMessage(e.getMessage()));
             handleFailure(logEntry);
         }
     }
@@ -144,17 +146,16 @@ public class WebhookDispatchService {
         if (logEntry.getRetryCount() >= 5) {
             logEntry.setStatus("FAILED");
             logEntry.setNextAttemptAt(null);
-            log.warn("Webhook gönderimi nihai olarak başarısız oldu (max retry): logId={}", logEntry.getId());
+            log.warn("Webhook gonderimi nihai olarak basarisiz oldu: logId={}", logEntry.getId());
         } else {
             int backoffMinutes = 5 * (int) Math.pow(2, logEntry.getRetryCount() - 1);
             logEntry.setNextAttemptAt(LocalDateTime.now().plusMinutes(backoffMinutes));
-            logEntry.setStatus("FAILED"); // listed as failed but pending retry
-            log.info("Webhook gönderimi başarısız, {} dakika sonra tekrar denenecek: logId={}", backoffMinutes, logEntry.getId());
+            logEntry.setStatus("FAILED");
+            log.info("Webhook gonderimi basarisiz, {} dakika sonra tekrar denenecek: logId={}", backoffMinutes, logEntry.getId());
         }
     }
 
-    @Scheduled(fixedRate = 60000) // Her dakika başarısızları tara
-    @Transactional
+    @Scheduled(fixedRate = 60000)
     public void retryFailedWebhooks() {
         List<WebhookDeliveryLog> pendingRetries = webhookDeliveryLogRepository
                 .findByStatusAndNextAttemptAtBeforeAndRetryCountLessThan(
@@ -165,6 +166,21 @@ public class WebhookDispatchService {
             attemptDelivery(logEntry, body);
             webhookDeliveryLogRepository.save(logEntry);
         }
+    }
+
+    private static String truncateErrorMessage(String message) {
+        if (message == null || message.isBlank()) {
+            return null;
+        }
+        String normalized = message.replaceAll("\\s+", " ").trim();
+        return normalized.length() <= 500 ? normalized : normalized.substring(0, 500);
+    }
+
+    private static SimpleClientHttpRequestFactory requestFactory() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(3_000);
+        factory.setReadTimeout(10_000);
+        return factory;
     }
 
     private static String hmacSha256Hex(String secret, byte[] body) {

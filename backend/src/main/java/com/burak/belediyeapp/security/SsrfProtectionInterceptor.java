@@ -21,28 +21,47 @@ public class SsrfProtectionInterceptor implements ClientHttpRequestInterceptor {
 
     @Override
     public ClientHttpResponse intercept(HttpRequest request, byte[] body, ClientHttpRequestExecution execution) throws IOException {
-        URI uri = request.getURI();
-        String host = uri.getHost();
-        if (host != null) {
-            try {
-                InetAddress[] addresses = InetAddress.getAllByName(host);
-                for (InetAddress address : addresses) {
-                    if (isPrivateIp(address)) {
-                        log.warn("Blocked SSRF request to host '{}' resolving to private/restricted IP '{}'", host, address.getHostAddress());
-                        throw new IOException("Blocked request to restricted internal or private network");
-                    }
-                }
-            } catch (Exception e) {
-                if (e instanceof IOException) {
-                    throw (IOException) e;
-                }
-                throw new IOException("DNS resolution failed for SSRF verification", e);
-            }
-        }
+        validatePublicHttpUri(request.getURI());
         return execution.execute(request, body);
     }
 
-    private boolean isPrivateIp(InetAddress address) {
+    public static URI validatePublicHttpUri(String rawUrl) throws IOException {
+        try {
+            return validatePublicHttpUri(URI.create(rawUrl));
+        } catch (IllegalArgumentException e) {
+            throw new IOException("Invalid URL", e);
+        }
+    }
+
+    public static URI validatePublicHttpUri(URI uri) throws IOException {
+        if (uri == null) {
+            throw new IOException("Target URL is required");
+        }
+        String scheme = uri.getScheme();
+        if (scheme == null || (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme))) {
+            throw new IOException("Only http/https URLs are allowed");
+        }
+        String host = uri.getHost();
+        if (host == null || host.isBlank()) {
+            throw new IOException("Target URL must contain a valid host");
+        }
+        try {
+            InetAddress[] addresses = InetAddress.getAllByName(host);
+            for (InetAddress address : addresses) {
+                if (isPrivateIp(address)) {
+                    log.warn("Blocked SSRF request to host '{}' resolving to private/restricted IP '{}'", host, address.getHostAddress());
+                    throw new IOException("Blocked request to restricted internal or private network");
+                }
+            }
+            return uri;
+        } catch (IOException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IOException("DNS resolution failed for SSRF verification", e);
+        }
+    }
+
+    private static boolean isPrivateIp(InetAddress address) {
         return address.isLoopbackAddress()
                 || address.isLinkLocalAddress()
                 || address.isSiteLocalAddress()
@@ -50,7 +69,7 @@ public class SsrfProtectionInterceptor implements ClientHttpRequestInterceptor {
                 || isIpInPrivateSubnet(address.getHostAddress());
     }
 
-    private boolean isIpInPrivateSubnet(String ip) {
+    private static boolean isIpInPrivateSubnet(String ip) {
         if (ip == null || ip.isBlank()) {
             return false;
         }

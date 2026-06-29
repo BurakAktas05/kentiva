@@ -1,7 +1,9 @@
 package com.burak.belediyeapp.service.sms;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -9,6 +11,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.security.SecureRandom;
@@ -51,6 +56,18 @@ public class SmsOtpService {
     @Value("${app.sms.otp.max-attempts:5}")
     private int maxVerifyAttempts;
 
+    @Value("${app.sms.otp.dev-bypass-enabled:false}")
+    private boolean devBypassEnabled;
+
+    @Value("${app.sms.otp.dev-bypass-code:000000}")
+    private String devBypassCode;
+
+    @Value("${app.cache.type:none}")
+    private String cacheType;
+
+    @Autowired(required = false)
+    private StringRedisTemplate redisTemplate;
+
     private record OtpEntry(String code, long expiresAt, AtomicInteger attempts) {}
 
     private record SendThrottle(long lastSentAt, int sentInWindow, long windowStartAt) {}
@@ -73,15 +90,29 @@ public class SmsOtpService {
         if (normalized.isEmpty()) {
             return false;
         }
-        if (!consumeSendThrottle(normalized)) {
-            log.warn("OTP gönderimi throttle nedeniyle engellendi: {}", maskPhone(normalized));
-            return false;
-        }
         String code = String.valueOf(100000 + secureRandom.nextInt(900000));
-        long expiresAt = System.currentTimeMillis() + (OTP_EXPIRY_SECONDS * 1000L);
-        otpStore.put(normalized, new OtpEntry(code, expiresAt, new AtomicInteger(0)));
 
-        String message = "Kentiva doğrulama kodunuz: " + code + " (5 dk geçerli)";
+        if (isRedisBacked()) {
+            try {
+                if (!consumeSendThrottleRedis(normalized)) {
+                    log.warn("OTP gonderimi throttle nedeniyle engellendi: {}", maskPhone(normalized));
+                    return false;
+                }
+                storeOtpRedis(normalized, code);
+            } catch (Exception e) {
+                log.warn("OTP icin Redis kullanilamadi, SMS gonderimi engellendi: {}", e.getMessage());
+                return false;
+            }
+        } else {
+            if (!consumeSendThrottle(normalized)) {
+                log.warn("OTP gonderimi throttle nedeniyle engellendi: {}", maskPhone(normalized));
+                return false;
+            }
+            long expiresAt = System.currentTimeMillis() + (OTP_EXPIRY_SECONDS * 1000L);
+            otpStore.put(normalized, new OtpEntry(code, expiresAt, new AtomicInteger(0)));
+        }
+
+        String message = "Kentiva dogrulama kodunuz: " + code + " (5 dk gecerli)";
         // sendInternal OTP içeriğini log'a yazmamak için ayrı yol kullanır
         return sendInternal(phoneNumber, message, null, true);
     }
@@ -141,6 +172,18 @@ public class SmsOtpService {
      */
     public boolean verifyOtp(String phoneNumber, String code) {
         String normalized = normalizePhone(phoneNumber);
+        if (isDevBypassAllowed(code)) {
+            log.warn("SMS OTP dev bypass kullanildi: {}", maskPhone(normalized));
+            return true;
+        }
+        if (isRedisBacked()) {
+            try {
+                return verifyOtpRedis(normalized, code);
+            } catch (Exception e) {
+                log.warn("OTP Redis dogrulama kullanilamadi: {}", e.getMessage());
+                return false;
+            }
+        }
         OtpEntry entry = otpStore.get(normalized);
         if (entry == null) return false;
         if (System.currentTimeMillis() > entry.expiresAt()) {
@@ -157,6 +200,105 @@ public class SmsOtpService {
             log.warn("OTP deneme limiti aşıldı, kod iptal edildi: {}", maskPhone(normalized));
         }
         return false;
+    }
+
+    public String normalizePhoneNumber(String phone) {
+        return normalizePhone(phone);
+    }
+
+    public boolean isDevBypassEnabled() {
+        return devBypassEnabled && "none".equalsIgnoreCase(provider);
+    }
+
+    public String getDevBypassCode() {
+        return isDevBypassEnabled() ? devBypassCode : null;
+    }
+
+    private boolean isDevBypassAllowed(String code) {
+        return isDevBypassEnabled()
+                && devBypassCode != null
+                && !devBypassCode.isBlank()
+                && devBypassCode.equals(code);
+    }
+
+    private boolean isRedisBacked() {
+        return "redis".equalsIgnoreCase(cacheType) && redisTemplate != null;
+    }
+
+    private void storeOtpRedis(String normalizedPhone, String code) {
+        redisTemplate.opsForValue().set(otpKey(normalizedPhone), code, Duration.ofSeconds(OTP_EXPIRY_SECONDS));
+        redisTemplate.delete(otpAttemptsKey(normalizedPhone));
+    }
+
+    private boolean verifyOtpRedis(String normalizedPhone, String code) {
+        if (normalizedPhone == null || normalizedPhone.isBlank() || code == null || code.isBlank()) {
+            return false;
+        }
+        String otpKey = otpKey(normalizedPhone);
+        String attemptsKey = otpAttemptsKey(normalizedPhone);
+        String storedCode = redisTemplate.opsForValue().get(otpKey);
+        if (storedCode == null) {
+            return false;
+        }
+        if (storedCode.equals(code)) {
+            redisTemplate.delete(otpKey);
+            redisTemplate.delete(attemptsKey);
+            return true;
+        }
+
+        Long attempts = redisTemplate.opsForValue().increment(attemptsKey);
+        if (attempts != null && attempts == 1) {
+            redisTemplate.expire(attemptsKey, Duration.ofSeconds(OTP_EXPIRY_SECONDS));
+        }
+        if (attempts != null && attempts >= maxVerifyAttempts) {
+            redisTemplate.delete(otpKey);
+            redisTemplate.delete(attemptsKey);
+            log.warn("OTP deneme limiti asildi, kod iptal edildi: {}", maskPhone(normalizedPhone));
+        }
+        return false;
+    }
+
+    private boolean consumeSendThrottleRedis(String normalizedPhone) {
+        String phoneKey = phoneKey(normalizedPhone);
+        String cooldownKey = "sms:otp:cooldown:" + phoneKey;
+        String dailyKey = "sms:otp:daily:" + phoneKey;
+
+        if (Boolean.TRUE.equals(redisTemplate.hasKey(cooldownKey))) {
+            return false;
+        }
+
+        Long dailyCount = redisTemplate.opsForValue().increment(dailyKey);
+        if (dailyCount != null && dailyCount == 1) {
+            redisTemplate.expire(dailyKey, Duration.ofMillis(DAILY_WINDOW_MS));
+        }
+        if (dailyCount != null && dailyCount > dailyMaxSends) {
+            return false;
+        }
+
+        redisTemplate.opsForValue().set(cooldownKey, "1", Duration.ofSeconds(cooldownSeconds));
+        return true;
+    }
+
+    private String otpKey(String normalizedPhone) {
+        return "sms:otp:code:" + phoneKey(normalizedPhone);
+    }
+
+    private String otpAttemptsKey(String normalizedPhone) {
+        return "sms:otp:attempts:" + phoneKey(normalizedPhone);
+    }
+
+    private String phoneKey(String normalizedPhone) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hashed = digest.digest(normalizedPhone.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(32);
+            for (int i = 0; i < Math.min(16, hashed.length); i++) {
+                hex.append(String.format("%02x", hashed[i]));
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException e) {
+            return String.valueOf(normalizedPhone.hashCode());
+        }
     }
 
     /**
@@ -189,22 +331,27 @@ public class SmsOtpService {
 
     private String normalizePhone(String phone) {
         if (phone == null) return "";
-        return phone.replaceAll("[^0-9+]", "");
-    }
-
-    /** NetGSM için 90XXXXXXXXXX formatı */
-    String formatPhoneForSms(String phone) {
-        String digits = normalizePhone(phone).replace("+", "");
+        String digits = phone.replaceAll("[^0-9+]", "").replace("+", "");
         if (digits.startsWith("00")) {
             digits = digits.substring(2);
         }
         if (digits.startsWith("0") && digits.length() == 11) {
             digits = "9" + digits;
-        }
-        if (!digits.startsWith("90") && digits.length() == 10) {
+        } else if (!digits.startsWith("90") && digits.length() == 10) {
             digits = "90" + digits;
         }
-        return digits;
+        if (digits.startsWith("90") && digits.length() == 12) {
+            return digits;
+        }
+        if (digits.length() >= 10 && digits.length() <= 15) {
+            return digits;
+        }
+        return "";
+    }
+
+    /** NetGSM için 90XXXXXXXXXX formatı */
+    String formatPhoneForSms(String phone) {
+        return normalizePhone(phone);
     }
 
     private static String truncateForLog(String message) {

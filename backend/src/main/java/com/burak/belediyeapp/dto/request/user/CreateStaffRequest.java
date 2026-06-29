@@ -19,12 +19,7 @@ public record CreateStaffRequest(
         @Size(min = 2, max = 80)
         String lastName,
 
-        @NotBlank(message = "Email boş bırakılamaz")
-        @Email(message = "Geçerli bir email adresi giriniz")
         String email,
-
-        @NotBlank(message = "Şifre boş bırakılamaz")
-        @Size(min = 8, message = "Şifre en az 8 karakter olmalıdır")
         String password,
 
         @Size(max = 20)
@@ -32,6 +27,7 @@ public record CreateStaffRequest(
 
         Set<String> roleNames,
 
+        @NotBlank(message = "Departman seçimi zorunludur")
         String departmentId,
         String district
 ) {}

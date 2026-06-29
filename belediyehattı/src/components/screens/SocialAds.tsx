@@ -82,6 +82,7 @@ export default function SocialAds({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formType, setFormType] = useState<SocialTab>('blood');
   const [submitting, setSubmitting] = useState(false);
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
 
   // Blood Form State
   const [bloodType, setBloodType] = useState('A+');
@@ -114,6 +115,15 @@ export default function SocialAds({
   const currentUser = getSavedUser();
   const currentUserId = currentUser?.userId || '';
   const focusDistrictName = focusDistrict?.district ?? '';
+
+  const triggerCreateAd = (type: SocialTab) => {
+    if (!currentUser) {
+      setShowAuthPrompt(true);
+    } else {
+      setFormType(type);
+      setIsModalOpen(true);
+    }
+  };
 
   useEffect(() => {
     if (forcedTab) setActiveTab(forcedTab);
@@ -470,7 +480,7 @@ export default function SocialAds({
             </p>
             <button
               type="button"
-              onClick={() => { setFormType('blood'); setIsModalOpen(true); }}
+              onClick={() => triggerCreateAd('blood')}
               className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-red-500 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-red-500/10 active:scale-95 transition-all cursor-pointer"
             >
               <Plus className="h-3.5 w-3.5" />
@@ -492,7 +502,7 @@ export default function SocialAds({
             </p>
             <button
               type="button"
-              onClick={() => { setFormType('lost'); setIsModalOpen(true); }}
+              onClick={() => triggerCreateAd('lost')}
               className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-indigo-600/10 active:scale-95 transition-all cursor-pointer"
             >
               <Plus className="h-3.5 w-3.5" />
@@ -514,7 +524,7 @@ export default function SocialAds({
             </p>
             <button
               type="button"
-              onClick={() => { setFormType('items'); setIsModalOpen(true); }}
+              onClick={() => triggerCreateAd('items')}
               className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-600/10 active:scale-95 transition-all cursor-pointer"
             >
               <Plus className="h-3.5 w-3.5" />
@@ -774,10 +784,7 @@ export default function SocialAds({
       {/* Floating Action Button (FAB) */}
       <div className={`fixed right-6 z-30 ${embedded ? 'bottom-24' : 'bottom-6'}`}>
         <button
-          onClick={() => {
-            setFormType(activeTab);
-            setIsModalOpen(true);
-          }}
+          onClick={() => triggerCreateAd(activeTab)}
           className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-xl shadow-primary/30 hover:brightness-105 active:scale-95 transition-all"
         >
           <Plus className="h-6 w-6" />
@@ -1283,6 +1290,50 @@ export default function SocialAds({
           </div>
         )}
       </AnimatePresence>
+
+      {/* Guest Auth Prompt */}
+      {showAuthPrompt && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+          <div className={`w-full max-w-sm rounded-[32px] border p-6 shadow-2xl text-center transition-all ${
+            isDark ? 'border-slate-800 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-800'
+          }`}>
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-inner">
+              <User className="h-7 w-7 text-primary" />
+            </div>
+            <h3 className="text-center text-base font-extrabold tracking-tight">
+              {lang === 'tr' ? 'Oturum Açmanız Gerekiyor' : 'Authentication Required'}
+            </h3>
+            <p className="mt-3 text-center text-xs leading-relaxed text-slate-500 dark:text-slate-400 font-semibold font-sans">
+              {lang === 'tr' 
+                ? 'İlan oluşturabilmek ve diğer vatandaşlarla paylaşabilmek için lütfen kayıt olun veya giriş yapın.'
+                : 'Please log in or register to create ads and share them with other citizens.'}
+            </p>
+            <div className="mt-6 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  storageService.removeItem('belediye_is_guest');
+                  window.location.reload();
+                }}
+                className="w-full rounded-2xl bg-primary py-3 text-xs font-bold text-white shadow-lg shadow-primary/20 hover:brightness-105 active:scale-[0.98] transition-all cursor-pointer font-sans"
+              >
+                {lang === 'tr' ? 'Giriş Yap / Kayıt Ol' : 'Log In / Register'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAuthPrompt(false)}
+                className={`w-full rounded-2xl border py-3 text-xs font-bold active:scale-[0.98] transition-all cursor-pointer font-sans ${
+                  isDark 
+                    ? 'border-slate-700 hover:bg-slate-800 text-slate-300' 
+                    : 'border-slate-300 hover:bg-slate-50 text-slate-600'
+                }`}
+              >
+                {lang === 'tr' ? 'Vazgeç' : 'Cancel'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }

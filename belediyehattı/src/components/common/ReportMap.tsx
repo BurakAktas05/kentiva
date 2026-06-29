@@ -42,6 +42,7 @@ interface ReportMapProps {
   isDark: boolean;
   nearbyReports: ApiReportListResponse[];
   lang: string;
+  onLocationChange?: (lat: number, lng: number) => void;
 }
 
 export const ReportMap = React.memo(function ReportMap({
@@ -49,58 +50,87 @@ export const ReportMap = React.memo(function ReportMap({
   longitude,
   isDark,
   nearbyReports,
-  lang
+  lang,
+  onLocationChange
 }: ReportMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
+  const markerRef = useRef<L.Marker | null>(null);
+  const nearbyMarkersRef = useRef<L.Marker[]>([]);
 
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
-    const map = L.map(mapContainerRef.current, {
-      zoomControl: false,
-    }).setView([latitude, longitude], 15);
-    mapRef.current = map;
+    let map = mapRef.current;
+    if (!map) {
+      map = L.map(mapContainerRef.current, {
+        zoomControl: false,
+      }).setView([latitude, longitude], 15);
+      mapRef.current = map;
 
-    const tileUrl = isDark
-      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-      : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+      const tileUrl = 'https://mt1.google.com/vt/lyrs=m&hl=tr&x={x}&y={y}&z={z}';
 
-    L.tileLayer(tileUrl, {
-      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-      maxZoom: 19,
-    }).addTo(map);
+      L.tileLayer(tileUrl, {
+        attribution: '&copy; Google Maps',
+        maxZoom: 19,
+      }).addTo(map);
 
-    L.control.zoom({
-      position: 'bottomright'
-    }).addTo(map);
+      L.control.zoom({
+        position: 'bottomright'
+      }).addTo(map);
+    } else {
+      map.setView([latitude, longitude]);
+    }
 
-    // Place current position blue marker
-    L.marker([latitude, longitude], { icon: blueIcon })
-      .addTo(map);
+    // Handle user marker
+    if (markerRef.current) {
+      markerRef.current.setLatLng([latitude, longitude]);
+    } else {
+      const marker = L.marker([latitude, longitude], { 
+        icon: blueIcon,
+        draggable: onLocationChange != null
+      }).addTo(map);
+
+      if (onLocationChange) {
+        marker.on('dragend', (event) => {
+          const m = event.target as L.Marker;
+          const pos = m.getLatLng();
+          onLocationChange(pos.lat, pos.lng);
+        });
+      }
+      markerRef.current = marker;
+    }
+
+    // Clear old nearby markers
+    nearbyMarkersRef.current.forEach(m => m.remove());
+    nearbyMarkersRef.current = [];
 
     // Place nearby reports as unclickable red markers
     if (nearbyReports && nearbyReports.length > 0) {
       nearbyReports.forEach((r) => {
         if (r.latitude != null && r.longitude != null) {
-          L.marker([r.latitude, r.longitude], { icon: redIcon })
+          const m = L.marker([r.latitude, r.longitude], { icon: redIcon })
             .addTo(map);
+          nearbyMarkersRef.current.push(m);
         }
       });
     }
+  }, [latitude, longitude, isDark, nearbyReports, onLocationChange]);
 
+  useEffect(() => {
     return () => {
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
+        markerRef.current = null;
+        nearbyMarkersRef.current = [];
       }
     };
-  }, [latitude, longitude, isDark, nearbyReports]);
+  }, []);
 
   return (
     <div className="w-full h-full relative font-sans" style={{ zIndex: 10 }}>
       <div ref={mapContainerRef} className="absolute inset-0 w-full h-full grayscale-map" />
-      <div className="absolute inset-0 pointer-events-none z-[1000] mix-blend-color opacity-10 bg-slate-500" />
       <div className="absolute bottom-2 left-2 z-[1000] rounded-md px-2 py-0.5 text-[9px] font-bold bg-white/85 text-slate-600 dark:bg-slate-950/85 dark:text-slate-400">
         {lang === 'tr' ? 'Çevre İhbarları Gösteriliyor' : 'Showing Nearby Reports'}
       </div>

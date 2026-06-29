@@ -39,6 +39,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Value("${app.websocket.allowed-origins:}")
     private String allowedOrigins;
 
+    @Value("${app.websocket.allowed-origin-patterns:}")
+    private String allowedOriginPatterns;
+
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
         config.enableSimpleBroker("/topic");
@@ -52,8 +55,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint("/ws-belediye")
-                .setAllowedOrigins(parseCsv(allowedOrigins))
+        var endpoint = registry.addEndpoint("/ws-belediye")
                 .addInterceptors(handshakeInterceptor)
                 .setHandshakeHandler(new DefaultHandshakeHandler() {
                     @Override
@@ -68,8 +70,19 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                         }
                         return null;
                     }
-                })
-                .withSockJS();
+                });
+
+        String[] origins = parseCsv(allowedOrigins);
+        if (origins.length > 0) {
+            endpoint.setAllowedOrigins(origins);
+        }
+
+        String[] originPatterns = parseCsv(allowedOriginPatterns);
+        if (originPatterns.length > 0) {
+            endpoint.setAllowedOriginPatterns(originPatterns);
+        }
+
+        endpoint.withSockJS();
     }
 
     private String[] parseCsv(String value) {

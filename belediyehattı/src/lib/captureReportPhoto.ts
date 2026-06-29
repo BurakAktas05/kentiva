@@ -23,7 +23,6 @@ export async function captureReportPhotoFile(): Promise<CaptureResult> {
         source: CameraSource.Camera,
         saveToGallery: false,
         direction: CameraDirection.Rear,
-        cameraDirection: CameraDirection.Rear,
       });
       if (!photo.webPath) {
         throw new PhotoCaptureCancelledError();

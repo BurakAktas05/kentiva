@@ -111,6 +111,11 @@ public class MediaSignedUrlService {
         if (key != null) {
             return key;
         }
+        // SSRF Koruması: Dış HTTP/HTTPS kaynaklı URL'leri engelle
+        String lower = trimmed.toLowerCase();
+        if (lower.startsWith("http://") || lower.startsWith("https://")) {
+            throw new BusinessException("Medya dosyası geçersiz veya güvenilmeyen bir kaynaktan geliyor.", "INVALID_MEDIA_URL");
+        }
         return normalizePath(trimmed);
     }
 
@@ -178,7 +183,7 @@ public class MediaSignedUrlService {
     private String resolveStorageKey(String url) {
         Matcher m = UPLOADS_PATH.matcher(url);
         if (m.find()) {
-            return m.group(1);
+            return normalizePath(m.group(1));
         }
         if (url.startsWith("http://") || url.startsWith("https://")) {
             try {
@@ -187,17 +192,19 @@ public class MediaSignedUrlService {
                 if (path != null) {
                     Matcher uploadsInPath = UPLOADS_PATH.matcher(path);
                     if (uploadsInPath.find()) {
-                        return uploadsInPath.group(1);
+                        return normalizePath(uploadsInPath.group(1));
                     }
                     String s3Base = s3PublicUrl == null ? "" : s3PublicUrl.replaceAll("/+$", "");
                     if (!s3Base.isBlank() && url.startsWith(s3Base + "/")) {
-                        return url.substring(s3Base.length() + 1);
+                        return normalizePath(url.substring(s3Base.length() + 1));
                     }
                     String bare = path.startsWith("/") ? path.substring(1) : path;
                     if (bare.contains("/") && !bare.isBlank()) {
-                        return bare;
+                        return normalizePath(bare);
                     }
                 }
+            } catch (BusinessException e) {
+                throw e;
             } catch (Exception ignored) {
                 // fall through
             }

@@ -31,7 +31,6 @@ const CommunityScreen = lazy(() => import('./components/screens/CommunityScreen'
 const NotificationPrefsModal = lazy(() => import('./components/screens/NotificationPrefsModal'));
 const IntroductionModal = lazy(() => import('./components/screens/IntroductionModal'));
 const AnnouncementDetailScreen = lazy(() => import('./components/screens/AnnouncementDetailScreen'));
-const BusScheduleScreen = lazy(() => import('./components/screens/BusScheduleScreen'));
 const RanksScreen = lazy(() => import('./components/screens/RanksScreen'));
 
 function LoadingSpinner({ isDark }: { isDark: boolean }) {
@@ -126,6 +125,8 @@ export default function App() {
   const [lang, setLang] = useState<Lang>(() => (storageService.getItem('belediye_lang') as Lang) || 'tr');
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => (storageService.getItem('belediye_theme') as any) || 'light');
   
+  const [isGuest, setIsGuest] = useState(() => storageService.getItem('belediye_is_guest') === 'true');
+
   const [systemIsDark, setSystemIsDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
 
   useEffect(() => {
@@ -190,6 +191,18 @@ export default function App() {
     setKey,
   });
 
+  const handleAuthWithClear = (usr: any, meta?: any) => {
+    setIsGuest(false);
+    storageService.removeItem('belediye_is_guest');
+    handleAuth(usr, meta);
+  };
+
+  const handleLogoutWithClear = () => {
+    setIsGuest(false);
+    storageService.removeItem('belediye_is_guest');
+    handleLogout();
+  };
+
   // 2. Custom hooks routing manager
   const {
     activeTab,
@@ -250,11 +263,19 @@ export default function App() {
     setOpenReportId(null);
   };
 
-  if (!user) {
+  if (!user && !isGuest) {
     return (
       <ErrorBoundary>
         <Suspense fallback={<LoadingSpinner isDark={isDark} />}>
-          <AuthScreen onAuth={handleAuth} lang={lang} isDark={isDark} />
+          <AuthScreen 
+            onAuth={handleAuthWithClear} 
+            onContinueAsGuest={() => {
+              setIsGuest(true);
+              storageService.setItem('belediye_is_guest', 'true');
+            }} 
+            lang={lang} 
+            isDark={isDark} 
+          />
         </Suspense>
       </ErrorBoundary>
     );
@@ -279,6 +300,47 @@ export default function App() {
       </ErrorBoundary>
     );
   }
+
+  const renderAuthRequiredView = (title: string, desc: string) => (
+    <div className="flex flex-1 flex-col items-center justify-center p-6 text-center min-h-[60vh] my-auto">
+      <div className={`rounded-[32px] border p-8 max-w-sm shadow-xl transition-all ${
+        isDark 
+          ? 'border-slate-800 bg-slate-900/60 text-slate-200 shadow-black/35' 
+          : 'border-slate-200 bg-white text-slate-800 shadow-primary/5'
+      }`}>
+        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-inner">
+          <User className="h-7 w-7 text-primary" />
+        </div>
+        <h3 className="text-base font-extrabold tracking-tight">
+          {title}
+        </h3>
+        <p className="mt-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400 font-semibold font-sans">
+          {desc}
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            setIsGuest(false);
+            storageService.removeItem('belediye_is_guest');
+          }}
+          className="mt-6 w-full rounded-2xl bg-primary py-3 text-xs font-bold text-white shadow-lg shadow-primary/20 hover:brightness-105 active:scale-[0.98] transition-all cursor-pointer font-sans"
+        >
+          {lang === 'tr' ? 'Giriş Yap / Kayıt Ol' : 'Log In / Register'}
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('home')}
+          className={`mt-3 w-full rounded-2xl border py-3 text-xs font-bold active:scale-[0.98] transition-all cursor-pointer font-sans ${
+            isDark 
+              ? 'border-slate-700 text-slate-300 hover:bg-slate-800' 
+              : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          {lang === 'tr' ? 'Geri Dön' : 'Go Back'}
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <ErrorBoundary>
@@ -367,7 +429,6 @@ export default function App() {
                   lang={lang}
                   isDark={isDark}
                   onSelectMunicipality={() => setPickerMode('onboarding')}
-                  onOpenBusSchedules={() => setActiveTab('bus')}
                   onOpenRewards={() => {
                     setRewardsReturnTab('kent');
                     setActiveTab('rewards');
@@ -375,18 +436,7 @@ export default function App() {
                 />
               )
             )}
-            {activeTab === 'bus' && (
-              isMuniNotOnboarded ? (
-                <NotOnboardedBlockedView lang={lang} isDark={isDark} />
-              ) : (
-                <BusScheduleScreen
-                  lang={lang}
-                  isDark={isDark}
-                  municipality={tenant}
-                  onBack={() => setActiveTab('kent')}
-                />
-              )
-            )}
+
             {activeTab === 'topluluk' && (
               isMuniNotOnboarded ? (
                 <NotOnboardedBlockedView lang={lang} isDark={isDark} />
@@ -403,7 +453,14 @@ export default function App() {
               />
             )}
             {activeTab === 'report' && (
-              isMuniNotOnboarded ? (
+              !user ? (
+                renderAuthRequiredView(
+                  lang === 'tr' ? 'İhbar Oluşturun' : 'Create Report',
+                  lang === 'tr' 
+                    ? 'Yeni bir ihbar kaydı oluşturmak, durum takibi yapabilmek ve sadakat ödülleri kazanabilmek için lütfen kayıt olun veya giriş yapın.' 
+                    : 'Please log in or register to submit reports, track status, and earn loyalty rewards.'
+                )
+              ) : isMuniNotOnboarded ? (
                 <NotOnboardedBlockedView lang={lang} isDark={isDark} />
               ) : (
                 <NewReport
@@ -417,7 +474,14 @@ export default function App() {
               )
             )}
             {activeTab === 'reports' && !openReportId && (
-              isMuniNotOnboarded ? (
+              !user ? (
+                renderAuthRequiredView(
+                  lang === 'tr' ? 'İhbarlarım' : 'My Reports',
+                  lang === 'tr' 
+                    ? 'Geçmişte oluşturduğunuz ihbarları incelemek ve durumlarını takip etmek için lütfen kayıt olun veya giriş yapın.' 
+                    : 'Please log in or register to review your past reports and track their status.'
+                )
+              ) : isMuniNotOnboarded ? (
                 <NotOnboardedBlockedView lang={lang} isDark={isDark} />
               ) : (
                 <MyReports
@@ -429,17 +493,26 @@ export default function App() {
               )
             )}
             {activeTab === 'profile' && (
-              <Profile
-                onLogout={handleLogout}
-                onSettings={() => setActiveTab('settings')}
-                onRewards={() => {
-                  setActiveTab('ranks');
-                }}
-                onChangeMunicipality={() => setPickerMode('change')}
-                municipality={tenant}
-                lang={lang}
-                isDark={isDark}
-              />
+              !user ? (
+                renderAuthRequiredView(
+                  lang === 'tr' ? 'Profilinizi Görüntüleyin' : 'View Your Profile',
+                  lang === 'tr' 
+                    ? 'Profil bilgilerinizi düzenlemek, geçmiş ihbarlarınızı incelemek ve kazandığınız sadakat ödüllerini görmek için giriş yapın.' 
+                    : 'Log in to edit your profile, review your report history, and view your loyalty rewards.'
+                )
+              ) : (
+                <Profile
+                  onLogout={handleLogoutWithClear}
+                  onSettings={() => setActiveTab('settings')}
+                  onRewards={() => {
+                    setActiveTab('ranks');
+                  }}
+                  onChangeMunicipality={() => setPickerMode('change')}
+                  municipality={tenant}
+                  lang={lang}
+                  isDark={isDark}
+                />
+              )
             )}
             {activeTab === 'ranks' && (
               <RanksScreen
@@ -450,7 +523,14 @@ export default function App() {
               />
             )}
             {activeTab === 'notifications' && (
-              isMuniNotOnboarded ? (
+              !user ? (
+                renderAuthRequiredView(
+                  lang === 'tr' ? 'Bildirimler' : 'Notifications',
+                  lang === 'tr' 
+                    ? 'İhbarlarınızın güncel durumlarından haberdar olmak ve yeni duyuru bildirimlerini almak için lütfen giriş yapın.' 
+                    : 'Please log in to receive updates on your reports and new announcement notifications.'
+                )
+              ) : isMuniNotOnboarded ? (
                 <NotOnboardedBlockedView lang={lang} isDark={isDark} />
               ) : (
                 <Notifications
@@ -473,12 +553,13 @@ export default function App() {
                 onBack={() => setActiveTab('profile')}
                 onChangeMunicipality={() => setPickerMode('change')}
                 onNavigate={setActiveTab}
+                onSessionEnded={handleLogoutWithClear}
               />
             )}
           </Suspense>
         </main>
 
-        {activeTab !== 'settings' && activeTab !== 'reports' && activeTab !== 'report' && activeTab !== 'notifications' && !openReportId && !openAnnouncement && activeTab !== 'bus' && activeTab !== 'ranks' && (
+        {activeTab !== 'settings' && activeTab !== 'reports' && activeTab !== 'report' && activeTab !== 'notifications' && !openReportId && !openAnnouncement && activeTab !== 'ranks' && (
           <nav className={`absolute bottom-0 w-full border-t flex items-end justify-between pb-safe pt-2 px-1 z-20 rounded-t-2xl shadow-[0_-8px_30px_-12px_rgba(15,23,42,0.12)] ${isDark ? 'bg-slate-900/95 border-slate-800 backdrop-blur-md' : 'bg-white/95 border-slate-200/90 backdrop-blur-md'}`}>
             <button
               type="button"

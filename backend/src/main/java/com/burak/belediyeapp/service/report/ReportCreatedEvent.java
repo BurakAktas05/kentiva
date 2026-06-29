@@ -1,4 +1,4 @@
 package com.burak.belediyeapp.service.report;
 
-public record ReportCreatedEvent(String reportId) {
+public record ReportCreatedEvent(String reportId, String municipalityId) {
 }

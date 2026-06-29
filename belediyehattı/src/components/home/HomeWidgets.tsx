@@ -21,7 +21,6 @@ import {
 } from '../../api';
 import { getDevicePosition, isDeviceLocationFailure, openMapsNavigation, type DeviceCoords } from '../../lib/deviceLocation';
 import { Lang, t } from '../../i18n';
-import PharmacyMapModal from './PharmacyMapModal';
 
 const OFFICIAL_PHARMACY_URL = 'https://www.turkiye.gov.tr/saglik-nobetci-eczane-arama';
 const LOCATION_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -279,7 +278,6 @@ export function PharmacyWidgetCard({ tenant, lang, isDark }: WidgetBaseProps) {
   const { bundle, loading, locationSource, resolvedCoords, refresh } = useWidgetBundle(tenant);
   const pharmacies = bundle?.pharmacies ?? [];
   const hasOnDuty = pharmacies.some((p) => p.onDuty);
-  const [isMapOpen, setIsMapOpen] = useState(false);
 
   const pharmacyTitle =
     pharmacies.length === 0
@@ -428,16 +426,6 @@ export function PharmacyWidgetCard({ tenant, lang, isDark }: WidgetBaseProps) {
           )}
         </div>
       </div>
-
-      <PharmacyMapModal
-        isOpen={isMapOpen}
-        onClose={() => setIsMapOpen(false)}
-        pharmacies={pharmacies}
-        userLat={resolvedCoords?.lat}
-        userLng={resolvedCoords?.lng}
-        lang={lang}
-        isDark={isDark}
-      />
     </section>
   );
 }

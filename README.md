@@ -16,14 +16,16 @@ Platform, tek bir altyapı üzerinde birden fazla belediyenin tamamen izole bir 
 ## 🚀 Öne Çıkan Özellikler
 
 - **Çok Kiracılılık (Multi-Tenancy):** Tek bir veritabanı şeması ve kod tabanı üzerinde sınırsız belediye desteği. Her kiracı `municipality_id` üzerinden veri düzeyinde tam izoledir.
+- **Güven Puanı (Reputation Score) & Sadakat Puanı (Loyalty Points) Ayrımı:** Vatandaşların ihbar kalitesine göre hesaplanan güven puanı ile ödül satın alımlarında harcanan sadakat puanı ayrıştırıldı. Bu sayede ödül alan vatandaşların güven puanının düşmesi ve spam koruma engeline (30 puan altı) takılması önlendi.
+- **Misafir Giriş Modu (Oturumsuz Gezinti):** Mobil uygulamaya kayıt olmadan giriş yapabilme desteği eklendi. Misafir kullanıcılar duyuruları, otobüs hatlarını ve haritayı serbestçe gezebilir; ihbar veya ilan oluşturmak istediklerinde ise şık yönlendirme kartlarıyla kayıt/giriş ekranına yönlendirilirler.
+- **Manuel Konum Seçimi & Sürüklenebilir Marker (GPS Fallback):** Mobil uygulamada GPS sinyali alınamadığında ekranın kilitlenmesini önlemek için manuel konum seçme butonu ve harita üzerinde sürüklenebilir (draggable) marker desteği eklendi.
 - **Asenkron KVKK Anonimleştirme:** Yüklenen fotoğraflarda yüz ve araç plakaları Gemini AI ile arka planda asenkron taranır. Bounding box tespiti ve pikselleştirme işlemleri dosya yükleme `/upload` aşamasını yavaşlatmadan arka planda tamamlanır.
-- **Normalleştirilmiş Koordinat Desteği:** Gemini bounding box verilerinde hassasiyet kaybını önlemek için normalleştirilmiş `[0-1000]` aralığı kullanılır ve backend tarafında görüntü boyutuna göre dinamik ölçeklenir.
 - **Gelişmiş Rate Limiting (Caffeine Cache):** API limit aşımlarını izlemek için Bucket4j altyapısı Caffeine Cache ile entegre edilmiştir. Bellek sızıntılarını önleyen ve otomatik evict edilen 50.000 limitli bucket mimarisi aktiftir.
-- **Konum Tabanlı Akıllı Seçim:** Mobil uygulama açılışında vatandaşın GPS konumu otomatik taranır. Eğer vatandaş Kentiva üyesi bir ilçedeyse ilgili belediyeye otomatik bağlanır; üye olmayan bir bölgeye geçtiğinde ise eski belediyesinde kalır.
 - **Mekansal Engelleyici Geofencing:** Vatandaş üye olmayan bir konumdan ihbar oluşturmaya çalıştığında form kilitlenir ve premium bölge dışı uyarı kartı gösterilir.
 - **Dinamik Markalama (Custom Branding):** Belediyeler kendi birincil renklerini, logolarını ve sloganlarını admin paneli üzerinden kod yazmadan veya yeniden canlıya almadan anında güncelleyebilir.
+- **Robust Gemini JSON Ayrıştırma:** Yapay zeka servislerinden dönen JSON yanıtların markdown backtick'lerinden (````json / ````) arındırılarak güvenle parse edilmesi sağlandı.
 - **Yapay Zeka Destekli Analiz (Gemini AI):** İhbarlar yapay zeka tarafından özetlenir, kategorisi kontrol edilir, öncelik derecesi atanır ve vatandaşlara iletilecek SMS/Push şablonları otomatik olarak oluşturulur.
-- **Güven Puanı (Reputation Score) Modeli:** Vatandaşların ihbar kalitesine göre dinamik olarak hesaplanan puanlama algoritması sayesinde sistem suistimalleri otomatik olarak engellenir.
+- **Media-Guard DevOps Entegrasyonu:** OpenCV Haar Cascade tabanlı yüz tespiti yapan `media-guard` Python servisi Dockerfile ve Docker Compose (dev & prod) mimarilerine entegre edildi.
 
 ---
 

@@ -1,13 +1,14 @@
 package com.burak.belediyeapp.service.notification;
 
-import com.burak.belediyeapp.entity.*;
-import com.burak.belediyeapp.repository.*;
+import com.burak.belediyeapp.entity.AppUser;
+import com.burak.belediyeapp.entity.LostPetAd;
+import com.burak.belediyeapp.entity.Municipality;
+import com.burak.belediyeapp.entity.Notification;
+import com.burak.belediyeapp.repository.ILostPetAdRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,14 +19,12 @@ import java.util.Map;
 @Slf4j
 public class LostPetNotificationService {
 
-    private final IAppUserRepository userRepository;
-    private final INotificationRepository notificationRepository;
     private final ILostPetAdRepository lostPetAdRepository;
-    private final IUserNotificationPreferenceRepository preferenceRepository;
+    private final MunicipalityAudienceNotificationSupport audienceSupport;
+    private final NotificationBatchPersistenceService notificationBatchPersistenceService;
     private final FirebasePushClient firebasePushClient;
 
     @Async
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void broadcast(String lostPetAdId) {
         if (lostPetAdId == null || lostPetAdId.isBlank()) {
             return;
@@ -37,73 +36,60 @@ public class LostPetNotificationService {
         }
 
         AppUser creator = ad.getUser();
-        Municipality m = creator.getPreferredMunicipality();
-        if (m == null) {
-            log.info("Kayıp evcil hayvan ilanı yayını için ilan sahibinin tercih ettiği belediye bulunamadı. lostPetAdId={}", ad.getId());
+        Municipality municipality = creator.getPreferredMunicipality();
+        if (municipality == null) {
+            log.info("Kayip evcil hayvan ilani icin tercih edilen belediye bulunamadi: lostPetAdId={}", ad.getId());
             return;
         }
 
-        List<AppUser> allUsers = userRepository.findByPreferredMunicipalityId(m.getId());
-        if (allUsers.isEmpty()) {
-            log.info("Kayıp evcil hayvan ilanı yayını için tercih eden vatandaş yok: lostPetAdId={}", ad.getId());
-            return;
-        }
+        String title = "Kayip Evcil Hayvan Ilani";
+        String body = String.format(
+                "%s (%s), %s konumunda kaybolmustur. Gorenlerin iletisime gecmesi rica olunur.",
+                ad.getPetName(),
+                ad.getPetType(),
+                ad.getLastSeenDistrict());
 
-        List<String> userIds = allUsers.stream().map(AppUser::getId).toList();
-        Map<String, UserNotificationPreference> prefsMap = new java.util.HashMap<>();
-        if (!userIds.isEmpty()) {
-            preferenceRepository.findAllByUserIdIn(userIds)
-                    .forEach(p -> prefsMap.put(p.getUser().getId(), p));
-        }
-
-        List<AppUser> recipients = allUsers.stream()
-                .filter(user -> {
-                    // İlanı oluşturan kişiye bildirim gönderme
-                    if (user.getId().equals(creator.getId())) {
-                        return false;
+        int recipientCount = audienceSupport.forEachRecipientBatch(
+                municipality.getId(),
+                pref -> pref.isLostPetsEnabled(),
+                user -> !user.getId().equals(creator.getId()),
+                recipients -> {
+                    List<Notification> notifications = new ArrayList<>(recipients.size());
+                    for (AppUser user : recipients) {
+                        notifications.add(Notification.builder()
+                                .user(user)
+                                .title(title)
+                                .body(body)
+                                .type("LOST_PET")
+                                .build());
                     }
-                    UserNotificationPreference pref = prefsMap.get(user.getId());
-                    return pref == null || pref.isLostPetsEnabled();
-                })
-                .toList();
+                    notificationBatchPersistenceService.saveAll(notifications);
+                    sendPushes(recipients, title, body, municipality.getId(), ad.getId());
+                });
 
-        if (recipients.isEmpty()) {
-            return;
+        if (recipientCount > 0) {
+            log.info("Kayip evcil hayvan bildirimi tamamlandi: lostPetAdId={}, recipientCount={}", ad.getId(), recipientCount);
         }
+    }
 
-        String title = "🐾 Kayıp Evcil Hayvan İlanı";
-        String body = String.format("%s (%s), %s konumunda kaybolmuştur. Görenlerin iletişime geçmesi rica olunur.",
-                ad.getPetName(), ad.getPetType(), ad.getLastSeenDistrict());
-
-        List<Notification> notificationsToSave = new ArrayList<>(recipients.size());
+    private void sendPushes(List<AppUser> recipients, String title, String body, String municipalityId, String lostPetAdId) {
         for (AppUser user : recipients) {
-            notificationsToSave.add(Notification.builder()
-                    .user(user)
-                    .title(title)
-                    .body(body)
-                    .type("LOST_PET")
-                    .build());
-        }
-
-        notificationRepository.saveAll(notificationsToSave);
-        log.info("Kayıp evcil hayvan bildirimi {} vatandaşa kaydedildi (lostPetAdId={})", notificationsToSave.size(), ad.getId());
-
-        for (AppUser user : recipients) {
-            if (user.getFcmToken() != null && !user.getFcmToken().isBlank()) {
-                try {
-                    firebasePushClient.send(
-                            user.getFcmToken(),
-                            title,
-                            body,
-                            Map.of(
-                                    "type", "LOST_PET",
-                                    "municipalityId", m.getId(),
-                                    "lostPetAdId", ad.getId()
-                            )
-                    );
-                } catch (Exception e) {
-                    log.warn("FCM push notification could not be sent to user: {}", user.getId(), e);
-                }
+            if (user.getFcmToken() == null || user.getFcmToken().isBlank()) {
+                continue;
+            }
+            try {
+                firebasePushClient.send(
+                        user.getFcmToken(),
+                        title,
+                        body,
+                        Map.of(
+                                "type", "LOST_PET",
+                                "municipalityId", municipalityId,
+                                "lostPetAdId", lostPetAdId
+                        )
+                );
+            } catch (Exception e) {
+                log.warn("Lost pet push gonderilemedi: userId={}, err={}", user.getId(), e.getMessage());
             }
         }
     }

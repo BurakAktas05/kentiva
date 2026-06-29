@@ -22,6 +22,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -50,6 +52,8 @@ public class AuthService {
     private final JwtAuthenticationSupport jwtAuthenticationSupport;
     private final TokenBlacklistService tokenBlacklistService;
     private final com.burak.belediyeapp.service.media.MediaSignedUrlService mediaSignedUrlService;
+    private final com.burak.belediyeapp.service.security.PasswordPolicyService passwordPolicyService;
+    private final MernisVerificationService mernisVerificationService;
 
     @Value("${app.security.jwt.refresh-token-expiration-days}")
     private long refreshTokenExpirationDays;
@@ -65,6 +69,10 @@ public class AuthService {
                     "Bu email adresi zaten kullanımda: " + request.email(),
                     "EMAIL_ALREADY_EXISTS");
         }
+        String normalizedPhone = requireVerifiedRegistrationPhone(request.phoneNumber(), request.smsOtpCode());
+
+        // Mernis doğrulaması (Opsiyonel / Özellik bayrağına göre aktifleşir)
+        mernisVerificationService.verify(request.tcNo(), request.firstName(), request.lastName(), request.birthYear());
 
         Role citizenRole = roleRepository.findByName("ROLE_CITIZEN")
                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -73,8 +81,13 @@ public class AuthService {
         user.setFirstName(request.firstName());
         user.setLastName(request.lastName());
         user.setEmail(request.email());
+        passwordPolicyService.validateCitizenPassword(
+                request.password(),
+                request.email(),
+                request.firstName(),
+                request.lastName());
         user.setPassword(passwordEncoder.encode(request.password()));
-        user.setPhoneNumber(request.phoneNumber());
+        user.setPhoneNumber(normalizedPhone);
         user.getRoles().add(citizenRole);
         user.setKvkkApproved(Boolean.TRUE.equals(request.kvkkApproved()));
         if (user.isKvkkApproved()) {
@@ -93,6 +106,88 @@ public class AuthService {
         log.info("Yeni vatandaş kaydı: {} ({})", savedUser.getFullName(), savedUser.getEmail());
 
         return buildAuthResponse(savedUser);
+    }
+
+    public String sendRegistrationOtp(String phoneNumber) {
+        String normalizedPhone = requireRegistrationPhone(phoneNumber);
+        if (findUserByPhone(normalizedPhone).isPresent()) {
+            throw new BusinessException("Bu telefon numarası zaten kullanımda.", "PHONE_ALREADY_EXISTS");
+        }
+        boolean sent = smsOtpService.sendOtp(normalizedPhone);
+        if (!sent) {
+            throw new BusinessException(
+                    "Doğrulama kodu gönderilemedi. Lütfen biraz sonra tekrar deneyin.",
+                    "OTP_SEND_FAILED");
+        }
+        return smsOtpService.getDevBypassCode();
+    }
+
+    private String requireVerifiedRegistrationPhone(String phoneNumber, String smsOtpCode) {
+        String normalizedPhone = requireRegistrationPhone(phoneNumber);
+        if (findUserByPhone(normalizedPhone).isPresent()) {
+            throw new BusinessException("Bu telefon numarası zaten kullanımda.", "PHONE_ALREADY_EXISTS");
+        }
+        if (!smsOtpService.verifyOtp(normalizedPhone, smsOtpCode)) {
+            throw new BusinessException("SMS doğrulama kodu geçersiz veya süresi dolmuş.", "INVALID_OTP");
+        }
+        return normalizedPhone;
+    }
+
+    private String requireRegistrationPhone(String phoneNumber) {
+        String normalizedPhone = smsOtpService.normalizePhoneNumber(phoneNumber);
+        if (normalizedPhone == null || normalizedPhone.isBlank()) {
+            throw new BusinessException("Telefon numarası zorunludur.", "PHONE_REQUIRED");
+        }
+        return normalizedPhone;
+    }
+
+    private Optional<AppUser> findUserByPhone(String phoneNumber) {
+        for (String candidate : phoneCandidates(phoneNumber)) {
+            Optional<AppUser> user = userRepository.findByPhoneNumber(candidate);
+            if (user.isPresent()) {
+                return user;
+            }
+        }
+        return Optional.empty();
+    }
+
+    private Set<String> phoneCandidates(String phoneNumber) {
+        LinkedHashSet<String> candidates = new LinkedHashSet<>();
+        if (phoneNumber == null || phoneNumber.isBlank()) {
+            return candidates;
+        }
+
+        String normalized = smsOtpService.normalizePhoneNumber(phoneNumber);
+        addPhoneCandidate(candidates, normalized);
+
+        String digits = phoneNumber.replaceAll("[^0-9+]", "").replace("+", "");
+        if (digits.startsWith("00")) {
+            digits = digits.substring(2);
+        }
+        addPhoneCandidate(candidates, digits);
+
+        if (normalized != null && normalized.startsWith("90") && normalized.length() == 12) {
+            String local = normalized.substring(2);
+            addPhoneCandidate(candidates, local);
+            addPhoneCandidate(candidates, "0" + local);
+        }
+        if (digits.length() == 10) {
+            addPhoneCandidate(candidates, "90" + digits);
+            addPhoneCandidate(candidates, "0" + digits);
+        }
+        if (digits.startsWith("0") && digits.length() == 11) {
+            String local = digits.substring(1);
+            addPhoneCandidate(candidates, "90" + local);
+            addPhoneCandidate(candidates, local);
+        }
+
+        return candidates;
+    }
+
+    private void addPhoneCandidate(Set<String> candidates, String value) {
+        if (value != null && !value.isBlank()) {
+            candidates.add(value.trim());
+        }
     }
 
     // ===================================================
@@ -184,8 +279,9 @@ public class AuthService {
      * SmsOtpService telefon-başına cooldown ve günlük tavan uygular → ek SMS flood'a karşı.
      */
     public void sendPasswordResetOtp(String phoneNumber) {
-        userRepository.findByPhoneNumber(phoneNumber).ifPresent(user -> {
-            boolean sent = smsOtpService.sendOtp(phoneNumber);
+        String normalizedPhone = smsOtpService.normalizePhoneNumber(phoneNumber);
+        findUserByPhone(normalizedPhone).ifPresent(user -> {
+            boolean sent = smsOtpService.sendOtp(normalizedPhone);
             // Log'da kullanıcı kimliği/telefon değil, kullanıcı UUID'sinin kuyruk eki kullanılır.
             String tag = userTag(user.getId());
             if (!sent) {
@@ -206,16 +302,22 @@ public class AuthService {
      */
     @Transactional
     public void resetPasswordWithOtp(String phoneNumber, String otpCode, String newPassword) {
-        if (!smsOtpService.verifyOtp(phoneNumber, otpCode)) {
+        String normalizedPhone = smsOtpService.normalizePhoneNumber(phoneNumber);
+        if (!smsOtpService.verifyOtp(normalizedPhone, otpCode)) {
             throw new BusinessException("Doğrulama kodu geçersiz veya süresi dolmuş.",
                     "INVALID_OTP");
         }
 
-        AppUser user = userRepository.findByPhoneNumber(phoneNumber)
+        AppUser user = findUserByPhone(normalizedPhone)
                 .orElseThrow(() -> new BusinessException(
                         "Bu telefon numarasına kayıtlı hesap bulunamadı.",
                         "PHONE_NOT_FOUND"));
 
+        passwordPolicyService.validateCitizenPassword(
+                newPassword,
+                user.getEmail(),
+                user.getFirstName(),
+                user.getLastName());
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
         jwtAuthenticationSupport.evictCache(user.getEmail());

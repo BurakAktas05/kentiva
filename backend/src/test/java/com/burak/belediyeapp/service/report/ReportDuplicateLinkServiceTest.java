@@ -50,14 +50,14 @@ class ReportDuplicateLinkServiceTest {
         when(reportRepository.findById("r-null")).thenReturn(java.util.Optional.of(report));
 
         reportDuplicateLinkService.linkNearbyDuplicates("r-null");
-        verify(reportRepository, never()).findActiveNearbyInMunicipality(anyDouble(), anyDouble(), anyDouble(), anyString(), anyString(), anyInt());
+        verify(reportRepository, never()).findActiveNearbyInMunicipality(anyDouble(), anyDouble(), anyDouble(), anyString(), anyString(), any(), anyInt());
     }
 
     @Test
     void whenNoNearbyReports_doesNothing() {
         Report report = createReport("r-new", 41.25, 32.69);
         when(reportRepository.findById("r-new")).thenReturn(java.util.Optional.of(report));
-        when(reportRepository.findActiveNearbyInMunicipality(anyDouble(), anyDouble(), anyDouble(), anyString(), anyString(), anyInt()))
+        when(reportRepository.findActiveNearbyInMunicipality(anyDouble(), anyDouble(), anyDouble(), anyString(), anyString(), any(), anyInt()))
                 .thenReturn(List.of());
 
         reportDuplicateLinkService.linkNearbyDuplicates("r-new");
@@ -73,7 +73,7 @@ class ReportDuplicateLinkServiceTest {
         Report nearby2 = createReport("r-near2", 41.2502, 32.6902);
 
         when(reportRepository.findById("r-new")).thenReturn(java.util.Optional.of(report));
-        when(reportRepository.findActiveNearbyInMunicipality(anyDouble(), anyDouble(), anyDouble(), anyString(), anyString(), anyInt()))
+        when(reportRepository.findActiveNearbyInMunicipality(anyDouble(), anyDouble(), anyDouble(), anyString(), anyString(), any(), anyInt()))
                 .thenReturn(List.of(nearby1, nearby2));
         when(geminiService.findDuplicateReports(report, List.of(nearby1, nearby2)))
                 .thenReturn(null); // Indicates fallback/failure
@@ -92,7 +92,7 @@ class ReportDuplicateLinkServiceTest {
         Report nearby2 = createReport("r-near2", 41.2502, 32.6902);
 
         when(reportRepository.findById("r-new")).thenReturn(java.util.Optional.of(report));
-        when(reportRepository.findActiveNearbyInMunicipality(anyDouble(), anyDouble(), anyDouble(), anyString(), anyString(), anyInt()))
+        when(reportRepository.findActiveNearbyInMunicipality(anyDouble(), anyDouble(), anyDouble(), anyString(), anyString(), any(), anyInt()))
                 .thenReturn(List.of(nearby1, nearby2));
         when(geminiService.findDuplicateReports(report, List.of(nearby1, nearby2)))
                 .thenReturn(List.of("r-near1")); // Only nearby1 matches
@@ -116,7 +116,7 @@ class ReportDuplicateLinkServiceTest {
         Report nearby1 = createReport("r-near1", 41.2501, 32.6901);
 
         when(reportRepository.findById("r-new")).thenReturn(java.util.Optional.of(report));
-        when(reportRepository.findActiveNearbyInMunicipality(anyDouble(), anyDouble(), anyDouble(), anyString(), anyString(), anyInt()))
+        when(reportRepository.findActiveNearbyInMunicipality(anyDouble(), anyDouble(), anyDouble(), anyString(), anyString(), any(), anyInt()))
                 .thenReturn(List.of(nearby1));
         when(geminiService.findDuplicateReports(report, List.of(nearby1)))
                 .thenReturn(List.of()); // No matches found by Gemini

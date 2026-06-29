@@ -30,6 +30,8 @@ class PlatformSetupServiceTest {
     private IRoleRepository roleRepository;
     @Mock
     private PasswordEncoder passwordEncoder;
+    @Mock
+    private com.burak.belediyeapp.service.security.PasswordPolicyService passwordPolicyService;
 
     @InjectMocks
     private PlatformSetupService platformSetupService;

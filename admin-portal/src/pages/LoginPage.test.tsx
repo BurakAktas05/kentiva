@@ -11,8 +11,8 @@ vi.mock('../api', () => {
       post: vi.fn(),
       get: vi.fn(() => Promise.resolve({ data: { data: { needsBootstrap: false } } })),
     },
-    TOKEN_KEY: 'token',
-    REFRESH_KEY: 'refresh_token',
+    clearAuthStorage: vi.fn(),
+    setStoredAuthTokens: vi.fn(),
   };
 });
 

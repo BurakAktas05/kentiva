@@ -127,8 +127,11 @@ export function useReportLocation({ defaultMunicipality, lang }: UseReportLocati
 
   return {
     latitude,
+    setLatitude,
     longitude,
+    setLongitude,
     locationText,
+    setLocationText,
     locating,
     error,
     setError,
@@ -136,5 +139,6 @@ export function useReportLocation({ defaultMunicipality, lang }: UseReportLocati
     nearbyReports,
     nearbyLoading,
     getPosition,
+    resolveMunicipalityAt,
   };
 }

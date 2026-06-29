@@ -38,7 +38,7 @@ const STATUS_LABELS: Record<string, { tr: string; en: string; ar: string }> = {
   PROCESSING: { tr: 'İşlemde', en: 'In progress', ar: 'قيد المعالجة' },
   RESOLVED: { tr: 'Çözüldü', en: 'Resolved', ar: 'تم الحل' },
   REJECTED: { tr: 'Reddedildi', en: 'Rejected', ar: 'مرفوض' },
-  OUT_OF_JURISDICTION: { tr: 'Reddedildi', en: 'Rejected', ar: 'مرفوض' },
+  OUT_OF_JURISDICTION: { tr: 'Yetki Alanı Dışı', en: 'Out of Jurisdiction', ar: 'خارج نطاق الصلاحية' },
   FORWARDED: { tr: 'Yönlendirildi', en: 'Forwarded', ar: 'تم التحويل' },
 };
 

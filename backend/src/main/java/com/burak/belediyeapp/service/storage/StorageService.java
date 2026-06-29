@@ -17,11 +17,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.UUID;
 
-/**
- * Dosya depolama servisi.
- * S3/R2 veya yerel dosya sistemi kullanır.
- * app.storage.type=local ise yerel dosya sistemine yazar.
- */
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -41,9 +36,6 @@ public class StorageService {
     @Value("${app.storage.local.upload-dir:uploads}")
     private String localUploadDir;
 
-    /**
-     * Dosyayı depolamaya yükler ve imzalı erişim URL'ini döner.
-     */
     public String uploadFile(MultipartFile file, String folder) {
         if ("local".equals(storageType) || s3Client == null) {
             return uploadToLocalFs(file, folder);
@@ -62,20 +54,22 @@ public class StorageService {
     }
 
     public void deleteFile(String fileUrl) {
+        String key = mediaSignedUrlService.persistableStoragePath(fileUrl);
         if ("local".equals(storageType) || s3Client == null) {
-            log.info("Yerel dosya silme istendi: {}", fileUrl);
+            deleteLocalFile(key);
             return;
         }
         try {
-            String key = mediaSignedUrlService.persistableStoragePath(fileUrl);
             s3Client.deleteObject(builder -> builder.bucket(bucketName).key(key));
             log.info("Dosya silindi: {}", key);
         } catch (Exception e) {
-            log.warn("Dosya silinirken hata oluştu (önemsiz olabilir): {}", fileUrl);
+            log.warn("Dosya silinirken hata olustu: {}", fileUrl);
         }
     }
 
-    // ── S3 Yüklemeleri ───────────────────────────
+    public String persistableStoragePath(String fileUrl) {
+        return mediaSignedUrlService.persistableStoragePath(fileUrl);
+    }
 
     private String uploadToS3(MultipartFile file, String folder) {
         String safeName = file.getOriginalFilename() != null
@@ -89,11 +83,11 @@ public class StorageService {
                     .contentType(file.getContentType())
                     .build();
             s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
-            log.info("Dosya S3'e yüklendi: {}", fileName);
+            log.info("Dosya S3'e yuklendi: {}", fileName);
             return mediaSignedUrlService.signForClient(fileName);
         } catch (IOException e) {
-            log.error("S3 dosya yükleme hatası: {}", fileName, e);
-            throw new RuntimeException("Dosya yüklenemedi", e);
+            log.error("S3 dosya yukleme hatasi: {}", fileName, e);
+            throw new RuntimeException("Dosya yuklenemedi", e);
         }
     }
 
@@ -105,15 +99,13 @@ public class StorageService {
                     .contentType(contentType != null ? contentType : "application/octet-stream")
                     .build();
             s3Client.putObject(putObjectRequest, RequestBody.fromBytes(data));
-            log.info("Dosya S3'e yüklendi (bytes): {}", fileName);
+            log.info("Dosya S3'e yuklendi (bytes): {}", fileName);
             return mediaSignedUrlService.signForClient(fileName);
         } catch (Exception e) {
-            log.error("S3 dosya yükleme hatası: {}", fileName, e);
-            throw new RuntimeException("Dosya yüklenemedi", e);
+            log.error("S3 dosya yukleme hatasi: {}", fileName, e);
+            throw new RuntimeException("Dosya yuklenemedi", e);
         }
     }
-
-    // ── Local FS Yüklemeleri ─────────────────────
 
     private String uploadToLocalFs(MultipartFile file, String folder) {
         String safeName = file.getOriginalFilename() != null
@@ -121,27 +113,37 @@ public class StorageService {
                 : "upload.bin";
         String fileName = folder + "/" + UUID.randomUUID() + "_" + safeName;
         try {
-            Path path = Paths.get(localUploadDir, fileName);
+            Path path = resolveLocalPath(fileName);
             Files.createDirectories(path.getParent());
             Files.write(path, file.getBytes());
             log.info("Dosya yerel diske kaydedildi: {}", path);
             return mediaSignedUrlService.signForClient(fileName);
         } catch (IOException e) {
-            log.error("Yerel dosya yükleme hatası: {}", fileName, e);
-            throw new RuntimeException("Dosya yüklenemedi", e);
+            log.error("Yerel dosya yukleme hatasi: {}", fileName, e);
+            throw new RuntimeException("Dosya yuklenemedi", e);
         }
     }
 
     private String uploadBytesToLocalFs(byte[] data, String fileName) {
         try {
-            Path path = Paths.get(localUploadDir, fileName);
+            Path path = resolveLocalPath(fileName);
             Files.createDirectories(path.getParent());
             Files.write(path, data);
             log.info("Dosya yerel diske kaydedildi (bytes): {}", path);
             return mediaSignedUrlService.signForClient(fileName);
         } catch (IOException e) {
-            log.error("Yerel dosya yükleme hatası: {}", fileName, e);
-            throw new RuntimeException("Dosya yüklenemedi", e);
+            log.error("Yerel dosya yukleme hatasi: {}", fileName, e);
+            throw new RuntimeException("Dosya yuklenemedi", e);
+        }
+    }
+
+    private void deleteLocalFile(String key) {
+        try {
+            Path target = resolveLocalPath(key);
+            Files.deleteIfExists(target);
+            log.info("Yerel dosya silindi: {}", target);
+        } catch (Exception e) {
+            log.warn("Yerel dosya silinirken hata olustu: {}", key);
         }
     }
 
@@ -152,7 +154,7 @@ public class StorageService {
         String key = mediaSignedUrlService.persistableStoragePath(fileUrl);
         if ("local".equals(storageType) || s3Client == null) {
             try {
-                Path path = Paths.get(localUploadDir, key);
+                Path path = resolveLocalPath(key);
                 if (Files.exists(path)) {
                     return Files.readAllBytes(path);
                 }
@@ -161,13 +163,22 @@ public class StorageService {
                 log.error("Failed to read local file: {}", key, e);
                 return null;
             }
-        } else {
-            try {
-                return s3Client.getObjectAsBytes(builder -> builder.bucket(bucketName).key(key)).asByteArray();
-            } catch (Exception e) {
-                log.error("Failed to read S3 file: {}", key, e);
-                return null;
-            }
         }
+
+        try {
+            return s3Client.getObjectAsBytes(builder -> builder.bucket(bucketName).key(key)).asByteArray();
+        } catch (Exception e) {
+            log.error("Failed to read S3 file: {}", key, e);
+            return null;
+        }
+    }
+
+    private Path resolveLocalPath(String key) {
+        Path root = Paths.get(localUploadDir).toAbsolutePath().normalize();
+        Path target = root.resolve(key).normalize();
+        if (!target.startsWith(root)) {
+            throw new SecurityException("Invalid storage path");
+        }
+        return target;
     }
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { MapPin, Bus, ChevronRight, Gift } from 'lucide-react';
+import { MapPin, ChevronRight, Gift, Phone, Mail, Globe, ExternalLink } from 'lucide-react';
 import { fetchPublicStatsOverview, type PublicDepartment, type PublicStatsOverview, type PublicTenant } from '../../api';
 import { Lang, t } from '../../i18n';
 import { screenHeadingClass, screenSubtitleClass } from '../../lib/ui';
@@ -13,11 +13,10 @@ interface KentScreenProps {
   lang: Lang;
   isDark: boolean;
   onSelectMunicipality?: () => void;
-  onOpenBusSchedules?: () => void;
   onOpenRewards?: () => void;
 }
 
-export default function KentScreen({ municipality, department, lang, isDark, onSelectMunicipality, onOpenBusSchedules, onOpenRewards }: KentScreenProps) {
+export default function KentScreen({ municipality, department, lang, isDark, onSelectMunicipality, onOpenRewards }: KentScreenProps) {
   const [publicOverview, setPublicOverview] = useState<PublicStatsOverview | null>(null);
   const cardStyle = isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200/80 bg-white';
 
@@ -71,34 +70,122 @@ export default function KentScreen({ municipality, department, lang, isDark, onS
         <div className="space-y-4 px-4">
           <PharmacyWidgetCard tenant={municipality} lang={lang} isDark={isDark} />
 
-          {/* Otobüs Seferleri Kartı */}
-          <section 
-            onClick={onOpenBusSchedules}
-            className={`rounded-2xl border shadow-sm p-4 cursor-pointer transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-between ${
-              isDark
-                ? 'border-slate-800 bg-slate-900/60 hover:bg-slate-900'
-                : 'border-slate-200/80 bg-white hover:bg-slate-50/50'
-            }`}
-          >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div 
-                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
-                  isDark ? 'bg-primary/20 text-sky-400' : 'bg-primary/15 text-primary'
-                }`}
-              >
-                <Bus className="h-6 w-6" strokeWidth={1.5} />
+
+
+          {/* Ödüller Kartı */}
+          {onOpenRewards && (
+            <section 
+              onClick={onOpenRewards}
+              className={`rounded-2xl border shadow-sm p-4 cursor-pointer transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-between ${
+                isDark
+                  ? 'border-slate-800 bg-slate-900/60 hover:bg-slate-900'
+                  : 'border-slate-200/80 bg-white hover:bg-slate-50/50'
+              }`}
+            >
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div 
+                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
+                    isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-500/15 text-amber-600'
+                  }`}
+                >
+                  <Gift className="h-6 w-6" strokeWidth={1.5} />
+                </div>
+                <div className="min-w-0">
+                  <h3 className={`truncate text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-800'}`}>
+                    {t('kent.rewards.cardTitle', lang)}
+                  </h3>
+                  <p className={`mt-0.5 text-xs truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    {t('kent.rewards.cardDesc', lang)}
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <h3 className={`truncate text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-800'}`}>
-                  {t('bus.title', lang)}
-                </h3>
-                <p className={`mt-0.5 text-xs truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                  {t('bus.subtitle', lang)}
-                </p>
+              <ChevronRight className={`w-5 h-5 shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+            </section>
+          )}
+
+          {/* Belediye İletişim Kartı */}
+          {municipality && (municipality.contactPhone || municipality.contactEmail || municipality.websiteUrl) && (
+            <section className={`rounded-2xl border shadow-sm p-4 ${
+              isDark ? 'border-slate-800 bg-slate-900/60' : 'border-slate-200/80 bg-white'
+            }`}>
+              <h3 className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? 'text-sky-300' : 'text-primary'}`}>
+                {t('settings.contact.title', lang)}
+              </h3>
+              <div className="space-y-2">
+                {municipality.contactPhone && (
+                  <a
+                    href={`tel:${municipality.contactPhone}`}
+                    className={`flex items-center justify-between rounded-xl border p-3 transition-all ${
+                      isDark
+                        ? 'border-slate-800 bg-slate-950/50 hover:bg-slate-800/60'
+                        : 'border-slate-100 bg-slate-50/50 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Phone className="h-4 w-4 text-emerald-500 shrink-0" />
+                      <div>
+                        <span className={`block text-xs font-bold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                          {t('settings.contact.phone', lang)}
+                        </span>
+                        <span className="block text-[10px] text-slate-400 font-medium">
+                          {municipality.contactPhone}
+                        </span>
+                      </div>
+                    </div>
+                    <ExternalLink className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  </a>
+                )}
+                {municipality.contactEmail && (
+                  <a
+                    href={`mailto:${municipality.contactEmail}`}
+                    className={`flex items-center justify-between rounded-xl border p-3 transition-all ${
+                      isDark
+                        ? 'border-slate-800 bg-slate-950/50 hover:bg-slate-800/60'
+                        : 'border-slate-100 bg-slate-50/50 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Mail className="h-4 w-4 text-primary shrink-0" />
+                      <div>
+                        <span className={`block text-xs font-bold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                          {t('settings.contact.email', lang)}
+                        </span>
+                        <span className="block text-[10px] text-slate-400 font-medium truncate max-w-[200px]">
+                          {municipality.contactEmail}
+                        </span>
+                      </div>
+                    </div>
+                    <ExternalLink className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  </a>
+                )}
+                {municipality.websiteUrl && (
+                  <a
+                    href={municipality.websiteUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`flex items-center justify-between rounded-xl border p-3 transition-all ${
+                      isDark
+                        ? 'border-slate-800 bg-slate-950/50 hover:bg-slate-800/60'
+                        : 'border-slate-100 bg-slate-50/50 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Globe className="h-4 w-4 text-sky-500 shrink-0" />
+                      <div>
+                        <span className={`block text-xs font-bold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                          {t('settings.contact.website', lang)}
+                        </span>
+                        <span className="block text-[10px] text-slate-400 font-medium truncate max-w-[200px]">
+                          {municipality.websiteUrl}
+                        </span>
+                      </div>
+                    </div>
+                    <ExternalLink className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  </a>
+                )}
               </div>
-            </div>
-            <ChevronRight className={`w-5 h-5 shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
-          </section>
+            </section>
+          )}
 
         </div>
       )}

@@ -1,14 +1,14 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "com.burak.belediye"
+    namespace = "com.kentiva.citizen"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.burak.belediye"
+        applicationId "com.kentiva.citizen"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
-        versionName "1.0"
+        versionName "3.0.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders = [usesCleartextTraffic: "false"]
         aaptOptions {
@@ -17,14 +17,28 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+
+    // Release keystore yapılandırması — keystore oluşturulduktan sonra aktif edin:
+    // keytool -genkey -v -keystore kentiva-release.keystore -alias kentiva -keyalg RSA -keysize 2048 -validity 10000
+    // signingConfigs {
+    //     release {
+    //         storeFile file("kentiva-release.keystore")
+    //         storePassword System.getenv("KEYSTORE_PASSWORD") ?: ""
+    //         keyAlias "kentiva"
+    //         keyPassword System.getenv("KEY_PASSWORD") ?: ""
+    //     }
+    // }
+
     buildTypes {
         debug {
             manifestPlaceholders = [usesCleartextTraffic: "true"]
         }
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            minifyEnabled true
+            shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             manifestPlaceholders = [usesCleartextTraffic: "false"]
+            // signingConfig signingConfigs.release // keystore hazır olduğunda aktif edin
         }
     }
 }

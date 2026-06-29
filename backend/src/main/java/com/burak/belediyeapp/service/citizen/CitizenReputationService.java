@@ -92,6 +92,14 @@ public class CitizenReputationService {
             int prev = user.getReputationScore();
             int next = clamp(prev + delta);
             user.setReputationScore(next);
+
+            // Sadakat puanını güncelle (ödül alımı/iptali haricindeki durumlar için)
+            if (!"REWARD_REDEEM".equals(reason) && !"REWARD_CANCELLED".equals(reason)) {
+                int prevLoyalty = user.getLoyaltyPoints();
+                int nextLoyalty = Math.max(0, prevLoyalty + delta);
+                user.setLoyaltyPoints(nextLoyalty);
+            }
+
             userRepository.save(user);
             jwtAuthenticationSupport.evictCache(user.getEmail());
 
@@ -105,8 +113,40 @@ public class CitizenReputationService {
                     .build();
             reputationAuditLogRepository.save(auditLog);
 
-            log.info("Vatandaş puanı güncellendi: user={} delta={} reason={} yeni={}",
+            log.info("Vatandaş güven puanı güncellendi: user={} delta={} reason={} yeni={}",
                     userId, delta, reason, next);
+        });
+    }
+
+    @Transactional
+    public void deductLoyaltyPoints(String userId, int points) {
+        userRepository.findById(userId).ifPresent(user -> {
+            if (!isCitizen(user)) {
+                return;
+            }
+            int prev = user.getLoyaltyPoints();
+            int next = Math.max(0, prev - points);
+            user.setLoyaltyPoints(next);
+            userRepository.save(user);
+            jwtAuthenticationSupport.evictCache(user.getEmail());
+            log.info("Vatandaş sadakat puanı düşüldü: user={} düşülen={} yeni={}",
+                    userId, points, next);
+        });
+    }
+
+    @Transactional
+    public void refundLoyaltyPoints(String userId, int points) {
+        userRepository.findById(userId).ifPresent(user -> {
+            if (!isCitizen(user)) {
+                return;
+            }
+            int prev = user.getLoyaltyPoints();
+            int next = prev + points;
+            user.setLoyaltyPoints(next);
+            userRepository.save(user);
+            jwtAuthenticationSupport.evictCache(user.getEmail());
+            log.info("Vatandaş sadakat puanı iade edildi: user={} iade={} yeni={}",
+                    userId, points, next);
         });
     }
 

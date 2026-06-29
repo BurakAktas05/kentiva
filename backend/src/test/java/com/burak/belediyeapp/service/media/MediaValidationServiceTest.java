@@ -27,6 +27,7 @@ class MediaValidationServiceTest {
     void setUp() {
         ReflectionTestUtils.setField(mediaValidationService, "apiKey", "fake-api-key");
         ReflectionTestUtils.setField(mediaValidationService, "model", "gemini-2.5-flash");
+        ReflectionTestUtils.setField(mediaValidationService, "failOpen", true);
         ReflectionTestUtils.setField(mediaValidationService, "restClient", restClient);
     }
 
@@ -101,5 +102,17 @@ class MediaValidationServiceTest {
 
         assertThat(result.safe()).isTrue();
         assertThat(result.code()).isEqualTo("OK");
+    }
+
+    @Test
+    void testValidateImageApiNotConfiguredFailClosed() {
+        ReflectionTestUtils.setField(mediaValidationService, "apiKey", "");
+        ReflectionTestUtils.setField(mediaValidationService, "failOpen", false);
+
+        byte[] fakeImage = new byte[]{1, 2, 3};
+        MediaValidationService.ValidationResult result = mediaValidationService.validateImage(fakeImage, "image/jpeg");
+
+        assertThat(result.safe()).isFalse();
+        assertThat(result.code()).isEqualTo("UNAVAILABLE");
     }
 }

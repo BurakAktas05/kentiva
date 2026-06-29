@@ -77,12 +77,12 @@ export default function SiteLayout() {
             </div>
             <div className="flex shrink-0 items-center gap-2 sm:gap-3">
               <a
-                href={ADMIN_PORTAL_URL}
+                href={`${ADMIN_PORTAL_URL}`}
                 target="_blank"
                 rel="noreferrer"
                 className="hidden text-sm font-semibold text-slate-600 transition-colors hover:text-primary sm:inline"
               >
-                Operatör paneli
+                Yönetici Paneli
               </a>
               <a
                 href="mailto:demo@kentiva.app?subject=Kentiva%20Demo%20Talebi"
@@ -139,13 +139,13 @@ export default function SiteLayout() {
               </a>
               <div className="h-px bg-slate-100 my-2" />
               <a
-                href={ADMIN_PORTAL_URL}
+                href={`${ADMIN_PORTAL_URL}`}
                 target="_blank"
                 rel="noreferrer"
                 onClick={() => setMobileMenuOpen(false)}
                 className="block rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-primary transition-colors"
               >
-                Operatör paneli
+                Yönetici Paneli
               </a>
             </div>
           </div>
@@ -180,13 +180,19 @@ export default function SiteLayout() {
                 Fiyatlandırma
               </a>
               <a
-                href={ADMIN_PORTAL_URL}
+                href={`${ADMIN_PORTAL_URL}/super-admin/login`}
                 target="_blank"
                 rel="noreferrer"
                 className="text-slate-400 transition-colors hover:text-white"
               >
-                Operatör paneli
+                Platform Süper Yönetici Girişi
               </a>
+              <Link to="/gizlilik-politikasi" className="text-slate-400 transition-colors hover:text-white">
+                Gizlilik Politikası
+              </Link>
+              <Link to="/kullanim-kosullari" className="text-slate-400 transition-colors hover:text-white">
+                Kullanım Koşulları
+              </Link>
               <a href="mailto:demo@kentiva.app" className="text-slate-400 transition-colors hover:text-white">
                 demo@kentiva.app
               </a>

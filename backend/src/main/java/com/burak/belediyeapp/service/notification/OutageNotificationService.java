@@ -4,17 +4,11 @@ import com.burak.belediyeapp.entity.AppUser;
 import com.burak.belediyeapp.entity.Municipality;
 import com.burak.belediyeapp.entity.MunicipalityOutage;
 import com.burak.belediyeapp.entity.Notification;
-import com.burak.belediyeapp.entity.UserNotificationPreference;
-import com.burak.belediyeapp.repository.IAppUserRepository;
 import com.burak.belediyeapp.repository.IMunicipalityOutageRepository;
-import com.burak.belediyeapp.repository.INotificationRepository;
-import com.burak.belediyeapp.repository.IUserNotificationPreferenceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -22,32 +16,19 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Planlı kesinti vatandaş bildirimi.
- *
- * Belediyenin "tercih edilen belediye" olarak seçildiği vatandaşlara
- * — in-app bildirim (zil ikonu) + (varsa) Firebase push gönderir.
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class OutageNotificationService {
 
-    private static final DateTimeFormatter TR_DATETIME =
-            DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
+    private static final DateTimeFormatter TR_DATETIME = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
 
-    private final IAppUserRepository userRepository;
-    private final INotificationRepository notificationRepository;
     private final IMunicipalityOutageRepository outageRepository;
-    private final IUserNotificationPreferenceRepository preferenceRepository;
+    private final MunicipalityAudienceNotificationSupport audienceSupport;
+    private final NotificationBatchPersistenceService notificationBatchPersistenceService;
     private final FirebasePushClient firebasePushClient;
 
-    /**
-     * Asenkron yayın — admin kesintiyi kaydederken yanıt bekleterek bloklamaz.
-     * Yeni bir transaction açar ve entity'yi taze çeker (LAZY proxy sorunu olmasın diye).
-     */
     @Async
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void broadcast(String outageId) {
         if (outageId == null || outageId.isBlank()) {
             return;
@@ -56,54 +37,54 @@ public class OutageNotificationService {
         if (outage == null || !outage.isActive() || outage.getMunicipality() == null) {
             return;
         }
-        Municipality m = outage.getMunicipality();
-        List<AppUser> allUsers = userRepository.findByPreferredMunicipalityId(m.getId());
-        if (allUsers.isEmpty()) {
-            log.info("Kesinti yayını için tercih eden vatandaş yok: outageId={}", outage.getId());
-            return;
-        }
 
-        // Bildirim tercihine göre filtrele — outagesEnabled=false olan kullanıcılara gönderme
-        List<String> userIds = allUsers.stream().map(AppUser::getId).toList();
-        Map<String, UserNotificationPreference> prefsMap = new java.util.HashMap<>();
-        if (!userIds.isEmpty()) {
-            preferenceRepository.findAllByUserIdIn(userIds)
-                    .forEach(p -> prefsMap.put(p.getUser().getId(), p));
-        }
-        List<AppUser> recipients = allUsers.stream()
-                .filter(user -> {
-                    UserNotificationPreference pref = prefsMap.get(user.getId());
-                    return pref == null || pref.isOutagesEnabled();
-                })
-                .toList();
-
-        String title = buildTitle(outage, m);
+        Municipality municipality = outage.getMunicipality();
+        String title = buildTitle(outage, municipality);
         String body = buildBody(outage);
         String typeCode = isWater(outage.getOutageType()) ? "OUTAGE_WATER" : "OUTAGE_ELECTRIC";
 
-        List<Notification> rows = new ArrayList<>(recipients.size());
-        for (AppUser user : recipients) {
-            rows.add(Notification.builder()
-                    .user(user)
-                    .title(title)
-                    .body(body)
-                    .type(typeCode)
-                    .reportId(null)
-                    .build());
-        }
-        notificationRepository.saveAll(rows);
-        log.info("Kesinti bildirimi {} vatandaşa kaydedildi (outageId={})", rows.size(), outage.getId());
+        int recipientCount = audienceSupport.forEachRecipientBatch(
+                municipality.getId(),
+                pref -> pref.isOutagesEnabled(),
+                user -> true,
+                recipients -> {
+                    List<Notification> notifications = new ArrayList<>(recipients.size());
+                    for (AppUser user : recipients) {
+                        notifications.add(Notification.builder()
+                                .user(user)
+                                .title(title)
+                                .body(body)
+                                .type(typeCode)
+                                .reportId(null)
+                                .build());
+                    }
+                    notificationBatchPersistenceService.saveAll(notifications);
+                    sendPushes(recipients, title, body, municipality.getId(), outage.getId(), typeCode);
+                });
 
+        if (recipientCount > 0) {
+            log.info("Kesinti bildirimi tamamlandi: outageId={}, recipientCount={}", outage.getId(), recipientCount);
+        }
+    }
+
+    private void sendPushes(List<AppUser> recipients, String title, String body, String municipalityId, String outageId, String typeCode) {
         for (AppUser user : recipients) {
-            if (user.getFcmToken() != null && !user.getFcmToken().isBlank()) {
+            if (user.getFcmToken() == null || user.getFcmToken().isBlank()) {
+                continue;
+            }
+            try {
                 firebasePushClient.send(
                         user.getFcmToken(),
                         title,
                         body,
                         Map.of(
                                 "type", typeCode,
-                                "municipalityId", m.getId(),
-                                "outageId", outage.getId() != null ? outage.getId() : ""));
+                                "municipalityId", municipalityId,
+                                "outageId", outageId != null ? outageId : ""
+                        )
+                );
+            } catch (Exception e) {
+                log.warn("Outage push gonderilemedi: userId={}, err={}", user.getId(), e.getMessage());
             }
         }
     }
@@ -112,48 +93,58 @@ public class OutageNotificationService {
         return "WATER".equalsIgnoreCase(type);
     }
 
-    private static String buildTitle(MunicipalityOutage o, Municipality m) {
-        String prefix = (m.getDisplayName() != null && !m.getDisplayName().isBlank())
-                ? m.getDisplayName().trim()
-                : (m.getName() != null ? m.getName() : "Belediyeniz");
-        String kind = isWater(o.getOutageType()) ? "Su kesintisi" : "Elektrik kesintisi";
-        return prefix + " — " + kind;
+    private static String buildTitle(MunicipalityOutage outage, Municipality municipality) {
+        String prefix = (municipality.getDisplayName() != null && !municipality.getDisplayName().isBlank())
+                ? municipality.getDisplayName().trim()
+                : (municipality.getName() != null ? municipality.getName() : "Belediyeniz");
+        String kind = isWater(outage.getOutageType()) ? "Su kesintisi" : "Elektrik kesintisi";
+        return prefix + " - " + kind;
     }
 
-    private static String buildBody(MunicipalityOutage o) {
-        StringBuilder sb = new StringBuilder();
-        if (o.getTitle() != null && !o.getTitle().isBlank()) {
-            sb.append(o.getTitle().trim());
+    private static String buildBody(MunicipalityOutage outage) {
+        StringBuilder builder = new StringBuilder();
+        if (outage.getTitle() != null && !outage.getTitle().isBlank()) {
+            builder.append(outage.getTitle().trim());
         }
-        if (o.getDistrict() != null && !o.getDistrict().isBlank()) {
-            if (sb.length() > 0) sb.append(" · ");
-            sb.append(o.getDistrict().trim());
+        if (outage.getDistrict() != null && !outage.getDistrict().isBlank()) {
+            if (builder.length() > 0) {
+                builder.append(" · ");
+            }
+            builder.append(outage.getDistrict().trim());
         }
-        String window = formatWindow(o.getStartsAt(), o.getEndsAt());
+        String window = formatWindow(outage.getStartsAt(), outage.getEndsAt());
         if (!window.isEmpty()) {
-            if (sb.length() > 0) sb.append(" — ");
-            sb.append(window);
+            if (builder.length() > 0) {
+                builder.append(" - ");
+            }
+            builder.append(window);
         }
-        if (o.getMessage() != null && !o.getMessage().isBlank()) {
-            if (sb.length() > 0) sb.append(" — ");
-            sb.append(truncate(o.getMessage().trim(), 200));
+        if (outage.getMessage() != null && !outage.getMessage().isBlank()) {
+            if (builder.length() > 0) {
+                builder.append(" - ");
+            }
+            builder.append(truncate(outage.getMessage().trim(), 200));
         }
-        if (sb.length() == 0) {
-            sb.append("Bölgenizde planlı bir kesinti duyuruldu.");
+        if (builder.length() == 0) {
+            builder.append("Bolgenizde planli bir kesinti duyuruldu.");
         }
-        return sb.toString();
+        return builder.toString();
     }
 
     private static String formatWindow(LocalDateTime start, LocalDateTime end) {
-        if (start == null && end == null) return "";
+        if (start == null && end == null) {
+            return "";
+        }
         if (start != null && end != null) {
-            return TR_DATETIME.format(start) + " → " + TR_DATETIME.format(end);
+            return TR_DATETIME.format(start) + " -> " + TR_DATETIME.format(end);
         }
         return TR_DATETIME.format(start != null ? start : end);
     }
 
     private static String truncate(String text, int max) {
-        if (text == null) return "";
-        return text.length() <= max ? text : text.substring(0, max) + "…";
+        if (text == null) {
+            return "";
+        }
+        return text.length() <= max ? text : text.substring(0, max) + "...";
     }
 }

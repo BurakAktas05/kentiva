@@ -1,13 +1,13 @@
 package com.burak.belediyeapp.service.report;
 
-import com.burak.belediyeapp.entity.Report;
 import com.burak.belediyeapp.entity.ReportMedia;
 import com.burak.belediyeapp.mapper.IReportMapper;
 import com.burak.belediyeapp.repository.IReportRepository;
+import com.burak.belediyeapp.security.SsrfProtectionInterceptor;
+import com.burak.belediyeapp.service.media.ImageAnonymizationService;
 import com.burak.belediyeapp.service.media.MediaGuardClient;
 import com.burak.belediyeapp.service.media.MediaGuardClient.ScanResult;
 import com.burak.belediyeapp.service.media.MediaValidationService;
-import com.burak.belediyeapp.service.media.ImageAnonymizationService;
 import com.burak.belediyeapp.service.storage.StorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,16 +22,16 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.client.RestClient;
-import com.burak.belediyeapp.security.SsrfProtectionInterceptor;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
- * Rapor oluşturulduktan sonra asenkron olarak:
- * 1. WebSocket ile canlı haritaya push (varsa)
- * 2. Medya guard taraması — selfie/uygunsuz içerik varsa sistem otomatik reddeder
- * 3. AI analizi tetikle
+ * Rapor olusturulduktan sonra asenkron olarak:
+ * 1. WebSocket ile canli haritaya push
+ * 2. Medya taramasi
+ * 3. Mukerrer ihbar kontrolu
  */
 @Component
 @RequiredArgsConstructor
@@ -47,17 +47,15 @@ public class ReportCreatedEventListener {
     private final ReportDuplicateLinkService duplicateLinkService;
     private final ImageAnonymizationService imageAnonymizationService;
     private final com.burak.belediyeapp.service.notification.NotificationService notificationService;
+    private final com.burak.belediyeapp.repository.IReportHistoryRepository historyRepository;
 
-    /** WebSocket opsiyonel — Railway gibi ortamlarda olmayabilir. */
     @Autowired(required = false)
     private SimpMessagingTemplate messagingTemplate;
 
-    /** Self-call yapan @Transactional metotları proxy üzerinden tetiklemek için. */
     @Autowired
     @Lazy
     private ReportCreatedEventListener self;
 
-    /** Medya indirmek için basit HTTP istemci — Storage URL'lerinden byte[] çeker. */
     private final RestClient mediaFetcher = RestClient.builder()
             .requestFactory(fetcherFactory())
             .requestInterceptor(new SsrfProtectionInterceptor())
@@ -66,65 +64,48 @@ public class ReportCreatedEventListener {
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleReportCreated(ReportCreatedEvent event) {
-
-        // 1. WebSocket push — opsiyonel.
-        // findByIdForRealtimePush JOIN FETCH yapar ama mediaList LAZY kalır;
-        // mapper sadece toResponse ile ihtiyaç duyduğu alanları çevirir.
         if (messagingTemplate != null) {
             try {
                 self.pushRealtime(event.reportId());
             } catch (Exception e) {
-                log.warn("WebSocket push hatası: {}", e.getMessage());
+                log.warn("WebSocket push hatasi: {}", e.getMessage());
             }
         }
 
-        // Trigger PENDING notification to the citizen
         try {
-            reportRepository.findById(event.reportId()).ifPresent(report -> {
-                notificationService.notifyReportStatusChanged(report);
-            });
+            reportRepository.findById(event.reportId()).ifPresent(notificationService::notifyReportStatusChanged);
         } catch (Exception e) {
-            log.warn("Bildirim gönderimi başarısız (Pending): reportId={}, err={}", event.reportId(), e.getMessage());
-        }
-
-        // 2. Media-guard tarama — selfie/uygunsuz içerik tespiti.
-        // Önce yeni bir read-only transaction içinde URL listesini ve ayarları çekeriz
-        // (LAZY mediaList sorunu olmasın diye); HTTP indirme ve tarama txn dışında yapılır.
-        try {
-            ModerationData modData = self.getModerationData(event.reportId());
-            if (modData.enabled()) {
-                scanMediaAndAutoRejectIfNeeded(event.reportId(), modData.urls());
-            } else {
-                log.info("Media-guard taraması devre dışı (belediye ayarı): reportId={}", event.reportId());
-            }
-        } catch (Exception e) {
-            log.warn("Media-guard tarama hatası (atlanıyor): reportId={}, err={}",
-                    event.reportId(), e.getMessage());
-        }
-
-        // 3. AI analizi — fail-soft, sistem context (kullanıcı oturumu yok).
-        // Devre dışı bırakıldı (sistem hızlandırma)
-        /*
-        try {
-            reportService.performAiAnalysisAsSystem(event.reportId());
-        } catch (Exception e) {
-            log.warn("Rapor AI analizi tamamlanamadı: reportId={}, reason={}", event.reportId(), e.getMessage());
-        }
-        */
-
-        // 4. Mükerrer ihbar analizi — asenkron, db txn dışında.
-        try {
-            duplicateLinkService.linkNearbyDuplicates(event.reportId());
-        } catch (Exception e) {
-            log.warn("Mükerrer ihbar analizi tamamlanamadı: reportId={}, err={}", event.reportId(), e.getMessage());
+            log.warn("Pending bildirimi gonderilemedi: reportId={}, err={}", event.reportId(), e.getMessage());
         }
     }
 
-    /** WebSocket push - yeni read-only transaction içinde fetch + map (LAZY proxy korur). */
+    public void scanAndAnalyzeReportFromQueue(String reportId) {
+        try {
+            ModerationData modData = self.getModerationData(reportId);
+            if (modData.enabled()) {
+                scanMediaAndAutoRejectIfNeeded(reportId, modData.urls());
+            } else {
+                log.info("Media moderation devre disi: reportId={}", reportId);
+            }
+        } catch (Exception e) {
+            log.error("Media moderation hatasi: reportId={}, err={}", reportId, e.getMessage(), e);
+            throw new RuntimeException("Media moderation failed", e);
+        }
+
+        try {
+            duplicateLinkService.linkNearbyDuplicatesOptimized(reportId);
+        } catch (Exception e) {
+            log.error("Mukerrer ihbar analizi tamamlanamadi: reportId={}, err={}", reportId, e.getMessage(), e);
+            throw new RuntimeException("Duplicate analysis failed", e);
+        }
+    }
+
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public void pushRealtime(String reportId) {
         reportRepository.findByIdForRealtimePush(reportId).ifPresent(report -> {
-            if (report.getMunicipality() == null) return;
+            if (report.getMunicipality() == null) {
+                return;
+            }
             String topic = "/topic/municipality/" + report.getMunicipality().getId() + "/reports";
             messagingTemplate.convertAndSend(topic, reportMapper.toResponse(report));
         });
@@ -132,10 +113,6 @@ public class ReportCreatedEventListener {
 
     public record ModerationData(boolean enabled, List<String> urls) {}
 
-    /**
-     * Yeni bir read-only transaction içinde rapor + settings + mediaList'i çeker
-     * ve bunları dışarı taşır (LAZY proxy detached olmasın diye).
-     */
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public ModerationData getModerationData(String reportId) {
         return reportRepository.findById(reportId)
@@ -146,9 +123,9 @@ public class ReportCreatedEventListener {
                     }
                     List<String> urls = new ArrayList<>();
                     if (report.getMediaList() != null) {
-                        for (ReportMedia m : report.getMediaList()) {
-                            if (m.getImageUrl() != null && !m.getImageUrl().isBlank()) {
-                                urls.add(m.getImageUrl());
+                        for (ReportMedia media : report.getMediaList()) {
+                            if (media.getImageUrl() != null && !media.getImageUrl().isBlank()) {
+                                urls.add(media.getImageUrl());
                             }
                         }
                     }
@@ -157,24 +134,22 @@ public class ReportCreatedEventListener {
                 .orElseGet(() -> new ModerationData(true, List.of()));
     }
 
-    /**
-     * Görüntüleri indirip media-guard'a taratır — DB txn'i AÇIK DEĞİL.
-     * Tek bir reddedilen kayıt yeterlidir; sonraki taramalar atlanır.
-     */
     private void scanMediaAndAutoRejectIfNeeded(String reportId, List<String> imageUrls) {
         if (imageUrls == null || imageUrls.isEmpty()) {
             return;
         }
         for (String imageUrl : imageUrls) {
             byte[] bytes = fetchImageBytes(imageUrl);
-            if (bytes == null || bytes.length == 0) continue;
+            if (bytes == null || bytes.length == 0) {
+                continue;
+            }
 
             ScanResult result = mediaGuardClient.scan(bytes, "image/jpeg");
             if (result.rejected()) {
                 String reason = result.reason() != null && !result.reason().isBlank()
                         ? result.reason()
-                        : "Uygunsuz fotoğraf içerik tespiti (selfie veya yüz tespiti).";
-                log.warn("Media-guard reddi: reportId={}, reason={}", reportId, reason);
+                        : "Uygunsuz fotograf icerik tespiti.";
+                log.warn("Media guard reddi: reportId={}, reason={}", reportId, reason);
                 reportService.systemRejectReport(reportId, reason, true);
                 return;
             }
@@ -183,51 +158,82 @@ public class ReportCreatedEventListener {
             if (!geminiResult.safe()) {
                 String reason = geminiResult.reason() != null && !geminiResult.reason().isBlank()
                         ? geminiResult.reason()
-                        : "Görsel güvenlik kuralları ihlali (" + geminiResult.code() + ").";
-                log.warn("Gemini Safe Search reddi: reportId={}, reason={}, code={}", reportId, reason, geminiResult.code());
-                reportService.systemRejectReport(reportId, "[Görsel Güvenlik] " + reason, true);
-                
-                if ("OBSCENITY".equalsIgnoreCase(geminiResult.code()) 
-                        || "VIOLENCE".equalsIgnoreCase(geminiResult.code()) 
+                        : "Gorsel guvenlik kurallari ihlali (" + geminiResult.code() + ").";
+                log.warn("Gemini guvenlik reddi: reportId={}, reason={}, code={}", reportId, reason, geminiResult.code());
+                reportService.systemRejectReport(reportId, "[Gorsel Guvenlik] " + reason, true);
+
+                if ("OBSCENITY".equalsIgnoreCase(geminiResult.code())
+                        || "VIOLENCE".equalsIgnoreCase(geminiResult.code())
                         || "ILLEGAL".equalsIgnoreCase(geminiResult.code())) {
                     try {
                         reportService.suspendReporterOfReport(reportId);
                     } catch (Exception ex) {
-                        log.error("Kullanıcı hesabı askıya alınamadı: reportId={}, err={}", reportId, ex.getMessage());
+                        log.error("Kullanici hesabi askiya alinamadi: reportId={}, err={}", reportId, ex.getMessage());
                     }
                 }
                 return;
             }
 
-            // Run KVKK anonymization asynchronously
             try {
                 byte[] anonymizedBytes = imageAnonymizationService.anonymize(bytes, "image/jpeg");
-                if (anonymizedBytes != bytes && anonymizedBytes.length != bytes.length) {
-                    log.info("KVKK anonymization applied to image: reportId={}, imageUrl={}", reportId, imageUrl);
+                if (anonymizedBytes != null && anonymizedBytes.length > 0 && !Arrays.equals(anonymizedBytes, bytes)) {
+                    log.info("KVKK anonymization applied: reportId={}, imageUrl={}", reportId, imageUrl);
                     String newUrl = storageService.uploadBytes(anonymizedBytes, "image/jpeg", "reports", "anonymized.jpg");
-                    self.updateMediaUrl(reportId, imageUrl, newUrl);
+                    self.updateMediaUrl(reportId, imageUrl, storageService.persistableStoragePath(newUrl));
                     storageService.deleteFile(imageUrl);
                 }
             } catch (Exception e) {
-                log.warn("KVKK anonymization failed or skipped: reportId={}, err={}", reportId, e.getMessage());
+                log.warn("KVKK anonymization failed: reportId={}, err={}", reportId, e.getMessage());
+                // KVKK Uyarısı: Görseli kaldırıp, raporu koruma fallback'i
+                try {
+                    self.removeMediaUrl(reportId, imageUrl);
+                    storageService.deleteFile(imageUrl);
+                } catch (Exception ex) {
+                    log.error("Hatalı görsel temizlenemedi: imageUrl={}, err={}", imageUrl, ex.getMessage());
+                }
+                
+                reportRepository.findById(reportId).ifPresent(report -> {
+                    historyRepository.save(com.burak.belediyeapp.entity.ReportHistory.builder()
+                            .report(report)
+                            .oldStatus(report.getReportStatus())
+                            .newStatus(report.getReportStatus())
+                            .changedBy(null)
+                            .note("[SİSTEM] Görsel, KVKK anonimleştirme hatası nedeniyle güvenlik amacıyla kaldırıldı. İhbarın kendisi korunarak işleme alındı.")
+                            .build());
+                });
+                return;
             }
         }
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void updateMediaUrl(String reportId, String oldUrl, String newUrl) {
+    public void removeMediaUrl(String reportId, String imageUrl) {
         reportRepository.findById(reportId).ifPresent(report -> {
-            if (report.getMediaList() != null) {
-                for (ReportMedia media : report.getMediaList()) {
-                    if (oldUrl.equals(media.getImageUrl())) {
-                        media.setImageUrl(newUrl);
-                        media.setResolvedImage(true);
-                    }
-                }
+            if (report.getMediaList() == null) {
+                return;
+            }
+            boolean removed = report.getMediaList().removeIf(media -> imageUrl.equals(media.getImageUrl()));
+            if (removed) {
                 reportRepository.save(report);
             }
         });
-    }    /** Görüntü URL'sinden veya yerel yoldan/S3'ten byte[] okur; hata varsa null döner. */
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void updateMediaUrl(String reportId, String oldUrl, String newUrl) {
+        reportRepository.findById(reportId).ifPresent(report -> {
+            if (report.getMediaList() == null) {
+                return;
+            }
+            for (ReportMedia media : report.getMediaList()) {
+                if (oldUrl.equals(media.getImageUrl())) {
+                    media.setImageUrl(newUrl);
+                }
+            }
+            reportRepository.save(report);
+        });
+    }
+
     private byte[] fetchImageBytes(String url) {
         try {
             if (url == null || url.isBlank()) {
@@ -241,15 +247,15 @@ public class ReportCreatedEventListener {
             }
             return storageService.downloadFile(url);
         } catch (Exception e) {
-            log.warn("Medya indirilemedi veya okunamadı (guard atlandı): url={}, err={}", url, e.getMessage());
+            log.warn("Medya indirilemedi: url={}, err={}", url, e.getMessage());
             return null;
         }
     }
 
     private static SimpleClientHttpRequestFactory fetcherFactory() {
-        SimpleClientHttpRequestFactory f = new SimpleClientHttpRequestFactory();
-        f.setConnectTimeout(5_000);
-        f.setReadTimeout(15_000);
-        return f;
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(5_000);
+        factory.setReadTimeout(15_000);
+        return factory;
     }
 }

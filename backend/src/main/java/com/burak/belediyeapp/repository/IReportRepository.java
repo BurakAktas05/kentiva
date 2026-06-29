@@ -139,6 +139,7 @@ public interface IReportRepository extends JpaRepository<Report, String> {
               AND r.id <> :excludeId
               AND r.hidden_from_municipality = false
               AND r.report_status IN ('PENDING', 'PROCESSING')
+              AND (:categoryId IS NULL OR r.category_id = :categoryId)
               AND ST_DWithin(
                 r.location::geography,
                 ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography,
@@ -153,8 +154,43 @@ public interface IReportRepository extends JpaRepository<Report, String> {
             @Param("radiusInMeters") double radiusInMeters,
             @Param("municipalityId") String municipalityId,
             @Param("excludeId") String excludeId,
+            @Param("categoryId") String categoryId,
             @Param("maxRows") int maxRows
     );
+
+    @Query(value = """
+            SELECT r.* FROM reports r
+            WHERE r.municipality_id = :municipalityId
+              AND r.id <> :excludeId
+              AND r.hidden_from_municipality = false
+              AND r.report_status IN ('PENDING', 'PROCESSING')
+              AND (:categoryId IS NULL OR r.category_id = :categoryId)
+              AND ST_DWithin(
+                 r.location::geography,
+                 ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography,
+                 :radiusInMeters
+              )
+              AND r.title_description_vector IS NOT NULL
+              AND (r.title_description_vector <=> cast(:embedding as vector)) < :maxDistance
+            ORDER BY (r.title_description_vector <=> cast(:embedding as vector)) ASC
+            LIMIT :maxRows
+            """, nativeQuery = true)
+    List<Report> findSemanticNearbyInMunicipality(
+            @Param("latitude") double latitude,
+            @Param("longitude") double longitude,
+            @Param("radiusInMeters") double radiusInMeters,
+            @Param("municipalityId") String municipalityId,
+            @Param("excludeId") String excludeId,
+            @Param("categoryId") String categoryId,
+            @Param("embedding") String embeddingString,
+            @Param("maxDistance") double maxDistance,
+            @Param("maxRows") int maxRows
+    );
+
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.transaction.annotation.Transactional
+    @Query(value = "UPDATE reports SET title_description_vector = cast(:embedding as vector) WHERE id = :id", nativeQuery = true)
+    void updateReportEmbedding(@Param("id") String id, @Param("embedding") String embeddingString);
 
     int countByDuplicateGroupId(String duplicateGroupId);
 

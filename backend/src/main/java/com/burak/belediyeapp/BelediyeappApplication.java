@@ -20,6 +20,12 @@ import org.springframework.scheduling.annotation.EnableAsync;
 @org.springframework.scheduling.annotation.EnableScheduling
 public class BelediyeappApplication {
 
+    static {
+        // SSRF DNS Rebinding koruması: DNS kayıtlarını 10 saniye cache'le
+        java.security.Security.setProperty("networkaddress.cache.ttl", "10");
+        java.security.Security.setProperty("networkaddress.cache.negative.ttl", "0");
+    }
+
     public static void main(String[] args) {
         SpringApplication.run(BelediyeappApplication.class, args);
     }

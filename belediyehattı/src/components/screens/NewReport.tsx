@@ -49,14 +49,25 @@ export default function NewReport({
   // 1. Geolocation and region boundary tracking
   const {
     latitude,
+    setLatitude,
     longitude,
+    setLongitude,
     locationText,
+    setLocationText,
     locating,
     error: locationError,
     resolvedMunicipality,
     nearbyReports,
     getPosition,
+    resolveMunicipalityAt,
   } = useReportLocation({ defaultMunicipality, lang });
+
+  const handleManualLocation = async (lat: number, lng: number) => {
+    setLatitude(lat);
+    setLongitude(lng);
+    setLocationText(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+    await resolveMunicipalityAt(lat, lng);
+  };
 
   // 2. Photo capturing and upload management
   const {
@@ -315,21 +326,59 @@ export default function NewReport({
           <div className="space-y-5 flex-1">
             {step === 0 && (latitude === null || longitude === null) && (
               <div className="flex flex-1 flex-col items-center justify-center p-6 text-center my-auto min-h-[50vh]">
-                <div className="relative mb-6 flex h-20 w-20 items-center justify-center">
-                  <div className="absolute inset-0 animate-ping rounded-full bg-primary/20" />
-                  <div className="absolute inset-2 animate-pulse rounded-full bg-primary/30" />
-                  <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-white shadow-lg">
-                    <Navigation className="h-6 w-6 animate-spin" />
+                {locationError ? (
+                  <div className="space-y-4 max-w-xs">
+                    <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500">
+                      <MapPin className="h-6 w-6" />
+                    </div>
+                    <h3 className={`text-base font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                      {lang === 'tr' ? 'Konum Alınamadı' : 'Location Not Found'}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold leading-relaxed">
+                      {locationError}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const fallbackLat = defaultMunicipality?.centerLat || 41.2507;
+                        const fallbackLng = defaultMunicipality?.centerLng || 32.6942;
+                        void handleManualLocation(fallbackLat, fallbackLng);
+                      }}
+                      className="w-full rounded-xl bg-primary py-2.5 text-xs font-bold text-white shadow-md active:scale-95 transition-all cursor-pointer"
+                    >
+                      {lang === 'tr' ? 'Manuel Konum Belirle' : 'Set Location Manually'}
+                    </button>
                   </div>
-                </div>
-                <h3 className={`text-base font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                  {lang === 'tr' ? 'Konumunuz Belirleniyor' : 'Detecting Your Location'}
-                </h3>
-                <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400 font-semibold max-w-xs">
-                  {lang === 'tr'
-                    ? 'En doğru ihbar koordinatları için hassas GPS bağlantısı kuruluyor. Lütfen bekleyin...'
-                    : 'Establishing high-accuracy GPS connection for precise report mapping. Please wait...'}
-                </p>
+                ) : (
+                  <>
+                    <div className="relative mb-6 flex h-20 w-20 items-center justify-center">
+                      <div className="absolute inset-0 animate-ping rounded-full bg-primary/20" />
+                      <div className="absolute inset-2 animate-pulse rounded-full bg-primary/30" />
+                      <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-white shadow-lg">
+                        <Navigation className="h-6 w-6 animate-spin" />
+                      </div>
+                    </div>
+                    <h3 className={`text-base font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                      {lang === 'tr' ? 'Konumunuz Belirleniyor' : 'Detecting Your Location'}
+                    </h3>
+                    <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400 font-semibold max-w-xs">
+                      {lang === 'tr'
+                        ? 'En doğru ihbar koordinatları için hassas GPS bağlantısı kuruluyor. Lütfen bekleyin...'
+                        : 'Establishing high-accuracy GPS connection for precise report mapping. Please wait...'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const fallbackLat = defaultMunicipality?.centerLat || 41.2507;
+                        const fallbackLng = defaultMunicipality?.centerLng || 32.6942;
+                        void handleManualLocation(fallbackLat, fallbackLng);
+                      }}
+                      className="mt-6 text-xs font-semibold text-primary underline cursor-pointer"
+                    >
+                      {lang === 'tr' ? 'Beklemeden Manuel Seç' : 'Skip & Select Manually'}
+                    </button>
+                  </>
+                )}
               </div>
             )}
 
@@ -348,6 +397,7 @@ export default function NewReport({
                     isDark={isDark}
                     nearbyReports={nearbyReports}
                     lang={lang}
+                    onLocationChange={handleManualLocation}
                   />
                 </div>
 

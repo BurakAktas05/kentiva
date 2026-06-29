@@ -10,6 +10,8 @@ interface State {
   error: Error | null;
 }
 
+const SHOW_ERROR_DETAILS = import.meta.env.DEV;
+
 class ErrorBoundary extends Component<Props, State> {
   public state: State = {
     hasError: false,
@@ -46,7 +48,7 @@ class ErrorBoundary extends Component<Props, State> {
               </p>
             </div>
 
-            {this.state.error && (
+            {SHOW_ERROR_DETAILS && this.state.error && (
               <pre className="text-left text-xs bg-slate-100 dark:bg-slate-950 p-4 rounded-xl text-slate-600 dark:text-slate-400 overflow-auto max-h-40 border border-slate-200/50 dark:border-slate-800/50">
                 {this.state.error.toString()}
               </pre>

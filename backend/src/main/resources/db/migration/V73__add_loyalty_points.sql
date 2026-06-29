@@ -1,0 +1,2 @@
+ALTER TABLE app_users
+    ADD COLUMN IF NOT EXISTS loyalty_points INT NOT NULL DEFAULT 100;

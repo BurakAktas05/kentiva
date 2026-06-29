@@ -55,6 +55,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ""
+      MEDIA_GUARD_URL: http://media-guard:8000
     volumes:
       - uploads_dev:/app/uploads
     depends_on:
@@ -62,6 +63,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      media-guard:
+        condition: service_started
 
   admin:
     build:
@@ -73,6 +76,15 @@ services:
       - "${ADMIN_PORT:-5173}:80"
     depends_on:
       - api
+
+  media-guard:
+    build:
+      context: ./services/media-guard
+      dockerfile: Dockerfile
+    ports:
+      - "${MEDIA_GUARD_PORT:-8001}:8000"
+    environment:
+      MAX_FACE_COVERAGE: "0.22"
 
 volumes:
   pgdata_dev:

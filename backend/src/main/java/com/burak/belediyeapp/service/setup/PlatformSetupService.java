@@ -26,6 +26,7 @@ public class PlatformSetupService {
     private final IAppUserRepository userRepository;
     private final IRoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final com.burak.belediyeapp.service.security.PasswordPolicyService passwordPolicyService;
 
     @Value("${app.setup.token:}")
     private String setupToken;
@@ -56,6 +57,11 @@ public class PlatformSetupService {
 
         AppUser user = new AppUser();
         user.setEmail(request.email().trim().toLowerCase());
+        passwordPolicyService.validatePrivilegedPassword(
+                request.password(),
+                request.email(),
+                request.firstName(),
+                request.lastName());
         user.setPassword(passwordEncoder.encode(request.password()));
         user.setFirstName(request.firstName().trim());
         user.setLastName(request.lastName().trim());

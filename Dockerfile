@@ -9,12 +9,22 @@ RUN mvn clean package -DskipTests -B
 # Run stage
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-RUN mkdir -p /app/uploads
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends curl \
+ && rm -rf /var/lib/apt/lists/* \
+ && useradd --system --create-home --shell /usr/sbin/nologin appuser \
+ && mkdir -p /app/uploads \
+ && chown -R appuser:appuser /app
 COPY --from=build /app/target/*.jar app.jar
 
 # Railway PORT desteği
 ENV PORT=8080
 EXPOSE ${PORT}
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=5 \
+  CMD sh -c 'curl --fail --silent "http://127.0.0.1:${PORT}/actuator/health/readiness" > /dev/null || exit 1'
+
+USER appuser
 
 # JVM optimizasyonları — Railway container'ları için
 ENTRYPOINT ["java", \

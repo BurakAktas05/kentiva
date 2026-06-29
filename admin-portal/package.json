@@ -5,11 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -p tsconfig.app.json && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run --configLoader runner --environment jsdom --globals",
+    "test:watch": "vitest --configLoader runner --environment jsdom --globals"
   },
   "dependencies": {
     "@types/sockjs-client": "^1.5.4",

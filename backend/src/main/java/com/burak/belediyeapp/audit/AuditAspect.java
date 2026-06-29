@@ -30,6 +30,7 @@ public class AuditAspect {
 
     private final IAuditLogRepository auditLogRepository;
     private final IReportRepository reportRepository;
+    private final AuditSanitizer auditSanitizer;
 
     @AfterReturning(pointcut = "@annotation(auditAction)", returning = "result")
     public void logAudit(JoinPoint joinPoint, AuditAction auditAction, Object result) {
@@ -53,11 +54,7 @@ public class AuditAspect {
         String methodName = joinPoint.getSignature().toShortString();
 
         // Kısa bir sonuç özeti oluştur
-        String resultSummary = null;
-        if (result != null) {
-            String str = result.toString();
-            resultSummary = str.length() > 500 ? str.substring(0, 500) + "..." : str;
-        }
+        String resultSummary = auditSanitizer.summarize(result);
 
         // Konsol logu
         log.info("[AUDIT] User: {} | Action: {} | Method: {} | Description: {}",

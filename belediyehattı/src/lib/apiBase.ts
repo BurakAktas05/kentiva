@@ -1,14 +1,19 @@
 /** Tekil API kökü; sondaki slash kaldırılır. */
 
 const STORAGE_KEY = 'belediye_api_base_override';
+const LOCAL_DEV_API_BASE = 'http://localhost:8080/api/v1';
 
-
-
-export function normalizeApiBase(raw: string | undefined): string {
+export function normalizeApiBase(
+  raw: string | undefined,
+  options?: { allowLocalFallback?: boolean },
+): string {
 
   const t = (raw ?? '').trim();
 
-  if (!t) return 'http://localhost:8080/api/v1';
+  if (!t) {
+    if (options?.allowLocalFallback) return LOCAL_DEV_API_BASE;
+    throw new Error('Missing required env variable: VITE_API_BASE_URL');
+  }
 
   let base = t.replace(/\/+$/, '');
 
@@ -74,6 +79,9 @@ export function resolveApiBase(buildTimeUrl?: string): string {
   // Yerel Vite: aynı origin + proxy → CORS / ölü tünel URL sorunu yok
   if (typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
     return '/api/v1';
+  }
+  if (typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test') {
+    return normalizeApiBase(buildTimeUrl, { allowLocalFallback: true });
   }
   return normalizeApiBase(buildTimeUrl);
 }

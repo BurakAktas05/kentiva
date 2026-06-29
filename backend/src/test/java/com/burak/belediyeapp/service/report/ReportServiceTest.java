@@ -17,6 +17,7 @@ import com.burak.belediyeapp.service.integration.WebhookDispatchService;
 import com.burak.belediyeapp.service.media.MediaSignedUrlService;
 import com.burak.belediyeapp.service.notification.NotificationService;
 import com.burak.belediyeapp.service.security.KvkkConsentSigningService;
+import com.burak.belediyeapp.security.JwtAuthenticationSupport;
 import com.burak.belediyeapp.tenant.TenantAccessService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,7 @@ class ReportServiceTest {
     @Mock IAppUserRepository userRepository;
     @Mock IReportHistoryRepository historyRepository;
     @Mock IDepartmentRepository departmentRepository;
+    @Mock IRefreshTokenRepository refreshTokenRepository;
     @Mock IReportMapper reportMapper;
     @Mock NotificationService notificationService;
     @Mock GeminiService geminiService;
@@ -59,6 +61,7 @@ class ReportServiceTest {
     @Mock CitizenReputationService citizenReputationService;
     @Mock KvkkConsentSigningService kvkkConsentSigningService;
     @Mock QrCodeService qrCodeService;
+    @Mock JwtAuthenticationSupport jwtAuthenticationSupport;
 
     private TenantAccessService tenantAccess;
     private ReportSupport reportSupport;
@@ -105,6 +108,7 @@ class ReportServiceTest {
                 userRepository,
                 historyRepository,
                 departmentRepository,
+                refreshTokenRepository,
                 reportMapper,
                 reportSupport,
                 tenantAccess,
@@ -113,7 +117,8 @@ class ReportServiceTest {
                 heuristicReportAnalyzer,
                 webhookDispatchService,
                 citizenReputationService,
-                mediaSignedUrlService);
+                mediaSignedUrlService,
+                jwtAuthenticationSupport);
         // @Lazy self-injection — testte aynı instance ile değiştir.
         try {
             java.lang.reflect.Field selfField = ReportCommandService.class.getDeclaredField("self");
@@ -272,6 +277,8 @@ class ReportServiceTest {
 
         assertThat(reporter.isEnabled()).isFalse();
         verify(userRepository).save(reporter);
+        verify(refreshTokenRepository).revokeAllByUserId(reporter.getId());
+        verify(jwtAuthenticationSupport).evictCache(reporter.getEmail());
     }
 
     @Test

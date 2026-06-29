@@ -9,10 +9,21 @@ import { storageService } from './lib/storageService';
 const AUTH_PATHS = [
   '/auth/login',
   '/auth/register',
+  '/auth/register/otp',
   '/auth/refresh',
   '/auth/forgot-password',
   '/auth/reset-password',
 ];
+
+type ApiEnvelope<T = unknown> = {
+  success?: boolean;
+  message?: string;
+  data?: T;
+  errorCode?: string;
+  errors?: unknown;
+};
+
+const DEFAULT_FRIENDLY_ERROR = 'İşlem tamamlanamadı. Lütfen biraz sonra tekrar deneyin.';
 
 let refreshInFlight: Promise<boolean> | null = null;
 
@@ -307,16 +318,76 @@ function isAuthPath(path: string): boolean {
   return AUTH_PATHS.some((p) => base === p || base.endsWith(p));
 }
 
-async function parseJsonBody(res: Response): Promise<{ success?: boolean; message?: string; data?: unknown }> {
+async function parseJsonBody(res: Response): Promise<ApiEnvelope> {
   const text = await res.text();
   if (!text) {
     return { success: false, message: 'Sunucu yanıtı boş' };
   }
   try {
-    return JSON.parse(text) as { success?: boolean; message?: string; data?: unknown };
+    return JSON.parse(text) as ApiEnvelope;
   } catch {
     return { success: false, message: 'Geçersiz sunucu yanıtı' };
   }
+}
+
+function looksTechnical(message: string): boolean {
+  const lower = message.toLowerCase();
+  return [
+    'exception',
+    'java.',
+    'stack',
+    'trace',
+    'sql',
+    'constraint',
+    'nullpointer',
+    'undefined',
+    ' at ',
+  ].some((needle) => lower.includes(needle));
+}
+
+function friendlyApiError(status: number, json: ApiEnvelope, fallback = DEFAULT_FRIENDLY_ERROR): string {
+  const code = json.errorCode;
+  if (code === 'RATE_LIMIT_EXCEEDED' || status === 429) {
+    return 'Çok fazla deneme yapıldı. Lütfen biraz sonra tekrar deneyin.';
+  }
+  if (code === 'INVALID_OTP') {
+    return 'Doğrulama kodu geçersiz veya süresi dolmuş.';
+  }
+  if (code === 'OTP_SEND_FAILED') {
+    return 'Doğrulama kodu gönderilemedi. Lütfen biraz sonra tekrar deneyin.';
+  }
+  if (code === 'PHONE_ALREADY_EXISTS') {
+    return 'Bu telefon numarası zaten kullanılıyor.';
+  }
+  if (code === 'EMAIL_ALREADY_EXISTS') {
+    return 'Bu e-posta adresi zaten kullanılıyor.';
+  }
+  if (code === 'VALIDATION_ERROR') {
+    return 'Bilgileri kontrol edip tekrar deneyin.';
+  }
+  if (code === 'INVALID_CREDENTIALS' || status === 401) {
+    return 'E-posta veya şifre hatalı.';
+  }
+  if (status === 403) {
+    return 'Bu işlem için yetkiniz yok.';
+  }
+  if (status === 413) {
+    return 'Dosya boyutu çok büyük. Lütfen daha küçük bir dosya seçin.';
+  }
+  if (status >= 500) {
+    return 'Şu anda işlem tamamlanamadı. Lütfen biraz sonra tekrar deneyin.';
+  }
+
+  const message = typeof json.message === 'string' ? json.message.trim() : '';
+  if (message && !looksTechnical(message)) {
+    return message;
+  }
+  return fallback;
+}
+
+export async function readFriendlyApiError(res: Response, fallback = DEFAULT_FRIENDLY_ERROR): Promise<string> {
+  const json = await parseJsonBody(res);
+  return friendlyApiError(res.status, json, fallback);
 }
 
 async function tryRefreshToken(): Promise<boolean> {
@@ -385,7 +456,7 @@ async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
     }
 
     if (!res.ok || !json.success) {
-      throw new Error(json.message || 'Hata oluştu');
+      throw new Error(friendlyApiError(res.status, json));
     }
     return json.data as T;
   };
@@ -414,7 +485,7 @@ async function publicFetch<T>(path: string): Promise<T> {
   });
   const json = await parseJsonBody(res);
   if (!res.ok || !json.success) {
-    throw new Error(json.message || 'Hata oluştu');
+    throw new Error(friendlyApiError(res.status, json));
   }
   return json.data as T;
 }
@@ -510,7 +581,7 @@ export async function login(email: string, password: string): Promise<AuthUser> 
   });
   const json = await parseJsonBody(res);
   if (!res.ok || !json.success) {
-    throw new Error(json.message || 'Giriş başarısız');
+    throw new Error(friendlyApiError(res.status, json, 'Giriş başarısız. Lütfen bilgilerinizi kontrol edin.'));
   }
   const data = json.data as AuthUser;
   setTokens(data.accessToken, data.refreshToken);
@@ -518,17 +589,37 @@ export async function login(email: string, password: string): Promise<AuthUser> 
   return data;
 }
 
+export async function sendRegistrationOtp(phoneNumber: string): Promise<{ devOtpCode?: string }> {
+  return apiFetch<{ devOtpCode?: string }>('/auth/register/otp', {
+    method: 'POST',
+    body: JSON.stringify({ phoneNumber }),
+  });
+}
+
 export async function register(
   firstName: string,
   lastName: string,
   email: string,
   password: string,
-  phoneNumber?: string,
+  phoneNumber: string,
+  smsOtpCode: string,
   kvkkApproved: boolean = false,
+  tcNo?: string,
+  birthYear?: number,
 ): Promise<AuthUser> {
   const data = await apiFetch<AuthUser>('/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ firstName, lastName, email, password, phoneNumber: phoneNumber || null, kvkkApproved }),
+    body: JSON.stringify({
+      firstName,
+      lastName,
+      email,
+      password,
+      phoneNumber,
+      smsOtpCode,
+      kvkkApproved,
+      tcNo: tcNo || null,
+      birthYear: birthYear || null
+    }),
   });
   setTokens(data.accessToken, data.refreshToken);
   saveUser(data);
@@ -541,6 +632,11 @@ export async function logout() {
   } catch {
     /* ignore */
   }
+  clearTokens();
+}
+
+export async function deleteAccount() {
+  await apiFetch('/users/me', { method: 'DELETE' });
   clearTokens();
 }
 
@@ -629,7 +725,7 @@ export async function uploadMedia(file: File): Promise<string[]> {
   }
 
   if (!res.ok || !json.success) {
-    throw new Error(json.message || 'Resim yüklenemedi');
+    throw new Error(friendlyApiError(res.status, json, 'Resim yüklenemedi. Lütfen tekrar deneyin.'));
   }
   return json.data as string[];
 }
@@ -779,6 +875,12 @@ export async function updateFcmToken(fcmToken: string): Promise<void> {
   await apiFetch('/users/fcm-token', {
     method: 'PATCH',
     body: JSON.stringify({ fcmToken }),
+  });
+}
+
+export async function deleteMyAccount(): Promise<void> {
+  await apiFetch('/users/me', {
+    method: 'DELETE',
   });
 }
 
@@ -975,77 +1077,6 @@ export async function updateNotificationPreferences(payload: {
 // ============================================
 // Ulaşım / Otobüs Hatları APIs
 // ============================================
-
-export interface RouteScheduleInfo {
-  departuresFromStart: string[];
-  departuresFromEnd: string[];
-}
-
-export interface BusRoute {
-  id: string;
-  name: string;
-  code: string;
-  stops: string[];
-  color: string;
-  icon: string;
-  schedule: {
-    weekday?: RouteScheduleInfo | null;
-    weekend?: RouteScheduleInfo | null;
-    saturday?: RouteScheduleInfo | null;
-    sunday?: RouteScheduleInfo | null;
-  };
-  starred?: boolean;
-}
-
-export async function fetchBusRoutes(municipalityId: string): Promise<BusRoute[]> {
-  try {
-    return await apiFetch<BusRoute[]>(`/public/municipalities/${encodeURIComponent(municipalityId)}/bus-routes`);
-  } catch {
-    return []; // Return empty or handle gracefully
-  }
-}
-
-export async function starRoute(routeId: string): Promise<void> {
-  await apiFetch(`/bus-routes/${encodeURIComponent(routeId)}/star`, {
-    method: 'POST',
-  });
-}
-
-export async function unstarRoute(routeId: string): Promise<void> {
-  await apiFetch(`/bus-routes/${encodeURIComponent(routeId)}/unstar`, {
-    method: 'POST',
-  });
-}
-
-export async function starStop(stopName: string, municipalityId: string): Promise<void> {
-  await apiFetch('/bus-stops/star', {
-    method: 'POST',
-    body: JSON.stringify({ stopName, municipalityId }),
-  });
-}
-
-export async function unstarStop(stopName: string, municipalityId: string): Promise<void> {
-  await apiFetch('/bus-stops/unstar', {
-    method: 'POST',
-    body: JSON.stringify({ stopName, municipalityId }),
-  });
-}
-
-export async function fetchStarredRoutes(): Promise<BusRoute[]> {
-  try {
-    return await apiFetch<BusRoute[]>('/bus-routes/starred');
-  } catch {
-    return [];
-  }
-}
-
-export async function fetchStarredStops(municipalityId: string): Promise<string[]> {
-  try {
-    return await apiFetch<string[]>(`/bus-stops/starred?municipalityId=${encodeURIComponent(municipalityId)}`);
-  } catch {
-    return [];
-  }
-}
 
 export async function submitSystemFeedback(rating: number, content: string): Promise<void> {
   await apiFetch('/system-feedback', {

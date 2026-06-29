@@ -38,6 +38,13 @@ class MediaSignedUrlServiceTest {
     }
 
     @Test
+    void persistableStoragePathRejectsTraversalFromLegacyUploadsUrl() {
+        assertThatThrownBy(() -> service.persistableStoragePath("http://localhost:8080/uploads/../secret.txt"))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", "INVALID_MEDIA_PATH");
+    }
+
+    @Test
     void persistableStoragePathExtractsFromSignedAccessUrl() {
         String signed = service.signForClient("reports/y.jpg");
         String key = service.persistableStoragePath(signed);

@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Palette, ArrowLeft, Sparkles, Map as MapIcon, AlertTriangle } from 'lucide-react';
-import { MapContainer, TileLayer, Popup, GeoJSON, useMap } from 'react-leaflet';
-import L from 'leaflet';
+import { MapContainer, TileLayer, Popup, GeoJSON } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import api from '../api';
 
@@ -46,38 +45,12 @@ function colorForIndex(index: number): string {
   return BOUNDARY_COLORS[index % BOUNDARY_COLORS.length];
 }
 
-/** Auto-fit map to boundaries */
-function FitBounds({ boundaries }: { boundaries: MunicipalityBoundaryDto[] }) {
-  const map = useMap();
-  useEffect(() => {
-    const allCoords: L.LatLng[] = [];
-    boundaries.forEach((b) => {
-      if (!b.geoJson) return;
-      try {
-        const data = JSON.parse(b.geoJson);
-        const layer = L.geoJSON(data);
-        const bounds = layer.getBounds();
-        if (bounds.isValid()) {
-          allCoords.push(bounds.getSouthWest());
-          allCoords.push(bounds.getNorthEast());
-        }
-      } catch { /* skip invalid */ }
-    });
-    if (allCoords.length >= 2) {
-      const group = L.latLngBounds(allCoords);
-      map.fitBounds(group, { padding: [40, 40], maxZoom: 12 });
-    }
-  }, [boundaries, map]);
-  return null;
-}
 
 export default function SuperAdminMunicipalitiesPage() {
   const [rows, setRows] = useState<MunicipalityRow[]>([]);
   const [boundaries, setBoundaries] = useState<MunicipalityBoundaryDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState('');
-  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
-
   const load = useCallback(() => {
     setLoading(true);
     Promise.all([
@@ -97,14 +70,6 @@ export default function SuperAdminMunicipalitiesPage() {
       void load();
     });
   }, [load]);
-
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setIsDark(document.documentElement.classList.contains('dark'));
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-    return () => observer.disconnect();
-  }, []);
 
   // Build a color map: municipality id → color
   const colorMap = useMemo(() => {
@@ -191,15 +156,12 @@ export default function SuperAdminMunicipalitiesPage() {
         </div>
 
         <div className="h-[500px] w-full rounded-2xl overflow-hidden border border-slate-200/90 dark:border-slate-800 shadow-sm z-[10]">
-          <MapContainer center={[38.9637, 35.2433]} zoom={6} className="h-full w-full">
+          <MapContainer center={[38.9637, 35.2433]} zoom={6} className="h-full w-full grayscale-map">
             <TileLayer
-              url={isDark
-                ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-                : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'}
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-              subdomains={['a', 'b', 'c']}
+              url="https://mt1.google.com/vt/lyrs=m&hl=tr&x={x}&y={y}&z={z}"
+              attribution='&copy; Google Maps'
             />
-            <FitBounds boundaries={boundaries} />
+
             {boundaries.map((b) => {
               try {
                 if (!b.geoJson) return null;
@@ -355,4 +317,3 @@ export default function SuperAdminMunicipalitiesPage() {
     </div>
   );
 }
-

@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { getPublicApiBaseFromEnv, resolvePublicApiBase } from './apiBase';
 
 describe('resolvePublicApiBase', () => {
-  it('returns default when missing or blank', () => {
-    expect(resolvePublicApiBase(undefined, undefined)).toBe('http://localhost:8080/api/v1');
-    expect(resolvePublicApiBase('', '')).toBe('http://localhost:8080/api/v1');
-    expect(resolvePublicApiBase('   ', undefined)).toBe('http://localhost:8080/api/v1');
+  it('returns localhost fallback only when explicitly allowed', () => {
+    expect(resolvePublicApiBase(undefined, undefined, true)).toBe('http://localhost:8080/api/v1');
+    expect(resolvePublicApiBase('', '', true)).toBe('http://localhost:8080/api/v1');
+    expect(resolvePublicApiBase('   ', undefined, true)).toBe('http://localhost:8080/api/v1');
+  });
+
+  it('throws when production api env is missing', () => {
+    expect(() => resolvePublicApiBase(undefined, undefined)).toThrow('Missing required env variable: VITE_API_BASE');
   });
 
   it('prefers primary over legacy env', () => {
@@ -40,5 +44,13 @@ describe('getPublicApiBaseFromEnv', () => {
         VITE_API_BASE: 'https://api.kentiva.app/api/v1',
       }),
     ).toBe('https://api.kentiva.app/api/v1');
+  });
+
+  it('allows localhost fallback in test mode', () => {
+    expect(
+      getPublicApiBaseFromEnv({
+        MODE: 'test',
+      }),
+    ).toBe('http://localhost:8080/api/v1');
   });
 });

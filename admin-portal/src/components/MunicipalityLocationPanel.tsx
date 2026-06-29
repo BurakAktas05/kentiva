@@ -138,10 +138,10 @@ export default function MunicipalityLocationPanel({
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
-          <MapContainer center={position} zoom={zoom} className="h-[360px] w-full">
+          <MapContainer center={position} zoom={zoom} className="h-[360px] w-full grayscale-map">
             <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+              url="https://mt1.google.com/vt/lyrs=m&hl=tr&x={x}&y={y}&z={z}"
+              attribution='&copy; Google Maps'
             />
             <PickableMarker center={position} onChange={setPosition} />
             <RecenterMap center={position} zoom={zoom} />

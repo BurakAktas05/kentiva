@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
 import javax.imageio.ImageIO;
-import java.awt.*;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -19,10 +19,7 @@ import java.util.Base64;
 import java.util.List;
 
 /**
- * KVKK uyumu — yüklenen fotoğraflarda yüz ve plaka tespiti yaparak
- * bu bölgeleri pikselleştirir (blur). Google Gemini multimodal API kullanır.
- *
- * Gemini erişilemezse veya API key yoksa orijinal baytlar olduğu gibi döner (fail-open).
+ * KVKK uyumu icin yuklenen fotograflarda yuz ve plaka bolgelerini piksellestirir.
  */
 @Service
 @Slf4j
@@ -34,22 +31,21 @@ public class ImageAnonymizationService {
     @Value("${app.ai.gemini.model:gemini-2.5-flash}")
     private String model;
 
+    @Value("${app.media-anonymization.fail-open:true}")
+    private boolean failOpen;
+
     private final RestClient http = RestClient.builder()
             .requestFactory(requestFactory())
             .build();
 
     public record BoundingBox(int x, int y, int width, int height) {}
 
-    /**
-     * Görüntüyü analiz edip tespit edilen yüz ve plaka bölgelerini pikselleştirir.
-     *
-     * @param imageBytes   orijinal görüntü baytları
-     * @param contentType  MIME türü (image/jpeg, image/png vb.)
-     * @return anonimleştirilmiş görüntü baytları
-     */
     public byte[] anonymize(byte[] imageBytes, String contentType) {
         if (apiKey == null || apiKey.isBlank() || apiKey.equals("your-gemini-api-key")) {
-            return imageBytes;
+            if (failOpen) {
+                return imageBytes;
+            }
+            throw new IllegalStateException("Anonymization API key not configured");
         }
 
         try {
@@ -59,8 +55,11 @@ public class ImageAnonymizationService {
             }
             return pixelateRegions(imageBytes, contentType, boxes);
         } catch (Exception e) {
-            log.warn("Görüntü anonimleştirme başarısız — orijinal kullanılacak: {}", e.getMessage());
-            return imageBytes;
+            if (failOpen) {
+                log.warn("Gorsel anonimlestirme basarisiz oldu, orijinal gorsel korunuyor: {}", e.getMessage());
+                return imageBytes;
+            }
+            throw new IllegalStateException("Image anonymization failed", e);
         }
     }
 
@@ -69,12 +68,11 @@ public class ImageAnonymizationService {
         String mimeType = contentType != null ? contentType : "image/jpeg";
 
         String prompt = """
-                Bu görüntüdeki tüm insan yüzlerini ve araç plakalarını tespit et.
-                Kutuları normalleştirilmiş koordinat sisteminde [0-1000] aralığında (0: sol/üst, 1000: sağ/alt olacak şekilde) bounding box (sınırlayıcı kutu) olarak döndür.
-                Kutular normalleştirilmiş x, y, genişlik (width) ve yükseklik (height) olmalıdır. Yani görüntünün sol-üst köşesi [0,0], sağ-alt köşesi [1000,1000] arasındadır.
-                Yanıtı yalnızca JSON formatında ver, başka metin ekleme.
+                Bu goruntudeki tum insan yuzlerini ve arac plakalarini tespit et.
+                Kutulari normalize edilmis [0-1000] koordinat sisteminde bounding box olarak dondur.
+                Yaniti yalnizca JSON formatinda ver.
                 Format: {"detections": [{"type": "face"|"plate", "x": int, "y": int, "width": int, "height": int}]}
-                Hiçbir yüz veya plaka yoksa: {"detections": []}
+                Hicbir yuz veya plaka yoksa {"detections": []}
                 """;
 
         JSONObject requestBody = new JSONObject()
@@ -103,7 +101,7 @@ public class ImageAnonymizationService {
 
                 return parseDetections(response);
             } catch (Exception e) {
-                log.warn("Gemini yüz/plaka tespit hatası (deneme {}): {}", attempt, e.getMessage());
+                log.warn("Gemini yuz/plaka tespit hatasi (deneme {}): {}", attempt, e.getMessage());
             }
         }
         return List.of();
@@ -120,16 +118,22 @@ public class ImageAnonymizationService {
                     .getJSONObject(0)
                     .getString("text");
 
-            JSONObject result = new JSONObject(text);
+            String cleanedText = text.trim();
+            if (cleanedText.startsWith("```")) {
+                cleanedText = cleanedText.replaceAll("^```(?:json)?|```$", "").trim();
+            }
+            JSONObject result = new JSONObject(cleanedText);
             JSONArray detections = result.optJSONArray("detections");
             if (detections == null) {
                 return boxes;
             }
             for (int i = 0; i < detections.length(); i++) {
-                JSONObject d = detections.getJSONObject(i);
+                JSONObject detection = detections.getJSONObject(i);
                 boxes.add(new BoundingBox(
-                        d.getInt("x"), d.getInt("y"),
-                        d.getInt("width"), d.getInt("height")
+                        detection.getInt("x"),
+                        detection.getInt("y"),
+                        detection.getInt("width"),
+                        detection.getInt("height")
                 ));
             }
         } catch (Exception e) {
@@ -144,8 +148,8 @@ public class ImageAnonymizationService {
             return imageBytes;
         }
 
-        Graphics2D g = image.createGraphics();
-        int pixelSize = Math.max(8, image.getWidth() / 80); // dinamik piksel boyutu
+        Graphics2D graphics = image.createGraphics();
+        int pixelSize = Math.max(8, image.getWidth() / 80);
 
         for (BoundingBox box : boxes) {
             int px = (box.x() * image.getWidth()) / 1000;
@@ -155,25 +159,26 @@ public class ImageAnonymizationService {
 
             int x = Math.max(0, px);
             int y = Math.max(0, py);
-            int w = Math.min(pw, image.getWidth() - x);
-            int h = Math.min(ph, image.getHeight() - y);
+            int width = Math.min(pw, image.getWidth() - x);
+            int height = Math.min(ph, image.getHeight() - y);
 
-            if (w <= 0 || h <= 0) continue;
+            if (width <= 0 || height <= 0) {
+                continue;
+            }
 
-            // Pikselleştirme: küçült ve geri büyüt
-            BufferedImage region = image.getSubimage(x, y, w, h);
+            BufferedImage region = image.getSubimage(x, y, width, height);
             BufferedImage small = new BufferedImage(
-                    Math.max(1, w / pixelSize),
-                    Math.max(1, h / pixelSize),
+                    Math.max(1, width / pixelSize),
+                    Math.max(1, height / pixelSize),
                     image.getType() != 0 ? image.getType() : BufferedImage.TYPE_INT_RGB
             );
-            Graphics2D gs = small.createGraphics();
-            gs.drawImage(region, 0, 0, small.getWidth(), small.getHeight(), null);
-            gs.dispose();
+            Graphics2D smallGraphics = small.createGraphics();
+            smallGraphics.drawImage(region, 0, 0, small.getWidth(), small.getHeight(), null);
+            smallGraphics.dispose();
 
-            g.drawImage(small, x, y, w, h, null);
+            graphics.drawImage(small, x, y, width, height, null);
         }
-        g.dispose();
+        graphics.dispose();
 
         String format = "jpg";
         if (contentType != null && contentType.contains("png")) {

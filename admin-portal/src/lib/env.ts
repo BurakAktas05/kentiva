@@ -1,3 +1,9 @@
+const LOCAL_DEV_API_BASE = 'http://localhost:8080/api/v1';
+
+function allowLocalFallback(): boolean {
+  return Boolean(import.meta.env?.DEV) || import.meta.env?.MODE === 'test';
+}
+
 export const required = (key: string): string => {
   const value = import.meta.env[key];
   if (!value) throw new Error(`Missing required env variable: ${key}`);
@@ -9,6 +15,7 @@ const getEnvWithFallback = (key1: string, key2: string): string => {
   if (v1) return v1;
   const v2 = import.meta.env[key2];
   if (v2) return v2;
+  if (allowLocalFallback()) return LOCAL_DEV_API_BASE;
   throw new Error(`Missing required env variables: ${key1} or ${key2}`);
 };
 
@@ -16,7 +23,7 @@ export const API_BASE = getEnvWithFallback('VITE_API_BASE', 'VITE_API_BASE_URL')
 
 /** API base URL including `/api/v1` */
 export function getApiBase(): string {
-  return (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8080/api/v1';
+  return API_BASE.replace(/\/$/, '');
 }
 
 /** Origin for SockJS (no `/api/v1` path). */

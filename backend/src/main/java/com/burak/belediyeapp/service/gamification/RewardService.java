@@ -134,9 +134,9 @@ public class RewardService {
             throw new BusinessException("Sadece kayıtlı/tercih ettiğiniz belediyenin ödüllerini alabilirsiniz.", "MUNICIPALITY_MISMATCH");
         }
 
-        if (user.getReputationScore() < reward.getPointCost()) {
+        if (user.getLoyaltyPoints() < reward.getPointCost()) {
             throw new BusinessException(
-                    "Güven puanınız bu ödülü almaya yetersiz. Gerekli: " + reward.getPointCost() + ", Mevcut: " + user.getReputationScore(),
+                    "Sadakat puanınız bu ödülü almaya yetersiz. Gerekli: " + reward.getPointCost() + ", Mevcut: " + user.getLoyaltyPoints(),
                     "INSUFFICIENT_POINTS"
             );
         }
@@ -146,7 +146,7 @@ public class RewardService {
         rewardRepository.save(reward);
 
         // Kullanıcı puanını düşür
-        citizenReputationService.applyDelta(user.getId(), -reward.getPointCost(), "REWARD_REDEEM");
+        citizenReputationService.deductLoyaltyPoints(user.getId(), reward.getPointCost());
 
         // Kod üret
         String code = generateRedemptionCode();
@@ -205,7 +205,7 @@ public class RewardService {
             rewardRepository.save(reward);
 
             // Puanı iade et
-            citizenReputationService.applyDelta(claim.getUser().getId(), reward.getPointCost(), "REWARD_CANCELLED");
+            citizenReputationService.refundLoyaltyPoints(claim.getUser().getId(), reward.getPointCost());
         } else {
             throw new BusinessException("Geçersiz durum değeri: " + status, "INVALID_CLAIM_STATUS");
         }

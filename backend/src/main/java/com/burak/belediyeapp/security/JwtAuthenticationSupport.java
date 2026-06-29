@@ -5,6 +5,7 @@ import com.burak.belediyeapp.repository.IAppUserRepository;
 import com.burak.belediyeapp.service.auth.JwtService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Component;
 
@@ -53,6 +54,12 @@ public class JwtAuthenticationSupport {
 
     public void clearCache() {
         userCache.clear();
+    }
+
+    @Scheduled(fixedRate = 60000)
+    public void evictExpiredCacheEntries() {
+        long now = System.currentTimeMillis();
+        userCache.entrySet().removeIf(entry -> now - entry.getValue().cachedAt > CACHE_TTL_MS);
     }
 
     public Optional<UsernamePasswordAuthenticationToken> authenticate(String rawToken) {

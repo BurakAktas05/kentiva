@@ -249,7 +249,7 @@ public class ReportQueryService {
         int maxRows = 5;
         List<Report> nearby = reportRepository.findActiveNearbyInMunicipality(
                 latitude, longitude, radius, scope,
-                "00000000-0000-0000-0000-000000000000", maxRows);
+                "00000000-0000-0000-0000-000000000000", null, maxRows);
         return nearby.stream()
                 .map(r -> new NearbyReportHintResponse(
                         r.getId(),

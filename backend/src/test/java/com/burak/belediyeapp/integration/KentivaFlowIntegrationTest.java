@@ -166,12 +166,15 @@ class KentivaFlowIntegrationTest {
 
         // 4. Register Citizen User
         RegisterRequest citizenRegister = new RegisterRequest(
-                "citizen@example.com",
-                "Password123!",
                 "Vatandas",
                 "User",
+                "citizen@example.com",
+                "Password123!",
                 "+905555555555",
-                true
+                "000000",
+                true,
+                null,
+                null
         );
         AuthResponse citizenRegisterResponse = authService.register(citizenRegister);
         assertThat(citizenRegisterResponse.accessToken()).isNotNull();

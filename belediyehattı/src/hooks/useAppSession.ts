@@ -144,11 +144,8 @@ export function useAppSession({
           const resolved = await resolveMunicipalityByGps(result.coords.lat, result.coords.lng);
           if (resolved && resolved.onboarded) {
             if (!tenant || tenant.id !== resolved.id) {
-              console.log(`[Kentiva] Konuma göre yeni belediye tespit edildi: ${resolved.displayName}`);
               setPendingLocationTenant(resolved);
             }
-          } else {
-            console.log("[Kentiva] Konum üye bir belediyeyle eşleşmedi veya üye değil. Mevcut belediyede kalınıyor.");
           }
         }
       } catch (err) {

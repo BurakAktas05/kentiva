@@ -143,7 +143,10 @@ public class ReportCreationService {
             webhookDispatchService.dispatchReportCreated(saved.getMunicipality(), saved);
         }
 
-        eventPublisher.publishEvent(new ReportCreatedEvent(saved.getId()));
+        eventPublisher.publishEvent(new ReportCreatedEvent(
+                saved.getId(),
+                saved.getMunicipality() != null ? saved.getMunicipality().getId() : null
+        ));
         citizenReputationService.onReportCreated(freshReporter, saved.getMunicipality());
 
         log.info("Yeni rapor oluşturuldu: {} — {} — ilçe={}", saved.getId(), freshReporter.getEmail(), report.getDistrict());
