@@ -13,6 +13,7 @@ import com.burak.belediyeapp.entity.SubscriptionPlan;
 import com.burak.belediyeapp.exception.BusinessException;
 import com.burak.belediyeapp.exception.ResourceNotFoundException;
 import com.burak.belediyeapp.config.EvictMunicipalityCaches;
+import com.burak.belediyeapp.config.PilotProperties;
 import com.burak.belediyeapp.repository.IMunicipalityRepository;
 import com.burak.belediyeapp.repository.ITurkeyDistrictRepository;
 import com.burak.belediyeapp.entity.TurkeyDistrict;
@@ -44,6 +45,7 @@ public class MunicipalityManagementService {
     private final GeminiService geminiService;
     private final MunicipalityBoundaryAutoSyncService boundaryAutoSyncService;
     private final com.burak.belediyeapp.service.media.MediaSignedUrlService mediaSignedUrlService;
+    private final PilotProperties pilotProperties;
 
     @Transactional(readOnly = true)
     public Page<MunicipalityDto> listAll(Pageable pageable) {
@@ -108,7 +110,7 @@ public class MunicipalityManagementService {
                 .onboarded(true)
                 .publicStatsEnabled(false)
                 .subscriptionPlan(SubscriptionPlan.TRIAL)
-                .subscriptionEndsAt(LocalDateTime.now().plusDays(30));
+                .subscriptionEndsAt(LocalDateTime.now().plusDays(pilotProperties.effectiveTrialDays()));
 
         Municipality entity = b.build();
         if (req.parentMunicipalityId() != null && !req.parentMunicipalityId().isBlank()) {

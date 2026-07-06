@@ -128,8 +128,8 @@ describe('ReportDetailPage', () => {
     const select = screen.getAllByRole('combobox')[0];
     fireEvent.change(select, { target: { value: 'officer-1' } });
 
-    // Click "Kabul Et — İşleme Al" to save
-    const saveBtn = screen.getByRole('button', { name: /Kabul Et — İşleme Al/i });
+    // Click current accept/save button
+    const saveBtn = screen.getByRole('button', { name: /İhbarı Kabul Et ve Başlat/i });
     fireEvent.click(saveBtn);
 
     await waitFor(() => {
@@ -154,10 +154,10 @@ describe('ReportDetailPage', () => {
     });
 
     // The note field and resolve button should be directly visible
-    const noteTextarea = screen.getByLabelText('Çözüm Notu');
+    const noteTextarea = screen.getByLabelText('Çözüm / Tamamlanma Raporu');
     fireEvent.change(noteTextarea, { target: { value: 'Çözüldü.' } });
 
-    const resolveBtn = screen.getByRole('button', { name: 'Çözüldü Yap' });
+    const resolveBtn = screen.getByRole('button', { name: /İhbarı "Çözüldü" Olarak Kapat/i });
     fireEvent.click(resolveBtn);
 
     await waitFor(() => {

@@ -45,6 +45,8 @@ public interface IAppUserRepository extends JpaRepository<AppUser, String> {
 
     long countByRoles_Name(String roleName);
 
+    long countByPreferredMunicipalityId(String preferredMunicipalityId);
+
     List<AppUser> findByPreferredMunicipalityId(String preferredMunicipalityId);
 
     Page<AppUser> findByPreferredMunicipalityId(String preferredMunicipalityId, Pageable pageable);

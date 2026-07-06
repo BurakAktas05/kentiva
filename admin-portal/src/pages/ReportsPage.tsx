@@ -141,6 +141,7 @@ export default function ReportsPage() {
     'ROLE_ADMIN',
     'ROLE_SUPER_ADMIN',
   ]);
+  const canCreateWhiteDesk = hasAnyRole(roles, ['ROLE_WHITE_DESK', 'ROLE_DEPT_MANAGER', 'ROLE_ADMIN']);
   const canExport = hasAnyRole(roles, ['ROLE_DEPT_MANAGER', 'ROLE_ADMIN', 'ROLE_SUPER_ADMIN']);
   const canImport = hasAnyRole(roles, ['ROLE_DEPT_MANAGER', 'ROLE_ADMIN', 'ROLE_SUPER_ADMIN']);
 
@@ -536,6 +537,15 @@ export default function ReportsPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {canCreateWhiteDesk && currentUser?.municipality && (
+            <Link
+              to="/reports/new-white-desk"
+              className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-primary-hover"
+            >
+              <Plus className="h-4 w-4" />
+              Beyaz Masa İhbarı
+            </Link>
+          )}
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input

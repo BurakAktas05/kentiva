@@ -47,34 +47,18 @@ public class ReportDuplicateLinkService {
             return;
         }
 
-        // 2. Embedding değerini veritabanına kaydet
-        String embeddingString = java.util.Arrays.toString(embedding);
-        reportRepository.updateReportEmbedding(reportId, embeddingString);
+        try {
+            // 2. Embedding değerini veritabanına kaydet
+            String embeddingString = java.util.Arrays.toString(embedding);
+            reportRepository.updateReportEmbedding(reportId, embeddingString);
 
-        // 3. Mesafe ve semantik threshold'lara göre kontrol et
-        double radius = radiusMeters > 0 ? radiusMeters : 75.0;
-        String categoryId = report.getCategory() != null ? report.getCategory().getId() : null;
-        java.util.List<Report> duplicatesToLink = new java.util.ArrayList<>();
+            // 3. Mesafe ve semantik threshold'lara göre kontrol et
+            double radius = radiusMeters > 0 ? radiusMeters : 75.0;
+            String categoryId = report.getCategory() != null ? report.getCategory().getId() : null;
+            java.util.List<Report> duplicatesToLink = new java.util.ArrayList<>();
 
-        // Kesin eşleşme threshold'u: 0.12 (Direct Auto-Link, LLM çağrısı yok)
-        java.util.List<Report> strictMatches = reportRepository.findSemanticNearbyInMunicipality(
-                report.getLocation().getY(),
-                report.getLocation().getX(),
-                radius,
-                report.getMunicipality().getId(),
-                reportId,
-                categoryId,
-                embeddingString,
-                0.12,
-                10
-        );
-
-        if (!strictMatches.isEmpty()) {
-            log.info("Semantik kesin eşleşmeler (Auto-Link) bulundu. Adet={}", strictMatches.size());
-            duplicatesToLink.addAll(strictMatches);
-        } else {
-            // Sınırda eşleşme threshold'u: 0.28 (LLM ile doğrulama gerekir)
-            java.util.List<Report> borderlineMatches = reportRepository.findSemanticNearbyInMunicipality(
+            // Kesin eşleşme threshold'u: 0.12 (Direct Auto-Link, LLM çağrısı yok)
+            java.util.List<Report> strictMatches = reportRepository.findSemanticNearbyInMunicipality(
                     report.getLocation().getY(),
                     report.getLocation().getX(),
                     radius,
@@ -82,42 +66,63 @@ public class ReportDuplicateLinkService {
                     reportId,
                     categoryId,
                     embeddingString,
-                    0.28,
-                    5
+                    0.12,
+                    10
             );
-            
-            if (!borderlineMatches.isEmpty()) {
-                log.info("Sınırda semantik eşleşmeler bulundu. Gemini doğrulaması başlatılıyor. Adet={}", borderlineMatches.size());
-                java.util.List<String> confirmedIds = geminiService.findDuplicateReports(report, borderlineMatches);
-                if (confirmedIds != null && !confirmedIds.isEmpty()) {
-                    for (Report r : borderlineMatches) {
-                        if (confirmedIds.contains(r.getId())) {
-                            duplicatesToLink.add(r);
+
+            if (!strictMatches.isEmpty()) {
+                log.info("Semantik kesin eşleşmeler (Auto-Link) bulundu. Adet={}", strictMatches.size());
+                duplicatesToLink.addAll(strictMatches);
+            } else {
+                // Sınırda eşleşme threshold'u: 0.28 (LLM ile doğrulama gerekir)
+                java.util.List<Report> borderlineMatches = reportRepository.findSemanticNearbyInMunicipality(
+                        report.getLocation().getY(),
+                        report.getLocation().getX(),
+                        radius,
+                        report.getMunicipality().getId(),
+                        reportId,
+                        categoryId,
+                        embeddingString,
+                        0.28,
+                        5
+                );
+                
+                if (!borderlineMatches.isEmpty()) {
+                    log.info("Sınırda semantik eşleşmeler bulundu. Gemini doğrulaması başlatılıyor. Adet={}", borderlineMatches.size());
+                    java.util.List<String> confirmedIds = geminiService.findDuplicateReports(report, borderlineMatches);
+                    if (confirmedIds != null && !confirmedIds.isEmpty()) {
+                        for (Report r : borderlineMatches) {
+                            if (confirmedIds.contains(r.getId())) {
+                                duplicatesToLink.add(r);
+                            }
                         }
                     }
                 }
             }
-        }
 
-        if (duplicatesToLink.isEmpty()) {
-            return;
-        }
-
-        String currentGroupId = report.getDuplicateGroupId();
-        String groupId = resolveGroupId(duplicatesToLink, currentGroupId);
-
-        java.util.List<String> reportIdsToUpdate = new java.util.ArrayList<>();
-        for (Report r : duplicatesToLink) {
-            if (!groupId.equals(r.getDuplicateGroupId())) {
-                reportIdsToUpdate.add(r.getId());
+            if (duplicatesToLink.isEmpty()) {
+                return;
             }
-        }
-        if (!groupId.equals(currentGroupId)) {
-            reportIdsToUpdate.add(reportId);
-        }
 
-        if (!reportIdsToUpdate.isEmpty()) {
-            persistDuplicateGroupId(reportIdsToUpdate, groupId);
+            String currentGroupId = report.getDuplicateGroupId();
+            String groupId = resolveGroupId(duplicatesToLink, currentGroupId);
+
+            java.util.List<String> reportIdsToUpdate = new java.util.ArrayList<>();
+            for (Report r : duplicatesToLink) {
+                if (!groupId.equals(r.getDuplicateGroupId())) {
+                    reportIdsToUpdate.add(r.getId());
+                }
+            }
+            if (!groupId.equals(currentGroupId)) {
+                reportIdsToUpdate.add(reportId);
+            }
+
+            if (!reportIdsToUpdate.isEmpty()) {
+                persistDuplicateGroupId(reportIdsToUpdate, groupId);
+            }
+        } catch (Exception e) {
+            log.warn("pgvector/Embedding araması başarısız oldu (muhtemelen pgvector eklentisi kurulu değil), konum tabanlı fallback akışı devreye alınıyor: {}", e.getMessage());
+            linkNearbyDuplicates(reportId);
         }
     }
 

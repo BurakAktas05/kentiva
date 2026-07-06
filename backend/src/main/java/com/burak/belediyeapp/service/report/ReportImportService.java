@@ -91,6 +91,9 @@ public class ReportImportService {
     @Value("${app.report-import.batch-size:100}")
     private int batchSize;
 
+    @Value("${app.system.generated-email-domain:kentiva.app}")
+    private String generatedEmailDomain;
+
     public BulkReportOperationResult importReports(MultipartFile file, AppUser currentUser) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException("Ithal edilecek dosya bos olamaz.", "IMPORT_FILE_REQUIRED");
@@ -556,7 +559,12 @@ public class ReportImportService {
             slug = SlugUtils.slugify(ReportSupport.municipalityDisplayLabel(municipality));
         }
         String suffix = UUID.randomUUID().toString().substring(0, 8);
-        return "callcenter-" + slug + "-" + suffix + "@kentiva.app";
+        return "callcenter-" + slug + "-" + suffix + "@" + generatedEmailDomain();
+    }
+
+    private String generatedEmailDomain() {
+        String normalized = tokenOrNull(generatedEmailDomain);
+        return normalized != null ? normalized : "kentiva.app";
     }
 
     private String generateUniqueTrackingNumber() {

@@ -1,6 +1,7 @@
 package com.burak.belediyeapp.controller;
 
 import com.burak.belediyeapp.dto.response.admin.PlatformDashboardResponse;
+import com.burak.belediyeapp.dto.response.admin.ApiMetricResponse;
 import com.burak.belediyeapp.dto.response.common.ApiResponse;
 import com.burak.belediyeapp.service.admin.PlatformDashboardService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -11,6 +12,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/admin/platform")
@@ -25,5 +27,12 @@ public class AdminPlatformController {
     @Operation(summary = "Platform özeti — belediyeler, üyelik, kullanım")
     public ResponseEntity<ApiResponse<PlatformDashboardResponse>> dashboard() {
         return ResponseEntity.ok(ApiResponse.success(platformDashboardService.getDashboard()));
+    }
+
+    @GetMapping("/api-metrics")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Platform dış API metrics")
+    public ResponseEntity<ApiResponse<List<ApiMetricResponse>>> apiMetrics() {
+        return ResponseEntity.ok(ApiResponse.success(platformDashboardService.getApiMetrics()));
     }
 }

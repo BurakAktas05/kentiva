@@ -1,11 +1,11 @@
 # 🏙️ Kentiva - Akıllı Kent ve Belediye Yönetim Platformu
 
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2-brightgreen.svg?style=flat-square&logo=springboot)](https://spring.io/projects/spring-boot)
-[![React](https://img.shields.io/badge/React-18-blue.svg?style=flat-square&logo=react)](https://react.dev)
+[![React](https://img.shields.io/badge/React-19-blue.svg?style=flat-square&logo=react)](https://react.dev)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%2B-blue.svg?style=flat-square&logo=postgresql)](https://www.postgresql.org)
 [![PostGIS](https://img.shields.io/badge/PostGIS-Spatial-blue.svg?style=flat-square&logo=postgis)](https://postgis.net)
 [![Docker](https://img.shields.io/badge/Docker-Compatible-blue.svg?style=flat-square&logo=docker)](https://www.docker.com)
-[![Gemini AI](https://img.shields.io/badge/Gemini%20AI-2.5%20Flash-orange.svg?style=flat-square)](https://deepmind.google/technologies/gemini/)
+[![Gemini AI](https://img.shields.io/badge/Gemini%20AI-2.5%20Flash%20%2F%20Embeddings-orange.svg?style=flat-square)](https://deepmind.google/technologies/gemini/)
 
 Kentiva; belediye operasyonlarını modernize etmek, vatandaş ihbar süreçlerini hızlandırmak, saha yönetimini optimize etmek ve belediye yöneticilerine gelişmiş coğrafi ve analitik raporlar sunmak üzere tasarlanmış **çok kiracılı (multi-tenant) B2B SaaS** akıllı şehir yönetim platformudur. 
 
@@ -13,19 +13,19 @@ Platform, tek bir altyapı üzerinde birden fazla belediyenin tamamen izole bir 
 
 ---
 
-## 🚀 Öne Çıkan Özellikler
+## 🚀 Öne Çıkan Özellikler & Yeni Geliştirmeler
 
 - **Çok Kiracılılık (Multi-Tenancy):** Tek bir veritabanı şeması ve kod tabanı üzerinde sınırsız belediye desteği. Her kiracı `municipality_id` üzerinden veri düzeyinde tam izoledir.
-- **Güven Puanı (Reputation Score) & Sadakat Puanı (Loyalty Points) Ayrımı:** Vatandaşların ihbar kalitesine göre hesaplanan güven puanı ile ödül satın alımlarında harcanan sadakat puanı ayrıştırıldı. Bu sayede ödül alan vatandaşların güven puanının düşmesi ve spam koruma engeline (30 puan altı) takılması önlendi.
-- **Misafir Giriş Modu (Oturumsuz Gezinti):** Mobil uygulamaya kayıt olmadan giriş yapabilme desteği eklendi. Misafir kullanıcılar duyuruları, otobüs hatlarını ve haritayı serbestçe gezebilir; ihbar veya ilan oluşturmak istediklerinde ise şık yönlendirme kartlarıyla kayıt/giriş ekranına yönlendirilirler.
-- **Manuel Konum Seçimi & Sürüklenebilir Marker (GPS Fallback):** Mobil uygulamada GPS sinyali alınamadığında ekranın kilitlenmesini önlemek için manuel konum seçme butonu ve harita üzerinde sürüklenebilir (draggable) marker desteği eklendi.
-- **Asenkron KVKK Anonimleştirme:** Yüklenen fotoğraflarda yüz ve araç plakaları Gemini AI ile arka planda asenkron taranır. Bounding box tespiti ve pikselleştirme işlemleri dosya yükleme `/upload` aşamasını yavaşlatmadan arka planda tamamlanır.
-- **Gelişmiş Rate Limiting (Caffeine Cache):** API limit aşımlarını izlemek için Bucket4j altyapısı Caffeine Cache ile entegre edilmiştir. Bellek sızıntılarını önleyen ve otomatik evict edilen 50.000 limitli bucket mimarisi aktiftir.
-- **Mekansal Engelleyici Geofencing:** Vatandaş üye olmayan bir konumdan ihbar oluşturmaya çalıştığında form kilitlenir ve premium bölge dışı uyarı kartı gösterilir.
-- **Dinamik Markalama (Custom Branding):** Belediyeler kendi birincil renklerini, logolarını ve sloganlarını admin paneli üzerinden kod yazmadan veya yeniden canlıya almadan anında güncelleyebilir.
-- **Robust Gemini JSON Ayrıştırma:** Yapay zeka servislerinden dönen JSON yanıtların markdown backtick'lerinden (````json / ````) arındırılarak güvenle parse edilmesi sağlandı.
-- **Yapay Zeka Destekli Analiz (Gemini AI):** İhbarlar yapay zeka tarafından özetlenir, kategorisi kontrol edilir, öncelik derecesi atanır ve vatandaşlara iletilecek SMS/Push şablonları otomatik olarak oluşturulur.
-- **Media-Guard DevOps Entegrasyonu:** OpenCV Haar Cascade tabanlı yüz tespiti yapan `media-guard` Python servisi Dockerfile ve Docker Compose (dev & prod) mimarilerine entegre edildi.
+- **🧠 Semantik & Vektörel Mükerrer İhbar Tespiti (pgvector & Gemini):** Vatandaşların oluşturduğu ihbarlar Gemini API üzerinden asenkron olarak 768 boyutlu vektörlere dönüştürülür ve `pgvector` HNSW indeksi ile taranır. 
+  - *Kesin Semantik Eşleşmeler (< 0.12 Cosine Distance):* Sistem tarafından otomatik olarak aynı `duplicate_group_id` altına bağlanır.
+  - *Sınırda Eşleşmeler (< 0.28 Cosine Distance):* Gemini AI'a gönderilerek semantik doğrulama istenir, onaylanırsa otomatik gruplanır.
+- **📞 Beyaz Masa (White Desk) Operatör Modülü:** Belediye çağrı merkezi operatörlerinin, telefonla veya yüz yüze gelen vatandaş şikayetlerini hızlıca sisteme girebilmesi için tasarlanmış özel klavye kısayolu destekli arayüz. Sık karşılaşılan sorunlar için "Hızlı Şablonlar" (Yol çukuru, bozuk kaldırım vb.) içerir.
+- **📊 Yönetici Özeti & KPI Paneli (Executive Dashboard):** Belediyelerin pilot süreçlerindeki performanslarını izleyebileceği; toplam ihbarlar, çözüm oranları, departman bazlı iş yükü dağılımları ve coğrafi yoğunluk (District) verilerini içeren üst düzey görsel gösterge paneli.
+- **🏆 90 Günlük Pilot & Başarı Takip Sistemi (Pilot Success):** Belediyelere sunulan 90 günlük ücretsiz deneme sürecini takip eden, sistemin aktif kullanım metriklerini (vatandaş sayısı, ihbar çözme hızları vb.) satış hedefleriyle karşılaştıran başarı paneli.
+- **🎨 Belediye Pazarlama Kiti (Marketing Kit):** Belediyelerin vatandaşları Kentiva'ya davet edebilmesi için dinamik olarak üretilen QR kodlu afiş şablonları, sosyal medya duyuru görselleri ve belediye web sitesine eklenebilecek akıllı widget yönlendirmelerini içerir.
+- **💰 Esnek Üyelik & Plan Yönetimi (Pricing):** Standard, Professional ve Enterprise üyelik modellerinin belediye bazlı yönetimini ve faturalandırma takibini kolaylaştıran lisanslama altyapısı.
+- **🔒 Asenkron KVKK Anonimleştirme:** Yüklenen fotoğraflarda yüz ve araç plakaları Gemini AI ile arka planda asenkron taranır. Bounding box tespiti ve pikselleştirme işlemleri dosya yükleme `/upload` aşamasını yavaşlatmadan arka planda tamamlanır.
+- **🛡️ Gelişmiş Rate Limiting (Caffeine Cache):** API limit aşımlarını izlemek için Bucket4j altyapısı Caffeine Cache ile entegre edilmiştir. Bellek sızıntılarını önleyen ve otomatik evict edilen 50.000 limitli bucket mimarisi aktiftir.
 
 ---
 
@@ -33,14 +33,14 @@ Platform, tek bir altyapı üzerinde birden fazla belediyenin tamamen izole bir 
 
 ### 1. Backend API (Spring Boot)
 *   **Teknoloji:** Java 21, Spring Boot 3
-*   **Veritabanı:** PostgreSQL & PostGIS (Coğrafi sorgular, mekansal indeksleme)
+*   **Veritabanı:** PostgreSQL, PostGIS (Coğrafi sorgular) ve `pgvector` (Vektörel arama)
 *   **Güvenlik:** JWT tabanlı durumsuz (stateless) kimlik doğrulama, Caffeine Cache destekli Bucket4j Rate Limiting, Brute-force koruması
 *   **Entegrasyonlar:** NetGSM / Twilio SMS OTP, Cloudflare R2 / AWS S3 medya depolama alanları
 *   **Raporlama:** Zebra desenli, durum ve öncelik bazında pastel renk kodlu premium PDF & Excel veri dışa aktarma
 
 ### 2. Yönetici Portalı (Admin Portal)
-*   **Teknoloji:** React 19, Vite, TailwindCSS
-*   **Özellikler:** KPI izleme ekranları, canlı ısı haritası (Live Heatmap), departman bazlı saha görevlisi atama, ulaşım hatları AI import ve PDF/Excel şablon yönetimi.
+*   **Teknoloji:** React 19, Vite, Recharts, TailwindCSS
+*   **Özellikler:** KPI izleme ekranları, canlı ısı haritası (Live Heatmap), departman bazlı saha görevlisi atama, Beyaz Masa hızlı giriş ekranı, Pilot başarı paneli, veri dışa aktarma ve PDF/Excel şablon yönetimi.
 
 ### 3. Vatandaş Mobil Uygulaması (Citizen Mobile)
 *   **Teknoloji:** React 19, Ionic / Capacitor (Cross-platform)
@@ -48,23 +48,7 @@ Platform, tek bir altyapı üzerinde birden fazla belediyenin tamamen izole bir 
 
 ---
 
-## 🎯 Yayın Öncesi & Kötüye Kullanım Kontrol Listesi
-
-Uygulamayı canlı ortama (production) almadan önce sistemin güvenliğini ve kararlılığını sağlamak için tasarlanan tüm kuralların kontrol listesi aşağıda yer almaktadır:
-
-### Özet Kontrol Maddeleri:
-- [x] **Asenkron KVKK Anonimleştirme:** Yüz/plaka maskeleme ve tescil taramaları asenkron event kuyruğuna taşındı.
-- [x] **Caffeine Rate Limit:** Bellek verimliliği yüksek evicting cache mekanizması devreye alındı.
-- [x] **Geofencing & Bölge Dışı Bloklama:** Mobil NewReport ekranında üye olmayan alanlardan ihbar gönderimi engellendi.
-- [x] **Onboarding & Picker Yenilemesi:** Framer Motion staggered list geçişleri ve modern tab capsule yapıları eklendi.
-- [x] **Otobüs Hatları AI İmport:** PDF/Excel hat şemalarının Gemini ile taranıp mobil haritaya basılması sağlandı.
-- [x] **Mobil Favori Desteği:** Durak ve hat yıldızlama entegrasyonu tamamlandı.
-- [x] **İhbar Denetim PDF Görsel İyileştirmesi:** Zebra desenli satırlar ve durum/öncelik pastel badge tasarımları eklendi.
-- [x] **Düşük İtibar Bloklama:** Güven puanı **30** puanın altına düşen kullanıcıların yeni ihbar oluşturması engellendi.
-
----
-
-## 💻 Yerel Geliştirme Ortamı Kurulumu
+## 💻 Geliştirme Ortamı Kurulumu
 
 ### Docker ile Tek Komutla Çalıştırma (Full Stack)
 Yerel testler veya sunum için API, PostgreSQL, Admin Portal ve Web sitelerini tek hamlede ayağa kaldırabilirsiniz:
@@ -97,10 +81,14 @@ Yerel ortamda backend ayağa kalktıktan sonra, tüm API uç noktalarını incel
 
 ---
 
-## 📂 Yardımcı Belgeler ve Kaynaklar
-- 📝 **Yayınlama ve APK Oluşturma Rehberi:** [`deployment/YAYINLAMA.md`](deployment/YAYINLAMA.md)
-- 🧪 **Yerel Manuel Test ve ngrok Rehberi:** [`scripts/YEREL-MANUEL-TEST.md`](scripts/YEREL-MANUEL-TEST.md)
+## 📂 Proje Belgeleri ve Kaynaklar
+
+- 🚀 **Canlı Yayınlama ve APK Oluşturma Rehberi:** [`yayınlama rehberi.md`](yayınlama%20rehberi.md)
+- 🛠️ **Teknik Eksikler ve Takip Listesi:** [`todo_fixme.md`](todo_fixme.md)
+- 📝 **Yerel Manuel Test ve ngrok Rehberi:** [`scripts/YEREL-MANUEL-TEST.md`](scripts/YEREL-MANUEL-TEST.md)
 - 🗝️ **Çevre Değişkenleri Şablonu:** [`deployment/ANAHTARLAR.template.env`](deployment/ANAHTARLAR.template.env)
+- 📜 **90 Günlük Pilot Sözleşme Taslağı:** [`deployment/PILOT-SOZLESME-TASLAGI.md`](deployment/PILOT-SOZLESME-TASLAGI.md)
+- 🎯 **Pilot Başarı Kriterleri Raporu:** [`deployment/PILOT-BASARI-KRITERLERI.md`](deployment/PILOT-BASARI-KRITERLERI.md)
 
 ---
 

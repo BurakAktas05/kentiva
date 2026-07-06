@@ -30,6 +30,10 @@ public class ReportService {
         return creationService.createReport(request, reporter);
     }
 
+    public ReportResponse createReportForWhiteDesk(WhiteDeskCreateReportRequest request, AppUser staffUser) {
+        return creationService.createReportForWhiteDesk(request, staffUser);
+    }
+
     public Page<ReportListResponse> getMyReports(AppUser user, Pageable pageable) {
         return queryService.getMyReports(user, pageable);
     }

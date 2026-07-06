@@ -15,6 +15,12 @@ interface ImportMetaEnv {
   readonly VITE_ADMIN_PORTAL_URL?: string;
   /** Vatandaş uygulaması / PWA adresi */
   readonly VITE_CITIZEN_APP_URL?: string;
+  /** Demo talep e-postası */
+  readonly VITE_DEMO_EMAIL?: string;
+  /** Public fiyat etiketi, ör. ₺9.999 */
+  readonly VITE_MONTHLY_PRICE_LABEL?: string;
+  /** Pilot süresi etiketi, ör. 3 ay */
+  readonly VITE_PILOT_DURATION_LABEL?: string;
 }
 
 interface ImportMeta {

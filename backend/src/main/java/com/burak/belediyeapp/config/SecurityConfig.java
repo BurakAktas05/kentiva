@@ -119,8 +119,12 @@ public class SecurityConfig {
                 // ── Dashboard istatistik endpoint ─────────────
                 .requestMatchers("/api/v1/dashboard/**")
                     .hasAnyRole("DEPT_MANAGER", "ADMIN", "SUPER_ADMIN")
+                .requestMatchers("/api/v1/pilot/**")
+                    .hasAnyRole("WHITE_DESK", "DEPT_MANAGER", "ADMIN")
 
                 // ── Vatandaş işlemleri ────────────────────────
+                .requestMatchers(HttpMethod.POST, "/api/v1/reports/white-desk")
+                    .hasAnyRole("WHITE_DESK", "DEPT_MANAGER", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/reports").hasRole("CITIZEN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/reports/upload").hasRole("CITIZEN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/reports/my").hasRole("CITIZEN")
@@ -138,7 +142,7 @@ public class SecurityConfig {
 
                 // ── Saha ekibi & üzeri ───────────────────────
                 .requestMatchers(HttpMethod.GET, "/api/v1/reports/**")
-                    .hasAnyRole("FIELD_OFFICER", "DEPT_MANAGER", "ADMIN", "SUPER_ADMIN")
+                    .hasAnyRole("WHITE_DESK", "FIELD_OFFICER", "DEPT_MANAGER", "ADMIN", "SUPER_ADMIN")
                 .requestMatchers(HttpMethod.PATCH, "/api/v1/reports/**")
                     .hasAnyRole("FIELD_OFFICER", "DEPT_MANAGER", "ADMIN", "SUPER_ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/reports/*/assign")

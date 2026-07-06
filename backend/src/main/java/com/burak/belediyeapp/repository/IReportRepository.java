@@ -239,6 +239,68 @@ public interface IReportRepository extends JpaRepository<Report, String> {
 
     long countByMunicipalityIdAndHiddenFromMunicipalityFalse(String municipalityId);
 
+    long countByMunicipalityIdAndHiddenFromMunicipalityFalseAndCreatedAtAfter(String municipalityId, LocalDateTime createdAt);
+
+    long countByMunicipalityIdAndReportStatusAndHiddenFromMunicipalityFalseAndCreatedAtAfter(
+            String municipalityId, ReportStatus status, LocalDateTime createdAt);
+
+    @Query("""
+            SELECT COUNT(DISTINCT r.reporter.id)
+            FROM Report r
+            WHERE r.municipality.id = :municipalityId
+              AND r.hiddenFromMunicipality = false
+            """)
+    long countDistinctReportersByMunicipalityId(@Param("municipalityId") String municipalityId);
+
+    @Query(value = """
+            SELECT AVG(EXTRACT(EPOCH FROM (COALESCE(r.updated_at, r.created_at) - r.created_at)) / 3600.0)
+            FROM reports r
+            WHERE r.municipality_id = :municipalityId
+              AND r.hidden_from_municipality = false
+              AND r.report_status = 'RESOLVED'
+            """, nativeQuery = true)
+    Double averageResolutionHoursByMunicipality(@Param("municipalityId") String municipalityId);
+
+    @Query(value = """
+            SELECT COALESCE(c.name, 'Diger') AS label, COUNT(*) AS total
+            FROM reports r
+            LEFT JOIN report_categories c ON c.id = r.category_id
+            WHERE r.municipality_id = :municipalityId
+              AND r.hidden_from_municipality = false
+            GROUP BY COALESCE(c.name, 'Diger')
+            ORDER BY total DESC
+            LIMIT 5
+            """, nativeQuery = true)
+    List<Object[]> findPilotTopCategories(@Param("municipalityId") String municipalityId);
+
+    @Query(value = """
+            SELECT COALESCE(NULLIF(r.district, ''), 'Genel') AS label, COUNT(*) AS total
+            FROM reports r
+            WHERE r.municipality_id = :municipalityId
+              AND r.hidden_from_municipality = false
+            GROUP BY COALESCE(NULLIF(r.district, ''), 'Genel')
+            ORDER BY total DESC
+            LIMIT 5
+            """, nativeQuery = true)
+    List<Object[]> findPilotTopDistricts(@Param("municipalityId") String municipalityId);
+
+    @Query(value = """
+            SELECT
+                COALESCE(d.name, 'Atanmamis') AS department_name,
+                COUNT(*) AS total_reports,
+                COUNT(*) FILTER (WHERE r.report_status = 'RESOLVED') AS resolved_reports,
+                COUNT(*) FILTER (WHERE r.report_status IN ('PENDING', 'PROCESSING', 'FORWARDED')) AS open_reports
+            FROM reports r
+            LEFT JOIN report_categories c ON c.id = r.category_id
+            LEFT JOIN departments d ON d.id = COALESCE(r.forwarded_department_id, c.department_id)
+            WHERE r.municipality_id = :municipalityId
+              AND r.hidden_from_municipality = false
+            GROUP BY COALESCE(d.name, 'Atanmamis')
+            ORDER BY total_reports DESC
+            LIMIT 8
+            """, nativeQuery = true)
+    List<Object[]> findPilotDepartmentPerformance(@Param("municipalityId") String municipalityId);
+
     long countByReporterIdAndReportStatus(String reporterId, ReportStatus status);
 
     long countByReporterIdAndReportStatusAndCreatedAtAfter(String reporterId, ReportStatus status, LocalDateTime since);

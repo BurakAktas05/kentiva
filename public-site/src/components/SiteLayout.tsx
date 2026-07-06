@@ -1,10 +1,7 @@
 import { useState } from 'react';
 import { Link, Outlet } from 'react-router-dom';
 import { Building2, Menu, X } from 'lucide-react';
-
-const ADMIN_PORTAL_URL =
-  (import.meta.env.VITE_ADMIN_PORTAL_URL as string | undefined)?.trim() ||
-  'https://admin.kentiva.app';
+import { demoMailto, marketingConfig } from '../lib/marketing';
 
 export function BrandMark({ className = '' }: { className?: string }) {
   return (
@@ -77,7 +74,7 @@ export default function SiteLayout() {
             </div>
             <div className="flex shrink-0 items-center gap-2 sm:gap-3">
               <a
-                href={`${ADMIN_PORTAL_URL}`}
+                href={marketingConfig.adminPortalUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="hidden text-sm font-semibold text-slate-600 transition-colors hover:text-primary sm:inline"
@@ -85,7 +82,7 @@ export default function SiteLayout() {
                 Yönetici Paneli
               </a>
               <a
-                href="mailto:demo@kentiva.app?subject=Kentiva%20Demo%20Talebi"
+                href={demoMailto()}
                 className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-bold text-slate-800 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:px-4"
               >
                 Demo Talep Et
@@ -139,7 +136,7 @@ export default function SiteLayout() {
               </a>
               <div className="h-px bg-slate-100 my-2" />
               <a
-                href={`${ADMIN_PORTAL_URL}`}
+                href={marketingConfig.adminPortalUrl}
                 target="_blank"
                 rel="noreferrer"
                 onClick={() => setMobileMenuOpen(false)}
@@ -180,7 +177,7 @@ export default function SiteLayout() {
                 Fiyatlandırma
               </a>
               <a
-                href={`${ADMIN_PORTAL_URL}/super-admin/login`}
+                href={`${marketingConfig.adminPortalUrl}/super-admin/login`}
                 target="_blank"
                 rel="noreferrer"
                 className="text-slate-400 transition-colors hover:text-white"
@@ -193,8 +190,8 @@ export default function SiteLayout() {
               <Link to="/kullanim-kosullari" className="text-slate-400 transition-colors hover:text-white">
                 Kullanım Koşulları
               </Link>
-              <a href="mailto:demo@kentiva.app" className="text-slate-400 transition-colors hover:text-white">
-                demo@kentiva.app
+              <a href={demoMailto('Kentiva Bilgi Talebi')} className="text-slate-400 transition-colors hover:text-white">
+                {marketingConfig.demoEmail}
               </a>
             </nav>
           </div>

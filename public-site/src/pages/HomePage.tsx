@@ -17,12 +17,9 @@ import {
 } from 'lucide-react';
 import { SeoHead } from '../components/SeoHead';
 import { LiveStatsSection } from '../components/LiveStatsSection';
+import { demoMailto, marketingConfig } from '../lib/marketing';
 
-const ADMIN_PORTAL_URL =
-  (import.meta.env.VITE_ADMIN_PORTAL_URL as string | undefined)?.trim() ||
-  'https://admin.kentiva.app';
-
-const CITIZEN_APP_URL = (import.meta.env.VITE_CITIZEN_APP_URL as string | undefined)?.trim() || '';
+const { adminPortalUrl, citizenAppUrl, monthlyPriceLabel, pilotDurationLabel } = marketingConfig;
 
 export default function HomePage() {
   return (
@@ -65,7 +62,7 @@ export default function HomePage() {
                 </p>
                 <div className="mt-9 flex flex-wrap items-center gap-3">
                   <a
-                    href="mailto:demo@kentiva.app"
+                    href={demoMailto('Kentiva Bilgi Talebi')}
                     className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-white shadow-lg shadow-primary/25 transition-all hover:bg-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:scale-[0.98]"
                   >
                     Bilgi alın
@@ -186,9 +183,9 @@ export default function HomePage() {
                 </p>
               </div>
               <div className="flex flex-wrap gap-3 lg:shrink-0">
-                {CITIZEN_APP_URL ? (
+                {citizenAppUrl ? (
                   <a
-                    href={CITIZEN_APP_URL}
+                    href={citizenAppUrl}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-primary/20 transition-colors hover:bg-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
@@ -297,10 +294,10 @@ export default function HomePage() {
                 </span>
                 <h3 className="text-center font-sans text-xl font-bold text-slate-900">Kentiva Platform</h3>
                 <div className="mt-4 flex items-baseline justify-center gap-1">
-                  <span className="text-4xl font-extrabold tracking-tight text-slate-900">₺9.999</span>
+                  <span className="text-4xl font-extrabold tracking-tight text-slate-900">{monthlyPriceLabel}</span>
                   <span className="text-sm font-medium text-slate-500">/ay</span>
                 </div>
-                <p className="mt-2 text-center text-sm text-slate-500">İlk 30 gün ücretsiz deneme</p>
+                <p className="mt-2 text-center text-sm text-slate-500">İlk {pilotDurationLabel} ücretsiz pilot</p>
                 <ul className="mt-8 flex-1 space-y-3 border-t border-slate-100 pt-6">
                   {[
                     'Sınırsız rapor & bildirim',
@@ -323,7 +320,7 @@ export default function HomePage() {
                   ))}
                 </ul>
                 <a
-                  href="mailto:demo@kentiva.app?subject=Kentiva%20Demo%20Talebi"
+                  href={demoMailto()}
                   className="mt-8 block rounded-xl bg-primary py-3.5 text-center text-sm font-bold text-white shadow-md shadow-primary/20 transition-all hover:bg-primary-hover active:scale-[0.98]"
                 >
                   Ücretsiz Demo Talep Et
@@ -340,7 +337,7 @@ export default function HomePage() {
               Sıkça Sorulan Sorular
             </h2>
             <dl className="mt-10 space-y-4">
-              <FaqItem q="Belediyemiz nasıl üye olabilir?" a="Demo talep formunu doldurmanız yeterlidir. Ekibimiz sizinle iletişime geçerek kurulumu başlatır. İlk 30 gün ücretsiz deneme süreci sunulur." />
+              <FaqItem q="Belediyemiz nasıl üye olabilir?" a={`Demo talep formunu doldurmanız yeterlidir. Ekibimiz sizinle iletişime geçerek kurulumu başlatır. İlk ${pilotDurationLabel} ücretsiz pilot süreci sunulur.`} />
               <FaqItem q="Vatandaş verileri güvende mi?" a="Tüm veriler KVKK uyumlu şekilde işlenir. Her belediye yalnızca kendi ilçe sınırları içindeki bildirimleri görür. Veriler şifreli bağlantılarla taşınır." />
               <FaqItem q="Departmanları biz mi ekliyoruz?" a="Evet. Her belediye kendi departman yapısını oluşturur. Küçük bir belediyede 2 departman, büyük bir belediyede 10+ departman olabilir." />
               <FaqItem q="AI analizi nasıl çalışıyor?" a="Her bildirim otomatik olarak AI tarafından analiz edilir: öncelik, kategori önerisi, özet ve cevap taslağı üretilir. Selfie/sahte fotoğraflar otomatik tespit edilir." />
@@ -364,18 +361,18 @@ export default function HomePage() {
               Belediyeniz için hemen başlayın
             </h2>
             <p className="mt-4 text-base font-medium text-primary-100">
-              30 gün ücretsiz deneme ile platformu risk almadan test edin. Kurulum desteği tarafımızdandır.
+              {pilotDurationLabel} ücretsiz pilot ile platformu risk almadan test edin. Kurulum desteği tarafımızdandır.
             </p>
             <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
               <a
-                href="mailto:demo@kentiva.app?subject=Kentiva%20Demo%20Talebi"
+                href={demoMailto()}
                 className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-primary shadow-lg transition-all hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white active:scale-[0.98]"
               >
                 Demo talep edin
                 <ArrowRight className="h-4 w-4" aria-hidden />
               </a>
               <a
-                href={ADMIN_PORTAL_URL}
+                href={adminPortalUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center rounded-xl border border-white/35 bg-white/10 px-5 py-3 text-sm font-bold text-white backdrop-blur-sm transition-all hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"

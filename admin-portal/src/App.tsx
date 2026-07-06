@@ -27,6 +27,11 @@ import {
   X,
   MessageSquare,
   Gift,
+  ClipboardPlus,
+  Package,
+  Crown,
+  Briefcase,
+  Cpu,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api, { clearAuthStorage, type PredictiveInsight, type Stats } from './api';
@@ -69,6 +74,12 @@ const EventsAndOutagesPage = lazy(() => import('./pages/EventsAndOutagesPage'));
 const SuperAdminRecentReportsPage = lazy(() => import('./pages/SuperAdminRecentReportsPage'));
 const RewardsPage = lazy(() => import('./pages/RewardsPage'));
 const ScheduledExportsPage = lazy(() => import('./pages/ScheduledExportsPage'));
+const PilotSuccessPage = lazy(() => import('./pages/PilotSuccessPage'));
+const WhiteDeskReportPage = lazy(() => import('./pages/WhiteDeskReportPage'));
+const MarketingKitPage = lazy(() => import('./pages/MarketingKitPage'));
+const PricingPage = lazy(() => import('./pages/PricingPage'));
+const ExecutiveDashboardPage = lazy(() => import('./pages/ExecutiveDashboardPage'));
+const SuperAdminApiTrackerPage = lazy(() => import('./pages/SuperAdminApiTrackerPage'));
 
 const PageFallback = () => (
   <motion.div
@@ -126,6 +137,7 @@ const Sidebar = ({
             { name: t('recent_reports'), icon: FileText, path: '/admin/recent-reports' },
             { name: t('onboarding'), icon: Sparkles, path: '/admin/onboarding' },
             { name: t('municipalities'), icon: MapPinned, path: '/admin/municipalities' },
+            { name: t('api_tracker') || 'API Takibi', icon: Cpu, path: '/admin/api-tracker' },
             { name: t('feedback'), icon: MessageSquare, path: '/system-feedback' },
             { name: t('audit_logs'), icon: Shield, path: '/audit-logs' },
           ]
@@ -135,11 +147,19 @@ const Sidebar = ({
         const overviewItems: MenuItem[] = [
           { name: t('dashboard'), icon: LayoutDashboard, path: '/' }
         ];
+        if (user.roles.includes('ROLE_ADMIN') && user.municipality) {
+          overviewItems.push({ name: t('pilot_success'), icon: TrendingUp, path: '/pilot' });
+          overviewItems.push({ name: t('executive_dashboard'), icon: Briefcase, path: '/executive' });
+        }
 
         const trackingItems: MenuItem[] = [
           { name: t('reports'), icon: FileText, path: '/reports' },
           { name: t('stats'), icon: PieChart, path: '/stats' }
         ];
+        if (user.roles.some((r) => ['ROLE_WHITE_DESK', 'ROLE_DEPT_MANAGER', 'ROLE_ADMIN'].includes(r)) && user.municipality) {
+          trackingItems.splice(1, 0, { name: t('white_desk_entry'), icon: ClipboardPlus, path: '/reports/new-white-desk' });
+        }
+
 
         const prItems: MenuItem[] = [
           { name: t('announcements'), icon: Megaphone, path: '/announcements' },
@@ -148,6 +168,7 @@ const Sidebar = ({
         if (user.roles.includes('ROLE_ADMIN') && user.municipality) {
           prItems.push({ name: t('events_outages'), icon: CalendarClock, path: '/events-outages' });
           prItems.push({ name: t('rewards'), icon: Gift, path: '/rewards' });
+          prItems.push({ name: t('marketing_kit'), icon: Package, path: '/marketing-kit' });
           prItems.push({ name: t('scheduled_exports') || 'Planlı Dışa Aktarma', icon: Download, path: '/scheduled-exports' });
         }
 
@@ -159,6 +180,7 @@ const Sidebar = ({
         const systemItems: MenuItem[] = [];
         if (user.roles.includes('ROLE_ADMIN') && user.municipality) {
           systemItems.push({ name: t('municipality_settings'), icon: SettingsIcon, path: '/municipality-settings' });
+          systemItems.push({ name: t('pricing'), icon: Crown, path: '/pricing' });
         }
 
         if (user.roles.some((r) => ['ROLE_ADMIN', 'ROLE_SUPER_ADMIN'].includes(r))) {
@@ -406,11 +428,12 @@ const Header = ({
         <select
           value={language}
           onChange={(e) => setLanguage(e.target.value as Language)}
+          aria-label="Dil seçimi"
+          title="Dil seçimi"
           className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 outline-none focus:ring-1 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
         >
           <option value="tr">TR</option>
           <option value="en">EN</option>
-          <option value="ar">AR</option>
         </select>
 
 
@@ -897,6 +920,22 @@ const App = () => {
                     <Route path="/" element={<Dashboard user={user} />} />
                     <Route path="/reports" element={<ReportsPage />} />
                     <Route
+                      path="/pilot"
+                      element={
+                        <ProtectedRoute user={user} allow={(u) => u.roles.some((r) => ['ROLE_ADMIN', 'ROLE_DEPT_MANAGER'].includes(r)) && Boolean(u.municipality)}>
+                          <PilotSuccessPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/reports/new-white-desk"
+                      element={
+                        <ProtectedRoute user={user} allow={(u) => u.roles.some((r) => ['ROLE_WHITE_DESK', 'ROLE_DEPT_MANAGER', 'ROLE_ADMIN'].includes(r)) && Boolean(u.municipality)}>
+                          <WhiteDeskReportPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
                       path="/announcements"
                       element={
                         <ProtectedRoute user={user} allow={(u) => u.roles.some((r) => ['ROLE_ADMIN', 'ROLE_DEPT_MANAGER', 'ROLE_SUPER_ADMIN'].includes(r))}>
@@ -925,21 +964,12 @@ const App = () => {
                     <Route
                       path="/audit-logs"
                       element={
-                        <ProtectedRoute
-                          user={user}
-                          allow={(u) =>
-                            u.roles.some((r) => ['ROLE_ADMIN', 'ROLE_SUPER_ADMIN'].includes(r))
-                          }
-                        >
+                        <ProtectedRoute user={user} allow={(u) => u.roles.some((r) => ['ROLE_ADMIN', 'ROLE_SUPER_ADMIN'].includes(r))}>
                           <AuditLogsPage />
                         </ProtectedRoute>
                       }
                     />
-
-                    <Route
-                      path="/staff"
-                      element={<UsersPage />}
-                    />
+                    <Route path="/staff" element={<UsersPage />} />
                     <Route path="/departments" element={<DepartmentsPage />} />
                     <Route
                       path="/municipality-settings"
@@ -1006,6 +1036,14 @@ const App = () => {
                       }
                     />
                     <Route
+                      path="/admin/api-tracker"
+                      element={
+                        <ProtectedRoute user={user} allow={(u) => u.roles.includes('ROLE_SUPER_ADMIN')}>
+                          <SuperAdminApiTrackerPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
                       path="/rewards"
                       element={
                         <ProtectedRoute user={user} allow={(u) => u.roles.includes('ROLE_ADMIN') && Boolean(u.municipality)}>
@@ -1021,6 +1059,30 @@ const App = () => {
                         </ProtectedRoute>
                       }
                     />
+                    <Route
+                      path="/marketing-kit"
+                      element={
+                        <ProtectedRoute user={user} allow={(u) => u.roles.includes('ROLE_ADMIN') && Boolean(u.municipality)}>
+                          <MarketingKitPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/pricing"
+                      element={
+                        <ProtectedRoute user={user} allow={(u) => u.roles.includes('ROLE_ADMIN') && Boolean(u.municipality)}>
+                          <PricingPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/executive"
+                      element={
+                        <ProtectedRoute user={user} allow={(u) => u.roles.some((r) => ['ROLE_ADMIN', 'ROLE_DEPT_MANAGER'].includes(r)) && Boolean(u.municipality)}>
+                          <ExecutiveDashboardPage />
+                        </ProtectedRoute>
+                      }
+                    />
                   </Routes>
                   </Suspense>
                 </main>
@@ -1029,7 +1091,7 @@ const App = () => {
               {/* Mobile Sidebar Overlay */}
               <AnimatePresence>
                 {sidebarOpen && (
-                  <motion.div 
+                  <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}

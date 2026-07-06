@@ -2,6 +2,7 @@ package com.burak.belediyeapp.controller;
 
 import com.burak.belediyeapp.dto.request.report.CreateReportRequest;
 import com.burak.belediyeapp.dto.request.report.ReportDraftAnalysisRequest;
+import com.burak.belediyeapp.dto.request.report.WhiteDeskCreateReportRequest;
 import com.burak.belediyeapp.dto.response.common.ApiResponse;
 import com.burak.belediyeapp.dto.response.report.NearbyReportHintResponse;
 import com.burak.belediyeapp.dto.response.report.ReportDraftAnalysisResponse;
@@ -102,6 +103,19 @@ public class ReportCrudController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Raporunuz alındı, teşekkürler!", response));
+    }
+
+    @PostMapping("/white-desk")
+    @RateLimit(requests = 20, window = 60)
+    @Operation(summary = "Beyaz Masa vatandas adina yeni rapor olusturur")
+    public ResponseEntity<ApiResponse<ReportResponse>> createWhiteDeskReport(
+            @Valid @RequestBody WhiteDeskCreateReportRequest request,
+            @AuthenticationPrincipal AppUser currentUser) {
+
+        ReportResponse response = reportService.createReportForWhiteDesk(request, currentUser);
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Beyaz Masa ihbari olusturuldu", response));
     }
 
     @GetMapping("/my")
