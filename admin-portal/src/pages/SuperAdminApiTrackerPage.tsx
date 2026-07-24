@@ -41,7 +41,7 @@ export default function SuperAdminApiTrackerPage() {
     try {
       const res = await api.get('/admin/platform/api-metrics');
       setMetrics(res.data.data as ApiMetric[]);
-    } catch (err) {
+    } catch {
       setError('Dış API metrikleri yüklenemedi. Lütfen daha sonra tekrar deneyin.');
     } finally {
       setLoading(false);

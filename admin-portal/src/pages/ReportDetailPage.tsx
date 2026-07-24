@@ -21,6 +21,9 @@ import {
   Camera,
   AlertTriangle,
   Search,
+  Sparkles,
+  Gauge,
+  Building2,
 } from 'lucide-react';
 import axios from 'axios';
 import api, { type Report, type ReportListItem, type ReportTimelineEntry, type User } from '../api';
@@ -146,6 +149,8 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
   const [showAssignPanel, setShowAssignPanel] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDeptFilter, setSelectedDeptFilter] = useState('');
+  const [trackingCopied, setTrackingCopied] = useState(false);
+  const [clockReference] = useState<number>(Date.now);
 
   type ActionStep = 'ACCEPT' | 'REJECT' | 'RESOLVE' | null;
   const [actionStep, setActionStep] = useState<ActionStep>(null);
@@ -193,8 +198,10 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
     }
   }, [actionStep]);
 
+  const reportStatus = report?.status;
+
   useEffect(() => {
-    if (report && (report.status === 'PROCESSING' || report.status === 'FORWARDED')) {
+    if (reportStatus === 'PROCESSING' || reportStatus === 'FORWARDED') {
       setNoteText((prev) => {
         if (isDefaultPendingNote(prev)) {
           return '';
@@ -202,7 +209,7 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
         return prev;
       });
     }
-  }, [report?.status]);
+  }, [reportStatus]);
 
   /* ---------- derived ---------- */
   const filteredOfficers = useMemo(() => {
@@ -225,6 +232,14 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
   const hasAnyMedia = hasBeforeMedia || hasAfterMedia;
   const currentMediaList = activeMediaTab === 'BEFORE' ? (report?.mediaUrls ?? []) : (report?.resolvedMediaUrls ?? []);
   const isClosed = report ? ['RESOLVED', 'REJECTED', 'OUT_OF_JURISDICTION'].includes(report.status) : false;
+  const reportAge = Math.max(0, Math.floor((clockReference - new Date(report?.createdAt ?? clockReference).getTime()) / 86_400_000));
+
+  const copyTrackingNumber = async () => {
+    if (!report?.trackingNumber) return;
+    await navigator.clipboard.writeText(report.trackingNumber);
+    setTrackingCopied(true);
+    window.setTimeout(() => setTrackingCopied(false), 1800);
+  };
 
   /* ---------- refresh ---------- */
   const refreshReport = async () => {
@@ -359,11 +374,15 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
   );
 
   return wrapEmbedded(
-    <div className="space-y-6 p-6 max-w-[1400px] mx-auto">
+    <div className="mx-auto max-w-[1440px] space-y-5 p-4 sm:p-6 lg:p-8">
       {lightboxImages && <Lightbox images={lightboxImages} initialIndex={lightboxIndex} onClose={() => setLightboxImages(null)} />}
 
-      <div className="flex items-center justify-between">
-        {backNav}
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          {backNav}
+          <p className="mt-3 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">Belediye operasyon merkezi</p>
+        </div>
+        <span className="hidden text-xs font-semibold text-slate-400 sm:block">Son görüntüleme · {formatDate(new Date().toISOString())}</span>
       </div>
 
       {/* ---- Alerts ---- */}
@@ -381,12 +400,13 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
       {/* ================================================================ */}
       {/*  HEADER & STATUS PANEL                                           */}
       {/* ================================================================ */}
-      <section className="relative overflow-hidden rounded-[2rem] border border-white/60 bg-white/80 p-8 shadow-[0_20px_50px_-20px_rgba(15,23,42,0.08)] backdrop-blur-md dark:border-slate-800/80 dark:bg-slate-900/80">
-        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
+      <section className="relative overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white shadow-[0_24px_70px_-35px_rgba(15,23,42,0.35)] dark:border-slate-800 dark:bg-slate-900">
+        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-sky-400 to-emerald-400" />
+        <div className="flex flex-col gap-7 p-6 sm:p-8 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-3 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-slate-950 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-white dark:bg-slate-800 dark:text-slate-350">
-                #{report.id.slice(0, 8)}
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                Kayıt #{report.id.slice(0, 8)}
               </span>
               <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold uppercase shadow-sm ${reportStatusBadgeClass(report.status)}`}>
                 <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[report.status] ?? 'bg-slate-400'} ${report.status === 'PENDING' || report.status === 'PROCESSING' ? 'animate-pulse' : ''}`} />
@@ -398,18 +418,24 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
                 </span>
               )}
             </div>
-            <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white md:text-3xl">
+            <h1 className="max-w-4xl text-2xl font-black tracking-[-0.03em] text-slate-950 dark:text-white md:text-4xl">
               {report.title}
             </h1>
             {report.description && (
-              <p className="max-w-4xl whitespace-pre-wrap text-sm leading-relaxed text-slate-600 dark:text-slate-300 font-medium">
+              <p className="max-w-4xl whitespace-pre-wrap text-sm font-medium leading-7 text-slate-600 dark:text-slate-300">
                 {report.description}
               </p>
             )}
           </div>
 
           {/* Quick Stats Panel on the right */}
-          <div className="flex flex-col gap-2 shrink-0 w-full md:w-auto">
+          <div className="flex w-full shrink-0 flex-col gap-2 lg:w-56">
+            {report.trackingNumber && (
+              <button type="button" onClick={() => void copyTrackingNumber()} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-primary/30 hover:bg-primary/5 dark:border-slate-700 dark:bg-slate-800">
+                <span><span className="block text-[9px] font-bold uppercase tracking-widest text-slate-400">Takip numarası</span><span className="mt-0.5 block font-mono text-xs font-black text-slate-800 dark:text-white">{report.trackingNumber}</span></span>
+                {trackingCopied ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4 text-slate-400" />}
+              </button>
+            )}
             {resolvedMapUrl && (
               <a
                 href={resolvedMapUrl}
@@ -424,12 +450,17 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
             )}
           </div>
         </div>
+        <div className="grid border-t border-slate-100 bg-slate-50/70 sm:grid-cols-3 dark:border-slate-800 dark:bg-slate-950/25">
+          <HeaderMetric label="Kayıt yaşı" value={reportAge === 0 ? 'Bugün' : `${reportAge} gün`} icon={<Clock className="h-4 w-4" />} />
+          <HeaderMetric label="Operasyon önceliği" value={report.aiPriority || 'Standart'} icon={<Gauge className="h-4 w-4" />} />
+          <HeaderMetric label="Yönlendirilen birim" value={report.forwardedDepartmentName || 'Doğrudan işlem'} icon={<Building2 className="h-4 w-4" />} />
+        </div>
       </section>
 
       {/* ================================================================ */}
       {/*  METADATA METRICS GRID                                           */}
       {/* ================================================================ */}
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <MetaCard icon={<Tag className="text-indigo-500" />} label="Kategori" value={report.categoryName} />
         <MetaCard icon={<UserIcon className="text-sky-500" />} label="Vatandaş" value={report.reporterFullName ?? 'Anonim'} />
         <MetaCard icon={<UserCheck className="text-emerald-500" />} label="Saha Görevlisi" value={report.assigneeFullName ?? 'Atanmamış'} />
@@ -437,6 +468,17 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
         <MetaCard icon={<MapPin className="text-rose-500" />} label="Mahalle / Bölge" value={report.district || 'Konum bilgisi yok'} />
         <MetaCard icon={<Copy className="text-purple-500" />} label="Takip Numarası" value={report.trackingNumber || '—'} />
       </section>
+
+      {(report.aiSummary || report.aiSlaRisk || report.aiDuplicateHint) && (
+        <section className="flex flex-col gap-4 rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50/90 to-sky-50/70 p-5 sm:flex-row sm:items-start dark:border-indigo-900/40 dark:from-indigo-950/25 dark:to-sky-950/15">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm dark:bg-slate-900 dark:text-indigo-300"><Sparkles className="h-5 w-5" /></div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-indigo-700 dark:text-indigo-300">Akıllı değerlendirme</p>
+            <p className="mt-1.5 text-sm font-medium leading-6 text-slate-700 dark:text-slate-300">{report.aiSummary || report.aiDuplicateHint}</p>
+          </div>
+          {report.aiSlaRisk && <span className="shrink-0 rounded-full border border-indigo-200 bg-white/80 px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-indigo-700 dark:border-indigo-800 dark:bg-slate-900 dark:text-indigo-300">SLA riski · {report.aiSlaRisk}</span>}
+        </section>
+      )}
 
       {/* ================================================================ */}
       {/*  CONTENT: Two-Column Layout                                       */}
@@ -912,6 +954,18 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
 /* ------------------------------------------------------------------ */
 /*  METADATA CARD SUB-COMPONENT                                       */
 /* ------------------------------------------------------------------ */
+function HeaderMetric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-3 border-b border-slate-200/70 px-6 py-4 last:border-b-0 sm:border-r sm:border-b-0 sm:last:border-r-0 dark:border-slate-800">
+      <span className="text-primary dark:text-sky-400">{icon}</span>
+      <span className="min-w-0">
+        <span className="block text-[9px] font-bold uppercase tracking-[0.12em] text-slate-400">{label}</span>
+        <span className="mt-0.5 block truncate text-xs font-extrabold text-slate-800 dark:text-slate-100">{value}</span>
+      </span>
+    </div>
+  );
+}
+
 function MetaCard({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
     <div className="flex items-center gap-3.5 rounded-2xl border border-slate-150 bg-white p-4.5 shadow-[0_4px_12px_rgba(15,23,42,0.02)] transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900">

@@ -39,6 +39,15 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
+:where(a, button):focus-visible {
+  outline: 2px solid #0b4f9c;
+  outline-offset: 3px;
+}
+
 ::selection {
   @apply bg-primary/15 text-slate-900;
 }

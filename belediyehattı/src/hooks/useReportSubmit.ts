@@ -42,7 +42,7 @@ function buildAiNotice(lang: Lang, analysisSource?: string | null, mode: 'succes
       tone: 'warning',
       message:
         lang === 'tr'
-          ? 'AI on incelemesi su an tamamlanamadi. Bildiriminiz yine de belediye ekiplerine iletilecek.'
+          ? 'AI ön incelemesi şu an tamamlanamadı. Bildiriminiz yine de belediye ekiplerine iletilecek.'
           : 'AI pre-check is currently unavailable. Your report will still be delivered to municipal teams.',
     };
   }
@@ -52,7 +52,7 @@ function buildAiNotice(lang: Lang, analysisSource?: string | null, mode: 'succes
       tone: 'info',
       message:
         lang === 'tr'
-          ? 'AI servisi yerine kural tabanli bir on inceleme kullanildi. Nihai degerlendirme belediye ekiplerince yapilir.'
+          ? 'AI servisi yerine kural tabanlı bir ön inceleme kullanıldı. Nihai değerlendirme belediye ekiplerince yapılır.'
           : 'A rules-based pre-check was used instead of the AI service. Final evaluation is always made by municipal teams.',
     };
   }
@@ -61,7 +61,7 @@ function buildAiNotice(lang: Lang, analysisSource?: string | null, mode: 'succes
     tone: 'success',
     message:
       lang === 'tr'
-        ? `AI on incelemesi tamamlandi${analysisSource ? ` (${analysisSource})` : ''}. Nihai karar belediye ekiplerine aittir.`
+        ? `AI ön incelemesi tamamlandı${analysisSource ? ` (${analysisSource})` : ''}. Nihai karar belediye ekiplerine aittir.`
         : `AI pre-check completed${analysisSource ? ` (${analysisSource})` : ''}. Final decisions always belong to municipal teams.`,
   };
 }
@@ -93,7 +93,7 @@ export function useReportSubmit({
     if (description.trim().length < minDescriptionLen) {
       setError(
         lang === 'tr'
-          ? `Aciklama en az ${minDescriptionLen} karakter olmalidir.`
+          ? `Açıklama en az ${minDescriptionLen} karakter olmalıdır.`
           : `Description must be at least ${minDescriptionLen} characters.`,
       );
       return false;
@@ -209,7 +209,7 @@ export function useReportSubmit({
         err instanceof Error
           ? err.message
           : lang === 'tr'
-            ? 'Rapor gonderilemedi. Internet baglantinizi kontrol edin.'
+            ? 'İhbar gönderilemedi. İnternet bağlantınızı kontrol edin.'
             : 'Could not submit. Check your connection.';
       setError(message);
       setIsSubmitting(false);

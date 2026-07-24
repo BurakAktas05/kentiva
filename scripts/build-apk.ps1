@@ -65,8 +65,56 @@ try {
     Push-Location $androidDir
     try {
         if ($Release) {
-            Write-Host "Release APK derleniyor (imzali keystore gerekir)..." -ForegroundColor Cyan
-            & .\gradlew.bat assembleRelease
+            # ── Keystore güvenlik kontrolü ──────────────────────
+            # Keystore bilgileri environment variable'lardan alınır.
+            # Hardcoded şifre veya dosya yolu kullanmak güvenlik açığı oluşturur.
+            $keystorePath = $env:KENTIVA_KEYSTORE_PATH
+            $keystorePassword = $env:KENTIVA_KEYSTORE_PASSWORD
+            $keyAlias = $env:KENTIVA_KEY_ALIAS
+            $keyPassword = $env:KENTIVA_KEY_PASSWORD
+
+            $missingVars = @()
+            if (-not $keystorePath)     { $missingVars += "KENTIVA_KEYSTORE_PATH" }
+            if (-not $keystorePassword) { $missingVars += "KENTIVA_KEYSTORE_PASSWORD" }
+            if (-not $keyAlias)         { $missingVars += "KENTIVA_KEY_ALIAS" }
+            if (-not $keyPassword)      { $missingVars += "KENTIVA_KEY_PASSWORD" }
+
+            if ($missingVars.Count -gt 0) {
+                Write-Host "" -ForegroundColor Red
+                Write-Host "HATA: Release APK icin asagidaki ortam degiskenleri eksik:" -ForegroundColor Red
+                foreach ($var in $missingVars) {
+                    Write-Host "  - $var" -ForegroundColor Yellow
+                }
+                Write-Host "" -ForegroundColor Yellow
+                Write-Host "Ornek kullanim:" -ForegroundColor Cyan
+                Write-Host '  $env:KENTIVA_KEYSTORE_PATH = "C:\keys\kentiva-release.jks"' -ForegroundColor White
+                Write-Host '  $env:KENTIVA_KEYSTORE_PASSWORD = "guclu-sifre-buraya"' -ForegroundColor White
+                Write-Host '  $env:KENTIVA_KEY_ALIAS = "kentiva"' -ForegroundColor White
+                Write-Host '  $env:KENTIVA_KEY_PASSWORD = "guclu-sifre-buraya"' -ForegroundColor White
+                exit 1
+            }
+
+            if (-not (Test-Path $keystorePath)) {
+                Write-Host "HATA: Keystore dosyasi bulunamadi: $keystorePath" -ForegroundColor Red
+                exit 1
+            }
+
+            # Gradle properties dosyasında hardcoded olup olmadığını kontrol et
+            $gradleProps = Join-Path $androidDir "gradle.properties"
+            if (Test-Path $gradleProps) {
+                $propsContent = Get-Content $gradleProps -Raw
+                if ($propsContent -match "storePassword\s*=" -or $propsContent -match "keyPassword\s*=") {
+                    Write-Host "UYARI: gradle.properties icinde hardcoded sifre tespit edildi!" -ForegroundColor Yellow
+                    Write-Host "  Guvenlik icin sifreleri ortam degiskenlerine tasiyiniz." -ForegroundColor Yellow
+                }
+            }
+
+            Write-Host "Release APK derleniyor (env-based keystore)..." -ForegroundColor Cyan
+            & .\gradlew.bat assembleRelease `
+                "-PkentivaStoreFile=$keystorePath" `
+                "-PkentivaStorePassword=$keystorePassword" `
+                "-PkentivaKeyAlias=$keyAlias" `
+                "-PkentivaKeyPassword=$keyPassword"
             $apk = Join-Path $androidDir "app\build\outputs\apk\release"
         } else {
             Write-Host "Debug APK derleniyor..." -ForegroundColor Cyan

@@ -1,6 +1,7 @@
 # Kentiva — Docker ile çalıştırma
 
-PostgreSQL (PostGIS), Spring Boot API, Admin panel ve vatandaş web uygulamasını tek komutla ayağa kaldırır.
+PostgreSQL (PostGIS), RabbitMQ, medya koruma servisi, Spring Boot API,
+Admin panel ve vatandaş web uygulamasını tek komutla ayağa kaldırır.
 
 ## Gereksinimler
 
@@ -27,6 +28,8 @@ docker compose --env-file .env.docker up --build
 | Admin panel | http://localhost:5173 |
 | Vatandaş (web) | http://localhost:3000 |
 | PostgreSQL | `localhost:5432` (db: `belediyeapp`, user/pass: `.env.docker`) |
+| RabbitMQ yönetim | http://localhost:15672 (`.env.docker` kullanıcı/parolası) |
+| Medya koruma | http://localhost:8001/health |
 
 ## Varsayılan hesap (dev seed)
 
@@ -44,14 +47,16 @@ docker compose --env-file .env.docker down
 docker compose --env-file .env.docker down -v
 ```
 
-## Sadece API + veritabanı
+## Sadece backend servisleri
 
 ```bash
-docker compose --env-file .env.docker up --build db api
+docker compose --env-file .env.docker up --build db rabbitmq media-guard api
 ```
 
 Frontend’leri yerelde `npm run dev` ile çalıştırıp `.env` içinde `VITE_API_BASE_URL=http://localhost:8080/api/v1` kullanabilirsiniz.
 
 ## Ortam değişkenleri
 
-Tüm seçenekler `.env.docker.example` dosyasında. `JWT_SECRET` ve `DB_PASSWORD` üretimde mutlaka değiştirilmeli.
+Tüm seçenekler `.env.docker.example` dosyasında. `JWT_SECRET`, `DB_PASSWORD`
+ve `RABBITMQ_PASSWORD` üretimde mutlaka değiştirilmelidir. RabbitMQ kuyruğu ve
+PostgreSQL verisi named volume üzerinde kalıcıdır; `down -v` bu verileri siler.

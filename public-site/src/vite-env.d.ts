@@ -13,6 +13,10 @@ interface ImportMetaEnv {
   readonly VITE_RESERVED_SUBDOMAINS?: string;
   /** Yönetim portalı giriş adresi */
   readonly VITE_ADMIN_PORTAL_URL?: string;
+  /** Belediye paneli / kurum giris adresi */
+  readonly VITE_MUNICIPALITY_PORTAL_URL?: string;
+  /** Platform super admin dogrudan giris adresi */
+  readonly VITE_SUPER_ADMIN_PORTAL_URL?: string;
   /** Vatandaş uygulaması / PWA adresi */
   readonly VITE_CITIZEN_APP_URL?: string;
   /** Demo talep e-postası */

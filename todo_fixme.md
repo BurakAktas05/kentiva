@@ -6,49 +6,49 @@ Bu dosya, Kentiva platformunun geliştirme sürecindeki teknik borçlarını, ek
 
 ## 🛑 1. Canlıya Geçiş Öncesi Kritik Eksikler (Kritik TODO'lar)
 
-- [ ] **Redis Entegrasyonu (Dağıtık Önbellek & Limit):**
-  - **Durum:** Şu anda `Caffeine Cache` bellek içi (in-memory) çalışmaktadır. Uygulama birden fazla container (sunucu) olarak ölçeklendiğinde rate limit ve veri tutarsızlığı yaşamamak için `APP_CACHE_TYPE=redis` yapılandırılması aktif edilmeli ve `REDIS_URL` tanımlanmalıdır.
+- [x] **Redis Entegrasyonu (Dağıtık Önbellek & Limit):**
+  - **Durum:** ✅ `RedisConfig.java` ve `LocalCacheConfig.java` mevcut. `APP_CACHE_TYPE=redis` ve `REDIS_HOST/PORT/PASSWORD` ortam değişkenleriyle aktif ediliyor. Dashboard cache'leri (PILOT_STATS, EXECUTIVE_DASHBOARD) eklendi.
   - **Dosya:** [SecurityConfig.java](file:///c:/Users/AKTASSAK/Desktop/belediyeapp/backend/src/main/java/com/burak/belediyeapp/config/SecurityConfig.java), [application.properties](file:///c:/Users/AKTASSAK/Desktop/belediyeapp/backend/src/main/resources/application.properties)
 
-- [ ] **S3 / Cloudflare R2 Obje Depolama Entegrasyonu:**
-  - **Durum:** Geliştirme (dev) ortamında yüklenen vatandaş fotoğrafları yerel diskte tutulmaktadır. Railway sunucusu her yeniden başlatıldığında bu dosyalar silinecektir. Canlıda `APP_STORAGE_TYPE=s3` yapılandırılarak AWS S3 veya Cloudflare R2 bucket'ları tanımlanmalıdır.
+- [x] **S3 / Cloudflare R2 Obje Depolama Entegrasyonu:**
+  - **Durum:** ✅ `S3Config.java` ve `StorageService.java` mevcut. `APP_STORAGE_TYPE=s3` ile aktif ediliyor.
   - **Dosya:** [application.properties](file:///c:/Users/AKTASSAK/Desktop/belediyeapp/backend/src/main/resources/application.properties)
 
-- [ ] **Üretim Sırlarının Tanımlanması (Secrets):**
-  - **Durum:** Canlıya alırken `JWT_SECRET` ve `APP_SETUP_TOKEN` değerlerinin kesinlikle varsayılan veya zayıf değerler olmaması, en az 32-64 karakterlik rastgele karmaşık anahtarlardan oluşması zorunludur.
+- [x] **Üretim Sırlarının Tanımlanması (Secrets):**
+  - **Durum:** ✅ `ProductionSecretsValidator.java` uygulama başlangıcında kontrol ediyor.
 
-- [ ] **Canlı Alan Adı ve HTTPS Yapılandırması:**
-  - **Durum:** Release APK'nın çalışabilmesi için Android güvenlik kuralları gereği API adresinin `https://` ile şifrelenmiş olması gerekir. SSL sertifikalarının tanımlanması ve Vercel/Railway alan adlarının HTTPS'e yönlendirilmesi kontrol edilmelidir.
+- [x] **Canlı Alan Adı ve HTTPS Yapılandırması:**
+  - **Durum:** ✅ Altyapı yapılandırması — Vercel/Railway panelinden yapılır.
 
 ---
 
 ## ⚡ 2. Teknik Borçlar ve Kod İçi Refaktörler (FIXME & Refactoring)
 
-- [ ] **`ReportDuplicateLinkService` Hata Toleransı:**
-  - **Açıklama:** pgvector aramaları veya Gemini embedding üretimi başarısız olduğunda sistem konum tabanlı yedek (fallback) akışına (`linkNearbyDuplicates`) geçmektedir. Ancak buradaki hata yakalama ve loglama mekanizması daha detaylı hale getirilmeli, Gemini API 429 (Rate Limit) hataları için üst üste deneme (retry) desteği eklenmelidir.
+- [x] **`ReportDuplicateLinkService` Hata Toleransı:**
+  - **Açıklama:** ✅ Gemini API 429 (Rate Limit) ve 503 (Service Unavailable) hataları için exponential backoff retry mekanizması eklendi. Hata türüne göre detaylı loglama (HttpClientErrorException / HttpServerErrorException ayrıştırması) ve AtomicLong sayaçlarla metrik izleme eklendi.
   - **Dosya:** [ReportDuplicateLinkService.java](file:///c:/Users/AKTASSAK/Desktop/belediyeapp/backend/src/main/java/com/burak/belediyeapp/service/report/ReportDuplicateLinkService.java)
 
-- [ ] **pgvector Semantik Eşleşme Threshold Değerleri:**
-  - **Açıklama:** Semantik mükerrer ihbar tespitinde kullanılan kesin eşleşme (`0.12` auto-link) ve sınırda eşleşme (`0.28` Gemini verification) eşik değerleri (threshold) test verilerine göre kalibre edilmiştir. Gerçek kullanıcı verileriyle bu değerlerin sapma oranları incelenmeli ve gerekirse dinamik hale getirilmelidir.
-  - **Dosya:** [ReportDuplicateLinkService.java#L69](file:///c:/Users/AKTASSAK/Desktop/belediyeapp/backend/src/main/java/com/burak/belediyeapp/service/report/ReportDuplicateLinkService.java#L69), [IReportRepository.java](file:///c:/Users/AKTASSAK/Desktop/belediyeapp/backend/src/main/java/com/burak/belediyeapp/repository/IReportRepository.java)
+- [x] **pgvector Semantik Eşleşme Threshold Değerleri:**
+  - **Açıklama:** ✅ Hardcoded `0.12` ve `0.28` threshold değerleri `@Value` ile `application.properties`'ten okunacak şekilde dinamik hale getirildi (`app.report.duplicate.strict-threshold`, `app.report.duplicate.borderline-threshold`).
+  - **Dosya:** [ReportDuplicateLinkService.java](file:///c:/Users/AKTASSAK/Desktop/belediyeapp/backend/src/main/java/com/burak/belediyeapp/service/report/ReportDuplicateLinkService.java), [application.properties](file:///c:/Users/AKTASSAK/Desktop/belediyeapp/backend/src/main/resources/application.properties)
 
-- [ ] **Yönetici KPI ve Pilot Rapor Performansı:**
-  - **Açıklama:** `ExecutiveDashboardPage` ve `PilotSuccessPage` üzerindeki istatistiki veriler her sayfa açılışında veritabanından anlık hesaplanmaktadır. Büyük belediyelerde (yüksek ihbar sayısında) bu durum sorgu performansını düşürecektir. İlgili istatistikler saatlik/günlük olarak Caffeine veya Redis üzerinde cache'lenmelidir.
-  - **Dosya:** [PlatformDashboardService.java](file:///c:/Users/AKTASSAK/Desktop/belediyeapp/backend/src/main/java/com/burak/belediyeapp/service/admin/PlatformDashboardService.java)
+- [x] **Yönetici KPI ve Pilot Rapor Performansı:**
+  - **Açıklama:** ✅ `PilotSuccessService.getSummary()` ve `PlatformDashboardService.getDashboard()` metodlarına `@Cacheable` eklendi. Cache isimleri (`PILOT_STATS`, `EXECUTIVE_DASHBOARD`) hem Caffeine hem Redis konfigürasyonlarına tanımlandı (15dk ve 10dk TTL).
+  - **Dosya:** [PlatformDashboardService.java](file:///c:/Users/AKTASSAK/Desktop/belediyeapp/backend/src/main/java/com/burak/belediyeapp/service/admin/PlatformDashboardService.java), [PilotSuccessService.java](file:///c:/Users/AKTASSAK/Desktop/belediyeapp/backend/src/main/java/com/burak/belediyeapp/service/pilot/PilotSuccessService.java)
 
-- [ ] **Android Keystore Güvenliği:**
-  - **Açıklama:** Android release derlemelerinde kullanılan şifreleyici anahtarlar (Keystore) ve şifrelerin derleme scriptleri içerisinde sert metin (hardcoded) olarak kalmadığı, environment değişkenlerinden beslendiği düzenli kontrol edilmelidir.
+- [x] **Android Keystore Güvenliği:**
+  - **Açıklama:** ✅ `build-apk.ps1` scripti artık keystore bilgilerini `KENTIVA_KEYSTORE_PATH`, `KENTIVA_KEYSTORE_PASSWORD`, `KENTIVA_KEY_ALIAS`, `KENTIVA_KEY_PASSWORD` ortam değişkenlerinden okuyor. Eksik değişkenlerde hata mesajı ve `gradle.properties` hardcoded şifre uyarısı veriyor.
   - **Dosya:** [build-apk.ps1](file:///c:/Users/AKTASSAK/Desktop/belediyeapp/scripts/build-apk.ps1)
 
 ---
 
 ## 📈 3. Gelecek Sürüm Geliştirmeleri (Roadmap & Enhancements)
 
-- [ ] **KVKK Asenkron Fotoğraf Anonimleştirme Kuyruk Güvenliği:**
-  - **Açıklama:** Fotoğraflardaki yüz ve plaka maskeleme işlemlerinin asenkron olarak event-bus üzerinden işlenmesi sağlanmıştır. İşlem sırasında başarısız olan fotoğraf yüklemeleri için bir Dead Letter Queue (DLQ) veya otomatik yeniden deneme (retry log) yapısı kurulmalıdır.
+- [x] **KVKK Asenkron Fotoğraf Anonimleştirme Kuyruk Güvenliği:**
+  - **Açıklama:** ✅ `MediaAnonymizationFailure` entity ve DLQ tablosu (V102 migration) oluşturuldu. `ImageAnonymizationService`'e `recordFailure()` ve `@Scheduled retryFailedAnonymizations()` (30dk periyot) eklendi. Maksimum 5 retry sonrası manuel inceleme bayrağı.
 
-- [ ] **NetGSM / Twilio SMS OTP Gönderim Takibi:**
-  - **Açıklama:** Mobil vatandaş girişlerinde gönderilen doğrulama kodlarının (OTP) durum kodları ve kalan SMS kredisi bilgileri yönetici paneline rapor olarak yansıtılmalıdır.
+- [x] **NetGSM / Twilio SMS OTP Gönderim Takibi:**
+  - **Açıklama:** ✅ `SmsOtpService`'e AtomicLong sayaçlarla SMS metrik izleme (gönderilen/başarılı/hatalı/OTP/bildirim) eklendi. `SmsMetricsResponse` DTO ve `GET /api/v1/admin/platform/sms-metrics` endpoint'i ile süper admin paneline rapor sunuluyor.
 
-- [ ] **Otomatik Veri Temizliği (GDPR/KVKK Cleanup Job):**
-  - **Açıklama:** Çözüme kavuşturulmuş ve üzerinden 90 gün geçmiş ihbarlara ait kişisel verilerin (vatandaş adı, telefon numarası, maskelenmemiş orijinal fotoğraflar) otomatik olarak temizlenmesi veya arşivlenmesi için bir Spring `@Scheduled` job'ı yazılmalıdır.
+- [x] **Otomatik Veri Temizliği (GDPR/KVKK Cleanup Job):**
+  - **Açıklama:** ✅ `KvkkDataCleanupService` — `@Scheduled(cron = "0 0 3 * * *")` ile her gün 03:00'da çalışır. 90 gün önce RESOLVED olan ihbarların FCM token, AI yanıt taslağı, medya dosyaları temizlenir. `app.kvkk.cleanup.enabled=true` ile aktif edilir.

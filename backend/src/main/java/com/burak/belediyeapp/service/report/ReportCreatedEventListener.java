@@ -22,10 +22,15 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.client.RestClient;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import com.burak.belediyeapp.security.ApiKeyPrincipal;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Rapor olusturulduktan sonra asenkron olarak:
@@ -48,6 +53,9 @@ public class ReportCreatedEventListener {
     private final ImageAnonymizationService imageAnonymizationService;
     private final com.burak.belediyeapp.service.notification.NotificationService notificationService;
     private final com.burak.belediyeapp.repository.IReportHistoryRepository historyRepository;
+
+    @Value("${app.messaging.rabbit.enabled:false}")
+    private boolean rabbitEnabled;
 
     @Autowired(required = false)
     private SimpMessagingTemplate messagingTemplate;
@@ -76,6 +84,36 @@ public class ReportCreatedEventListener {
             reportRepository.findById(event.reportId()).ifPresent(notificationService::notifyReportStatusChanged);
         } catch (Exception e) {
             log.warn("Pending bildirimi gonderilemedi: reportId={}, err={}", event.reportId(), e.getMessage());
+        }
+
+        if (!rabbitEnabled) {
+            processWithTenantContext(event);
+        }
+    }
+
+    /**
+     * RabbitMQ kapalı olduğunda veya yayın başarısız olduğunda ağır ihbar işlerini
+     * bounded async executor üzerinde, tenant izolasyonunu koruyarak tamamlar.
+     */
+    public void processWithTenantContext(ReportCreatedEvent event) {
+        try {
+            if (event.municipalityId() != null) {
+                ApiKeyPrincipal principal = new ApiKeyPrincipal(
+                        "ASYNCHRONOUS_FALLBACK",
+                        event.municipalityId(),
+                        "Asynchronous Fallback",
+                        Set.of()
+                );
+                SecurityContextHolder.getContext().setAuthentication(
+                        new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities())
+                );
+            }
+            scanAndAnalyzeReportFromQueue(event.reportId());
+        } catch (Exception e) {
+            log.error("Yerel ihbar işleme fallback'i başarısız: reportId={}, err={}",
+                    event.reportId(), e.getMessage(), e);
+        } finally {
+            SecurityContextHolder.clearContext();
         }
     }
 
@@ -184,6 +222,10 @@ public class ReportCreatedEventListener {
                 }
             } catch (Exception e) {
                 log.warn("KVKK anonymization failed: reportId={}, err={}", reportId, e.getMessage());
+
+                // DLQ'ya kaydet — periyodik retry ile tekrar denenecek
+                imageAnonymizationService.recordFailure(reportId, imageUrl, e.getMessage());
+
                 // KVKK Uyarısı: Görseli kaldırıp, raporu koruma fallback'i
                 try {
                     self.removeMediaUrl(reportId, imageUrl);
@@ -198,7 +240,7 @@ public class ReportCreatedEventListener {
                             .oldStatus(report.getReportStatus())
                             .newStatus(report.getReportStatus())
                             .changedBy(null)
-                            .note("[SİSTEM] Görsel, KVKK anonimleştirme hatası nedeniyle güvenlik amacıyla kaldırıldı. İhbarın kendisi korunarak işleme alındı.")
+                            .note("[SİSTEM] Görsel, KVKK anonimleştirme hatası nedeniyle güvenlik amacıyla kaldırıldı. İhbarın kendisi korunarak işleme alındı. Hata DLQ'ya kaydedildi.")
                             .build());
                 });
                 return;

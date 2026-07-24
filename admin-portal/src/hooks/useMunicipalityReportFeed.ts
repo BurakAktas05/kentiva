@@ -1,12 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import SockJS from 'sockjs-client';
-import Stomp from 'stompjs';
+import { Stomp, type IMessage } from '@stomp/stompjs';
 import { getStoredAccessToken, type Report } from '../api';
 import { getSockJsUrl } from '../lib/env';
-
-type StompMessage = {
-  body: string;
-};
 
 export function useMunicipalityReportFeed(
   municipalityId: string | undefined,
@@ -30,8 +26,7 @@ export function useMunicipalityReportFeed(
     }
 
     const socket = new SockJS(getSockJsUrl());
-    const StompObj = (Stomp as any).default || Stomp;
-    const stompClient = StompObj.over(socket);
+    const stompClient = Stomp.over(socket);
     stompClient.debug = () => {};
     const topic = `/topic/municipality/${municipalityId}/reports`;
     const connectHeaders = { Authorization: `Bearer ${token}` };
@@ -40,7 +35,7 @@ export function useMunicipalityReportFeed(
       connectHeaders,
       () => {
         setConnected(true);
-        stompClient.subscribe(topic, (msg: StompMessage) => {
+        stompClient.subscribe(topic, (msg: IMessage) => {
           try {
             const report = JSON.parse(msg.body) as Report;
             if (report?.id) {

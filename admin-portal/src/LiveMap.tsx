@@ -4,7 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import 'leaflet.heat';
 import SockJS from 'sockjs-client';
-import Stomp from 'stompjs';
+import { Stomp, type CompatClient, type IMessage } from '@stomp/stompjs';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertCircle, Flame, MapPin, Layers } from 'lucide-react';
 import api, { getStoredAccessToken, type Report, type ReportListItem } from './api';
@@ -131,8 +131,8 @@ const LiveMap = ({
       return;
     }
 
-    let stompClient: any = null;
-    let reconnectTimeoutId: any = null;
+    let stompClient: CompatClient | null = null;
+    let reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null;
     let isCurrentEffect = true;
     let retryCount = 0;
     let isWsConnected = false;
@@ -141,8 +141,7 @@ const LiveMap = ({
       if (!isCurrentEffect) return;
 
       const socket = new SockJS(getSockJsUrl());
-      const StompObj = (Stomp as any).default || Stomp;
-      stompClient = StompObj.over(socket);
+      stompClient = Stomp.over(socket);
       stompClient.debug = () => {};
       const topic = `/topic/municipality/${municipalityId}/reports`;
       const connectHeaders = { Authorization: `Bearer ${token}` };
@@ -154,12 +153,16 @@ const LiveMap = ({
           isWsConnected = true;
           setWsConnected(true);
           retryCount = 0; // reset on success
-          stompClient.subscribe(topic, (msg: any) => {
-            const report = JSON.parse(msg.body) as Report;
-            if (Number.isFinite(report.latitude) && Number.isFinite(report.longitude)) {
-              mergeReport(report);
-              setNewReport(report);
-              setTimeout(() => setNewReport(null), 5000);
+          stompClient?.subscribe(topic, (msg: IMessage) => {
+            try {
+              const report = JSON.parse(msg.body) as Report;
+              if (Number.isFinite(report.latitude) && Number.isFinite(report.longitude)) {
+                mergeReport(report);
+                setNewReport(report);
+                setTimeout(() => setNewReport(null), 5000);
+              }
+            } catch {
+              // Ignore malformed real-time messages without breaking the feed.
             }
           });
         },

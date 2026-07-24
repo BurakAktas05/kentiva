@@ -6,6 +6,7 @@ import {
   resolveMunicipalityByGps, 
   fetchPublicProvinces, 
   fetchPublicDistricts,
+  resolveMediaUrl,
   type PublicTenant, 
   type PublicProvince, 
   type PublicDistrict 
@@ -55,6 +56,7 @@ export default function MunicipalityPicker({
   const [loading, setLoading] = useState(true);
   const [gpsBusy, setGpsBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
   const [provinceSearch, setProvinceSearch] = useState('');
   const [districtSearch, setDistrictSearch] = useState('');
 
@@ -69,6 +71,7 @@ export default function MunicipalityPicker({
     (async () => {
       try {
         setLoading(true);
+        setErr('');
         const [provs, ts] = await Promise.all([
           fetchPublicProvinces(),
           fetchPublicMunicipalities()
@@ -78,7 +81,12 @@ export default function MunicipalityPicker({
           setTenants(ts.filter((m) => m.onboarded));
         }
       } catch {
-        if (!cancelled) setErr(t('tenant.loadError', lang));
+        if (!cancelled) {
+          setProvinces([]);
+          setDistricts([]);
+          setTenants([]);
+          setErr(t('tenant.loadError', lang));
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -86,7 +94,7 @@ export default function MunicipalityPicker({
     return () => {
       cancelled = true;
     };
-  }, [lang]);
+  }, [lang, reloadKey]);
 
   const filteredProvinces = useMemo(() => {
     const q = provinceSearch.trim().toLowerCase();
@@ -158,6 +166,8 @@ export default function MunicipalityPicker({
     onSelect(tenant);
   };
 
+  const hasInitialLoadError = !loading && provinces.length === 0 && Boolean(err);
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -202,8 +212,28 @@ export default function MunicipalityPicker({
           <div className="flex justify-center py-16">
             <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
           </div>
+        ) : hasInitialLoadError ? (
+          <div className={`${kentivaCard(isDark)} flex flex-col items-center gap-3 py-8 text-center`}>
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-500/10 text-red-500">
+              <Building2 className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-red-500">{err}</p>
+              <p className="mt-1 text-xs text-slate-500">{t('tenant.loadErrorHint', lang)}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReloadKey((key) => key + 1)}
+              className={`${primaryBtnClass()} min-h-11 px-5 text-sm`}
+            >
+              {t('tenant.retry', lang)}
+            </button>
+          </div>
         ) : provinces.length === 0 ? (
-          <p className="py-8 text-center text-sm text-slate-500">{t('tenant.emptyMembers', lang)}</p>
+          <div className={`${kentivaCard(isDark)} py-8 text-center`}>
+            <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">{t('tenant.emptyMembers', lang)}</p>
+            <p className="mt-1 text-xs text-slate-500">{t('tenant.emptyMembersHint', lang)}</p>
+          </div>
         ) : (
           <div className="space-y-5">
             <section>
@@ -332,7 +362,7 @@ export default function MunicipalityPicker({
                     {filteredDistricts.map((d) => {
                       const selected = selectedDistrict?.id === d.id;
                       const tenant = tenants.find(t => t.id === d.municipalityId);
-                      const logoUrl = tenant?.logoUrl;
+                      const logoUrl = resolveMediaUrl(tenant?.logoUrl);
                       return (
                         <motion.li key={d.id} variants={itemVariants}>
                           <button
@@ -349,13 +379,17 @@ export default function MunicipalityPicker({
                                   : 'border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-sm'
                             } active:scale-[0.98]`}
                           >
-                            {logoUrl ? (
-                              <img src={logoUrl} alt="" className="h-10 w-10 rounded-xl object-contain bg-white p-0.5 border border-slate-100 dark:border-slate-800" />
-                            ) : (
-                              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                                <Building2 className="h-5 w-5" />
-                              </div>
-                            )}
+                            <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-primary/10 text-primary">
+                              <Building2 className="h-5 w-5" />
+                              {logoUrl ? (
+                                <img
+                                  src={logoUrl}
+                                  alt=""
+                                  className="absolute inset-0 h-full w-full border border-slate-100 bg-white object-contain p-0.5 dark:border-slate-800"
+                                  onError={(event) => { event.currentTarget.style.display = 'none'; }}
+                                />
+                              ) : null}
+                            </div>
                             <span className="min-w-0 flex-1 truncate text-sm font-semibold">{d.nameTr} Belediyesi</span>
                             {selected ? <Check className="h-5 w-5 shrink-0 text-primary" /> : null}
                           </button>
@@ -378,27 +412,29 @@ export default function MunicipalityPicker({
             ) : null}
           </div>
         )}
-        {err ? <p className="mt-4 text-sm font-semibold text-red-500 bg-red-500/10 p-3.5 rounded-xl border border-red-500/25">{err}</p> : null}
+        {err && !hasInitialLoadError ? <p className="mt-4 text-sm font-semibold text-red-500 bg-red-500/10 p-3.5 rounded-xl border border-red-500/25">{err}</p> : null}
       </div>
 
-      <div
-        className={`fixed bottom-0 left-0 right-0 z-20 border-t px-4 py-3.5 pb-safe mx-auto max-w-md ${
-          isDark ? 'border-slate-800 bg-slate-900/95' : 'border-slate-200 bg-white/95'
-        } backdrop-blur-md`}
-      >
-        <button
-          type="button"
-          onClick={confirmManual}
-          disabled={!selectedDistrict}
-          className={`w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-bold text-white shadow-lg transition-all duration-300 active:scale-[0.98] ${
-            !selectedDistrict
-              ? 'bg-slate-300 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed shadow-none'
-              : 'bg-primary shadow-primary/25 hover:brightness-105'
-          }`}
+      {selectedProvince ? (
+        <div
+          className={`fixed bottom-0 left-0 right-0 z-20 border-t px-4 py-3.5 pb-safe mx-auto max-w-md ${
+            isDark ? 'border-slate-800 bg-slate-900/95' : 'border-slate-200 bg-white/95'
+          } backdrop-blur-md`}
         >
-          {t('tenant.confirm', lang)}
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={confirmManual}
+            disabled={!selectedDistrict}
+            className={`w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-bold text-white shadow-lg transition-all duration-300 active:scale-[0.98] ${
+              !selectedDistrict
+                ? 'bg-slate-300 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed shadow-none'
+                : 'bg-primary shadow-primary/25 hover:brightness-105'
+            }`}
+          >
+            {t('tenant.confirm', lang)}
+          </button>
+        </div>
+      ) : null}
     </motion.div>
   );
 }

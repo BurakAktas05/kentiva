@@ -5,7 +5,7 @@ import { loginPathForCurrentHost } from './lib/auth';
 const REFRESH_KEY = 'refresh_token';
 const TOKEN_KEY = 'token';
 const THEME_KEY = 'kentiva_theme';
-const LEGACY_KEYS = [TOKEN_KEY, REFRESH_KEY] as const;
+type AuthStorageKey = typeof TOKEN_KEY | typeof REFRESH_KEY;
 
 const api = axios.create({
   baseURL: getApiBase(),
@@ -36,7 +36,7 @@ function getLocalStorage(): Storage | null {
   return window.localStorage;
 }
 
-function readAuthValue(key: (typeof LEGACY_KEYS)[number]): string | null {
+function readAuthValue(key: AuthStorageKey): string | null {
   const session = getSessionStorage();
   const local = getLocalStorage();
   const sessionValue = session?.getItem(key);
@@ -51,12 +51,12 @@ function readAuthValue(key: (typeof LEGACY_KEYS)[number]): string | null {
   return legacyValue ?? null;
 }
 
-function writeAuthValue(key: (typeof LEGACY_KEYS)[number], value: string) {
+function writeAuthValue(key: AuthStorageKey, value: string) {
   getSessionStorage()?.setItem(key, value);
   getLocalStorage()?.removeItem(key);
 }
 
-function removeAuthValue(key: (typeof LEGACY_KEYS)[number]) {
+function removeAuthValue(key: AuthStorageKey) {
   getSessionStorage()?.removeItem(key);
   getLocalStorage()?.removeItem(key);
 }

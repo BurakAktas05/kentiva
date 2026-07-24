@@ -99,6 +99,24 @@ public class ProductionSecretsValidator {
     @Value("${app.production.require-distributed-cache:true}")
     private boolean requireDistributedCache;
 
+    @Value("${app.production.require-durable-messaging:true}")
+    private boolean requireDurableMessaging;
+
+    @Value("${app.messaging.rabbit.enabled:false}")
+    private boolean rabbitMessagingEnabled;
+
+    @Value("${spring.rabbitmq.host:}")
+    private String rabbitHost;
+
+    @Value("${spring.rabbitmq.username:}")
+    private String rabbitUsername;
+
+    @Value("${spring.rabbitmq.password:}")
+    private String rabbitPassword;
+
+    @Value("${app.security.rate-limit.enabled:true}")
+    private boolean rateLimitEnabled;
+
     @EventListener(ApplicationReadyEvent.class)
     public void validateRequiredSecrets() {
         assertValidJwtSecret();
@@ -110,9 +128,11 @@ public class ProductionSecretsValidator {
         assertValidPublicBaseUrl();
         assertValidStorageConfiguration();
         assertValidCacheConfiguration();
+        assertValidMessagingConfiguration();
         assertValidCorsConfiguration();
         assertValidSmsConfiguration();
         assertFailClosedMediaConfiguration();
+        assertRateLimitEnabled();
 
 
         if (geminiApiKey == null || geminiApiKey.isBlank()) {
@@ -177,6 +197,20 @@ public class ProductionSecretsValidator {
         }
     }
 
+    void assertValidMessagingConfiguration() {
+        if (!requireDurableMessaging) {
+            return;
+        }
+        if (!rabbitMessagingEnabled) {
+            throw new IllegalStateException(
+                    "Production ortaminda APP_MESSAGING_RABBIT_ENABLED=true olmalidir.");
+        }
+        if (isBlank(rabbitHost) || isBlank(rabbitUsername) || isBlank(rabbitPassword)) {
+            throw new IllegalStateException(
+                    "RabbitMQ etkin iken RABBITMQ_HOST, RABBITMQ_USERNAME ve RABBITMQ_PASSWORD tanimlanmalidir.");
+        }
+    }
+
     void assertValidCorsConfiguration() {
         if ((corsAllowedOrigins == null || corsAllowedOrigins.isBlank())
                 && (corsAllowedOriginPatterns == null || corsAllowedOriginPatterns.isBlank())) {
@@ -216,6 +250,13 @@ public class ProductionSecretsValidator {
         if (isBlank(netgsmUsercode) || isBlank(netgsmPassword) || isBlank(netgsmHeader)) {
             throw new IllegalStateException(
                     "SMS_PROVIDER=netgsm iken NETGSM_USERCODE, NETGSM_PASSWORD ve NETGSM_MSGHEADER tanimlanmalidir.");
+        }
+    }
+
+    void assertRateLimitEnabled() {
+        if (!rateLimitEnabled) {
+            throw new IllegalStateException(
+                    "Production ortaminda APP_SECURITY_RATE_LIMIT_ENABLED false olamaz.");
         }
     }
 

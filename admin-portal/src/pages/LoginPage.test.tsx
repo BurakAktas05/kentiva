@@ -19,7 +19,7 @@ vi.mock('../api', () => {
 describe('LoginPage', () => {
   it('renders login form correctly', () => {
     render(
-      <Router>
+      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <LoginPage portal="municipality" onLogin={vi.fn()} />
       </Router>
     );
@@ -39,7 +39,7 @@ describe('LoginPage', () => {
     vi.mocked(api.post).mockRejectedValueOnce(axiosError);
 
     render(
-      <Router>
+      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <LoginPage portal="municipality" onLogin={vi.fn()} />
       </Router>
     );

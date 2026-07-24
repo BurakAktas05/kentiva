@@ -1,9 +1,3 @@
-const required = (key: string): string => {
-  const value = import.meta.env[key];
-  if (!value) throw new Error(`Missing required env variable: ${key}`);
-  return value;
-};
-
 const getEnvWithFallback = (key1: string, key2: string): string => {
   const v1 = import.meta.env[key1];
   if (v1) return v1;

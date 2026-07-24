@@ -1,10 +1,11 @@
-import { Fragment, useCallback, useEffect, useState, lazy, Suspense } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { useEdgeSwipeBack } from './lib/useEdgeSwipeBack';
 import { clearStaleApiOverrideIfNeeded } from './lib/apiBase';
 import { initNativeShell } from './lib/nativeShell';
-import { Home as HomeIcon, PlusCircle, User, Bell, Building2, Map, Users } from 'lucide-react';
+import { User, Bell, Building2, CheckCircle2, X } from 'lucide-react';
 import {
+  resolveMediaUrl,
   type ApiAnnouncement,
   type PublicTenant,
 } from './api';
@@ -16,6 +17,7 @@ import { useAppSession } from './hooks/useAppSession';
 import { useAppRouting, parsePublicRoute, type Tab, MAIN_TABS } from './hooks/useAppRouting';
 import { useAppOfflineSync } from './hooks/useAppOfflineSync';
 import { useAppNotifications } from './hooks/useAppNotifications';
+import BottomNavigation from './components/common/BottomNavigation';
 
 const AuthScreen = lazy(() => import('./components/screens/AuthScreen'));
 const Home = lazy(() => import('./components/screens/Home'));
@@ -126,6 +128,8 @@ export default function App() {
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => (storageService.getItem('belediye_theme') as any) || 'light');
   
   const [isGuest, setIsGuest] = useState(() => storageService.getItem('belediye_is_guest') === 'true');
+  const mainContentRef = useRef<HTMLElement>(null);
+  const [reportSuccessVisible, setReportSuccessVisible] = useState(false);
 
   const [systemIsDark, setSystemIsDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
 
@@ -158,6 +162,12 @@ export default function App() {
 
   useEffect(() => { storageService.setItem('belediye_lang', lang); }, [lang]);
   useEffect(() => { storageService.setItem('belediye_theme', theme); }, [theme]);
+
+  useEffect(() => {
+    if (!reportSuccessVisible) return;
+    const timeout = window.setTimeout(() => setReportSuccessVisible(false), 7000);
+    return () => window.clearTimeout(timeout);
+  }, [reportSuccessVisible]);
 
   // Shared router path definitions computed statically to bypass temporal dead zone (TDZ)
   const [explicitRoute] = useState<any>(() =>
@@ -235,6 +245,16 @@ export default function App() {
     setRouteBooting,
   });
 
+  useEffect(() => {
+    if (mainContentRef.current) {
+      mainContentRef.current.scrollTop = 0;
+    }
+  }, [activeTab, openReportId, openAnnouncement]);
+
+  const showBottomNavigation = MAIN_TABS.includes(activeTab)
+    && !openReportId
+    && !openAnnouncement;
+
   // 3. Auto sync background thread queue
   useAppOfflineSync();
 
@@ -259,6 +279,7 @@ export default function App() {
 
   const handleReportSubmit = () => {
     setKey((k) => k + 1);
+    setReportSuccessVisible(true);
     setActiveTab('home');
     setOpenReportId(null);
   };
@@ -354,12 +375,16 @@ export default function App() {
               onClick={() => tenant && setPickerMode('change')}
               className={`flex min-w-0 flex-1 items-center gap-2.5 text-left rounded-xl -ml-1 p-1 ${tenant ? 'active:bg-slate-100 dark:active:bg-slate-800' : ''}`}
             >
-              <div className="w-9 h-9 rounded-lg bg-primary/15 flex items-center justify-center text-primary shrink-0">
+              <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary/15 text-primary">
+                <Building2 className="h-5 w-5" />
                 {tenant?.logoUrl ? (
-                  <img src={tenant.logoUrl} alt="" className="h-7 w-7 rounded object-contain" />
-                ) : (
-                  <Building2 className="w-5 h-5" />
-                )}
+                  <img
+                    src={resolveMediaUrl(tenant.logoUrl)}
+                    alt=""
+                    className="absolute inset-1 h-7 w-7 rounded bg-white object-contain"
+                    onError={(event) => { event.currentTarget.style.display = 'none'; }}
+                  />
+                ) : null}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 min-w-0">
@@ -392,7 +417,64 @@ export default function App() {
           </header>
         )}
 
-        <main className={`flex-1 overflow-y-auto overflow-x-hidden relative pb-20 ${isDark ? 'bg-slate-900' : 'bg-slate-50'}`}>
+        {reportSuccessVisible && !openReportId && !openAnnouncement && (
+          <div
+            className={`mx-4 mt-3 shrink-0 rounded-2xl border p-3 shadow-sm ${
+              isDark
+                ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-50'
+                : 'border-emerald-200 bg-emerald-50 text-emerald-950'
+            }`}
+            role="status"
+          >
+            <div className="flex items-start gap-3">
+              <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                isDark ? 'bg-emerald-400/15 text-emerald-300' : 'bg-emerald-100 text-emerald-700'
+              }`}>
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-extrabold tracking-tight">
+                  {lang === 'tr' ? 'Bildiriminiz alındı' : lang === 'ar' ? 'تم استلام البلاغ' : 'Report received'}
+                </p>
+                <p className={`mt-0.5 text-xs font-semibold leading-relaxed ${
+                  isDark ? 'text-emerald-100/80' : 'text-emerald-800'
+                }`}>
+                  {lang === 'tr'
+                    ? 'Durumunu İhbarlarım ekranından takip edebilirsiniz.'
+                    : lang === 'ar'
+                      ? 'يمكنك متابعة الحالة من شاشة بلاغاتي.'
+                      : 'You can track its status from My Reports.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReportSuccessVisible(false);
+                    setActiveTab('reports');
+                  }}
+                  className={`mt-2 rounded-xl px-3 py-2 text-xs font-bold transition-colors ${
+                    isDark
+                      ? 'bg-emerald-400/15 text-emerald-100 hover:bg-emerald-400/20'
+                      : 'bg-white text-emerald-800 shadow-sm hover:bg-emerald-100'
+                  }`}
+                >
+                  {lang === 'tr' ? 'İhbarlarım' : lang === 'ar' ? 'بلاغاتي' : 'My Reports'}
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReportSuccessVisible(false)}
+                className={`shrink-0 rounded-xl p-2 transition-colors ${
+                  isDark ? 'text-emerald-100/70 hover:bg-emerald-400/10' : 'text-emerald-700 hover:bg-emerald-100'
+                }`}
+                aria-label={lang === 'tr' ? 'Bildirimi kapat' : 'Dismiss notification'}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        <main ref={mainContentRef} className={`flex-1 overflow-y-auto overflow-x-hidden relative ${showBottomNavigation ? 'pb-20' : 'pb-0'} ${isDark ? 'bg-slate-900' : 'bg-slate-50'}`}>
           <Suspense fallback={<LoadingSpinner isDark={isDark} />}>
             {openAnnouncement && (
               <AnnouncementDetailScreen
@@ -406,6 +488,7 @@ export default function App() {
             {activeTab === 'home' && !openReportId && !openAnnouncement && (
               <Fragment key={key}>
                 <Home
+                  onCreateReport={() => setActiveTab('report')}
                   onViewMyReports={() => {
                     setActiveTab('reports');
                   }}
@@ -559,57 +642,8 @@ export default function App() {
           </Suspense>
         </main>
 
-        {activeTab !== 'settings' && activeTab !== 'reports' && activeTab !== 'report' && activeTab !== 'notifications' && !openReportId && !openAnnouncement && activeTab !== 'ranks' && (
-          <nav className={`absolute bottom-0 w-full border-t flex items-end justify-between pb-safe pt-2 px-1 z-20 rounded-t-2xl shadow-[0_-8px_30px_-12px_rgba(15,23,42,0.12)] ${isDark ? 'bg-slate-900/95 border-slate-800 backdrop-blur-md' : 'bg-white/95 border-slate-200/90 backdrop-blur-md'}`}>
-            <button
-              type="button"
-              onClick={() => goToTab('home')}
-              className={`flex flex-1 flex-col items-center py-2 min-w-0 transition-colors ${activeTab === 'home' ? 'text-primary' : isDark ? 'text-slate-400' : 'text-slate-500'}`}
-            >
-              <HomeIcon className="w-5 h-5 mb-0.5" strokeWidth={activeTab === 'home' ? 2.5 : 2} />
-              <span className="text-[11px] font-medium truncate max-w-full px-0.5">{t('tab.home', lang)}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => goToTab('kent')}
-              className={`flex flex-1 flex-col items-center py-2 min-w-0 transition-colors ${activeTab === 'kent' ? 'text-primary' : isDark ? 'text-slate-400' : 'text-slate-500'}`}
-            >
-              <Map className="w-5 h-5 mb-0.5" strokeWidth={activeTab === 'kent' ? 2.5 : 2} />
-              <span className="text-[11px] font-medium truncate max-w-full px-0.5">{t('tab.kent', lang)}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('report');
-              }}
-              className="flex flex-col items-center justify-center -mt-6 px-2 shrink-0"
-              aria-label={t('tab.report', lang)}
-            >
-              <div className="p-3.5 rounded-full shadow-lg shadow-primary/30 transition-transform active:scale-95 bg-primary">
-                <PlusCircle className="w-7 h-7 text-white" strokeWidth={2} />
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => goToTab('topluluk')}
-              className={`flex flex-1 flex-col items-center py-2 min-w-0 transition-colors ${activeTab === 'topluluk' ? 'text-primary' : isDark ? 'text-slate-400' : 'text-slate-500'}`}
-            >
-              <Users className="w-5 h-5 mb-0.5" strokeWidth={activeTab === 'topluluk' ? 2.5 : 2} />
-              <span className="text-[11px] font-medium truncate max-w-full px-0.5">{t('tab.community', lang)}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => goToTab('profile')}
-              className={`flex flex-1 flex-col items-center py-2 min-w-0 transition-colors ${activeTab === 'profile' ? 'text-primary' : isDark ? 'text-slate-400' : 'text-slate-500'}`}
-            >
-              <User className="w-5 h-5 mb-0.5" strokeWidth={activeTab === 'profile' ? 2.5 : 2} />
-              <span className="text-[11px] font-medium truncate max-w-full px-0.5">{t('tab.profile', lang)}</span>
-            </button>
-          </nav>
+        {showBottomNavigation && (
+          <BottomNavigation activeTab={activeTab} lang={lang} isDark={isDark} onNavigate={goToTab} />
         )}
         <Suspense fallback={null}>
           <IntroductionModal

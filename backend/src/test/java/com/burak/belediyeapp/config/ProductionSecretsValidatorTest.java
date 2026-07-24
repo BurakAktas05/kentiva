@@ -41,6 +41,12 @@ class ProductionSecretsValidatorTest {
         ReflectionTestUtils.setField(validator, "mediaAnonymizationFailOpen", false);
         ReflectionTestUtils.setField(validator, "requireDurableStorage", true);
         ReflectionTestUtils.setField(validator, "requireDistributedCache", true);
+        ReflectionTestUtils.setField(validator, "requireDurableMessaging", true);
+        ReflectionTestUtils.setField(validator, "rabbitMessagingEnabled", true);
+        ReflectionTestUtils.setField(validator, "rabbitHost", "rabbit.internal");
+        ReflectionTestUtils.setField(validator, "rabbitUsername", "kentiva");
+        ReflectionTestUtils.setField(validator, "rabbitPassword", "rabbit-secret");
+        ReflectionTestUtils.setField(validator, "rateLimitEnabled", true);
     }
 
     @Test
@@ -100,5 +106,23 @@ class ProductionSecretsValidatorTest {
         assertThatIllegalStateException()
                 .isThrownBy(() -> validator.validateRequiredSecrets())
                 .withMessageContaining("SMS_OTP_DEV_BYPASS_ENABLED");
+    }
+
+    @Test
+    void rejectsDisabledRateLimitInProduction() {
+        ReflectionTestUtils.setField(validator, "rateLimitEnabled", false);
+
+        assertThatIllegalStateException()
+                .isThrownBy(() -> validator.validateRequiredSecrets())
+                .withMessageContaining("APP_SECURITY_RATE_LIMIT_ENABLED");
+    }
+
+    @Test
+    void rejectsDisabledDurableMessagingInProduction() {
+        ReflectionTestUtils.setField(validator, "rabbitMessagingEnabled", false);
+
+        assertThatIllegalStateException()
+                .isThrownBy(() -> validator.validateRequiredSecrets())
+                .withMessageContaining("APP_MESSAGING_RABBIT_ENABLED");
     }
 }

@@ -12,6 +12,7 @@ import com.burak.belediyeapp.repository.IReportRepository;
 import com.burak.belediyeapp.service.report.ReportSupport;
 import com.burak.belediyeapp.tenant.TenantAccessService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +32,7 @@ public class PilotSuccessService {
     private final PilotProperties pilotProperties;
 
     @Transactional(readOnly = true)
+    @Cacheable(value = com.burak.belediyeapp.config.CacheNames.PILOT_STATS, key = "#currentUser.municipality != null ? #currentUser.municipality.id : 'none'")
     public PilotSuccessSummaryResponse getSummary(AppUser currentUser) {
         String municipalityId = tenantAccess.requireStaffMunicipalityId(currentUser);
         Municipality municipality = municipalityRepository.findById(municipalityId)

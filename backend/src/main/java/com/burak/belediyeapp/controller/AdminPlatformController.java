@@ -2,8 +2,10 @@ package com.burak.belediyeapp.controller;
 
 import com.burak.belediyeapp.dto.response.admin.PlatformDashboardResponse;
 import com.burak.belediyeapp.dto.response.admin.ApiMetricResponse;
+import com.burak.belediyeapp.dto.response.admin.SmsMetricsResponse;
 import com.burak.belediyeapp.dto.response.common.ApiResponse;
 import com.burak.belediyeapp.service.admin.PlatformDashboardService;
+import com.burak.belediyeapp.service.sms.SmsOtpService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,7 @@ import java.util.List;
 public class AdminPlatformController {
 
     private final PlatformDashboardService platformDashboardService;
+    private final SmsOtpService smsOtpService;
 
     @GetMapping("/dashboard")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
@@ -34,5 +37,12 @@ public class AdminPlatformController {
     @Operation(summary = "Platform dış API metrics")
     public ResponseEntity<ApiResponse<List<ApiMetricResponse>>> apiMetrics() {
         return ResponseEntity.ok(ApiResponse.success(platformDashboardService.getApiMetrics()));
+    }
+
+    @GetMapping("/sms-metrics")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(summary = "SMS gönderim istatistikleri — OTP ve bildirim takibi")
+    public ResponseEntity<ApiResponse<SmsMetricsResponse>> smsMetrics() {
+        return ResponseEntity.ok(ApiResponse.success(smsOtpService.getSmsDashboardMetrics()));
     }
 }

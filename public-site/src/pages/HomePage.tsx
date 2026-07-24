@@ -14,12 +14,16 @@ import {
   Send,
   ClipboardList,
   ChevronDown,
+  Activity,
+  DatabaseZap,
+  LockKeyhole,
+  Network,
 } from 'lucide-react';
 import { SeoHead } from '../components/SeoHead';
 import { LiveStatsSection } from '../components/LiveStatsSection';
 import { demoMailto, marketingConfig } from '../lib/marketing';
 
-const { adminPortalUrl, citizenAppUrl, monthlyPriceLabel, pilotDurationLabel } = marketingConfig;
+const { municipalityPortalUrl, superAdminPortalUrl, citizenAppUrl, monthlyPriceLabel, pilotDurationLabel } = marketingConfig;
 
 export default function HomePage() {
   return (
@@ -81,35 +85,58 @@ export default function HomePage() {
                     İhbar oluşturma kılavuzu
                   </a>
                 </p>
-                <dl className="mt-10 grid grid-cols-2 gap-4 sm:max-w-md sm:grid-cols-3">
-                  <div className="rounded-2xl border border-slate-200/90 bg-white/80 p-4 shadow-sm backdrop-blur-sm">
-                    <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Güven</dt>
-                    <dd className="mt-1 text-sm font-bold text-slate-900">KVKK uyumlu</dd>
-                  </div>
-                  <div className="rounded-2xl border border-slate-200/90 bg-white/80 p-4 shadow-sm backdrop-blur-sm">
-                    <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Erişim</dt>
-                    <dd className="mt-1 text-sm font-bold text-slate-900">Web + mobil</dd>
-                  </div>
-                  <div className="col-span-2 rounded-2xl border border-slate-200/90 bg-white/80 p-4 shadow-sm backdrop-blur-sm sm:col-span-1">
-                    <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Operasyon</dt>
-                    <dd className="mt-1 text-sm font-bold text-slate-900">Canlı durum</dd>
-                  </div>
+                <dl className="mt-10 grid grid-cols-2 gap-3 sm:max-w-lg sm:grid-cols-3">
+                  {[
+                    { term: 'Veri güvenliği', value: 'Tenant izolasyonu', icon: LockKeyhole },
+                    { term: 'Yetkilendirme', value: 'Rol bazlı erişim', icon: ShieldCheck },
+                    { term: 'Operasyon', value: 'Canlı durum takibi', icon: Activity },
+                  ].map(({ term, value, icon: Icon }, index) => (
+                    <div key={term} className={`${index === 2 ? 'col-span-2 sm:col-span-1' : ''} rounded-2xl border border-slate-200/90 bg-white/85 p-3.5 shadow-sm backdrop-blur-sm`}>
+                      <dt className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-[.12em] text-slate-500">
+                        <Icon className="h-3.5 w-3.5 text-primary" /> {term}
+                      </dt>
+                      <dd className="mt-1.5 text-xs font-extrabold text-slate-900">{value}</dd>
+                    </div>
+                  ))}
                 </dl>
               </div>
               <div className="relative lg:justify-self-end">
                 <div
-                  className="pointer-events-none absolute -inset-4 rounded-3xl bg-gradient-to-br from-primary/10 via-secondary/5 to-transparent blur-2xl"
+                  className="pointer-events-none absolute -inset-8 rounded-[40px] bg-gradient-to-br from-primary/20 via-secondary/10 to-transparent blur-3xl"
                   aria-hidden
                 />
-                <div className="relative rounded-2xl border border-slate-200/90 bg-white p-2 shadow-xl shadow-slate-900/10 ring-1 ring-slate-900/5">
-                  <img
-                    src="/mockup.png"
-                    alt="Kentiva yönetim paneli ekran görüntüsü"
-                    className="w-full max-w-lg rounded-xl object-cover lg:ml-auto"
-                    width={1200}
-                    height={800}
-                    loading="eager"
-                  />
+                <div className="relative overflow-hidden rounded-[28px] border border-slate-700/80 bg-slate-950 p-2.5 shadow-[0_35px_90px_-35px_rgba(2,47,92,.65)] ring-1 ring-slate-900/10">
+                  <div className="flex items-center justify-between px-2 pb-2.5 pt-0.5">
+                    <div className="flex gap-1.5" aria-hidden>
+                      <span className="h-2 w-2 rounded-full bg-rose-400/80" />
+                      <span className="h-2 w-2 rounded-full bg-amber-300/80" />
+                      <span className="h-2 w-2 rounded-full bg-emerald-400/80" />
+                    </div>
+                    <span className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[.14em] text-slate-400">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Canlı operasyon
+                    </span>
+                  </div>
+                  <div className="relative overflow-hidden rounded-[20px] bg-white">
+                    <img
+                      src="/mockup-real.png"
+                      alt="Kentiva yönetim paneli ekran görüntüsü"
+                      className="w-full max-w-lg object-cover lg:ml-auto"
+                      width={1200}
+                      height={800}
+                      loading="eager"
+                    />
+                    <div className="absolute inset-x-3 bottom-3 flex items-center justify-between rounded-2xl border border-white/70 bg-white/90 px-3 py-2 shadow-lg backdrop-blur-md">
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-primary/10 text-primary"><Network className="h-4 w-4" /></span>
+                        <div><p className="text-[10px] font-extrabold text-slate-900">Uçtan uca iş akışı</p><p className="text-[9px] font-semibold text-slate-500">Kayıt · Atama · Saha · Çözüm</p></div>
+                      </div>
+                      <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-extrabold text-emerald-700">Aktif</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="absolute -bottom-5 -left-5 hidden items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl sm:flex">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 text-primary"><DatabaseZap className="h-4.5 w-4.5" /></span>
+                  <div><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Kurumsal altyapı</p><p className="text-xs font-extrabold text-slate-900">İzole ve ölçeklenebilir</p></div>
                 </div>
               </div>
             </div>
@@ -120,7 +147,7 @@ export default function HomePage() {
 
         <section
           id="ozellikler"
-          className="border-b border-slate-200/90 bg-white py-16 sm:py-20"
+          className="border-b border-slate-200/90 bg-[linear-gradient(180deg,#fff_0%,#f8fafc_100%)] py-16 sm:py-20"
           aria-labelledby="features-heading"
         >
           <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
@@ -231,7 +258,7 @@ export default function HomePage() {
                 step={4}
                 icon={<PlusCircle className="h-5 w-5 text-primary" aria-hidden />}
                 title="Yeni bildirim başlatın"
-                body="Alt menüdeki artı (+) düğmesine dokunarak yeni ihbar sihirbazını açın. Ana ekrandan da hızlı duyurulara erişebilirsiniz."
+                body="Ana ekrandaki “Yeni ihbar oluştur” kartına dokunarak yönlendirmeli ihbar akışını başlatın. Duyurulara ve önceki kayıtlarınıza aynı ekrandan erişebilirsiniz."
               />
               <GuideStep
                 step={5}
@@ -260,8 +287,8 @@ export default function HomePage() {
               <div>
                 <h3 className="font-sans text-base font-bold text-slate-900">Özet</h3>
                 <p className="mt-2 text-sm font-medium leading-relaxed text-slate-600">
-                  Kısaca: uygulamada giriş yapın → belediyeyi seçin → artı ile yeni ihbar → metin ve konum → (fotoğraf)
-                  → gönder. Sorun yaşarsanız belediye çağrı merkezi veya Kentiva iletişim kanallarından destek alın.
+                  Kısaca: uygulamada giriş yapın → belediyeyi seçin → ana ekrandan yeni ihbar oluşturun → metin ve konum
+                  → (fotoğraf) → gönder. Sorun yaşarsanız belediye çağrı merkezi veya Kentiva iletişim kanallarından destek alın.
                 </p>
               </div>
             </div>
@@ -288,7 +315,7 @@ export default function HomePage() {
             </div>
 
             <div className="mt-10 mx-auto max-w-lg">
-              <div className="relative flex flex-col rounded-2xl border border-primary/30 bg-primary/[0.02] p-8 shadow-lg ring-2 ring-primary/20">
+              <div className="relative flex flex-col overflow-hidden rounded-[28px] border border-primary/25 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,.12),transparent_34%),white] p-8 shadow-[0_28px_70px_-42px_rgba(11,79,156,.55)] ring-1 ring-primary/10">
                 <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-4 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm">
                   Her şey dahil
                 </span>
@@ -372,12 +399,20 @@ export default function HomePage() {
                 <ArrowRight className="h-4 w-4" aria-hidden />
               </a>
               <a
-                href={adminPortalUrl}
+                href={municipalityPortalUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center rounded-xl border border-white/35 bg-white/10 px-5 py-3 text-sm font-bold text-white backdrop-blur-sm transition-all hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
               >
-                Yönetim girişi
+                Belediye paneli
+              </a>
+              <a
+                href={superAdminPortalUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center rounded-xl border border-white/25 bg-transparent px-5 py-3 text-sm font-bold text-white/90 transition-all hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              >
+                Süper admin
               </a>
             </div>
           </div>

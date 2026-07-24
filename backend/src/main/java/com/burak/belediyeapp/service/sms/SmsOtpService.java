@@ -18,6 +18,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.security.SecureRandom;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import com.burak.belediyeapp.dto.response.admin.SmsMetricsResponse;
 
 /**
  * SMS OTP servisi — NetGSM veya Twilio üzerinden SMS gönderir.
@@ -78,6 +81,15 @@ public class SmsOtpService {
 
     private static final int OTP_EXPIRY_SECONDS = 300;       // 5 dakika
     private static final long DAILY_WINDOW_MS = 24L * 60 * 60 * 1000;
+
+    // ── SMS Metrikleri ──────────────────────────────
+    private final AtomicLong totalSentCount = new AtomicLong(0);
+    private final AtomicLong totalSuccessCount = new AtomicLong(0);
+    private final AtomicLong totalFailedCount = new AtomicLong(0);
+    private final AtomicLong otpSentCount = new AtomicLong(0);
+    private final AtomicLong notificationSentCount = new AtomicLong(0);
+    private final AtomicReference<String> lastFailureAt = new AtomicReference<>(null);
+    private final AtomicReference<String> lastFailureMessage = new AtomicReference<>(null);
 
     /**
      * OTP oluştur ve SMS gönder.
@@ -147,13 +159,20 @@ public class SmsOtpService {
         return switch (provider.toLowerCase()) {
             case "netgsm" -> {
                 try {
-                    yield sendViaNetgsm(formatted, message, header, otpBody);
+                    boolean result = sendViaNetgsm(formatted, message, header, otpBody);
+                    recordSendResult(result, otpBody, null);
+                    yield result;
                 } catch (Exception e) {
+                    recordSendResult(false, otpBody, e.getMessage());
                     log.error("NetGSM SMS gönderim hatası (tüm denemeler bitti): {}", e.getMessage());
                     yield false;
                 }
             }
-            case "twilio" -> sendViaTwilio(formatted, message, otpBody);
+            case "twilio" -> {
+                boolean result = sendViaTwilio(formatted, message, otpBody);
+                recordSendResult(result, otpBody, null);
+                yield result;
+            }
             default -> {
                 // OTP yi log'a YAZMA — sadece teslimat olayını kaydet.
                 if (otpBody) {
@@ -162,6 +181,7 @@ public class SmsOtpService {
                     log.info("SMS (dev modu) [{}]: {} → {}",
                             header, maskPhone(formatted), truncateForLog(message));
                 }
+                recordSendResult(true, otpBody, null);
                 yield true;
             }
         };
@@ -422,5 +442,39 @@ public class SmsOtpService {
                     maskPhone(phone), truncateForLog(message));
         }
         return true;
+    }
+
+    // ── Metrik Kayıt & Dashboard ──────────────────────
+
+    private void recordSendResult(boolean success, boolean isOtp, String errorMessage) {
+        totalSentCount.incrementAndGet();
+        if (success) {
+            totalSuccessCount.incrementAndGet();
+        } else {
+            totalFailedCount.incrementAndGet();
+            lastFailureAt.set(java.time.LocalDateTime.now().toString());
+            lastFailureMessage.set(errorMessage);
+        }
+        if (isOtp) {
+            otpSentCount.incrementAndGet();
+        } else {
+            notificationSentCount.incrementAndGet();
+        }
+    }
+
+    /**
+     * Yönetici paneline SMS istatistiklerini sağlar.
+     */
+    public SmsMetricsResponse getSmsDashboardMetrics() {
+        return new SmsMetricsResponse(
+                provider,
+                totalSentCount.get(),
+                totalSuccessCount.get(),
+                totalFailedCount.get(),
+                lastFailureAt.get(),
+                lastFailureMessage.get(),
+                otpSentCount.get(),
+                notificationSentCount.get()
+        );
     }
 }

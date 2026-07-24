@@ -13,6 +13,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClient;
 
 import java.util.stream.Collectors;
@@ -65,6 +67,9 @@ public class GeminiService {
 
     private final RestClient restClient = RestClient.builder()
             .requestFactory(requestFactory())
+            .build();
+    private final RestClient duplicateDetectionRestClient = RestClient.builder()
+            .requestFactory(duplicateDetectionRequestFactory())
             .build();
     private final IReportCategoryRepository categoryRepository;
 
@@ -321,7 +326,7 @@ public class GeminiService {
     public java.util.List<String> findDuplicateReports(Report newReport, java.util.List<Report> nearbyReports) {
         String activeKey = keyDuplicateDetection != null && !keyDuplicateDetection.isBlank() ? keyDuplicateDetection : apiKey;
         if (activeKey == null || activeKey.isBlank() || activeKey.equals("your-gemini-api-key")) {
-            log.warn("Gemini API Key eksik. Semantik duplicate analizi atlanıyor.");
+            log.debug("Gemini duplicate key eksik; semantik analiz atlanıyor.");
             return null;
         }
         if (nearbyReports == null || nearbyReports.isEmpty()) {
@@ -367,7 +372,7 @@ public class GeminiService {
 
         for (int attempt = 1; attempt <= 2; attempt++) {
             try {
-                String response = restClient.post()
+                String response = duplicateDetectionRestClient.post()
                         .uri(geminiGenerateContentUrl() + "?key=" + activeKey)
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(requestBody)
@@ -618,10 +623,17 @@ public class GeminiService {
         return factory;
     }
 
+    private static SimpleClientHttpRequestFactory duplicateDetectionRequestFactory() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(3_000);
+        factory.setReadTimeout(10_000);
+        return factory;
+    }
+
     public double[] getEmbedding(String title, String description) {
         String activeKey = keyDuplicateDetection != null && !keyDuplicateDetection.isBlank() ? keyDuplicateDetection : apiKey;
         if (activeKey == null || activeKey.isBlank() || activeKey.equals("your-gemini-api-key")) {
-            log.warn("Gemini API Key eksik. Embedding üretilemiyor.");
+            log.debug("Gemini duplicate key eksik; embedding üretimi atlanıyor.");
             return null;
         }
 
@@ -635,7 +647,7 @@ public class GeminiService {
                     .put("model", "models/text-embedding-004")
                     .put("content", contentObj);
 
-            String response = restClient.post()
+            String response = duplicateDetectionRestClient.post()
                     .uri("https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=" + activeKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(requestBody.toString())
@@ -650,9 +662,20 @@ public class GeminiService {
                 vector[i] = values.getDouble(i);
             }
             return vector;
+        } catch (HttpClientErrorException | HttpServerErrorException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Gemini embedding üretilemedi: {}", e.getMessage());
             return null;
         }
+    }
+
+    public boolean isDuplicateDetectionAvailable() {
+        String activeKey = keyDuplicateDetection != null && !keyDuplicateDetection.isBlank()
+                ? keyDuplicateDetection
+                : apiKey;
+        return activeKey != null
+                && !activeKey.isBlank()
+                && !activeKey.equals("your-gemini-api-key");
     }
 }

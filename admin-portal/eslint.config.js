@@ -21,7 +21,10 @@ export default defineConfig([
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
       'react-hooks/set-state-in-effect': 'off',
-      'react-refresh/only-export-components': 'warn',
+      'react-refresh/only-export-components': ['warn', {
+        allowConstantExport: true,
+        allowExportNames: ['useTranslation', 'useReportLive'],
+      }],
       '@typescript-eslint/no-unused-vars': 'warn',
       'no-case-declarations': 'warn',
     },

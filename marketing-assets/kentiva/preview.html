@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kentiva Pazarlama Görsel Seti</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --primary: #0b4f9c;
+        --slate: #0f172a;
+        --muted: #64748b;
+        --line: #e2e8f0;
+        font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: #f8fafc;
+        color: var(--slate);
+      }
+
+      main {
+        width: min(1180px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 40px 0 56px;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 28px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(28px, 4vw, 44px);
+        line-height: 1.05;
+      }
+
+      p {
+        color: var(--muted);
+        font-size: 16px;
+        line-height: 1.6;
+      }
+
+      section {
+        margin-top: 28px;
+      }
+
+      h2 {
+        margin: 0 0 14px;
+        font-size: 20px;
+      }
+
+      .surface {
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: white;
+        box-shadow: 0 18px 46px -30px rgb(15 23 42 / 0.4);
+      }
+
+      .logo-wrap {
+        padding: 34px;
+      }
+
+      .logo-wrap img,
+      .banner img,
+      .video img {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 360px;
+        gap: 28px;
+        align-items: start;
+      }
+
+      .video {
+        max-width: 360px;
+        margin: 0 auto;
+      }
+
+      .links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      a {
+        display: inline-flex;
+        align-items: center;
+        min-height: 38px;
+        border: 1px solid rgb(11 79 156 / 0.18);
+        border-radius: 999px;
+        padding: 0 14px;
+        color: var(--primary);
+        font-size: 14px;
+        font-weight: 700;
+        text-decoration: none;
+        background: rgb(11 79 156 / 0.05);
+      }
+
+      @media (max-width: 840px) {
+        header,
+        .grid {
+          display: block;
+        }
+
+        .video {
+          max-width: 320px;
+          margin-top: 28px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>Kentiva Pazarlama Görsel Seti</h1>
+          <p>Logo, yatay banner ve kısa reklam animasyonu.</p>
+        </div>
+        <a href="README.md">Set notları</a>
+      </header>
+
+      <section>
+        <h2>Logo</h2>
+        <div class="surface logo-wrap">
+          <img src="kentiva-logo.png" alt="Kentiva logosu" />
+        </div>
+        <div class="links">
+          <a href="kentiva-logo.svg">SVG logo</a>
+          <a href="kentiva-logo.png">PNG logo</a>
+          <a href="kentiva-logo-mark.png">Logo işareti</a>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div>
+          <h2>Banner</h2>
+          <div class="surface banner">
+            <img src="kentiva-banner-1920x1080.png" alt="Kentiva banner" />
+          </div>
+          <div class="links">
+            <a href="kentiva-banner-1920x1080.png">Banner PNG</a>
+          </div>
+        </div>
+
+        <div>
+          <h2>Reklam Animasyonu</h2>
+          <div class="surface video">
+            <img src="kentiva-reklam-video.gif" alt="Kentiva reklam animasyonu" />
+          </div>
+          <div class="links">
+            <a href="kentiva-reklam-video.avi">AVI video</a>
+            <a href="kentiva-reklam-video.gif">GIF animasyon</a>
+            <a href="kentiva-reklam-storyboard-preview.jpg">Storyboard</a>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

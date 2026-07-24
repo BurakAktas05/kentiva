@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Award, Star, Settings as SettingsIcon, ChevronRight, LogOut, Loader2, Gift } from 'lucide-react';
+import { Award, Star, Settings as SettingsIcon, ChevronRight, LogOut, Loader2, WifiOff } from 'lucide-react';
 import {
   getMyProfile,
   getMyReports,
@@ -22,6 +22,8 @@ interface ProfileProps {
   isDark: boolean;
 }
 
+type ProfileDataState = 'current' | 'offline' | 'saved' | 'partial';
+
 export default function Profile({
   onLogout,
   onSettings,
@@ -33,6 +35,8 @@ export default function Profile({
 }: ProfileProps) {
   const [profile, setProfile] = useState<ApiUserProfile | null>(null);
   const [reports, setReports] = useState<ApiReportList[]>([]);
+  const [reportTotal, setReportTotal] = useState<number | null>(null);
+  const [dataState, setDataState] = useState<ProfileDataState>('current');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
 
@@ -44,6 +48,7 @@ export default function Profile({
 
   const loadProfile = async () => {
     setLoadError('');
+    let nextDataState: ProfileDataState = 'current';
     const [profileResult, reportsResult] = await Promise.allSettled([
       getMyProfile(),
       getMyReports(0, 100),
@@ -51,6 +56,9 @@ export default function Profile({
 
     if (profileResult.status === 'fulfilled') {
       setProfile(profileResult.value);
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        nextDataState = 'offline';
+      }
     } else {
       console.error('Profil yüklenemedi', profileResult.reason);
       const saved = getSavedUser();
@@ -65,9 +73,8 @@ export default function Profile({
           lastName,
           phoneNumber: null,
           roles: saved.roles || [],
-          reputationScore: 100,
-          reputationLevel: lang === 'tr' ? 'Yeni Üye' : 'New member',
         });
+        nextDataState = typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'saved';
       } else {
         setLoadError(lang === 'tr' ? 'Profil yüklenemedi.' : 'Could not load profile.');
       }
@@ -75,11 +82,17 @@ export default function Profile({
 
     if (reportsResult.status === 'fulfilled') {
       setReports(reportsResult.value.content || []);
+      setReportTotal(reportsResult.value.totalElements);
     } else {
       console.warn('İhbar listesi yüklenemedi', reportsResult.reason);
       setReports([]);
+      setReportTotal(null);
+      if (nextDataState === 'current') {
+        nextDataState = 'partial';
+      }
     }
 
+    setDataState(nextDataState);
     setLoading(false);
   };
 
@@ -87,12 +100,47 @@ export default function Profile({
     await apiLogout();
     onLogout();
   };
-
-
-
-
-  const points = profile?.reputationScore ?? 100;
-  const level = profile?.reputationLevel ?? (lang === 'tr' ? 'Yeni Üye' : 'New member');
+  const points = typeof profile?.reputationScore === 'number' ? profile.reputationScore : null;
+  const level = profile?.reputationLevel?.trim() || null;
+  const resolvedVisibleCount = reports.filter((report) => report.status === 'RESOLVED').length;
+  const resolvedDisplay = reportTotal === null
+    ? '—'
+    : reportTotal > reports.length
+      ? `${resolvedVisibleCount}+`
+      : String(resolvedVisibleCount);
+  const unavailableLevel = lang === 'tr'
+    ? 'Rütbe bilgisi kullanılamıyor'
+    : lang === 'ar'
+      ? 'معلومات المستوى غير متاحة'
+      : 'Level information unavailable';
+  const dataNotice = dataState === 'offline'
+    ? {
+        title: lang === 'tr' ? 'Çevrimdışı görünüm' : lang === 'ar' ? 'العرض دون اتصال' : 'Offline view',
+        description: lang === 'tr'
+          ? 'Son kaydedilen profil bilgileri gösteriliyor. Puan ve istatistikler bağlantı kurulunca güncellenecek.'
+          : lang === 'ar'
+            ? 'يتم عرض آخر معلومات الملف المحفوظة. سيتم تحديث النقاط والإحصائيات عند عودة الاتصال.'
+            : 'The last saved profile information is shown. Points and statistics will update when the connection returns.',
+      }
+    : dataState === 'saved'
+      ? {
+          title: lang === 'tr' ? 'Son kayıtlı profil bilgisi' : lang === 'ar' ? 'آخر ملف محفوظ' : 'Last saved profile',
+          description: lang === 'tr'
+            ? 'Profil servisine şu anda ulaşılamıyor. Kayıtlı hesap bilgileriniz korunuyor; doğrulanamayan alanlar gösterilmiyor.'
+            : lang === 'ar'
+              ? 'خدمة الملف غير متاحة حالياً. تظل معلومات حسابك المحفوظة محفوظة ولا تظهر الحقول غير المؤكدة.'
+              : 'The profile service is currently unavailable. Your saved account information is preserved and unverified fields are hidden.',
+        }
+      : dataState === 'partial'
+        ? {
+            title: lang === 'tr' ? 'Bazı bilgiler güncellenemedi' : lang === 'ar' ? 'تعذر تحديث بعض المعلومات' : 'Some information could not be updated',
+            description: lang === 'tr'
+              ? 'Profiliniz gösteriliyor; ihbar istatistikleri bağlantı yenilendiğinde güncellenecek.'
+              : lang === 'ar'
+                ? 'يتم عرض ملفك، وسيتم تحديث إحصائيات البلاغات عند تحسن الاتصال.'
+                : 'Your profile is shown. Report statistics will update when the connection improves.',
+          }
+        : null;
 
   if (loading) {
     return (
@@ -133,7 +181,7 @@ export default function Profile({
               {profile ? `${profile.firstName} ${profile.lastName}` : '—'}
             </h2>
             <p className="mt-0.5 flex items-center gap-1.5 text-sm font-medium text-white/85">
-              <Award className="h-4 w-4 shrink-0" /> {level}
+              <Award className="h-4 w-4 shrink-0" /> {level || unavailableLevel}
             </p>
           </div>
         </div>
@@ -150,7 +198,7 @@ export default function Profile({
               {t('profile.points', lang)}
             </p>
             <p className="flex items-center justify-center gap-1 text-2xl font-extrabold text-primary dark:text-sky-300">
-              {points} <Star className="h-5 w-5 fill-primary/25 text-primary dark:fill-sky-400/20 dark:text-sky-300" />
+              {points ?? '—'} <Star className="h-5 w-5 fill-primary/25 text-primary dark:fill-sky-400/20 dark:text-sky-300" />
             </p>
           </div>
           <div className={`flex-1 border-r text-center ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
@@ -158,7 +206,7 @@ export default function Profile({
               {t('profile.reports', lang)}
             </p>
             <p className={`text-2xl font-extrabold tabular-nums ${isDark ? 'text-white' : 'text-slate-900'}`}>
-              {reports.length}
+              {reportTotal ?? '—'}
             </p>
           </div>
           <div className="flex-1 text-center">
@@ -166,13 +214,39 @@ export default function Profile({
               {t('profile.resolved', lang)}
             </p>
             <p className="text-2xl font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400">
-              {reports.filter((r) => r.status === 'RESOLVED').length}
+              {resolvedDisplay}
             </p>
           </div>
         </div>
       </div>
 
+      {dataNotice && (
+        <div className="mt-4 px-5" role="status">
+          <div
+            className={`flex items-start gap-3 rounded-2xl border p-4 ${
+              isDark ? 'border-slate-700 bg-slate-800/80' : 'border-slate-200 bg-slate-50'
+            }`}
+          >
+            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+              isDark ? 'bg-slate-700 text-slate-300' : 'bg-white text-slate-500 shadow-sm'
+            }`}>
+              <WifiOff className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p className={`text-sm font-bold ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>
+                {dataNotice.title}
+              </p>
+              <p className={`mt-1 text-xs leading-5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                {dataNotice.description}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {(() => {
+        if (points === null) return null;
+
         let levelTitle = '';
         let levelMoreText = '';
         if (points < 100) {
@@ -228,8 +302,6 @@ export default function Profile({
           compact
         />
       </div>
-
-
 
       <div className="mt-8 space-y-3 px-5">
         <h3 className={`mb-2 px-1 font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-800'}`}>

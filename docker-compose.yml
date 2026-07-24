@@ -18,6 +18,38 @@ services:
       timeout: 5s
       retries: 10
 
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-kentiva}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-kentiva-dev}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitdata:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7.4-alpine
+    command:
+      - sh
+      - -c
+      - exec redis-server --appendonly yes --requirepass "$${REDIS_PASSWORD}"
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-kentiva-dev-redis}
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
   api:
     build:
       context: .
@@ -38,11 +70,24 @@ services:
       APP_STORAGE_TYPE: local
       APP_STORAGE_LOCAL_UPLOAD_DIR: /app/uploads
       APP_SWAGGER_ENABLED: "true"
+      APP_MESSAGING_RABBIT_ENABLED: "true"
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-kentiva}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-kentiva-dev}
+      APP_CACHE_TYPE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-kentiva-dev-redis}
       MEDIA_GUARD_URL: http://media-guard:8000
     volumes:
       - uploads:/app/uploads
     depends_on:
       db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       media-guard:
         condition: service_started
@@ -105,4 +150,6 @@ services:
 
 volumes:
   pgdata:
+  rabbitdata:
+  redisdata:
   uploads:

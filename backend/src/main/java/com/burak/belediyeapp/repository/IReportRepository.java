@@ -42,6 +42,24 @@ public interface IReportRepository extends JpaRepository<Report, String> {
     Optional<Report> findByIdForRealtimePush(@Param("id") String id);
 
     /**
+     * KVKK/GDPR veri temizliği — çözülmüş ve saklama süresi dolmuş ihbarları bulur.
+     * @param cutoff Bu tarihten önce güncellenen RESOLVED ihbarlar döner.
+     */
+    @Query("""
+            SELECT r FROM Report r
+            LEFT JOIN FETCH r.reporter
+            LEFT JOIN FETCH r.mediaList
+            WHERE r.reportStatus = com.burak.belediyeapp.entity.ReportStatus.RESOLVED
+              AND r.updatedAt < :cutoff
+              AND r.deleted = false
+            ORDER BY r.updatedAt ASC
+            """)
+    List<Report> findResolvedReportsOlderThan(
+            @Param("cutoff") java.time.LocalDateTime cutoff,
+            org.springframework.data.domain.Pageable pageable);
+
+
+    /**
      * Belirli bir saha görevlisine atanmış raporları getirir.
      */
     @EntityGraph(attributePaths = {"category"})

@@ -6,6 +6,7 @@ import { announcementCardClass, coverMediaImgClass } from '../../lib/ui';
 
 const AUTO_INTERVAL_MS = 5000;
 const PAUSE_AFTER_INTERACTION_MS = 9000;
+const NEW_ANNOUNCEMENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 type Props = {
   announcements: ApiAnnouncement[];
@@ -124,6 +125,20 @@ export default function AnnouncementCarousel({ announcements, lang, isDark, onOp
 
   if (count === 0) return null;
 
+  const locale = lang === 'tr' ? 'tr-TR' : lang === 'ar' ? 'ar' : 'en-US';
+
+  const getDateLabel = (startsAt: string) => {
+    const publishedAt = new Date(startsAt);
+    const ageMs = Date.now() - publishedAt.getTime();
+    if (Number.isFinite(ageMs) && ageMs >= 0 && ageMs <= NEW_ANNOUNCEMENT_WINDOW_MS) {
+      return t('home.announcements.new', lang);
+    }
+    if (Number.isNaN(publishedAt.getTime())) {
+      return lang === 'tr' ? 'Belediye duyurusu' : 'Municipality notice';
+    }
+    return publishedAt.toLocaleDateString(locale, { day: '2-digit', month: 'short' });
+  };
+
   return (
     <div className="relative">
       <div
@@ -146,14 +161,14 @@ export default function AnnouncementCarousel({ announcements, lang, isDark, onOp
           >
             <div className="absolute inset-0 z-10 bg-gradient-to-t from-black/85 via-black/25 to-transparent pointer-events-none" />
             {ann.imageUrl ? (
-              <img src={resolveMediaUrl(ann.imageUrl)} alt="" className={coverMediaImgClass} />
+              <img src={resolveMediaUrl(ann.imageUrl)} alt={ann.title} className={coverMediaImgClass} />
             ) : (
               <div className="absolute inset-0 bg-gradient-to-br from-slate-600 to-primary/60" />
             )}
             <div className="absolute bottom-0 left-0 right-0 z-20 p-3 space-y-1 pointer-events-none">
               <span className="inline-flex items-center gap-1 rounded-full bg-primary/90 px-2 py-0.5 text-[10px] font-medium text-white">
                 <Clock className="h-2.5 w-2.5" />
-                {t('home.announcements.new', lang)}
+                {getDateLabel(ann.startsAt)}
               </span>
               <h4 className="text-sm font-semibold text-white line-clamp-2 leading-snug">{ann.title}</h4>
             </div>

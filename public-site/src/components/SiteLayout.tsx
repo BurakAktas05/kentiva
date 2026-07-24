@@ -16,6 +16,7 @@ export function BrandMark({ className = '' }: { className?: string }) {
 
 export default function SiteLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { municipalityPortalUrl, superAdminPortalUrl } = marketingConfig;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800">
@@ -28,7 +29,7 @@ export default function SiteLayout() {
 
       <header className="sticky top-0 z-50">
         <nav
-          className="border-b border-slate-200/80 bg-white/90 shadow-sm backdrop-blur-md"
+          className="border-b border-slate-200/80 bg-white/90 shadow-[0_8px_30px_-24px_rgba(15,23,42,.35)] backdrop-blur-xl"
           aria-label="Ana gezinme"
         >
           <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8 sm:h-[4.25rem]">
@@ -74,16 +75,24 @@ export default function SiteLayout() {
             </div>
             <div className="flex shrink-0 items-center gap-2 sm:gap-3">
               <a
-                href={marketingConfig.adminPortalUrl}
+                href={municipalityPortalUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="hidden text-sm font-semibold text-slate-600 transition-colors hover:text-primary sm:inline"
               >
-                Yönetici Paneli
+                Belediye Paneli
+              </a>
+              <a
+                href={superAdminPortalUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="hidden text-sm font-semibold text-slate-600 transition-colors hover:text-primary lg:inline"
+              >
+                Süper Admin
               </a>
               <a
                 href={demoMailto()}
-                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-bold text-slate-800 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:px-4"
+                className="inline-flex items-center justify-center rounded-xl bg-primary px-3.5 py-2 text-sm font-bold text-white shadow-md shadow-primary/20 transition-all hover:bg-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:px-4"
               >
                 Demo Talep Et
               </a>
@@ -136,13 +145,22 @@ export default function SiteLayout() {
               </a>
               <div className="h-px bg-slate-100 my-2" />
               <a
-                href={marketingConfig.adminPortalUrl}
+                href={municipalityPortalUrl}
                 target="_blank"
                 rel="noreferrer"
                 onClick={() => setMobileMenuOpen(false)}
                 className="block rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-primary transition-colors"
               >
-                Yönetici Paneli
+                Belediye Paneli
+              </a>
+              <a
+                href={superAdminPortalUrl}
+                target="_blank"
+                rel="noreferrer"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-primary transition-colors"
+              >
+                Süper Admin
               </a>
             </div>
           </div>
@@ -177,7 +195,7 @@ export default function SiteLayout() {
                 Fiyatlandırma
               </a>
               <a
-                href={`${marketingConfig.adminPortalUrl}/super-admin/login`}
+                href={superAdminPortalUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="text-slate-400 transition-colors hover:text-white"

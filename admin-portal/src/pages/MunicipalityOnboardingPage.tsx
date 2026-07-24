@@ -250,18 +250,20 @@ export default function MunicipalityOnboardingPage() {
         );
       case 'boundaries':
         return lat != null && lng != null && zoom != null;
-      case 'admin':
+      case 'admin': {
         const adminValid = adminEmail.trim().includes('@') && adminPassword.length >= 8 && adminFullName.trim().length >= 2;
         if (workflowMode === 'DEPARTMENTAL') {
           return adminValid && whiteDeskEmail.trim().includes('@') && whiteDeskPassword.length >= 8 && whiteDeskFullName.trim().length >= 2;
         }
         return adminValid;
-      case 'operational':
+      }
+      case 'operational': {
         const catValid = enabledCategories.length > 0;
         if (workflowMode === 'DEPARTMENTAL') {
           return catValid && enabledDepartments.length > 0;
         }
         return catValid;
+      }
       case 'integrations':
       case 'review':
       default:
@@ -278,6 +280,7 @@ export default function MunicipalityOnboardingPage() {
     enabledCategories.length,
     enabledDepartments.length,
     name,
+    selectedDistrictId,
     slug,
     workflowMode,
     whiteDeskEmail,
@@ -340,7 +343,7 @@ export default function MunicipalityOnboardingPage() {
         } else {
           setError('Geçersiz GeoJSON. Lütfen geçerli bir Polygon geometrisi içeren GeoJSON yükleyin.');
         }
-      } catch (err) {
+      } catch {
         setError('GeoJSON dosyası okunurken hata oluştu.');
       }
     };

@@ -44,6 +44,15 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     @org.springframework.beans.factory.annotation.Value("${app.cache.type:none}")
     private String cacheType;
 
+    /**
+     * Capacity tests need to measure the application and database instead of the
+     * intentional per-user throttles. The production startup validator refuses
+     * to boot when this switch is disabled, so it can only be used deliberately
+     * in an isolated development or staging environment.
+     */
+    @org.springframework.beans.factory.annotation.Value("${app.security.rate-limit.enabled:true}")
+    private boolean enabled = true;
+
     private final Cache<String, Bucket> buckets = Caffeine.newBuilder()
             .expireAfterAccess(Duration.ofMinutes(10))
             .maximumSize(50_000)
@@ -84,6 +93,10 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+        if (!enabled) {
+            return true;
+        }
+
         // Sadece API requestlerini limitle
         if (!request.getRequestURI().startsWith("/api/v1")) {
             return true;

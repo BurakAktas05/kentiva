@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
@@ -214,6 +214,19 @@ export default function WhiteDeskReportPage() {
     }
   }, [loading]);
 
+  const resetForNewReport = useCallback(() => {
+    setForm((prev) => ({
+      ...initialForm,
+      categoryId: prev.categoryId,
+      district: prev.district,
+      latitude: prev.latitude,
+      longitude: prev.longitude,
+    }));
+    setCreatedReport(null);
+    setError(null);
+    setTimeout(() => firstNameRef.current?.focus(), 50);
+  }, []);
+
   /* ───── Keyboard shortcuts ───── */
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -232,23 +245,10 @@ export default function WhiteDeskReportPage() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [canSubmit, saving]);
+  }, [canSubmit, resetForNewReport, saving]);
 
   const update = (field: keyof FormState, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const resetForNewReport = () => {
-    setForm((prev) => ({
-      ...initialForm,
-      categoryId: prev.categoryId,
-      district: prev.district,
-      latitude: prev.latitude,
-      longitude: prev.longitude,
-    }));
-    setCreatedReport(null);
-    setError(null);
-    setTimeout(() => firstNameRef.current?.focus(), 50);
   };
 
   /* ───── Apply quick template ───── */

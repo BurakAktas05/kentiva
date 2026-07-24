@@ -49,7 +49,8 @@ Tünel URL dosyası: `scripts/tunnel-url.txt` (APK scripti bunu okur).
 | Amaç | URL |
 |------|-----|
 | İlk kurulum (süper admin) | http://localhost:5173/setup |
-| Giriş | http://localhost:5173/login |
+| Belediye çalışma alanı seçimi | http://localhost:5173/login |
+| Platform sahibi girişi | http://localhost:5173/super-admin/login |
 | Süper admin paneli | http://localhost:5173/ |
 | Belediye yöneticisi | Giriş sonrası normal panel |
 | Kamu sitesi | http://localhost:5174 |

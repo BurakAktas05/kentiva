@@ -57,6 +57,7 @@ describe('Home Screen Component', () => {
 
     render(
       <Home
+        onCreateReport={vi.fn()}
         onViewMyReports={vi.fn()}
         onOpenAnnouncement={vi.fn()}
         lang="tr"
@@ -77,6 +78,7 @@ describe('Home Screen Component', () => {
 
     render(
       <Home
+        onCreateReport={vi.fn()}
         onViewMyReports={vi.fn()}
         onOpenAnnouncement={vi.fn()}
         lang="tr"
@@ -100,6 +102,7 @@ describe('Home Screen Component', () => {
 
     render(
       <Home
+        onCreateReport={vi.fn()}
         onViewMyReports={onViewReportsMock}
         onOpenAnnouncement={vi.fn()}
         lang="tr"
@@ -116,5 +119,27 @@ describe('Home Screen Component', () => {
     fireEvent.click(cardButton);
 
     expect(onViewReportsMock).toHaveBeenCalled();
+  });
+
+  it('opens report creation from the primary home call to action', async () => {
+    vi.mocked(api.getMyReports).mockResolvedValueOnce(mockReportsResponse);
+    vi.mocked(api.getMyProfile).mockResolvedValueOnce(mockProfile);
+    vi.mocked(api.getPublicAnnouncements).mockResolvedValueOnce(mockAnnouncements);
+    const onCreateReport = vi.fn();
+
+    render(
+      <Home
+        onCreateReport={onCreateReport}
+        onViewMyReports={vi.fn()}
+        onOpenAnnouncement={vi.fn()}
+        lang="tr"
+        isDark={false}
+        homeMunicipality={mockMunicipality}
+      />,
+    );
+
+    const createButton = await screen.findByRole('button', { name: /Yeni ihbar oluştur/i });
+    fireEvent.click(createButton);
+    expect(onCreateReport).toHaveBeenCalledTimes(1);
   });
 });

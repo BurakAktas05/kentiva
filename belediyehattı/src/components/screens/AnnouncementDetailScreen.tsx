@@ -50,7 +50,7 @@ export default function AnnouncementDetailScreen({
         {announcement.imageUrl ? (
           <img 
             src={resolveMediaUrl(announcement.imageUrl)} 
-            alt="" 
+            alt={announcement.title}
             className="w-full h-full object-cover object-center transform hover:scale-105 transition-transform duration-700" 
           />
         ) : (
@@ -90,7 +90,9 @@ export default function AnnouncementDetailScreen({
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 -mt-5 relative z-10 bg-slate-55 rounded-t-3xl shadow-2xl overflow-y-auto px-5 pt-6 pb-12 transition-all">
+      <div className={`flex-1 -mt-5 relative z-10 rounded-t-3xl shadow-2xl overflow-y-auto px-5 pt-6 pb-12 transition-all ${
+        isDark ? 'bg-slate-950' : 'bg-slate-50'
+      }`}>
         {/* White background block for content details */}
         <div className={`rounded-2xl border p-5 sm:p-6 shadow-sm ${
           isDark ? 'border-slate-800/80 bg-slate-900' : 'border-slate-200/90 bg-white'
@@ -128,7 +130,7 @@ export default function AnnouncementDetailScreen({
           </div>
           <div className="min-w-0 flex-1">
             <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">
-              {lang === 'tr' ? 'Doğrulanmış Kaynak' : 'Verified Source'}
+              {lang === 'tr' ? 'Belediye kaynağı' : 'Municipality source'}
             </span>
             <span className="block text-[10px] text-slate-500 dark:text-slate-400 leading-normal font-medium mt-0.5">
               {lang === 'tr'

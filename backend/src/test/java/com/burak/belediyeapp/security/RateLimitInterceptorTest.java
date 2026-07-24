@@ -6,6 +6,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.method.HandlerMethod;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -50,6 +51,23 @@ class RateLimitInterceptorTest {
         assertThat(secondResponse.getHeader("X-RateLimit-Reset")).isNotBlank();
         assertThat(secondResponse.getHeader("Retry-After")).isNotBlank();
         assertThat(secondResponse.getContentAsString()).contains("RATE_LIMIT_EXCEEDED");
+    }
+
+    @Test
+    void explicitlyDisabledRateLimitPassesThroughWithoutHeaders() throws Exception {
+        ReflectionTestUtils.setField(interceptor, "enabled", false);
+        HandlerMethod handlerMethod = new HandlerMethod(
+                new RateLimitedController(),
+                RateLimitedController.class.getDeclaredMethod("limitedEndpoint")
+        );
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/test");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        boolean allowed = interceptor.preHandle(request, response, handlerMethod);
+
+        assertThat(allowed).isTrue();
+        assertThat(response.getHeader("X-RateLimit-Limit")).isNull();
+        assertThat(response.getContentAsString()).isEmpty();
     }
 
     static class RateLimitedController {

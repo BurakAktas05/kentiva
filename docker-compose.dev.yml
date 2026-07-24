@@ -30,6 +30,22 @@ services:
       timeout: 5s
       retries: 10
 
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-kentiva}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-kentiva-dev}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitdata_dev:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
   api:
     build:
       context: .
@@ -55,6 +71,13 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ""
+      APP_MESSAGING_RABBIT_ENABLED: "true"
+      RABBITMQ_LISTENER_ENABLED: "true"
+      RABBITMQ_HEALTH_ENABLED: "true"
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-kentiva}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-kentiva-dev}
       MEDIA_GUARD_URL: http://media-guard:8000
     volumes:
       - uploads_dev:/app/uploads
@@ -62,6 +85,8 @@ services:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
       media-guard:
         condition: service_started
@@ -89,4 +114,5 @@ services:
 volumes:
   pgdata_dev:
   redisdata_dev:
+  rabbitdata_dev:
   uploads_dev:

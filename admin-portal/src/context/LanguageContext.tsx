@@ -5,7 +5,7 @@ export type Language = 'tr' | 'en';
 const DEFAULT_LANGUAGE: Language = 'tr';
 const SUPPORTED_LANGUAGES: readonly Language[] = ['tr', 'en'];
 
-export const translations = {
+const translations = {
   tr: {
     dashboard: 'Dashboard',
     pilot_success: 'Pilot Başarı',

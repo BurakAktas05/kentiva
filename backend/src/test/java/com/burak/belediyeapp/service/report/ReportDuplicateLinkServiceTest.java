@@ -40,6 +40,9 @@ class ReportDuplicateLinkServiceTest {
     @BeforeEach
     void setUp() {
         org.springframework.test.util.ReflectionTestUtils.setField(reportDuplicateLinkService, "radiusMeters", 75.0);
+        org.springframework.test.util.ReflectionTestUtils.setField(reportDuplicateLinkService, "strictThreshold", 0.12);
+        org.springframework.test.util.ReflectionTestUtils.setField(reportDuplicateLinkService, "borderlineThreshold", 0.28);
+        org.springframework.test.util.ReflectionTestUtils.setField(reportDuplicateLinkService, "maxRetries", 3);
         org.springframework.test.util.ReflectionTestUtils.setField(reportDuplicateLinkService, "self", reportDuplicateLinkService);
     }
 
@@ -126,6 +129,44 @@ class ReportDuplicateLinkServiceTest {
         verify(reportRepository, never()).saveAll(any());
     }
 
+    @Test
+    void optimizedFlow_whenDuplicateAiIsUnavailable_skipsEmbeddingAndUsesFallback() {
+        Report report = createReport("r-new", 41.25, 32.69);
+        Report nearby = createReport("r-near", 41.2501, 32.6901);
+
+        when(reportRepository.findById("r-new")).thenReturn(java.util.Optional.of(report));
+        when(reportRepository.findActiveNearbyInMunicipality(
+                anyDouble(), anyDouble(), anyDouble(), anyString(), anyString(), any(), anyInt()))
+                .thenReturn(List.of(nearby));
+        when(geminiService.isDuplicateDetectionAvailable()).thenReturn(false);
+        when(geminiService.findDuplicateReports(report, List.of(nearby))).thenReturn(null);
+        when(reportRepository.findAllById(any())).thenReturn(List.of(report, nearby));
+
+        reportDuplicateLinkService.linkNearbyDuplicatesOptimized("r-new");
+
+        verify(geminiService, never()).getEmbedding(any(), any());
+        verify(reportRepository).saveAll(any());
+    }
+
+    @Test
+    void optimizedFlow_whenEmbeddingIsEmpty_neverWritesInvalidVector() {
+        Report report = createReport("r-new", 41.25, 32.69);
+
+        when(reportRepository.findById("r-new")).thenReturn(java.util.Optional.of(report));
+        when(reportRepository.findActiveNearbyInMunicipality(
+                anyDouble(), anyDouble(), anyDouble(), anyString(), anyString(), any(), anyInt()))
+                .thenReturn(List.of());
+        when(geminiService.isDuplicateDetectionAvailable()).thenReturn(true);
+        when(geminiService.getEmbedding(any(), any())).thenReturn(new double[0]);
+
+        reportDuplicateLinkService.linkNearbyDuplicatesOptimized("r-new");
+
+        verify(geminiService, times(1)).getEmbedding(any(), any());
+        verify(reportRepository, never()).updateReportEmbedding(anyString(), anyString());
+        verify(reportRepository, never()).findSemanticNearbyInMunicipality(
+                anyDouble(), anyDouble(), anyDouble(), anyString(), anyString(), any(), anyString(), anyDouble(), anyInt());
+    }
+
     private Report createReport(String id, double lat, double lng) {
         Report report = new Report();
         report.setId(id);
@@ -136,4 +177,5 @@ class ReportDuplicateLinkServiceTest {
         municipality.setId("m1");
         report.setMunicipality(municipality);
         return report;
-    }}
+    }
+}

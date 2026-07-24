@@ -248,7 +248,13 @@ export default function NewReport({
     </div>
   );
 
-  const isOutsideKentiva = !locating && (!resolvedMunicipality || !resolvedMunicipality.onboarded);
+  const outsideMessage = t('report.municipality.outside', lang);
+  const municipalityLookupFailed =
+    !locating && !resolvedMunicipality && Boolean(locationError) && locationError !== outsideMessage;
+  const isOutsideKentiva =
+    !locating &&
+    ((!resolvedMunicipality && locationError === outsideMessage) ||
+      (Boolean(resolvedMunicipality) && !resolvedMunicipality?.onboarded));
 
   const canProceed =
     description.trim().length >= minDescriptionLen &&
@@ -262,6 +268,7 @@ export default function NewReport({
       <motion.div className={`flex items-center justify-between border-b p-4 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
         <button
           type="button"
+          aria-label={lang === 'tr' ? 'Geri dön' : 'Go back'}
           onClick={() => {
             if (step === 0) onCancel();
             else if (step === 1) setStep(0);
@@ -289,7 +296,14 @@ export default function NewReport({
       </motion.div>
 
       {!isOutsideKentiva && (
-        <div className={`h-1 w-full ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+        <div
+          className={`h-1 w-full ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}
+          role="progressbar"
+          aria-label={lang === 'tr' ? 'İhbar oluşturma ilerlemesi' : 'Report creation progress'}
+          aria-valuemin={1}
+          aria-valuemax={3}
+          aria-valuenow={step + 1}
+        >
           <div className="h-full bg-primary transition-all duration-300 ease-out" style={{ width: `${(step / 2) * 100}%` }} />
         </div>
       )}
@@ -324,7 +338,7 @@ export default function NewReport({
           </div>
         ) : (
           <div className="space-y-5 flex-1">
-            {step === 0 && (latitude === null || longitude === null) && (
+            {step === 0 && (latitude === null || longitude === null || municipalityLookupFailed) && (
               <div className="flex flex-1 flex-col items-center justify-center p-6 text-center my-auto min-h-[50vh]">
                 {locationError ? (
                   <div className="space-y-4 max-w-xs">
@@ -332,26 +346,39 @@ export default function NewReport({
                       <MapPin className="h-6 w-6" />
                     </div>
                     <h3 className={`text-base font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                      {lang === 'tr' ? 'Konum Alınamadı' : 'Location Not Found'}
+                      {municipalityLookupFailed
+                        ? (lang === 'tr' ? 'Bölge doğrulanamadı' : 'Region could not be verified')
+                        : (lang === 'tr' ? 'Konum Alınamadı' : 'Location Not Found')}
                     </h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold leading-relaxed">
                       {locationError}
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const fallbackLat = defaultMunicipality?.centerLat || 41.2507;
-                        const fallbackLng = defaultMunicipality?.centerLng || 32.6942;
-                        void handleManualLocation(fallbackLat, fallbackLng);
-                      }}
-                      className="w-full rounded-xl bg-primary py-2.5 text-xs font-bold text-white shadow-md active:scale-95 transition-all cursor-pointer"
-                    >
-                      {lang === 'tr' ? 'Manuel Konum Belirle' : 'Set Location Manually'}
-                    </button>
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => void getPosition()}
+                        className="w-full rounded-xl bg-primary py-2.5 text-xs font-bold text-white shadow-md active:scale-95 transition-all cursor-pointer"
+                      >
+                        {lang === 'tr' ? 'Konumu yeniden dene' : 'Try location again'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const fallbackLat = defaultMunicipality?.centerLat || 41.2507;
+                          const fallbackLng = defaultMunicipality?.centerLng || 32.6942;
+                          void handleManualLocation(fallbackLat, fallbackLng);
+                        }}
+                        className={`w-full rounded-xl border py-2.5 text-xs font-bold transition-all active:scale-95 ${
+                          isDark ? 'border-slate-700 text-slate-200' : 'border-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {lang === 'tr' ? 'Haritadan manuel belirle' : 'Set manually on map'}
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <>
-                    <div className="relative mb-6 flex h-20 w-20 items-center justify-center">
+                  <div className="flex flex-col items-center justify-center text-center w-full">
+                    <div className="relative mb-6 flex h-20 w-20 items-center justify-center mx-auto">
                       <div className="absolute inset-0 animate-ping rounded-full bg-primary/20" />
                       <div className="absolute inset-2 animate-pulse rounded-full bg-primary/30" />
                       <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-white shadow-lg">
@@ -361,7 +388,7 @@ export default function NewReport({
                     <h3 className={`text-base font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
                       {lang === 'tr' ? 'Konumunuz Belirleniyor' : 'Detecting Your Location'}
                     </h3>
-                    <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400 font-semibold max-w-xs">
+                    <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400 font-semibold max-w-xs mx-auto">
                       {lang === 'tr'
                         ? 'En doğru ihbar koordinatları için hassas GPS bağlantısı kuruluyor. Lütfen bekleyin...'
                         : 'Establishing high-accuracy GPS connection for precise report mapping. Please wait...'}
@@ -373,16 +400,16 @@ export default function NewReport({
                         const fallbackLng = defaultMunicipality?.centerLng || 32.6942;
                         void handleManualLocation(fallbackLat, fallbackLng);
                       }}
-                      className="mt-6 text-xs font-semibold text-primary underline cursor-pointer"
+                      className="mt-6 text-xs font-semibold text-primary underline cursor-pointer mx-auto"
                     >
                       {lang === 'tr' ? 'Beklemeden Manuel Seç' : 'Skip & Select Manually'}
                     </button>
-                  </>
+                  </div>
                 )}
               </div>
             )}
 
-            {step === 0 && latitude !== null && longitude !== null && (
+            {step === 0 && latitude !== null && longitude !== null && !municipalityLookupFailed && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -643,6 +670,9 @@ export default function NewReport({
 
         {step === 2 && (
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-4">
+            <h2 className={`text-base font-extrabold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              {lang === 'tr' ? 'Göndermeden önce son kontrol' : 'Final check before sending'}
+            </h2>
             <motion.div
               className={`overflow-hidden rounded-2xl border shadow-sm ${
                 isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'
@@ -682,7 +712,7 @@ export default function NewReport({
             </motion.div>
 
             {error && (
-              <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
+              <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
                 {error}
               </div>
             )}

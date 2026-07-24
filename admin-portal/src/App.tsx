@@ -201,10 +201,11 @@ const Sidebar = ({
       })();
 
   return (
-    <aside className={`fixed inset-y-0 left-0 z-50 w-72 border-r border-slate-200/90 bg-white transition-transform duration-200 dark:border-slate-800 dark:bg-slate-900 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
+    <aside className={`fixed inset-y-0 left-0 z-50 w-72 border-r border-slate-200/70 bg-white/95 shadow-[12px_0_40px_-30px_rgba(15,23,42,0.35)] backdrop-blur-xl transition-transform duration-200 dark:border-slate-800 dark:bg-slate-950/95 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
       <div className="flex flex-col h-full">
-        <div className="flex items-center gap-3 border-b border-slate-200/80 px-5 py-3.5 dark:border-slate-800">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary text-white shadow-sm ring-1 ring-slate-900/5 dark:ring-white/10">
+        <div className="relative flex items-center gap-3 border-b border-slate-200/70 px-5 py-5 dark:border-slate-800">
+          <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-primary via-sky-400 to-emerald-400" />
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-sky-600 text-white shadow-lg shadow-primary/20 ring-1 ring-white/20">
             <Building2 size={20} strokeWidth={2} />
           </div>
           <div className="min-w-0">
@@ -213,7 +214,7 @@ const Sidebar = ({
           </div>
         </div>
 
-        <nav className="flex-1 space-y-3 px-3 py-3 overflow-y-auto">
+        <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-5">
           {menuGroups.map((group) => {
             if (group.items.length === 0) return null;
             return (
@@ -231,10 +232,10 @@ const Sidebar = ({
                       key={item.name}
                       to={item.path}
                       onClick={() => setOpen(false)}
-                      className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
+                      className={`group relative flex min-h-10 items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition-all ${
                         isActive
-                          ? 'bg-slate-100 text-primary dark:bg-slate-800 dark:text-sky-300'
-                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-slate-100'
+                          ? 'bg-primary text-white shadow-md shadow-primary/15 dark:bg-primary dark:text-white'
+                          : 'text-slate-600 hover:translate-x-0.5 hover:bg-slate-100/80 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-white'
                       }`}
                     >
                       <item.icon size={18} strokeWidth={isActive ? 2.25 : 2} />
@@ -401,7 +402,7 @@ const Header = ({
   }, [dropdownOpen]);
 
   return (
-    <header className="sticky top-0 z-45 flex h-[4.25rem] items-center justify-between border-b border-slate-200/90 bg-white/95 px-4 backdrop-blur-md sm:px-6 dark:border-slate-800 dark:bg-slate-900/95">
+    <header className="sticky top-0 z-45 flex h-[4.5rem] items-center justify-between border-b border-slate-200/70 bg-white/80 px-4 backdrop-blur-xl sm:px-6 dark:border-slate-800 dark:bg-slate-950/80">
       <button type="button" onClick={() => setSidebarOpen(true)} className="kentiva-btn-icon lg:hidden" aria-label="Menüyü aç">
         <Menu />
       </button>
@@ -413,7 +414,7 @@ const Header = ({
           if (q) navigate(`/reports?q=${encodeURIComponent(q)}`);
           else navigate('/reports');
         }}
-        className="hidden w-full max-w-md items-center gap-2 rounded-xl border border-slate-200/90 bg-slate-50/90 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/50 md:flex"
+        className="hidden w-full max-w-lg items-center gap-2 rounded-xl border border-slate-200/90 bg-slate-100/70 px-3.5 py-2.5 shadow-inner shadow-slate-200/30 transition focus-within:border-primary/35 focus-within:bg-white focus-within:ring-4 focus-within:ring-primary/5 dark:border-slate-700 dark:bg-slate-900/70 dark:shadow-none dark:focus-within:bg-slate-900 md:flex"
       >
         <Search size={17} className="shrink-0 text-slate-400" />
         <input
@@ -646,12 +647,14 @@ const MunicipalityDashboard = ({ user }: { user: AuthenticatedPortalUser }) => {
   ];
 
   return (
-    <div className="space-y-8 p-6">
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+    <div className="mx-auto max-w-[1600px] space-y-7 p-4 sm:p-6 lg:p-8">
+      <div className="relative overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-[0_24px_70px_-40px_rgba(15,23,42,0.4)] sm:p-8 dark:border-slate-800 dark:bg-slate-900">
+        <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-primary/8 blur-3xl" />
+        <div className="relative flex flex-col justify-between gap-5 md:flex-row md:items-end">
         <div>
-          <p className="kentiva-eyebrow">Özet</p>
-          <h2 className="kentiva-page-title">Hoş geldiniz</h2>
-          <p className="kentiva-page-subtitle">Operasyon özeti ve canlı harita.</p>
+          <p className="kentiva-eyebrow">Operasyon merkezi</p>
+          <h2 className="mt-2 text-3xl font-black tracking-[-0.04em] text-slate-950 sm:text-4xl dark:text-white">Hoş geldiniz</h2>
+          <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-slate-500 dark:text-slate-400">Kent genelindeki talepleri, saha operasyonlarını ve hizmet performansını tek merkezden yönetin.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -672,6 +675,7 @@ const MunicipalityDashboard = ({ user }: { user: AuthenticatedPortalUser }) => {
             <Download size={17} />
             {exporting === 'pdf' ? 'İndiriliyor…' : 'PDF'}
           </button>
+        </div>
         </div>
       </div>
 
@@ -717,16 +721,16 @@ const MunicipalityDashboard = ({ user }: { user: AuthenticatedPortalUser }) => {
         {statCards.map((stat) => (
           <div
             key={stat.name}
-            className="group flex items-center gap-3 rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm transition-all hover:border-primary/20 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-primary/25"
+            className="group relative flex min-h-24 items-center gap-3 overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900 dark:hover:border-primary/25"
           >
             <div
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${stat.iconWrap}`}
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${stat.iconWrap}`}
             >
               <stat.icon size={18} strokeWidth={2.2} />
             </div>
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">{stat.name}</p>
-              <p className="text-xl font-extrabold tabular-nums text-slate-900 dark:text-white leading-none mt-0.5">{stat.value}</p>
+              <p className="mt-1 text-2xl font-black leading-none tabular-nums tracking-tight text-slate-950 dark:text-white">{stat.value}</p>
             </div>
           </div>
         ))}
@@ -873,7 +877,7 @@ const App = () => {
 
   return (
     <LanguageProvider>
-      <Router>
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <ErrorBoundary>
         <Routes>
         <Route
@@ -896,6 +900,8 @@ const App = () => {
             user ? <Navigate to="/" /> : hostPortal === 'municipality' ? <Navigate to="/municipality/login" replace /> : <LoginPage portal="super-admin" onLogin={setUser} />
           }
         />
+        <Route path="/platform/login" element={<Navigate to="/super-admin/login" replace />} />
+        <Route path="/owner/login" element={<Navigate to="/super-admin/login" replace />} />
         <Route
           path="/municipality/login"
           element={
@@ -906,7 +912,7 @@ const App = () => {
         <Route path="/*" element={
           !user ? <Navigate to={loginRedirectPath} replace /> : (
             <ReportLiveProvider municipalityId={user.municipality?.id}>
-            <div className="flex min-h-screen bg-slate-100 dark:bg-slate-950">
+            <div className="kentiva-app-shell flex min-h-screen bg-slate-100 dark:bg-slate-950">
               <Sidebar isOpen={sidebarOpen} setOpen={setSidebarOpen} user={user} />
               
               <div className="flex flex-1 flex-col lg:ml-72">
@@ -914,7 +920,7 @@ const App = () => {
                   user={user}
                   setSidebarOpen={setSidebarOpen}
                 />
-                <main className="flex-1 overflow-x-hidden">
+                <main className="relative flex-1 overflow-x-hidden">
                   <Suspense fallback={<PageFallback />}>
                   <Routes>
                     <Route path="/" element={<Dashboard user={user} />} />

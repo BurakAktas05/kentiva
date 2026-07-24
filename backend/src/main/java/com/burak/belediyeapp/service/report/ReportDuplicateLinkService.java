@@ -7,12 +7,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
 
 import com.burak.belediyeapp.service.ai.GeminiService;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Yakın konumdaki aktif ihbarları aynı {@code duplicate_group_id} altında birleştirir.
@@ -28,22 +31,51 @@ public class ReportDuplicateLinkService {
     @Value("${app.report.duplicate-radius-meters:75}")
     private double radiusMeters;
 
+    /** Kesin eşleşme (auto-link) threshold — düşük = daha sıkı, yüksek = daha gevşek. */
+    @Value("${app.report.duplicate.strict-threshold:0.12}")
+    private double strictThreshold;
+
+    /** Sınırda eşleşme (LLM doğrulama) threshold. */
+    @Value("${app.report.duplicate.borderline-threshold:0.28}")
+    private double borderlineThreshold;
+
+    /** Gemini 429/503 retry — maksimum deneme. */
+    @Value("${app.report.duplicate.max-retries:3}")
+    private int maxRetries;
+
     @org.springframework.beans.factory.annotation.Autowired
     @org.springframework.context.annotation.Lazy
     private ReportDuplicateLinkService self;
 
-    @Transactional
+    // ── Hata sayaçları (metrik/loglama) ──────────────────
+    private final AtomicLong embeddingFailureCount = new AtomicLong(0);
+    private final AtomicLong semanticSearchFailureCount = new AtomicLong(0);
+    private final AtomicLong rateLimitHitCount = new AtomicLong(0);
+
     public void linkNearbyDuplicatesOptimized(String reportId) {
-        Report report = reportRepository.findById(reportId).orElse(null);
-        if (report == null || report.getLocation() == null || report.getMunicipality() == null) {
+        // Keep the database transaction short: external AI calls and retry waits must
+        // never retain a Hikari connection under load.
+        DuplicateContext initialContext = self.loadDuplicateContext(reportId);
+        if (initialContext == null) {
             return;
         }
+        Report report = initialContext.report();
 
-        // 1. Gemini'dan embedding al
-        double[] embedding = geminiService.getEmbedding(report.getTitle(), report.getDescription());
+        // 1. Gemini'dan embedding al (retry ile). Missing optional AI
+        // configuration is an expected operating mode, not a per-report warning.
+        boolean duplicateAiAvailable = geminiService.isDuplicateDetectionAvailable();
+        double[] embedding = duplicateAiAvailable
+                ? getEmbeddingWithRetry(report.getTitle(), report.getDescription())
+                : null;
         if (embedding == null) {
-            log.warn("Embedding üretilemedi, konum tabanlı fallback akışı devreye alınıyor: reportId={}", reportId);
-            linkNearbyDuplicates(reportId);
+            if (duplicateAiAvailable) {
+                long failureCount = embeddingFailureCount.incrementAndGet();
+                log.warn("Embedding üretilemedi (toplam başarısızlık: {}), konum tabanlı fallback akışı devreye alınıyor: reportId={}",
+                        failureCount, reportId);
+            } else {
+                log.debug("Duplicate AI yapılandırılmadı; konum tabanlı fallback kullanılıyor: reportId={}", reportId);
+            }
+            linkNearbyDuplicates(initialContext);
             return;
         }
 
@@ -57,7 +89,7 @@ public class ReportDuplicateLinkService {
             String categoryId = report.getCategory() != null ? report.getCategory().getId() : null;
             java.util.List<Report> duplicatesToLink = new java.util.ArrayList<>();
 
-            // Kesin eşleşme threshold'u: 0.12 (Direct Auto-Link, LLM çağrısı yok)
+            // Kesin eşleşme threshold'u: strictThreshold (Direct Auto-Link, LLM çağrısı yok)
             java.util.List<Report> strictMatches = reportRepository.findSemanticNearbyInMunicipality(
                     report.getLocation().getY(),
                     report.getLocation().getX(),
@@ -66,7 +98,7 @@ public class ReportDuplicateLinkService {
                     reportId,
                     categoryId,
                     embeddingString,
-                    0.12,
+                    strictThreshold,
                     10
             );
 
@@ -74,7 +106,7 @@ public class ReportDuplicateLinkService {
                 log.info("Semantik kesin eşleşmeler (Auto-Link) bulundu. Adet={}", strictMatches.size());
                 duplicatesToLink.addAll(strictMatches);
             } else {
-                // Sınırda eşleşme threshold'u: 0.28 (LLM ile doğrulama gerekir)
+                // Sınırda eşleşme threshold'u: borderlineThreshold (LLM ile doğrulama gerekir)
                 java.util.List<Report> borderlineMatches = reportRepository.findSemanticNearbyInMunicipality(
                         report.getLocation().getY(),
                         report.getLocation().getX(),
@@ -83,7 +115,7 @@ public class ReportDuplicateLinkService {
                         reportId,
                         categoryId,
                         embeddingString,
-                        0.28,
+                        borderlineThreshold,
                         5
                 );
                 
@@ -118,17 +150,43 @@ public class ReportDuplicateLinkService {
             }
 
             if (!reportIdsToUpdate.isEmpty()) {
-                persistDuplicateGroupId(reportIdsToUpdate, groupId);
+                self.persistDuplicateGroupId(reportIdsToUpdate, groupId);
             }
+        } catch (HttpClientErrorException e) {
+            semanticSearchFailureCount.incrementAndGet();
+            if (e.getStatusCode().value() == 429) {
+                rateLimitHitCount.incrementAndGet();
+                log.error("Gemini API 429 Rate Limit aşıldı (toplam: {}). Konum tabanlı fallback aktif. reportId={}",
+                        rateLimitHitCount.get(), reportId);
+            } else {
+                log.warn("Gemini API istemci hatası (HTTP {}): reportId={}, mesaj={}",
+                        e.getStatusCode().value(), reportId, e.getMessage());
+            }
+            linkNearbyDuplicates(initialContext);
+        } catch (HttpServerErrorException e) {
+            semanticSearchFailureCount.incrementAndGet();
+            log.error("Gemini API sunucu hatası (HTTP {}): reportId={}, mesaj={}",
+                    e.getStatusCode().value(), reportId, e.getMessage());
+            linkNearbyDuplicates(initialContext);
         } catch (Exception e) {
-            log.warn("pgvector/Embedding araması başarısız oldu (muhtemelen pgvector eklentisi kurulu değil), konum tabanlı fallback akışı devreye alınıyor: {}", e.getMessage());
-            linkNearbyDuplicates(reportId);
+            semanticSearchFailureCount.incrementAndGet();
+            log.warn("pgvector/Embedding araması başarısız oldu (toplam hata: {}), konum tabanlı fallback akışı devreye alınıyor: reportId={}, hata={}",
+                    semanticSearchFailureCount.get(), reportId, e.getMessage());
+            linkNearbyDuplicates(initialContext);
         }
     }
 
     public void linkNearbyDuplicates(String reportId) {
         DuplicateContext ctx = self.loadDuplicateContext(reportId);
         if (ctx == null || ctx.nearby().isEmpty()) {
+            return;
+        }
+
+        linkNearbyDuplicates(ctx);
+    }
+
+    private void linkNearbyDuplicates(DuplicateContext ctx) {
+        if (ctx.nearby().isEmpty()) {
             return;
         }
 
@@ -163,7 +221,7 @@ public class ReportDuplicateLinkService {
             }
         }
         if (!groupId.equals(currentGroupId)) {
-            reportIdsToUpdate.add(reportId);
+            reportIdsToUpdate.add(ctx.report().getId());
         }
 
         if (!reportIdsToUpdate.isEmpty()) {
@@ -246,4 +304,95 @@ public class ReportDuplicateLinkService {
         }
         return reportRepository.findByDuplicateGroupIdAndIdNot(duplicateGroupId, excludeReportId);
     }
+
+    /**
+     * Gemini embedding API çağrısını exponential backoff ile yeniden dener.
+     * 429 (Rate Limit) ve 503 (Service Unavailable) hatalarında bekleme süresi artarak tekrar dener.
+     */
+    private double[] getEmbeddingWithRetry(String title, String description) {
+        if (!geminiService.isDuplicateDetectionAvailable()) {
+            return null;
+        }
+
+        long backoffMs = 500;
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                double[] result = geminiService.getEmbedding(title, description);
+                if (isValidEmbedding(result)) {
+                    return result;
+                }
+                // A null result is a fail-soft signal, not a transient transport
+                // failure. Retrying it only occupies async workers under load.
+                return null;
+            } catch (HttpClientErrorException e) {
+                if (e.getStatusCode().value() == 429) {
+                    rateLimitHitCount.incrementAndGet();
+                    if (attempt >= maxRetries) {
+                        log.warn("Gemini embedding 429 Rate Limit (son deneme {}/{}).", attempt, maxRetries);
+                        break;
+                    }
+                    log.warn("Gemini embedding 429 Rate Limit (deneme {}/{}). {}ms sonra tekrar denenecek.",
+                            attempt, maxRetries, backoffMs);
+                    if (!sleepQuietly(backoffMs)) {
+                        return null;
+                    }
+                    backoffMs = Math.min(backoffMs * 2, 8000);
+                    continue;
+                }
+                log.warn("Gemini embedding istemci hatası (HTTP {}, deneme {}/{}): {}",
+                        e.getStatusCode().value(), attempt, maxRetries, e.getMessage());
+                return null;
+            } catch (HttpServerErrorException e) {
+                if (e.getStatusCode().value() == 503 || e.getStatusCode().value() == 500) {
+                    if (attempt >= maxRetries) {
+                        log.warn("Gemini embedding sunucu hatası (HTTP {}, son deneme {}/{}).",
+                                e.getStatusCode().value(), attempt, maxRetries);
+                        break;
+                    }
+                    log.warn("Gemini embedding sunucu hatası (HTTP {}, deneme {}/{}). {}ms sonra tekrar denenecek.",
+                            e.getStatusCode().value(), attempt, maxRetries, backoffMs);
+                    if (!sleepQuietly(backoffMs)) {
+                        return null;
+                    }
+                    backoffMs = Math.min(backoffMs * 2, 8000);
+                    continue;
+                }
+                log.warn("Gemini embedding sunucu hatası (HTTP {}, deneme {}/{}): {}",
+                        e.getStatusCode().value(), attempt, maxRetries, e.getMessage());
+                return null;
+            } catch (Exception e) {
+                log.warn("Gemini embedding beklenmeyen hata (deneme {}/{}): {}",
+                        attempt, maxRetries, e.getMessage());
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static boolean isValidEmbedding(double[] embedding) {
+        if (embedding == null || embedding.length == 0) {
+            return false;
+        }
+        for (double value : embedding) {
+            if (!Double.isFinite(value)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean sleepQuietly(long ms) {
+        try {
+            Thread.sleep(ms);
+            return true;
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    /** Hata metriklerine erişim (monitoring/actuator amaçlı). */
+    public long getEmbeddingFailureCount() { return embeddingFailureCount.get(); }
+    public long getSemanticSearchFailureCount() { return semanticSearchFailureCount.get(); }
+    public long getRateLimitHitCount() { return rateLimitHitCount.get(); }
 }

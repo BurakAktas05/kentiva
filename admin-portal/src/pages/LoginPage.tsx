@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { inferMunicipalitySlugFromHostname, publicSiteRootDomain } from '../lib/tenantDomains';
+import { municipalityPortalUrl, requestedMunicipalitySlug } from '../lib/tenantDomains';
 import {
   ArrowRight,
   Building2,
   LockKeyhole,
   Shield,
+  CheckCircle2,
+  Network,
+  BarChart3,
+  BadgeCheck,
 } from 'lucide-react';
 import axios from 'axios';
 import api, { clearAuthStorage, setStoredAuthTokens } from '../api';
@@ -65,9 +69,9 @@ function buildPortalError(portal: LoginPortalKind, user?: AuthenticatedPortalUse
     return 'Bu hesap süper admin giriş alanına uygun değil.';
   }
   if (user && user.municipality && typeof window !== 'undefined') {
-    const slugFromHost = inferMunicipalitySlugFromHostname(window.location.hostname);
-    if (slugFromHost && user.municipality.slug !== slugFromHost) {
-      return `Bu hesap bu çalışma alanına (${slugFromHost}) ait değil.`;
+    const requestedSlug = requestedMunicipalitySlug();
+    if (requestedSlug && user.municipality.slug !== requestedSlug) {
+      return `Bu hesap bu çalışma alanına (${requestedSlug}) ait değil.`;
     }
   }
   return 'Bu hesap belediye çalışma alanına bağlı değil.';
@@ -79,8 +83,8 @@ function isPortalAllowed(portal: LoginPortalKind, user: AuthenticatedPortalUser)
   }
   if (!user.municipality) return false;
   if (typeof window !== 'undefined') {
-    const slugFromHost = inferMunicipalitySlugFromHostname(window.location.hostname);
-    if (slugFromHost && user.municipality.slug !== slugFromHost) {
+    const requestedSlug = requestedMunicipalitySlug();
+    if (requestedSlug && user.municipality.slug !== requestedSlug) {
       return false;
     }
   }
@@ -98,17 +102,7 @@ export function LoginLandingPage() {
       return;
     }
     const cleanSlug = slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
-    const rootDomain = publicSiteRootDomain() || 'localhost';
-    const protocol = window.location.protocol;
-    const port = window.location.port ? `:${window.location.port}` : '';
-    
-    let targetUrl = '';
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      targetUrl = `${protocol}//${cleanSlug}.localhost${port}/municipality/login`;
-    } else {
-      targetUrl = `${protocol}//${cleanSlug}.${rootDomain}${port}/municipality/login`;
-    }
-    window.location.href = targetUrl;
+    window.location.href = municipalityPortalUrl(cleanSlug);
   };
 
   const quickLinks = [
@@ -118,25 +112,38 @@ export function LoginLandingPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_32%),linear-gradient(135deg,#e2ecf8_0%,#f8fafc_46%,#d7e5f7_100%)] px-6 py-10 dark:bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_32%),linear-gradient(135deg,#020617_0%,#0f172a_48%,#111827_100%)] flex flex-col justify-between">
-      <div className="mx-auto flex flex-1 flex-col justify-center items-center max-w-xl w-full">
-        <div className="text-center mb-8">
-          <div className="inline-flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-primary to-primary-dark text-white shadow-xl shadow-primary/25 mb-4">
-            <Building2 className="h-8 w-8" />
+    <div className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(14,165,233,.22),transparent_30%),radial-gradient(circle_at_85%_80%,rgba(11,79,156,.28),transparent_34%)]" />
+      <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(255,255,255,.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.08)_1px,transparent_1px)] [background-size:48px_48px]" />
+      <div className="relative mx-auto grid min-h-screen max-w-[1440px] lg:grid-cols-[1.1fr_.9fr]">
+        <section className="flex flex-col justify-between px-6 py-8 sm:px-10 lg:px-16 lg:py-12">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 to-primary shadow-lg shadow-sky-500/20"><Building2 className="h-5 w-5" /></div>
+            <div><p className="text-lg font-black tracking-tight">Kentiva</p><p className="text-[9px] font-bold uppercase tracking-[.2em] text-sky-200/70">Akıllı belediye platformu</p></div>
           </div>
-          <p className="kentiva-eyebrow justify-center">Kentiva Portal Girişi</p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950 dark:text-white md:text-4xl">
-            Belediye Çalışma Alanınıza Girin
-          </h1>
-          <p className="mt-3 text-sm font-medium leading-relaxed text-slate-600 dark:text-slate-300 text-center">
-            Belediyenize özel yönetim portalına erişmek için çalışma alanı adını (slug) girin.
-          </p>
-        </div>
 
-        <div className="w-full rounded-[2.5rem] border border-white/70 bg-white/90 p-8 shadow-[0_24px_60px_-28px_rgba(15,23,42,0.28)] dark:border-slate-700/80 dark:bg-slate-900/88">
+          <div className="max-w-2xl py-16 lg:py-10">
+            <div className="inline-flex items-center gap-2 rounded-full border border-sky-300/20 bg-sky-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.15em] text-sky-200"><BadgeCheck className="h-3.5 w-3.5" /> Kurumsal operasyon altyapısı</div>
+            <h1 className="mt-6 text-4xl font-black leading-[1.08] tracking-[-.045em] sm:text-5xl lg:text-6xl">Belediye hizmetlerini tek merkezden yönetin.</h1>
+            <p className="mt-6 max-w-xl text-base font-medium leading-7 text-slate-300">Vatandaş taleplerinden saha ekiplerine, yönetici analizlerinden kurumsal iletişime kadar tüm süreçler güvenli ve ölçülebilir bir çalışma alanında.</p>
+            <div className="mt-9 grid gap-4 sm:grid-cols-3">
+              <TrustItem icon={<Network />} title="Uçtan uca süreç" text="Beyaz masa ve saha koordinasyonu" />
+              <TrustItem icon={<BarChart3 />} title="Karar desteği" text="Canlı performans ve SLA takibi" />
+              <TrustItem icon={<Shield />} title="Güvenli mimari" text="Rol bazlı, belediyeye özel alan" />
+            </div>
+          </div>
+
+          <p className="text-xs font-semibold text-slate-500">© {new Date().getFullYear()} Kentiva · Güvenli belediye operasyonları</p>
+        </section>
+
+        <section className="flex items-center justify-center border-l border-white/10 bg-white/[.035] px-6 py-12 backdrop-blur-sm sm:px-10 lg:px-14">
+          <div className="w-full max-w-lg rounded-[2rem] border border-white/10 bg-white p-7 text-slate-900 shadow-[0_40px_100px_-30px_rgba(0,0,0,.7)] sm:p-9 dark:bg-slate-900 dark:text-white">
+            <p className="text-[10px] font-black uppercase tracking-[.16em] text-primary dark:text-sky-300">Güvenli portal erişimi</p>
+            <h2 className="mt-2 text-3xl font-black tracking-[-.035em]">Çalışma alanınıza girin</h2>
+            <p className="mt-2 text-sm font-medium leading-6 text-slate-500 dark:text-slate-400">Belediyenize özel yönetim portalının adresini kullanın.</p>
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <label className="kentiva-label">Çalışma Alanı Adresi</label>
+            <div className="mt-7 space-y-2">
+              <label className="kentiva-label">Kurumsal çalışma alanı</label>
               <div className="relative flex items-center">
                 <div className="pointer-events-none absolute left-4 text-slate-400">
                   <Building2 className="h-5 w-5" />
@@ -152,11 +159,16 @@ export function LoginLandingPage() {
                   className="kentiva-input !pl-12 !pr-36 !rounded-2xl !py-4 font-semibold text-slate-800 dark:text-white"
                   required
                 />
-                <div className="absolute right-4 text-sm font-bold text-slate-400 select-none">
-                  .kentiva.com.tr
+                <div className="absolute right-4 text-[10px] font-black uppercase tracking-[.12em] text-slate-400 select-none">
+                  Portal kodu
                 </div>
               </div>
               {error && <p className="text-xs font-bold text-rose-500 mt-1">{error}</p>}
+              {!error && (
+                <p className="mt-1 truncate text-[11px] font-semibold text-slate-400">
+                  {municipalityPortalUrl(slug.trim() || 'belediye-adi').replace(/^https?:\/\//, '')}
+                </p>
+              )}
             </div>
 
             <button type="submit" className="kentiva-btn-primary w-full !rounded-2xl !py-4 flex items-center justify-center gap-2 text-base font-bold shadow-lg shadow-primary/20">
@@ -165,8 +177,8 @@ export function LoginLandingPage() {
             </button>
           </form>
 
-          <div className="mt-8 border-t border-slate-200/60 pt-6 dark:border-slate-800">
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Hızlı Erişim (Test)</p>
+          {import.meta.env.DEV && <div className="mt-8 border-t border-slate-200/60 pt-6 dark:border-slate-800">
+            <p className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">Geliştirme kısayolları</p>
             <div className="grid gap-2 sm:grid-cols-3">
               {quickLinks.map((link) => (
                 <button
@@ -179,17 +191,18 @@ export function LoginLandingPage() {
                 </button>
               ))}
             </div>
-          </div>
+          </div>}
+          <div className="mt-7 flex items-center gap-2 rounded-xl bg-emerald-50 px-3.5 py-3 text-xs font-bold text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300"><CheckCircle2 className="h-4 w-4" /> Güvenli bağlantı ve kurumsal veri ayrımı etkin</div>
+          <Link to="/super-admin/login" className="mt-6 block text-center text-xs font-bold text-slate-400 transition hover:text-primary">Merkezi sistem yönetimi</Link>
         </div>
-      </div>
-
-      <div className="text-center py-4">
-        <Link to="/super-admin/login" className="text-xs font-bold text-slate-400 hover:text-primary transition dark:text-slate-500 dark:hover:text-primary">
-          Sistem Yönetim Geçidi (Süper Admin)
-        </Link>
+        </section>
       </div>
     </div>
   );
+}
+
+function TrustItem({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
+  return <div className="border-l border-white/15 pl-4"><span className="text-sky-300 [&>svg]:h-5 [&>svg]:w-5">{icon}</span><p className="mt-3 text-sm font-extrabold">{title}</p><p className="mt-1 text-xs leading-5 text-slate-400">{text}</p></div>;
 }
 
 export default function LoginPage({
@@ -411,9 +424,9 @@ export default function LoginPage({
                       placeholder="000000"
                       required
                     />
-                    <p className="text-[11px] text-center font-bold text-slate-400">
+                    {import.meta.env.DEV && <p className="text-[11px] text-center font-bold text-slate-400">
                       Test için kod: <code className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-primary">123456</code> veya <code className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-primary">000000</code>
-                    </p>
+                    </p>}
                     {smsError && <p className="kentiva-alert-error !rounded-2xl text-center">{smsError}</p>}
                   </div>
 
@@ -421,13 +434,13 @@ export default function LoginPage({
                     <button type="submit" className="kentiva-btn-primary w-full !rounded-2xl !py-4 font-bold shadow-lg shadow-primary/20">
                       Kodu Doğrula ve Giriş Yap
                     </button>
-                    <button
+                    {import.meta.env.DEV && <button
                       type="button"
                       onClick={completeLogin}
                       className="kentiva-btn-secondary w-full !rounded-2xl !py-4 font-bold border-dashed border-2 hover:border-primary hover:text-primary transition"
                     >
                       Doğrulamayı Atla (Test)
-                    </button>
+                    </button>}
                     <button
                       type="button"
                       onClick={() => setLoginStep('credentials')}

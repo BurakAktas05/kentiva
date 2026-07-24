@@ -1,5 +1,5 @@
 import { Building2, ChevronRight } from 'lucide-react';
-import type { PublicTenant } from '../api';
+import { resolveMediaUrl, type PublicTenant } from '../api';
 import { Lang, t } from '../i18n';
 
 type Props = {
@@ -37,20 +37,20 @@ export default function MunicipalityCard({ tenant, lang, isDark, onChange, compa
   return (
     <div className={`rounded-2xl border p-4 shadow-sm ${shell}`}>
       <div className="flex items-start gap-3">
-        {tenant.logoUrl ? (
-          <img
-            src={tenant.logoUrl}
-            alt=""
-            className="h-14 w-14 shrink-0 rounded-xl border border-white/20 bg-white object-contain p-1"
-          />
-        ) : (
-          <div
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary"
-            aria-hidden
-          >
-            <Building2 className="h-7 w-7" />
-          </div>
-        )}
+        <div
+          className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-primary/15 text-primary"
+          aria-hidden
+        >
+          <Building2 className="h-7 w-7" />
+          {tenant.logoUrl ? (
+            <img
+              src={resolveMediaUrl(tenant.logoUrl)}
+              alt=""
+              className="absolute inset-0 h-full w-full border border-white/20 bg-white object-contain p-1"
+              onError={(event) => { event.currentTarget.style.display = 'none'; }}
+            />
+          ) : null}
+        </div>
         <div className="min-w-0 flex-1">
           <span className="inline-flex rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
             {t('settings.municipalityLinked', lang)}

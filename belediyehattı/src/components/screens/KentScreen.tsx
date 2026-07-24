@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { MapPin, ChevronRight, Gift, Phone, Mail, Globe, ExternalLink } from 'lucide-react';
+import { MapPin, ChevronRight, Gift } from 'lucide-react';
 import { fetchPublicStatsOverview, type PublicDepartment, type PublicStatsOverview, type PublicTenant } from '../../api';
 import { Lang, t } from '../../i18n';
 import { screenHeadingClass, screenSubtitleClass } from '../../lib/ui';
 import { PharmacyWidgetCard } from '../home/HomeWidgets';
+import MunicipalitySupportCard from '../MunicipalitySupportCard';
 import CityCalendar from './CityCalendar';
 
 interface KentScreenProps {
@@ -104,88 +105,7 @@ export default function KentScreen({ municipality, department, lang, isDark, onS
           )}
 
           {/* Belediye İletişim Kartı */}
-          {municipality && (municipality.contactPhone || municipality.contactEmail || municipality.websiteUrl) && (
-            <section className={`rounded-2xl border shadow-sm p-4 ${
-              isDark ? 'border-slate-800 bg-slate-900/60' : 'border-slate-200/80 bg-white'
-            }`}>
-              <h3 className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? 'text-sky-300' : 'text-primary'}`}>
-                {t('settings.contact.title', lang)}
-              </h3>
-              <div className="space-y-2">
-                {municipality.contactPhone && (
-                  <a
-                    href={`tel:${municipality.contactPhone}`}
-                    className={`flex items-center justify-between rounded-xl border p-3 transition-all ${
-                      isDark
-                        ? 'border-slate-800 bg-slate-950/50 hover:bg-slate-800/60'
-                        : 'border-slate-100 bg-slate-50/50 hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Phone className="h-4 w-4 text-emerald-500 shrink-0" />
-                      <div>
-                        <span className={`block text-xs font-bold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
-                          {t('settings.contact.phone', lang)}
-                        </span>
-                        <span className="block text-[10px] text-slate-400 font-medium">
-                          {municipality.contactPhone}
-                        </span>
-                      </div>
-                    </div>
-                    <ExternalLink className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                  </a>
-                )}
-                {municipality.contactEmail && (
-                  <a
-                    href={`mailto:${municipality.contactEmail}`}
-                    className={`flex items-center justify-between rounded-xl border p-3 transition-all ${
-                      isDark
-                        ? 'border-slate-800 bg-slate-950/50 hover:bg-slate-800/60'
-                        : 'border-slate-100 bg-slate-50/50 hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Mail className="h-4 w-4 text-primary shrink-0" />
-                      <div>
-                        <span className={`block text-xs font-bold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
-                          {t('settings.contact.email', lang)}
-                        </span>
-                        <span className="block text-[10px] text-slate-400 font-medium truncate max-w-[200px]">
-                          {municipality.contactEmail}
-                        </span>
-                      </div>
-                    </div>
-                    <ExternalLink className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                  </a>
-                )}
-                {municipality.websiteUrl && (
-                  <a
-                    href={municipality.websiteUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className={`flex items-center justify-between rounded-xl border p-3 transition-all ${
-                      isDark
-                        ? 'border-slate-800 bg-slate-950/50 hover:bg-slate-800/60'
-                        : 'border-slate-100 bg-slate-50/50 hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Globe className="h-4 w-4 text-sky-500 shrink-0" />
-                      <div>
-                        <span className={`block text-xs font-bold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
-                          {t('settings.contact.website', lang)}
-                        </span>
-                        <span className="block text-[10px] text-slate-400 font-medium truncate max-w-[200px]">
-                          {municipality.websiteUrl}
-                        </span>
-                      </div>
-                    </div>
-                    <ExternalLink className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                  </a>
-                )}
-              </div>
-            </section>
-          )}
+          <MunicipalitySupportCard municipality={municipality} lang={lang} isDark={isDark} />
 
         </div>
       )}

@@ -21,6 +21,7 @@ public class LocalCacheConfig {
     public CacheManager cacheManager() {
         CaffeineCacheManager cacheManager = new CaffeineCacheManager();
         cacheManager.setCaffeine(Caffeine.newBuilder()
+                .recordStats()
                 .expireAfterWrite(24, TimeUnit.HOURS)
                 .maximumSize(500));
         cacheManager.setCacheNames(List.of(
@@ -30,7 +31,9 @@ public class LocalCacheConfig {
                 CacheNames.DUTY_PHARMACY,
                 CacheNames.DASHBOARD_STATS,
                 CacheNames.DEPARTMENTS,
-                CacheNames.WIDGETS
+                CacheNames.WIDGETS,
+                CacheNames.PILOT_STATS,
+                CacheNames.EXECUTIVE_DASHBOARD
         ));
         return cacheManager;
     }

@@ -13,11 +13,13 @@ import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import java.io.IOException;
 import java.util.Set;
 
 @Service
+@ConditionalOnProperty(prefix = "app.messaging.rabbit", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 @Slf4j
 public class ReportProcessingConsumer {

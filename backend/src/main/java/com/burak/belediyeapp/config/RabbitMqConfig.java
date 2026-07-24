@@ -4,11 +4,13 @@ import org.springframework.amqp.core.*;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import java.util.HashMap;
 import java.util.Map;
 
 @Configuration
+@ConditionalOnProperty(prefix = "app.messaging.rabbit", name = "enabled", havingValue = "true")
 public class RabbitMqConfig {
 
     public static final String REPORT_EXCHANGE = "report.exchange";

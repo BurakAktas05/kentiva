@@ -72,7 +72,12 @@ export function portalForHostname(hostname: string): LoginPortalKind | null {
     return 'municipality';
   }
 
-  if (normalized === `super-admin.${rootDomain}` || normalized === `superadmin.${rootDomain}`) {
+  if (
+    normalized === `super-admin.${rootDomain}` ||
+    normalized === `superadmin.${rootDomain}` ||
+    normalized === `platform.${rootDomain}` ||
+    normalized === `owner.${rootDomain}`
+  ) {
     return 'super-admin';
   }
 

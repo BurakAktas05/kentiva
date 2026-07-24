@@ -1,5 +1,16 @@
 import { useState, useEffect } from 'react';
-import { Building2, ChevronRight, ClipboardList, MapPin, Info, ArrowLeftRight } from 'lucide-react';
+import {
+  ArrowLeftRight,
+  Building2,
+  Camera,
+  ChevronRight,
+  ClipboardList,
+  Info,
+  MapPin,
+  Navigation,
+  Plus,
+  ShieldCheck,
+} from 'lucide-react';
 import {
   getMyReports,
   getPublicAnnouncements,
@@ -17,6 +28,7 @@ import { screenBg, sectionTitleClass } from '../../lib/ui';
 const MY_REPORTS_PREVIEW_SIZE = 3;
 
 interface HomeProps {
+  onCreateReport: () => void;
   onViewMyReports: () => void;
   onOpenAnnouncement: (announcement: ApiAnnouncement) => void;
   onSelectMunicipality?: () => void;
@@ -28,6 +40,7 @@ interface HomeProps {
 }
 
 export default function Home({
+  onCreateReport,
   onViewMyReports,
   onOpenAnnouncement,
   onSelectMunicipality,
@@ -142,6 +155,52 @@ export default function Home({
         <>
           {homeMunicipality?.id ? (
             <div className="px-4 pb-4">
+              <section className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-primary-dark via-primary to-sky-500 p-5 text-white shadow-[0_22px_48px_-24px_rgba(11,79,156,.8)]">
+                <div className="absolute -right-12 -top-16 h-40 w-40 rounded-full border-[28px] border-white/10" />
+                <div className="absolute -bottom-16 right-16 h-32 w-32 rounded-full bg-sky-300/15 blur-2xl" />
+                <div className="relative">
+                  <div className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[.16em] text-sky-100">
+                    <ShieldCheck className="h-4 w-4" />
+                    {lang === 'tr' ? 'Güvenli belediye bildirimi' : 'Secure municipality report'}
+                  </div>
+                  <h3 className="mt-3 max-w-[280px] text-[21px] font-extrabold leading-[1.18] tracking-[-.025em]">
+                    {lang === 'tr' ? 'Kentte gördüğünüz sorunu birkaç adımda bildirin.' : 'Report an issue in your city in a few steps.'}
+                  </h3>
+                  <p className="mt-2 max-w-[300px] text-xs font-medium leading-5 text-blue-100/90">
+                    {lang === 'tr'
+                      ? 'Konumu doğrulayın, fotoğraf ekleyin; süreci belediyenizle şeffaf biçimde takip edin.'
+                      : 'Verify the location, add a photo, and transparently track the process.'}
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={onCreateReport}
+                    className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-extrabold text-primary shadow-lg shadow-slate-950/15 transition hover:bg-sky-50 active:scale-[.98]"
+                  >
+                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10"><Plus className="h-4 w-4" /></span>
+                    {lang === 'tr' ? 'Yeni ihbar oluştur' : 'Create a new report'}
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+
+                  <div className="mt-5 grid grid-cols-3 gap-2 border-t border-white/15 pt-4">
+                    {[
+                      { icon: Navigation, label: lang === 'tr' ? 'GPS konumu' : 'GPS location' },
+                      { icon: Camera, label: lang === 'tr' ? 'Fotoğraf' : 'Photo' },
+                      { icon: ClipboardList, label: lang === 'tr' ? 'Canlı takip' : 'Live tracking' },
+                    ].map(({ icon: Icon, label }) => (
+                      <div key={label} className="flex min-w-0 items-center gap-1.5 text-[10px] font-bold text-blue-50">
+                        <Icon className="h-3.5 w-3.5 shrink-0 text-sky-200" />
+                        <span className="truncate">{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
+            </div>
+          ) : null}
+
+          {homeMunicipality?.id ? (
+            <div className="px-4 pb-4">
               <WeatherWidgetCard tenant={homeMunicipality} lang={lang} isDark={isDark} />
             </div>
           ) : null}
@@ -222,8 +281,8 @@ export default function Home({
       <button
         type="button"
         onClick={onViewMyReports}
-        className={`w-full rounded-2xl border p-4 text-left transition active:scale-[0.99] ${
-          isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white'
+        className={`w-full rounded-[22px] border p-4 text-left shadow-sm transition active:scale-[0.99] ${
+          isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200/80 bg-white'
         }`}
       >
         <div className="flex items-center gap-3">

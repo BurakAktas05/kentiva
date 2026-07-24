@@ -287,7 +287,9 @@ function drawSocialPost(
       const qrSize = Math.min(format.h * 0.5, 160);
       const qrImg = new window.Image();
       qrImg.src = qrDataUrl;
-      try { ctx.drawImage(qrImg, format.w - qrSize - 60, (format.h - qrSize) / 2, qrSize, qrSize); } catch {}
+      try { ctx.drawImage(qrImg, format.w - qrSize - 60, (format.h - qrSize) / 2, qrSize, qrSize); } catch {
+        // QR image may not be decoded yet; the poster remains valid without it.
+      }
     }
   } else {
     // Square layout
@@ -311,7 +313,9 @@ function drawSocialPost(
       const qrSize = Math.min(format.h * 0.3, 240);
       const qrImg = new window.Image();
       qrImg.src = qrDataUrl;
-      try { ctx.drawImage(qrImg, (format.w - qrSize) / 2, format.h * 0.48, qrSize, qrSize); } catch {}
+      try { ctx.drawImage(qrImg, (format.w - qrSize) / 2, format.h * 0.48, qrSize, qrSize); } catch {
+        // QR image may not be decoded yet; the poster remains valid without it.
+      }
     }
 
     ctx.fillStyle = '#64748b';

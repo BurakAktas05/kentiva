@@ -68,7 +68,6 @@ describe('ReportsPage', () => {
 
   const setupGetMock = () => {
     vi.mocked(api.get).mockImplementation((url) => {
-      console.log('api.get called with:', url);
       if (url === '/reports') return Promise.resolve({ data: { data: mockReports } });
       if (url === '/auth/me') return Promise.resolve({ data: { data: mockUserMe } });
       if (url.startsWith('/users')) return Promise.resolve({ data: { data: mockOfficers } });
@@ -80,7 +79,7 @@ describe('ReportsPage', () => {
     setupGetMock();
 
     render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <ReportsPage />
       </MemoryRouter>
     );
@@ -92,14 +91,14 @@ describe('ReportsPage', () => {
     });
 
     // Check metric card
-    expect(screen.getByText('Gorunen kayit')).toBeInTheDocument();
+    expect(screen.getByText('Görünen kayıt')).toBeInTheDocument();
   });
 
   it('filters reports when typing in search input', async () => {
     setupGetMock();
 
     render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <ReportsPage />
       </MemoryRouter>
     );
@@ -127,7 +126,7 @@ describe('ReportsPage', () => {
     });
 
     render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <ReportsPage />
       </MemoryRouter>
     );

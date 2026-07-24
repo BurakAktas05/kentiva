@@ -81,6 +81,7 @@ export default function ReportsPage() {
   const [sessionNewCount, setSessionNewCount] = useState(0);
   const lastHandledReportId = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [slaReferenceTime] = useState<number>(Date.now);
 
   const { latestReport, wsConnected } = useReportLive();
 
@@ -128,8 +129,7 @@ export default function ReportsPage() {
     const start = r.status === 'PROCESSING' && r.processedAt ? r.processedAt : r.createdAt;
     if (!start) return null;
     const startTime = Date.parse(start);
-    const now = Date.now();
-    const elapsedHours = (now - startTime) / (1000 * 60 * 60);
+    const elapsedHours = (slaReferenceTime - startTime) / (1000 * 60 * 60);
     const remaining = limit - elapsedHours;
     return remaining;
   };
@@ -261,7 +261,7 @@ export default function ReportsPage() {
   }, [latestReport, page, size, status, searchText]);
 
   const totalPages = data?.totalPages ?? 0;
-  const rows = data?.content ?? [];
+  const rows = useMemo(() => data?.content ?? [], [data]);
   const filteredRows = useMemo(() => {
     const q = searchText.trim().toLowerCase();
     const fromTs = fromDate ? Date.parse(`${fromDate}T00:00:00`) : null;
@@ -458,7 +458,7 @@ export default function ReportsPage() {
   const colSpan = 8;
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="mx-auto max-w-[1600px] space-y-5 p-4 sm:p-6 lg:p-8">
       {toast && (
         <div
           role="status"
@@ -509,11 +509,12 @@ export default function ReportsPage() {
         )}
       </AnimatePresence>
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="relative flex flex-col gap-5 overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-[0_24px_70px_-40px_rgba(15,23,42,.4)] sm:p-7 lg:flex-row lg:items-end lg:justify-between dark:border-slate-800 dark:bg-slate-900">
+        <div className="pointer-events-none absolute -right-10 -top-20 h-52 w-52 rounded-full bg-sky-400/10 blur-3xl" />
         <div>
-          <p className="kentiva-eyebrow">İş listesi</p>
+          <p className="kentiva-eyebrow">Operasyon kuyruğu</p>
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">Raporlar</h2>
+            <h2 className="text-3xl font-black tracking-[-.04em] text-slate-950 dark:text-white">Rapor yönetimi</h2>
             {sessionNewCount > 0 && (
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500 px-2.5 py-0.5 text-xs font-bold text-white animate-pulse">
                 <Plus className="h-3.5 w-3.5" />
@@ -533,10 +534,10 @@ export default function ReportsPage() {
             </span>
           </div>
           <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">
-            Yeni ihbar gelince kısa bir ses çalar; liste ve bildirimler anında güncellenir.
+            Vatandaş taleplerini öncelik, SLA ve birim sorumluluğuyla yönetin.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex max-w-4xl flex-wrap items-center gap-2">
           {canCreateWhiteDesk && currentUser?.municipality && (
             <Link
               to="/reports/new-white-desk"
@@ -646,18 +647,18 @@ export default function ReportsPage() {
       </div>
 
       <div className="grid gap-3 xl:grid-cols-[1fr_1fr_1fr_1.45fr]">
-        <MetricCard label="Gorunen kayit" value={String(filteredRows.length)} helper="Bu sayfada filtreye uyanlar" />
-        <MetricCard label="Bekleyen" value={String(visiblePending)} helper="Hizli mudahale gerektirenler" />
-        <MetricCard label="Cozulen" value={String(visibleResolved)} helper="Bu sayfada kapananlar" />
-        <div className="rounded-3xl border border-slate-200/90 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <MetricCard label="Görünen kayıt" value={String(filteredRows.length)} helper="Aktif filtrelere uyan kayıtlar" />
+        <MetricCard label="Bekleyen" value={String(visiblePending)} helper="Hızlı müdahale gerektirenler" />
+        <MetricCard label="Çözülen" value={String(visibleResolved)} helper="Bu görünümde sonuçlananlar" />
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_12px_35px_-25px_rgba(15,23,42,.35)] dark:border-slate-800 dark:bg-slate-900">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
-                Hizli export
+                Kurumsal raporlama
               </p>
-              <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">Gorunen raporlari aktar</p>
+              <p className="mt-2 text-sm font-bold text-slate-900 dark:text-white">Görünümü dışa aktar</p>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Arama ve tarih filtresiyle ekranda kalan kayitlar tek tikla disa aktarilir.
+                Filtrelenmiş kayıtları Excel veya PDF formatında paylaşın.
               </p>
             </div>
             <div className="flex gap-2">
@@ -720,7 +721,7 @@ export default function ReportsPage() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_18px_50px_-32px_rgba(15,23,42,.45)] dark:border-slate-800 dark:bg-slate-900">
         {error && (
           <div className="border-b border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
             {error}
@@ -729,7 +730,7 @@ export default function ReportsPage() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-left text-sm">
             <thead>
-              <tr className="border-b border-slate-200/80 bg-slate-50/90 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-400">
+              <tr className="border-b border-slate-200/80 bg-slate-50/90 text-[10px] font-black uppercase tracking-[.1em] text-slate-500 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-400">
                 <th className="w-10 px-3 py-4">
                   <input
                     type="checkbox"
@@ -769,7 +770,7 @@ export default function ReportsPage() {
                 filteredRows.map((r) => (
                   <tr
                     key={r.id}
-                    className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${
+                    className={`transition-colors hover:bg-primary/[.035] dark:hover:bg-slate-800/40 ${
                       selected.has(r.id) ? 'bg-primary/5 dark:bg-primary/10' : ''
                     } ${
                       highlightedIds.has(r.id)
@@ -1028,9 +1029,10 @@ export default function ReportsPage() {
 
 function MetricCard({ label, value, helper }: { label: string; value: string; helper: string }) {
   return (
-    <div className="rounded-3xl border border-slate-200/90 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+    <div className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_12px_35px_-25px_rgba(15,23,42,.35)] transition hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900">
+      <span className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-primary to-sky-400 opacity-70" />
       <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">{label}</p>
-      <p className="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-white">{value}</p>
+      <p className="mt-2 text-3xl font-black tracking-[-.04em] text-slate-950 dark:text-white">{value}</p>
       <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">{helper}</p>
     </div>
   );

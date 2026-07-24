@@ -6,13 +6,16 @@ Bu rehber production ortamını sırayla kurmanız içindir. Tüm anahtarlar iç
 
 | Bileşen | Nerede host | Giriş |
 |---------|-------------|-------|
-| Backend API | **Railway** (Docker) | — |
-| Admin + süper admin | **Vercel** (`admin-portal`) | `/setup`, `/login` |
+| Backend API + PostgreSQL + Redis + RabbitMQ | **Railway / eşdeğer yönetilen altyapı** | — |
+| Belediye yönetim paneli | **Vercel** (`admin-portal`) | `/login` → belediye çalışma alanı |
+| Platform sahibi paneli | Aynı güvenli deployment, ayrı giriş | `/super-admin/login` (`/platform/login` kısayolu) |
 | Kamu sitesi | **Vercel** (`public-site`) | Giriş yok |
 | Vatandaş web (opsiyonel) | **Vercel** (`belediyehattı`) | Kayıt/giriş |
 | Android APK | Yerel derleme | Vatandaş kayıt/giriş |
 
-**Süper admin public site’da değil.** İlk kurulum: `https://<admin-vercel>/setup` → sonra `https://<admin-vercel>/login`.
+**Platform sahibi public site veya belediye girişinde oturum açmaz.** İlk kurulum:
+`https://<admin-vercel>/setup`; sonraki girişler: `https://<admin-vercel>/super-admin/login`.
+Belediye kullanıcıları `https://<admin-vercel>/login` üzerinden kendi çalışma alanına yönlenir.
 
 ---
 
@@ -21,7 +24,8 @@ Bu rehber production ortamını sırayla kurmanız içindir. Tüm anahtarlar iç
 ### 1.1 Proje oluşturma
 
 1. [railway.app](https://railway.app) → New Project → Deploy from GitHub repo (`belediyeapp` kökü).
-2. **PostgreSQL** eklentisi ekleyin (Variables’da `DATABASE_URL` otomatik gelir).
+2. **PostgreSQL**, kalıcı **Redis** ve kalıcı **RabbitMQ** servislerini ekleyin.
+   Bağlantı bilgilerini yalnızca backend servisine secret olarak bağlayın.
 3. Servis ayarları:
    - Build: Dockerfile ([`Dockerfile`](../Dockerfile), [`railway.json`](../railway.json))
    - Healthcheck: `/actuator/health`
@@ -46,8 +50,17 @@ CREATE EXTENSION IF NOT EXISTS postgis;
 | `APP_SETUP_TOKEN` | `openssl rand -hex 32` |
 | `APP_PUBLIC_URL` | `https://<servis>.up.railway.app` |
 | `APP_CORS_ALLOWED_ORIGINS` | Vercel URL’leri (virgülle); önce tahmini yazıp Vercel sonrası güncelleyin |
+| `APP_CACHE_TYPE=redis` + `REDIS_URL` | Dağıtık cache ve rate-limit durumu |
+| `APP_MESSAGING_RABBIT_ENABLED=true` | İhbar sonrası işlerin dayanıklı kuyrukta işlenmesi |
+| `RABBITMQ_HOST/PORT/USERNAME/PASSWORD` | Kalıcı RabbitMQ bağlantısı |
+| `APP_STORAGE_TYPE=s3` + S3/R2 anahtarları | Kalıcı ve ölçeklenebilir medya depolama |
+| `MEDIA_GUARD_FAIL_OPEN=false` | Medya güvenliği üretimde kapalı geçilemez |
+| `MEDIA_VALIDATION_FAIL_OPEN=false` | Medya doğrulaması üretimde kapalı geçilemez |
+| `MEDIA_ANONYMIZATION_FAIL_OPEN=false` | Anonimleştirme üretimde kapalı geçilemez |
 
-**Önerilen:** `APP_STORAGE_TYPE=s3` + R2/S3 anahtarları, `GEMINI_API_KEY`, `FIREBASE_CONFIG_BASE64`.
+**Önerilen:** `GEMINI_API_KEY`, `FIREBASE_CONFIG_BASE64` ve altyapı kapasitesine
+göre Hikari/async/Rabbit consumer değerleri. Prod profili eksik kalıcı depolama,
+Redis, RabbitMQ, SMS, rate-limit veya fail-closed medya ayarıyla başlamayı reddeder.
 
 ### 1.4 Deploy doğrulama
 
@@ -75,7 +88,20 @@ Beklenen: `{"status":"UP"}` (veya benzeri).
 
 ```
 VITE_API_BASE=https://<RAILWAY_HOST>/api/v1
+VITE_ADMIN_PORTAL_BASE_URL=https://<VERCEL_ADMIN_URL>
+VITE_PUBLIC_SITE_BASE=https://<PUBLIC_DOMAIN>
+VITE_PUBLIC_SITE_ROOT_DOMAIN=<PUBLIC_ROOT_DOMAIN>
 ```
+
+Belediye panelleri için wildcard DNS/SSL hazırsa ayrıca
+`VITE_MUNICIPALITY_PORTAL_ROOT_DOMAIN=panel.<PUBLIC_ROOT_DOMAIN>` tanımlayın. Böylece
+`belediye-kodu.panel.<PUBLIC_ROOT_DOMAIN>/municipality/login` adresleri kullanılır. Wildcard
+altyapısı yoksa uygulama otomatik olarak güvenli
+`/municipality/login?tenant=belediye-kodu` adresini üretir; yerelde de bu yöntem çalışır.
+
+İsteğe bağlı `platform.<PUBLIC_ROOT_DOMAIN>` ve belediye wildcard alan adlarını aynı Vercel
+deployment’ına bağlayabilirsiniz. Platform sahibi rotası yalnızca `/super-admin/login` üzerinden
+belediyeye bağlı olmayan `ROLE_SUPER_ADMIN` hesabını kabul eder.
 
 6. Deploy → URL’yi not edin (`VERCEL_ADMIN_URL`).
 
@@ -102,7 +128,7 @@ Redeploy backend (değişken kaydedince otomatik).
 1. Railway’de `APP_SETUP_TOKEN` tanımlı olsun.
 2. Tarayıcı: `https://<VERCEL_ADMIN_URL>/setup`
 3. Kurulum token’ı + e-posta/şifre girin → **İlk süper admin** oluşur.
-4. `https://<VERCEL_ADMIN_URL>/login` ile giriş yapın.
+4. `https://<VERCEL_ADMIN_URL>/super-admin/login` ile giriş yapın.
 5. Süper admin (belediyeye bağlı olmayan) → platform belediye listesi görünür.
 
 > Production’da `admin@kentiva.app` / `admin123` **yoktur**; yalnızca `dev` profilinde.
@@ -119,6 +145,8 @@ Kurulumdan sonra güvenlik için `APP_SETUP_TOKEN` değerini rotate edebilirsini
 ```
 VITE_API_BASE=https://<RAILWAY_HOST>/api/v1
 VITE_ADMIN_PORTAL_URL=https://<VERCEL_ADMIN_URL>
+VITE_MUNICIPALITY_PORTAL_URL=https://<VERCEL_ADMIN_URL>/login
+VITE_SUPER_ADMIN_PORTAL_URL=https://<VERCEL_ADMIN_URL>/super-admin/login
 VITE_SITE_URL=https://<VERCEL_PUBLIC_URL>
 VITE_CITIZEN_APP_URL=https://<VERCEL_CITIZEN_URL>
 ```
@@ -200,7 +228,8 @@ Kısa özet: [`scripts/README-local-test.txt`](../scripts/README-local-test.txt)
 | Bileşen | Adres |
 |---------|--------|
 | Backend (PC + tünel) | `http://localhost:8080` / `https://XXXX.ngrok-free.app` |
-| Admin + süper admin | `http://localhost:5173` |
+| Belediye çalışma alanı seçimi | `http://localhost:5173/login` |
+| Platform sahibi girişi | `http://localhost:5173/super-admin/login` |
 | Kamu sitesi | `http://localhost:5174` |
 | APK API | `https://XXXX.ngrok-free.app/api/v1` |
 
@@ -212,7 +241,8 @@ Tünel sonrası kök `.env`: `APP_PUBLIC_URL=https://XXXX.ngrok-free.app` (medya
 
 - [ ] `GET https://<RAILWAY_HOST>/actuator/health` → 200
 - [ ] Admin `/setup` → süper admin oluştur
-- [ ] Admin `/login` → süper admin paneli
+- [ ] Platform sahibi `/super-admin/login` → platform paneli
+- [ ] Belediye `/login` → tenant seçimi → `/municipality/login?tenant=...`
 - [ ] Public site açılıyor, istatistik API hatasız
 - [ ] Public site → yönetim paneli linki doğru
 - [ ] Admin’den API isteği → tarayıcıda CORS hatası yok

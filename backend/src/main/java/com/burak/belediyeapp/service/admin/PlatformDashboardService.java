@@ -2,6 +2,7 @@ package com.burak.belediyeapp.service.admin;
 
 import com.burak.belediyeapp.dto.response.admin.PlatformDashboardResponse;
 import com.burak.belediyeapp.dto.response.admin.ApiMetricResponse;
+import com.burak.belediyeapp.config.CacheNames;
 import com.burak.belediyeapp.entity.MembershipStatus;
 import com.burak.belediyeapp.entity.Municipality;
 import com.burak.belediyeapp.entity.SubscriptionPlan;
@@ -9,6 +10,7 @@ import com.burak.belediyeapp.repository.IMunicipalityRepository;
 import com.burak.belediyeapp.repository.IReportRepository;
 import com.burak.belediyeapp.repository.IAppUserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +27,7 @@ public class PlatformDashboardService {
     private final IReportRepository reportRepository;
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.EXECUTIVE_DASHBOARD)
     public PlatformDashboardResponse getDashboard() {
         List<Municipality> municipalities = municipalityRepository.findAll();
 

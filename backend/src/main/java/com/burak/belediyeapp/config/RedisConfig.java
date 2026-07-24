@@ -72,7 +72,9 @@ public class RedisConfig {
                 CacheNames.DUTY_PHARMACY, base.entryTtl(Duration.ofHours(24)),
                 CacheNames.DASHBOARD_STATS, base.entryTtl(Duration.ofMinutes(5)),
                 CacheNames.DEPARTMENTS, base.entryTtl(Duration.ofMinutes(30)),
-                CacheNames.WIDGETS, base.entryTtl(Duration.ofMinutes(15)));
+                CacheNames.WIDGETS, base.entryTtl(Duration.ofMinutes(15)),
+                CacheNames.PILOT_STATS, base.entryTtl(Duration.ofMinutes(15)),
+                CacheNames.EXECUTIVE_DASHBOARD, base.entryTtl(Duration.ofMinutes(10)));
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(base)
