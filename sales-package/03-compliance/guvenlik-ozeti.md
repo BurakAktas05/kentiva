@@ -11,7 +11,7 @@
 
 ## KVKK
 
-- Veri işleme eki: `deployment/KVKK-VERI-ISLEME-EKI.md`
+- Veri işleme eki: `03-compliance/kvkk-veri-isleme-eki.md`
 - Vatandaş onayı (ihbar akışı)
 - Yetkisiz erişim ve tenant sızıntısı testleri ürün geliştirme kurallarında zorunlu
 

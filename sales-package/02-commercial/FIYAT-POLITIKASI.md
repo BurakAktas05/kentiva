@@ -46,7 +46,7 @@ Tam özellik matrisi: admin portal `PricingPage` / bu paketteki one-pager.
 1. Tenant açılır, branding ve departmanlar kurulur.
 2. En az 1 yönetici + 1 saha / Beyaz Masa kullanıcısı eğitilir.
 3. Vatandaş kanalı (mobil / web) yayınlanır veya kısıtlı pilot grubu.
-4. Başarı ölçütleri: `deployment/PILOT-BASARI-KRITERLERI.md`.
+4. Başarı ölçütleri: `02-commercial/pilot-basari.md`.
 5. Pilot sonunda: Profesyonel’e geçiş önerisi veya Enterprise teklifi.
 
 Pilot ücretlendirilmez. Pilot sonrası abonelik başlamadan fatura kesilmez.
@@ -76,7 +76,7 @@ Pilot ücretlendirilmez. Pilot sonrası abonelik başlamadan fatura kesilmez.
 
 - Aylık veya yıllık fatura (e-fatura).
 - Sözleşme: pilot protokolü → ücretli abonelik eki.
-- KVKK veri işleme eki zorunlu: `deployment/KVKK-VERI-ISLEME-EKI.md`.
+- KVKK veri işleme eki zorunlu: `03-compliance/kvkk-veri-isleme-eki.md`.
 
 ---
 

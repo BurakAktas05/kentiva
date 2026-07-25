@@ -3,7 +3,7 @@
 Bu klasör belediye satış görüşmeleri, meclis sunumları ve teklif süreçleri için tek kaynaktır.
 
 **Sunum öncesi 5 dakika:** `01-pitch/sunum.html` dosyasını tarayıcıda açın (F11 tam ekran).
-**Demo:** `deployment/DEMO-SENARYO.md` ile aynı altın yolu izleyin.
+**Demo:** `01-pitch/demo-senaryo.md` ile aynı altın yolu izleyin.
 **Fiyat:** `02-commercial/FIYAT-POLITIKASI.md` — public site ve admin plan sayfası ile hizalıdır.
 
 ## Klasör haritası
@@ -22,7 +22,7 @@ Bu klasör belediye satış görüşmeleri, meclis sunumları ve teklif süreçl
 1. One-pager bırakın (`01-pitch/one-pager-tr.md`).
 2. 8–12 dakikalık sunumu açın (`sunum.html`).
 3. Canlı demo (vatandaş ihbar → admin atama → çözüm).
-4. Pilot protokolünü paylaşın (`deployment/PILOT-SOZLESME-TASLAGI.md`).
+4. Pilot protokolünü paylaşın (`02-commercial/pilot-protokol.md`).
 5. Sonraki adım: yazılı teklif (`02-commercial/teklif-sablonu.md`).
 
 ## İletişim

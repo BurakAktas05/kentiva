@@ -1,12 +1,19 @@
 # Kentiva — Yayınlama, APK ve manuel test rehberi
 
-Bu rehber production ortamını sırayla kurmanız içindir. Tüm anahtarlar için şablon: [`ANAHTARLAR.template.env`](ANAHTARLAR.template.env) → kopyalayıp `ANAHTARLAR.local.env` doldurun.
+Bu rehber production ortamını sırayla kurmanız içindir.
+
+- Doküman dizini: [`README.md`](README.md)
+- Anahtar şablonu: [`ANAHTARLAR.template.env`](ANAHTARLAR.template.env) → `ANAHTARLAR.local.env` (commit etme)
+- Media Guard: [`MEDIA-GUARD.md`](MEDIA-GUARD.md) *(API’den önce veya birlikte)*
+- Kontrol listesi: [`PROD-CHECKLIST.md`](PROD-CHECKLIST.md)
+- Rollback: [`ROLLBACK.md`](ROLLBACK.md)
 
 ## Bileşenler
 
 | Bileşen | Nerede host | Giriş |
 |---------|-------------|-------|
 | Backend API + PostgreSQL + Redis + RabbitMQ | **Railway / eşdeğer yönetilen altyapı** | — |
+| Media Guard | **Railway private service** (iç ağ) | — |
 | Belediye yönetim paneli | **Vercel** (`admin-portal`) | `/login` → belediye çalışma alanı |
 | Platform sahibi paneli | Aynı güvenli deployment, ayrı giriş | `/super-admin/login` (`/platform/login` kısayolu) |
 | Kamu sitesi | **Vercel** (`public-site`) | Giriş yok |
@@ -62,7 +69,14 @@ CREATE EXTENSION IF NOT EXISTS postgis;
 göre Hikari/async/Rabbit consumer değerleri. Prod profili eksik kalıcı depolama,
 Redis, RabbitMQ, SMS, rate-limit veya fail-closed medya ayarıyla başlamayı reddeder.
 
-### 1.4 Deploy doğrulama
+### 1.4 Media Guard (zorunlu)
+
+Prod boot `MEDIA_GUARD_URL` ister. Adımlar: [`MEDIA-GUARD.md`](MEDIA-GUARD.md).
+
+Özet: aynı projede private FastAPI servisi (`services/media-guard`) deploy edin;
+public domain vermeyin; backend’e yalnızca iç URL verin.
+
+### 1.5 Deploy doğrulama
 
 ```bash
 curl https://<RAILWAY_HOST>/actuator/health
@@ -220,8 +234,6 @@ Tam rehber: [`scripts/YEREL-MANUEL-TEST.md`](../scripts/YEREL-MANUEL-TEST.md)
 | 1–5 | `.\scripts\start-local.ps1` — DB, backend, tünel, admin, public (**APK yok**) |
 | 3b | Siz doğrulayın: `https://…/actuator/health` |
 | 6 | `.\scripts\build-apk-local.ps1` — tünel URL: `scripts/tunnel-url.txt` |
-
-Kısa özet: [`scripts/README-local-test.txt`](../scripts/README-local-test.txt).
 
 ### Ortam
 

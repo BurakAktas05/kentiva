@@ -2,6 +2,8 @@
 
 Bu kontrol listesi belediyeye canlı geçişten önce kapatılmalıdır.
 
+Rehberler: [`README.md`](README.md) · [`YAYINLAMA.md`](YAYINLAMA.md) · [`MEDIA-GUARD.md`](MEDIA-GUARD.md) · [`ROLLBACK.md`](ROLLBACK.md)
+
 ## Zorunlu Teknik Koşullar
 
 - `SPRING_PROFILES_ACTIVE=prod` (zorunlu; `prod` olmadan OTP bypass ve geliştirme varsayılanları risklidir)
