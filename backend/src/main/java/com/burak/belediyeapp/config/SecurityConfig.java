@@ -146,7 +146,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.PATCH, "/api/v1/reports/**")
                     .hasAnyRole("FIELD_OFFICER", "DEPT_MANAGER", "ADMIN", "SUPER_ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/reports/*/assign")
-                    .hasAnyRole("DEPT_MANAGER", "ADMIN", "SUPER_ADMIN")
+                    .hasAnyRole("DEPT_MANAGER", "ADMIN")
 
                 // ── Birim müdürü & üzeri ─────────────────────
                 .requestMatchers("/api/v1/departments/**")

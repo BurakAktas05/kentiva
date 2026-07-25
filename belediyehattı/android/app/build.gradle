@@ -18,16 +18,17 @@ android {
         }
     }
 
-    // Release keystore yapılandırması — keystore oluşturulduktan sonra aktif edin:
-    // keytool -genkey -v -keystore kentiva-release.keystore -alias kentiva -keyalg RSA -keysize 2048 -validity 10000
-    // signingConfigs {
-    //     release {
-    //         storeFile file("kentiva-release.keystore")
-    //         storePassword System.getenv("KEYSTORE_PASSWORD") ?: ""
-    //         keyAlias "kentiva"
-    //         keyPassword System.getenv("KEY_PASSWORD") ?: ""
-    //     }
-    // }
+    signingConfigs {
+        release {
+            def keystorePath = System.getenv("KENTIVA_ANDROID_KEYSTORE_PATH")
+            if (keystorePath) {
+                storeFile file(keystorePath)
+                storePassword System.getenv("KENTIVA_ANDROID_KEYSTORE_PASSWORD") ?: ""
+                keyAlias System.getenv("KENTIVA_ANDROID_KEY_ALIAS") ?: ""
+                keyPassword System.getenv("KENTIVA_ANDROID_KEY_PASSWORD") ?: ""
+            }
+        }
+    }
 
     buildTypes {
         debug {
@@ -38,7 +39,9 @@ android {
             shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             manifestPlaceholders = [usesCleartextTraffic: "false"]
-            // signingConfig signingConfigs.release // keystore hazır olduğunda aktif edin
+            if (System.getenv("KENTIVA_ANDROID_KEYSTORE_PATH")) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

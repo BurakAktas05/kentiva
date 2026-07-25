@@ -11,6 +11,7 @@ import com.burak.belediyeapp.exception.BusinessException;
 import com.burak.belediyeapp.mapper.IReportMapper;
 import com.burak.belediyeapp.repository.IReportHistoryRepository;
 import com.burak.belediyeapp.repository.IReportRepository;
+import com.burak.belediyeapp.repository.ReportSpecifications;
 import com.burak.belediyeapp.service.notification.ReportLanguageMessages;
 import com.burak.belediyeapp.tenant.TenantAccessService;
 import lombok.RequiredArgsConstructor;
@@ -60,46 +61,32 @@ public class ReportQueryService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAnyAuthority('ROLE_FIELD_OFFICER','ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN','ROLE_WHITE_DESK')")
     public Page<ReportListResponse> getAllReports(AppUser user, Pageable pageable) {
-        Page<Report> page;
-        if (user.getDepartment() != null) {
-            String deptId = user.getDepartment().getId();
-            if (user.getMunicipality() != null && user.getMunicipality().getWorkflowMode() == com.burak.belediyeapp.entity.WorkflowMode.DEPARTMENTAL) {
-                page = tenantAccess.staffMunicipalityScope(user)
-                        .map(muniId -> reportRepository.findByForwardedDepartmentIdAndMunicipalityIdAndHiddenFromMunicipalityFalse(deptId, muniId, pageable))
-                        .orElseGet(() -> reportRepository.findByForwardedDepartmentIdAndHiddenFromMunicipalityFalse(deptId, pageable));
-            } else {
-                page = tenantAccess.staffMunicipalityScope(user)
-                        .map(muniId -> reportRepository.findByCategoryDepartmentIdAndMunicipalityIdAndHiddenFromMunicipalityFalse(deptId, muniId, pageable))
-                        .orElseGet(() -> reportRepository.findByCategoryDepartmentIdAndHiddenFromMunicipalityFalse(deptId, pageable));
-            }
-        } else {
-            page = tenantAccess.staffMunicipalityScope(user)
-                    .map(muniId -> reportRepository.findByMunicipalityIdAndHiddenFromMunicipalityFalse(muniId, pageable))
-                    .orElseGet(() -> reportRepository.findAll(pageable));
-        }
-        return mapPage(page);
+        return searchStaffReports(user, null, null, null, null, pageable);
     }
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasAnyAuthority('ROLE_FIELD_OFFICER','ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN','ROLE_WHITE_DESK')")
     public Page<ReportListResponse> getReportsByStatus(ReportStatus status, AppUser user, Pageable pageable) {
-        Page<Report> page;
-        if (user.getDepartment() != null) {
-            String deptId = user.getDepartment().getId();
-            if (user.getMunicipality() != null && user.getMunicipality().getWorkflowMode() == com.burak.belediyeapp.entity.WorkflowMode.DEPARTMENTAL) {
-                page = tenantAccess.staffMunicipalityScope(user)
-                        .map(muniId -> reportRepository.findByForwardedDepartmentIdAndMunicipalityIdAndReportStatusAndHiddenFromMunicipalityFalse(deptId, muniId, status, pageable))
-                        .orElseGet(() -> reportRepository.findByForwardedDepartmentIdAndReportStatusAndHiddenFromMunicipalityFalse(deptId, status, pageable));
-            } else {
-                page = tenantAccess.staffMunicipalityScope(user)
-                        .map(muniId -> reportRepository.findByCategoryDepartmentIdAndMunicipalityIdAndReportStatusAndHiddenFromMunicipalityFalse(deptId, muniId, status, pageable))
-                        .orElseGet(() -> reportRepository.findByCategoryDepartmentIdAndReportStatusAndHiddenFromMunicipalityFalse(deptId, status, pageable));
-            }
-        } else {
-            page = tenantAccess.staffMunicipalityScope(user)
-                    .map(muniId -> reportRepository.findByMunicipalityIdAndReportStatusAndHiddenFromMunicipalityFalse(muniId, status, pageable))
-                    .orElseGet(() -> reportRepository.findByReportStatusAndHiddenFromMunicipalityFalse(status, pageable));
-        }
+        return searchStaffReports(user, status, null, null, null, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAnyAuthority('ROLE_FIELD_OFFICER','ROLE_DEPT_MANAGER','ROLE_ADMIN','ROLE_SUPER_ADMIN','ROLE_WHITE_DESK')")
+    public Page<ReportListResponse> searchStaffReports(
+            AppUser user,
+            ReportStatus status,
+            String q,
+            java.time.LocalDateTime from,
+            java.time.LocalDateTime to,
+            Pageable pageable) {
+        String municipalityId = tenantAccess.staffMunicipalityScope(user).orElse(null);
+        String departmentId = user.getDepartment() != null ? user.getDepartment().getId() : null;
+        boolean departmental = user.getMunicipality() != null
+                && ReportSpecifications.isDepartmental(user.getMunicipality().getWorkflowMode());
+        // Süper admin (municipality yok) tüm tenant'larda arayabilir; department filtresi yoksa geniş kapsam.
+        Page<Report> page = reportRepository.findAll(
+                ReportSpecifications.staffSearch(municipalityId, departmentId, departmental, status, q, from, to),
+                pageable);
         return mapPage(page);
     }
 
@@ -240,7 +227,13 @@ public class ReportQueryService {
         if (scope == null) {
             return List.of();
         }
-        if (allowedMuni != null && !allowedMuni.equals(scope)) {
+        // Preferansı olmayan vatandaş istemci municipalityId ile başka kenti sorgulayamaz.
+        if (allowedMuni == null) {
+            throw new BusinessException(
+                    "Yakın ihbar listesi için önce belediye tercihinizi belirleyin.",
+                    "MUNICIPALITY_REQUIRED");
+        }
+        if (!allowedMuni.equals(scope)) {
             throw new BusinessException(
                     "Bu belediyeye ait yakın ihbar listesi görüntülenemez.",
                     "CROSS_MUNICIPALITY_HINT_ACCESS");

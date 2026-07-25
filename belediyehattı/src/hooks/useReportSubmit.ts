@@ -20,6 +20,8 @@ interface UseReportSubmitProps {
   selectedCategoryName: string | undefined;
   lang: Lang;
   onSubmit: () => void;
+  /** Called when the report was saved to the offline queue instead of submitted. */
+  onQueuedOffline?: () => void;
   minDescriptionLen?: number;
 }
 
@@ -76,6 +78,7 @@ export function useReportSubmit({
   selectedCategoryName,
   lang,
   onSubmit,
+  onQueuedOffline,
   minDescriptionLen = 20,
 }: UseReportSubmitProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -198,7 +201,11 @@ export function useReportSubmit({
             savedAt: new Date().toISOString(),
           });
           storageService.setItem('belediye_offline_reports', JSON.stringify(offlineReports));
-          onSubmit();
+          if (onQueuedOffline) {
+            onQueuedOffline();
+          } else {
+            onSubmit();
+          }
           return;
         } catch {
           // fall through to regular error handling

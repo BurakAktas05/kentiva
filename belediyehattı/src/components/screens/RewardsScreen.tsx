@@ -12,6 +12,7 @@ import {
   type PublicTenant,
 } from '../../api';
 import { Lang, t } from '../../i18n';
+import ConfirmDialog from '../ui/ConfirmDialog';
 
 interface RewardsScreenProps {
   lang: Lang;
@@ -32,6 +33,8 @@ export default function RewardsScreen({ lang, isDark, municipality, onBack }: Re
   const [successModalOpen, setSuccessModalOpen] = useState(false);
   const [newRedeemed, setNewRedeemed] = useState<ApiRedeemedReward | null>(null);
   const [redeemingId, setRedeemingId] = useState<string | null>(null);
+  const [redeemFeedback, setRedeemFeedback] = useState<string | null>(null);
+  const [confirmReward, setConfirmReward] = useState<ApiReward | null>(null);
 
   useEffect(() => {
     loadData();
@@ -68,19 +71,27 @@ export default function RewardsScreen({ lang, isDark, municipality, onBack }: Re
     }
   };
 
-  const handleRedeem = async (reward: ApiReward) => {
+  useEffect(() => {
+    if (!redeemFeedback) return;
+    const timeout = window.setTimeout(() => setRedeemFeedback(null), 4000);
+    return () => window.clearTimeout(timeout);
+  }, [redeemFeedback]);
+
+  const requestRedeem = (reward: ApiReward) => {
     if (points < reward.pointCost) {
-      alert(t('rewards.insufficient', lang));
+      setRedeemFeedback(t('rewards.insufficient', lang));
       return;
     }
+    setConfirmReward(reward);
+  };
 
-    if (!window.confirm(lang === 'tr' ? `"${reward.title}" ödülünü almak için ${reward.pointCost} puan harcamak istediğinize emin misiniz?` : `Are you sure you want to spend ${reward.pointCost} points for "${reward.title}"?`)) {
-      return;
-    }
-
+  const handleRedeem = async () => {
+    const reward = confirmReward;
+    if (!reward) return;
     setRedeemingId(reward.id);
     try {
       const result = await redeemReward(reward.id);
+      setConfirmReward(null);
       setNewRedeemed(result);
       setSuccessModalOpen(true);
       // Reload profile points & lists
@@ -93,7 +104,7 @@ export default function RewardsScreen({ lang, isDark, municipality, onBack }: Re
       setRewards(newRewards);
       setRedeemed(newRedeemedList);
     } catch (err: any) {
-      alert(err.message || (lang === 'tr' ? 'Ödül alınırken hata oluştu.' : 'Failed to redeem reward.'));
+      setRedeemFeedback(err.message || (lang === 'tr' ? 'Ödül alınırken hata oluştu.' : 'Failed to redeem reward.'));
     } finally {
       setRedeemingId(null);
     }
@@ -114,7 +125,7 @@ export default function RewardsScreen({ lang, isDark, municipality, onBack }: Re
     <div className={`flex flex-col h-full ${isDark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'}`}>
       {/* Header */}
       <div className={`flex items-center justify-between border-b p-4 ${isDark ? 'border-slate-800 bg-slate-900/60' : 'border-slate-200 bg-white'}`}>
-        <button type="button" onClick={onBack} className={`-ml-2 p-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+        <button type="button" onClick={onBack} aria-label={t('settings.back', lang)} className={`-ml-2 p-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
           <ChevronLeft className="h-6 w-6" />
         </button>
         <h2 className={`text-base font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-800'}`}>
@@ -166,6 +177,14 @@ export default function RewardsScreen({ lang, isDark, municipality, onBack }: Re
 
       {/* Main List */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {redeemFeedback && (
+          <div
+            role="status"
+            className="rounded-2xl border border-amber-200 bg-amber-50 p-3.5 text-xs font-semibold text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300"
+          >
+            {redeemFeedback}
+          </div>
+        )}
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
             <div className="h-8 w-8 animate-spin rounded-full border-3 border-primary border-t-transparent" />
@@ -226,7 +245,7 @@ export default function RewardsScreen({ lang, isDark, municipality, onBack }: Re
                     <button
                       type="button"
                       disabled={!hasEnoughPoints || !hasStock || redeemingId !== null}
-                      onClick={() => handleRedeem(reward)}
+                      onClick={() => requestRedeem(reward)}
                       className="rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white shadow-md shadow-primary/20 disabled:opacity-50 disabled:shadow-none active:scale-95 transition-all cursor-pointer hover:brightness-105"
                     >
                       {redeemingId === reward.id ? '...' : t('rewards.redeem.btn', lang)}
@@ -371,6 +390,23 @@ export default function RewardsScreen({ lang, isDark, municipality, onBack }: Re
           </div>
         )}
       </AnimatePresence>
+
+      <ConfirmDialog
+        open={Boolean(confirmReward)}
+        title={lang === 'tr' ? 'Ödülü Al' : 'Claim Reward'}
+        message={
+          confirmReward
+            ? lang === 'tr'
+              ? `"${confirmReward.title}" ödülünü almak için ${confirmReward.pointCost} puan harcamak istediğinize emin misiniz?`
+              : `Are you sure you want to spend ${confirmReward.pointCost} points for "${confirmReward.title}"?`
+            : ''
+        }
+        confirmLabel={lang === 'tr' ? 'Onayla' : 'Confirm'}
+        cancelLabel={lang === 'tr' ? 'Vazgeç' : 'Cancel'}
+        busy={redeemingId !== null}
+        onConfirm={() => void handleRedeem()}
+        onCancel={() => setConfirmReward(null)}
+      />
     </div>
   );
 }

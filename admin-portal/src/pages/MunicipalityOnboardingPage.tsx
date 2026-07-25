@@ -793,8 +793,8 @@ export default function MunicipalityOnboardingPage() {
                   <div className="h-80 w-full rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
                     <MapContainer center={centerCoordinates} zoom={parseOptNumber(defaultZoomStr) || 12} className="h-full w-full grayscale-map">
                       <TileLayer
-                        attribution='&copy; Google Maps'
-                        url="https://mt1.google.com/vt/lyrs=m&hl=tr&x={x}&y={y}&z={z}"
+                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> katkıda bulunanlar'
+                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                       />
                       <MapRefCapture onMap={(m) => { mapRef.current = m; }} />
                       <MapClickEvent onMapClick={handleMapClick} />

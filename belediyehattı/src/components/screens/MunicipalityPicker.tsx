@@ -21,6 +21,8 @@ type Props = {
   lang: Lang;
   isDark: boolean;
   mode?: MunicipalityPickerMode;
+  /** Kabuk içinde modal/sheet olarak göster (tam tarayıcı sayfası değil) */
+  embedded?: boolean;
   onSelect: (t: PublicTenant) => void;
   onCancel?: () => void;
 };
@@ -44,6 +46,7 @@ export default function MunicipalityPicker({
   lang,
   isDark,
   mode = 'change',
+  embedded = false,
   onSelect,
   onCancel,
 }: Props) {
@@ -172,7 +175,7 @@ export default function MunicipalityPicker({
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className={`flex min-h-app flex-col ${isDark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'}`}
+      className={`flex flex-col ${embedded ? 'h-full max-h-full' : 'min-h-app'} ${isDark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'}`}
     >
       <div className={`shrink-0 border-b px-4 pb-4 pt-safe ${isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white'}`}>
         {!isOnboarding && onCancel ? (

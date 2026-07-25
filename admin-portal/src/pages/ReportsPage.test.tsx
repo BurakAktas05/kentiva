@@ -79,7 +79,7 @@ describe('ReportsPage', () => {
     setupGetMock();
 
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <ReportsPage />
       </MemoryRouter>
     );
@@ -94,11 +94,36 @@ describe('ReportsPage', () => {
     expect(screen.getByText('Görünen kayıt')).toBeInTheDocument();
   });
 
-  it('filters reports when typing in search input', async () => {
+  it('applies saved view chip status filter', async () => {
     setupGetMock();
 
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
+        <ReportsPage />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Cukur Problem')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Bekleyen' }));
+
+    await waitFor(() => {
+      expect(vi.mocked(api.get)).toHaveBeenCalledWith(
+        '/reports',
+        expect.objectContaining({
+          params: expect.objectContaining({ status: 'PENDING' }),
+        }),
+      );
+    });
+  });
+
+  it('sends search query to the API after debounce', async () => {
+    setupGetMock();
+
+    render(
+      <MemoryRouter>
         <ReportsPage />
       </MemoryRouter>
     );
@@ -110,9 +135,14 @@ describe('ReportsPage', () => {
     const searchInput = screen.getByPlaceholderText('Başlık, kategori, ilçe…');
     fireEvent.change(searchInput, { target: { value: 'Sokak' } });
 
-    // Should filter locally
-    expect(screen.queryByText('Cukur Problem')).not.toBeInTheDocument();
-    expect(screen.getByText('Sokak Lambasi Bozuk')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith(
+        '/reports',
+        expect.objectContaining({
+          params: expect.objectContaining({ q: 'Sokak' }),
+        }),
+      );
+    });
   });
 
   it('performs bulk process operation', async () => {
@@ -126,7 +156,7 @@ describe('ReportsPage', () => {
     });
 
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <ReportsPage />
       </MemoryRouter>
     );
@@ -138,12 +168,12 @@ describe('ReportsPage', () => {
     const checkbox = screen.getByLabelText('Cukur Problem seç');
     fireEvent.click(checkbox);
 
-    const processBtn = screen.getByRole('button', { name: /İşle/i });
+    const processBtn = screen.getByRole('button', { name: 'İşle' });
     fireEvent.click(processBtn);
 
     expect(screen.getByText('Toplu işlem')).toBeInTheDocument();
-    const select = screen.getAllByRole('combobox')[1];
-    fireEvent.change(select, { target: { value: 'officer-1' } });
+    const assigneeSelect = screen.getByLabelText(/Saha görevlisi/i);
+    fireEvent.change(assigneeSelect, { target: { value: 'officer-1' } });
 
     const confirmBtn = screen.getByRole('button', { name: /Onayla/i });
     fireEvent.click(confirmBtn);

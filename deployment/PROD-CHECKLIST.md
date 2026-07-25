@@ -4,7 +4,8 @@ Bu kontrol listesi belediyeye canlı geçişten önce kapatılmalıdır.
 
 ## Zorunlu Teknik Koşullar
 
-- `SPRING_PROFILES_ACTIVE=prod`
+- `SPRING_PROFILES_ACTIVE=prod` (zorunlu; `prod` olmadan OTP bypass ve geliştirme varsayılanları risklidir)
+- `SMS_OTP_DEV_BYPASS_ENABLED` üretimde asla `true` olmamalı (varsayılan `false`; `prod` profili de kapatır)
 - `JWT_SECRET` en az 32 karakter ve rastgele üretilmiş olmalı
 - `APP_SETUP_TOKEN` en az 32 karakter olmalı
 - `APP_PUBLIC_URL` mutlaka `https://` ile başlamalı
@@ -14,8 +15,10 @@ Bu kontrol listesi belediyeye canlı geçişten önce kapatılmalıdır.
 - `APP_MESSAGING_RABBIT_ENABLED=true`; RabbitMQ kullanıcı/parolası, kalıcı disk ve health check tanımlı olmalı
 - `HIKARI_MAX_POOL`, async worker/queue ve RabbitMQ consumer değerleri hedef altyapı kapasitesine göre ayarlanmalı
 - `MEDIA_GUARD_FAIL_OPEN=false`
+- `MEDIA_GUARD_URL` yalnızca iç ağdan erişilebilen media-guard servisini göstermeli
 - `MEDIA_VALIDATION_FAIL_OPEN=false`
 - `MEDIA_ANONYMIZATION_FAIL_OPEN=false`
+- `GEMINI_API_KEY` medya doğrulama ve KVKK anonimleştirme için tanımlı olmalı
 - `APP_SWAGGER_ENABLED=false`
 
 ## Operasyon Kontrolleri
@@ -30,6 +33,7 @@ Bu kontrol listesi belediyeye canlı geçişten önce kapatılmalıdır.
 - Platform sahibi `/super-admin/login` ile, belediye hesapları `/login` çalışma alanı seçimiyle giriş yapmalı
 - Wildcard belediye panel alan adı kullanılıyorsa DNS, TLS sertifikası ve `VITE_MUNICIPALITY_PORTAL_ROOT_DOMAIN` birlikte doğrulanmalı
 - Platform hesabının belediye portalında; belediye hesabının platform portalında reddedildiği test edilmeli
+- Android yayınında `KENTIVA_ANDROID_KEYSTORE_PATH`, `KENTIVA_ANDROID_KEYSTORE_PASSWORD`, `KENTIVA_ANDROID_KEY_ALIAS` ve `KENTIVA_ANDROID_KEY_PASSWORD` güvenli CI değişkenleri olarak tanımlanmalı
 
 ## Uygulama Smoke Testleri
 

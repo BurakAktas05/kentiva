@@ -9,6 +9,9 @@ import ToastBanner, { type ToastState } from '../components/ToastBanner';
 import MunicipalityLocationPanel from '../components/MunicipalityLocationPanel';
 import { emptyBrandingForm, type BrandingFormValues } from '../lib/branding';
 import MunicipalityReputationSettingsPanel from '../components/MunicipalityReputationSettingsPanel';
+import PageHeader from '../components/ui/PageHeader';
+import ErrorState from '../components/ui/ErrorState';
+import Button from '../components/ui/Button';
 
 type MunicipalityDto = {
   id: string;
@@ -77,10 +80,10 @@ function dtoToForm(municipality: MunicipalityDto): BrandingFormValues {
 }
 
 const TABS: Array<{ id: SettingsTab; name: string }> = [
-  { id: 'branding', name: 'Markalama & Gorunum' },
+  { id: 'branding', name: 'Markalama & Görünüm' },
   { id: 'location', name: 'Konum & Harita' },
-  { id: 'reputation', name: 'Itibar & Guvenlik' },
-  { id: 'templates', name: 'Sablonlar & Widgetlar' },
+  { id: 'reputation', name: 'İtibar & Güvenlik' },
+  { id: 'templates', name: "Şablonlar & Widget'lar" },
 ];
 
 export default function MunicipalitySettingsPage() {
@@ -88,6 +91,7 @@ export default function MunicipalitySettingsPage() {
   const [municipality, setMunicipality] = useState<MunicipalityDto | null>(null);
   const [previewForm, setPreviewForm] = useState<BrandingFormValues>(emptyBrandingForm());
   const [toast, setToast] = useState<ToastState>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<SettingsTab>('branding');
 
   const handleFormChange = useCallback((form: BrandingFormValues) => {
@@ -100,7 +104,9 @@ export default function MunicipalitySettingsPage() {
     return () => window.clearTimeout(timeoutId);
   }, [toast]);
 
-  useEffect(() => {
+  const loadMunicipality = useCallback(() => {
+    setLoading(true);
+    setLoadError(null);
     let cancelled = false;
 
     api
@@ -112,7 +118,9 @@ export default function MunicipalitySettingsPage() {
           setPreviewForm(dtoToForm(nextMunicipality));
         }
       })
-      .catch(() => setToast({ type: 'error', message: 'Belediye bilgileri yuklenemedi.' }))
+      .catch(() => {
+        if (!cancelled) setLoadError('Belediye bilgileri yüklenemedi.');
+      })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
@@ -121,6 +129,8 @@ export default function MunicipalitySettingsPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => loadMunicipality(), [loadMunicipality]);
 
   const initialForm = useMemo(
     () => (municipality ? dtoToForm(municipality) : emptyBrandingForm()),
@@ -146,10 +156,17 @@ export default function MunicipalitySettingsPage() {
     return <MunicipalitySettingsSkeleton />;
   }
 
-  if (!municipality) {
+  if (loadError || !municipality) {
     return (
-      <div className="p-6 text-sm text-red-600 dark:text-red-400">
-        Belediye bilgisi yuklenemedi. Oturumunuzun bir belediyeye bagli oldugundan emin olun.
+      <div className="p-6">
+        <ErrorState
+          message={loadError || 'Belediye bilgisi yüklenemedi. Oturumunuzun bir belediyeye bağlı olduğundan emin olun.'}
+          action={
+            <Button variant="secondary" onClick={loadMunicipality}>
+              Tekrar dene
+            </Button>
+          }
+        />
       </div>
     );
   }
@@ -159,24 +176,22 @@ export default function MunicipalitySettingsPage() {
       <ToastBanner toast={toast} onDismiss={() => setToast(null)} />
 
       <div className="mb-6">
-        <p className="kentiva-eyebrow">SaaS Marka</p>
-        <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-          Belediye Ayarlari
-        </h2>
-        <p className="mt-1 max-w-2xl text-sm font-medium text-slate-600 dark:text-slate-400">
-          Mobil uygulama, kamu sitesi ve belediye portali ozelliklerini ozellestirin.
-        </p>
+        <PageHeader
+          eyebrow="SaaS Marka"
+          title="Belediye Ayarları"
+          subtitle="Mobil uygulama, kamu sitesi ve belediye portalı özelliklerini özelleştirin."
+        />
       </div>
 
       <div className="mb-6 grid gap-3 md:grid-cols-3">
-        <InfoCard title="Tenant slug" value={municipality.slug} helper="Panel ve kamu URL omurgasi" />
+        <InfoCard title="Tenant slug" value={municipality.slug} helper="Panel ve kamu URL omurgası" />
         <InfoCard
-          title="Is akisi"
-          value={municipality.workflowMode === 'DEPARTMENTAL' ? 'Departmanli' : 'Basit'}
+          title="İş akışı"
+          value={municipality.workflowMode === 'DEPARTMENTAL' ? 'Departmanlı' : 'Basit'}
           helper={
             municipality.workflowMode === 'DEPARTMENTAL'
               ? 'Beyaz Masa > Departman > Saha'
-              : 'Yonetici veya mudur dogrudan atar'
+              : 'Yönetici veya müdür doğrudan atar'
           }
         />
         <InfoCard
@@ -195,7 +210,7 @@ export default function MunicipalitySettingsPage() {
               onClick={() => setActiveTab(tab.id)}
               className={`border-b-2 px-1 py-4 text-sm font-semibold transition-all ${
                 activeTab === tab.id
-                  ? 'border-violet-600 text-violet-600 dark:border-violet-400 dark:text-violet-400 font-extrabold'
+                  ? 'border-primary text-primary dark:border-primary dark:text-primary font-extrabold'
                   : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-350'
               }`}
             >

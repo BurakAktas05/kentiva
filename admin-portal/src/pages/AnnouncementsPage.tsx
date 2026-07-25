@@ -3,6 +3,12 @@ import { ImagePlus, Megaphone, Pencil, Plus, Search, ShieldAlert, Trash2, Upload
 import axios from 'axios';
 import api from '../api';
 import { resolveMediaUrl } from '../lib/env';
+import PageHeader from '../components/ui/PageHeader';
+import LoadingState from '../components/ui/LoadingState';
+import EmptyState from '../components/ui/EmptyState';
+import Button from '../components/ui/Button';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
+import Toast, { type ToastState } from '../components/ui/Toast';
 
 export interface Announcement {
   id: string;
@@ -37,12 +43,23 @@ export default function AnnouncementsPage({ canManage }: AnnouncementsPageProps)
   const [saving, setSaving] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
 
+  const [toast, setToast] = useState<ToastState>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Announcement | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(null), 5000);
+    return () => window.clearTimeout(t);
+  }, [toast]);
+
   async function fetchAnnouncements() {
     try {
       const res = await api.get('/municipalities/me/announcements');
       setAnnouncements(res.data.data);
     } catch (err) {
       console.error('Failed to fetch announcements', err);
+      setToast({ type: 'error', message: 'Duyurular yüklenemedi.' });
     } finally {
       setLoading(false);
     }
@@ -98,7 +115,7 @@ export default function AnnouncementsPage({ canManage }: AnnouncementsPageProps)
       });
       setImageUrl(String(res.data.data ?? ''));
     } catch (err: unknown) {
-      setFormError(errorMessage(err, 'Gorsel yuklenemedi.'));
+      setFormError(errorMessage(err, 'Görsel yüklenemedi.'));
     } finally {
       setImageUploading(false);
     }
@@ -127,8 +144,9 @@ export default function AnnouncementsPage({ canManage }: AnnouncementsPageProps)
       await fetchAnnouncements();
       setIsModalOpen(false);
       resetModal();
+      setToast({ type: 'success', message: editingId ? 'Duyuru güncellendi.' : 'Duyuru yayınlandı.' });
     } catch (err: unknown) {
-      setFormError(errorMessage(err, 'Bir hata olustu.'));
+      setFormError(errorMessage(err, 'Bir hata oluştu.'));
     } finally {
       setSaving(false);
     }
@@ -145,18 +163,22 @@ export default function AnnouncementsPage({ canManage }: AnnouncementsPageProps)
       });
       await fetchAnnouncements();
     } catch {
-      window.alert('Durum guncellenemedi');
+      setToast({ type: 'error', message: 'Durum güncellenemedi.' });
     }
   };
 
-  const handleDelete = async (id: string, annTitle: string) => {
-    if (!canManage) return;
-    if (!window.confirm(`"${annTitle}" duyurusunu silmek istediginize emin misiniz?`)) return;
+  const confirmDelete = async () => {
+    if (!canManage || !deleteTarget) return;
+    setDeleting(true);
     try {
-      await api.delete(`/municipalities/me/announcements/${id}`);
+      await api.delete(`/municipalities/me/announcements/${deleteTarget.id}`);
       await fetchAnnouncements();
+      setDeleteTarget(null);
+      setToast({ type: 'success', message: 'Duyuru silindi.' });
     } catch {
-      window.alert('Silme islemi basarisiz oldu');
+      setToast({ type: 'error', message: 'Silme işlemi başarısız oldu.' });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -167,45 +189,44 @@ export default function AnnouncementsPage({ canManage }: AnnouncementsPageProps)
   );
 
   if (loading) {
-    return <div className="p-8 text-center text-slate-500">Yukleniyor...</div>;
+    return <LoadingState label="Duyurular yükleniyor…" />;
   }
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="kentiva-eyebrow">Icerik merkezi</p>
-          <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-            Belediye duyurulari
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm font-medium text-slate-600 dark:text-slate-400">
-            Mobil uygulamada vatandasa gorunecek resmi duyurulari daha okunakli kartlar ve gorsel yukleme akisi ile
-            yonetin.
-            {!canManage && ' Salt okunur moddasiniz.'}
-          </p>
-        </div>
-        {canManage && (
-          <button
-            onClick={openNewModal}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-          >
-            <Plus className="h-4 w-4" />
-            Yeni duyuru
-          </button>
-        )}
-      </div>
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
+
+      <PageHeader
+        eyebrow="İçerik merkezi"
+        title="Belediye duyuruları"
+        subtitle={
+          <>
+            Mobil uygulamada vatandaşa görünecek resmi duyuruları daha okunaklı kartlar ve görsel yükleme akışı ile
+            yönetin.
+            {!canManage && ' Salt okunur moddasınız.'}
+          </>
+        }
+        actions={
+          canManage ? (
+            <Button onClick={openNewModal}>
+              <Plus className="h-4 w-4" />
+              Yeni duyuru
+            </Button>
+          ) : undefined
+        }
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200/90 bg-gradient-to-r from-white via-slate-50 to-sky-50 p-4 shadow-sm dark:border-slate-700 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950">
         <div className="grid min-w-[220px] flex-1 gap-3 sm:grid-cols-2 xl:max-w-xl">
           <ContentStat
             label="Toplam duyuru"
             value={String(announcements.length)}
-            helper="Tum kayitlar"
+            helper="Tüm kayıtlar"
           />
           <ContentStat
-            label="Yayinda"
+            label="Yayında"
             value={String(announcements.filter((ann) => ann.active).length)}
-            helper="Aktif gorunenler"
+            helper="Aktif görünenler"
           />
         </div>
       </div>
@@ -226,11 +247,11 @@ export default function AnnouncementsPage({ canManage }: AnnouncementsPageProps)
           <table className="w-full whitespace-nowrap text-left text-sm">
             <thead className="bg-slate-50/70 text-slate-500 dark:bg-slate-800/50">
               <tr>
-                <th className="px-6 py-4 font-medium">Gorsel / Baslik</th>
-                <th className="px-6 py-4 font-medium">Icerik ozeti</th>
-                <th className="px-6 py-4 font-medium">Yayin tarihi</th>
+                <th className="px-6 py-4 font-medium">Görsel / Başlık</th>
+                <th className="px-6 py-4 font-medium">İçerik özeti</th>
+                <th className="px-6 py-4 font-medium">Yayın tarihi</th>
                 <th className="px-6 py-4 font-medium">Durum</th>
-                <th className="px-6 py-4 text-right font-medium">Islemler</th>
+                <th className="px-6 py-4 text-right font-medium">İşlemler</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
@@ -258,7 +279,7 @@ export default function AnnouncementsPage({ canManage }: AnnouncementsPageProps)
                           {ann.title}
                         </p>
                         <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                          {ann.imageUrl ? 'Gorselli duyuru' : 'Metin odakli duyuru'}
+                          {ann.imageUrl ? 'Görselli duyuru' : 'Metin odaklı duyuru'}
                         </p>
                       </div>
                     </div>
@@ -281,7 +302,7 @@ export default function AnnouncementsPage({ canManage }: AnnouncementsPageProps)
                     <button
                       type="button"
                       disabled={!canManage}
-                      onClick={() => handleToggleActive(ann)}
+                      onClick={() => void handleToggleActive(ann)}
                       className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${
                         ann.active
                           ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-400/10 dark:text-emerald-400 dark:ring-emerald-400/20'
@@ -297,14 +318,16 @@ export default function AnnouncementsPage({ canManage }: AnnouncementsPageProps)
                         <button
                           onClick={() => openEditModal(ann)}
                           className="rounded-lg p-1.5 text-slate-400 transition-colors hover:text-primary"
-                          title="Duzenle"
+                          title="Düzenle"
+                          aria-label={`${ann.title} duyurusunu düzenle`}
                         >
                           <Pencil className="h-4 w-4" />
                         </button>
                         <button
-                          onClick={() => handleDelete(ann.id, ann.title)}
+                          onClick={() => setDeleteTarget(ann)}
                           className="rounded-lg p-1.5 text-slate-400 transition-colors hover:text-rose-600"
                           title="Sil"
+                          aria-label={`${ann.title} duyurusunu sil`}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -315,8 +338,11 @@ export default function AnnouncementsPage({ canManage }: AnnouncementsPageProps)
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
-                    Kayit bulunamadi.
+                  <td colSpan={5}>
+                    <EmptyState
+                      title="Kayıt bulunamadı"
+                      description={search ? 'Arama kriterlerinize uyan duyuru bulunamadı.' : 'Henüz duyuru eklenmemiş.'}
+                    />
                   </td>
                 </tr>
               )}
@@ -331,16 +357,17 @@ export default function AnnouncementsPage({ canManage }: AnnouncementsPageProps)
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-700">
               <div>
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                  {editingId ? 'Duyuruyu duzenle' : 'Yeni duyuru yayinla'}
+                  {editingId ? 'Duyuruyu düzenle' : 'Yeni duyuru yayınla'}
                 </h3>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  URL yerine dogrudan gorsel yukleyerek daha zengin kartlar olusturun.
+                  URL yerine doğrudan görsel yükleyerek daha zengin kartlar oluşturun.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={closeModal}
                 className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+                aria-label="Kapat"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -358,7 +385,7 @@ export default function AnnouncementsPage({ canManage }: AnnouncementsPageProps)
                 <div className="space-y-4">
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                      Duyuru basligi *
+                      Duyuru başlığı *
                     </label>
                     <input
                       type="text"
@@ -366,13 +393,13 @@ export default function AnnouncementsPage({ canManage }: AnnouncementsPageProps)
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                       className="w-full rounded-xl border border-slate-300 px-3 py-2.5 focus:border-primary focus:ring-2 focus:ring-primary dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-                      placeholder="Orn: Kent parki acilis toreni"
+                      placeholder="Örn: Kent parkı açılış töreni"
                     />
                   </div>
 
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                      Duyuru icerigi *
+                      Duyuru içeriği *
                     </label>
                     <textarea
                       rows={8}
@@ -380,7 +407,7 @@ export default function AnnouncementsPage({ canManage }: AnnouncementsPageProps)
                       value={content}
                       onChange={(e) => setContent(e.target.value)}
                       className="w-full rounded-xl border border-slate-300 px-3 py-2.5 focus:border-primary focus:ring-2 focus:ring-primary dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-                      placeholder="Duyuru detayli metnini buraya yazin..."
+                      placeholder="Duyuru detaylı metnini buraya yazın..."
                     />
                   </div>
 
@@ -392,14 +419,14 @@ export default function AnnouncementsPage({ canManage }: AnnouncementsPageProps)
                         onChange={(e) => setActive(e.target.checked)}
                         className="rounded border-slate-300 text-primary focus:ring-primary"
                       />
-                      Yayinda (aktif)
+                      Yayında (aktif)
                     </label>
                   )}
                 </div>
 
                 <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/40">
                   <div>
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white">Kapak gorseli</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">Kapak görseli</p>
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                       JPG, PNG veya WEBP. En fazla 8 MB.
                     </p>
@@ -409,7 +436,7 @@ export default function AnnouncementsPage({ canManage }: AnnouncementsPageProps)
                     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950">
                       <img
                         src={resolveMediaUrl(imageUrl)}
-                        alt="Duyuru onizleme"
+                        alt="Duyuru önizleme"
                         className="h-44 w-full object-cover"
                       />
                     </div>
@@ -417,14 +444,14 @@ export default function AnnouncementsPage({ canManage }: AnnouncementsPageProps)
                     <div className="flex h-44 items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white text-slate-400 dark:border-slate-700 dark:bg-slate-950">
                       <div className="text-center">
                         <ImagePlus className="mx-auto h-8 w-8" />
-                        <p className="mt-2 text-xs font-medium">Henuz gorsel secilmedi</p>
+                        <p className="mt-2 text-xs font-medium">Henüz görsel seçilmedi</p>
                       </div>
                     </div>
                   )}
 
                   <label className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-primary dark:hover:bg-primary-hover">
                     <UploadCloud className="h-4 w-4" />
-                    {imageUploading ? 'Yukleniyor...' : 'Gorsel yukle'}
+                    {imageUploading ? 'Yükleniyor...' : 'Görsel yükle'}
                     <input
                       type="file"
                       accept="image/png,image/jpeg,image/webp"
@@ -440,32 +467,35 @@ export default function AnnouncementsPage({ canManage }: AnnouncementsPageProps)
                       onClick={() => setImageUrl('')}
                       className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
-                      Gorseli kaldir
+                      Görseli kaldır
                     </button>
                   )}
                 </div>
               </div>
 
               <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-                >
-                  Iptal
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving || imageUploading}
-                  className="rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
-                >
-                  {saving ? 'Kaydediliyor...' : editingId ? 'Guncelle' : 'Yayinla'}
-                </button>
+                <Button type="button" variant="secondary" onClick={closeModal}>
+                  İptal
+                </Button>
+                <Button type="submit" disabled={saving || imageUploading}>
+                  {saving ? 'Kaydediliyor...' : editingId ? 'Güncelle' : 'Yayınla'}
+                </Button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Duyuruyu sil"
+        message={deleteTarget ? `"${deleteTarget.title}" duyurusunu silmek istediğinize emin misiniz?` : ''}
+        confirmLabel="Sil"
+        tone="danger"
+        busy={deleting}
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

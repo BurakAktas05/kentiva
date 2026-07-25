@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '../api';
+import ConfirmDialog from './ui/ConfirmDialog';
+import Toast, { type ToastState } from './ui/Toast';
 
 type ReportTemplate = {
   id: string;
@@ -21,7 +23,9 @@ export default function ReportTemplatesPanel() {
   const [templates, setTemplates] = useState<ReportTemplate[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [msg, setMsg] = useState('');
+  const [toast, setToast] = useState<ToastState>(null);
+  const [removeTarget, setRemoveTarget] = useState<ReportTemplate | null>(null);
+  const [removing, setRemoving] = useState(false);
   const [form, setForm] = useState({
     templateKey: '',
     title: '',
@@ -43,7 +47,7 @@ export default function ReportTemplatesPanel() {
       setCategories(cats);
       setForm((f) => (f.categoryId ? f : { ...f, categoryId: cats[0]?.id || '' }));
     } catch {
-      setMsg('Şablonlar yüklenemedi.');
+      setToast({ type: 'error', message: 'Şablonlar yüklenemedi.' });
     } finally {
       setLoading(false);
     }
@@ -53,9 +57,14 @@ export default function ReportTemplatesPanel() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(null), 5000);
+    return () => window.clearTimeout(t);
+  }, [toast]);
+
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMsg('');
     try {
       await api.post('/report-templates', {
         templateKey: form.templateKey.trim(),
@@ -74,23 +83,26 @@ export default function ReportTemplatesPanel() {
         iconCode: '',
         sortOrder: '0',
       });
-      setMsg('Şablon eklendi.');
+      setToast({ type: 'success', message: 'Şablon eklendi.' });
       await load();
     } catch (err: unknown) {
       const m = err as { response?: { data?: { message?: string } } };
-      setMsg(m.response?.data?.message || 'Kayıt başarısız.');
+      setToast({ type: 'error', message: m.response?.data?.message || 'Kayıt başarısız.' });
     }
   };
 
-  const remove = async (id: string) => {
-    if (!confirm('Bu şablonu devre dışı bırakmak istiyor musunuz?')) return;
-    setMsg('');
+  const confirmRemove = async () => {
+    if (!removeTarget) return;
+    setRemoving(true);
     try {
-      await api.delete(`/report-templates/${id}`);
-      setMsg('Şablon devre dışı.');
+      await api.delete(`/report-templates/${removeTarget.id}`);
+      setToast({ type: 'success', message: 'Şablon devre dışı bırakıldı.' });
+      setRemoveTarget(null);
       await load();
     } catch {
-      setMsg('Silme başarısız.');
+      setToast({ type: 'error', message: 'Silme başarısız.' });
+    } finally {
+      setRemoving(false);
     }
   };
 
@@ -123,7 +135,7 @@ export default function ReportTemplatesPanel() {
               </div>
               <button
                 type="button"
-                onClick={() => remove(t.id)}
+                onClick={() => setRemoveTarget(t)}
                 className="shrink-0 text-xs font-semibold text-red-650 hover:text-red-750 hover:underline"
               >
                 Kaldır
@@ -185,7 +197,18 @@ export default function ReportTemplatesPanel() {
           Ekle
         </button>
       </form>
-      {msg ? <p className="mt-2 text-xs text-slate-600 dark:text-slate-400 font-medium">{msg}</p> : null}
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
+
+      <ConfirmDialog
+        open={Boolean(removeTarget)}
+        title="Şablonu kaldır"
+        message={removeTarget ? `"${removeTarget.title}" şablonunu devre dışı bırakmak istiyor musunuz?` : ''}
+        confirmLabel="Kaldır"
+        tone="danger"
+        busy={removing}
+        onConfirm={() => void confirmRemove()}
+        onCancel={() => setRemoveTarget(null)}
+      />
     </section>
   );
 }

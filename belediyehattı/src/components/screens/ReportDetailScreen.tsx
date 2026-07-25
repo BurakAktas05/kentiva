@@ -25,6 +25,8 @@ import {
   reportStatusBadgeClass,
   screenBg,
 } from '../../lib/ui';
+import ErrorState from '../ui/ErrorState';
+import { usePrefersReducedMotion } from '../../lib/usePrefersReducedMotion';
 
 interface ReportDetailScreenProps {
   reportId: string;
@@ -130,6 +132,8 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [activeSlide, setActiveSlide] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   const ui = copy(lang);
   const locale = localeForLang(lang);
@@ -180,7 +184,7 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
     return () => {
       cancelled = true;
     };
-  }, [reportId]);
+  }, [reportId, reloadKey]);
 
   const handleScroll = (e: UIEvent<HTMLDivElement>) => {
     const container = e.currentTarget;
@@ -224,10 +228,15 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
       )}
 
       {!loading && err && (
-        <div className="flex-1 p-6 flex items-center justify-center">
-          <div className="w-full rounded-2xl border border-red-200 bg-red-50 p-4 text-center text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
-            {err}
-          </div>
+        <div className="flex-1 p-6 pt-20 flex items-center justify-center">
+          <ErrorState
+            isDark={isDark}
+            className="w-full"
+            title={lang === 'tr' ? 'Yükleme başarısız' : lang === 'ar' ? 'فشل التحميل' : 'Failed to load'}
+            description={err}
+            onRetry={() => setReloadKey((k) => k + 1)}
+            retryLabel={lang === 'tr' ? 'Tekrar dene' : lang === 'ar' ? 'إعادة المحاولة' : 'Try again'}
+          />
         </div>
       )}
 
@@ -272,15 +281,10 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
               )}
             </div>
           ) : (
-            /* Category Based Beautiful Gradient Header */
-            <div className="relative w-full aspect-[16/6] min-h-[140px] flex items-center justify-center overflow-hidden bg-gradient-to-br from-primary via-indigo-600 to-indigo-900 shrink-0">
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/65 via-transparent to-transparent pointer-events-none" />
-              <Sparkles className="absolute -right-6 -bottom-6 h-36 w-36 text-white/5 rotate-12" />
-              <Layers className="absolute -left-6 -top-6 h-36 w-36 text-white/5 -rotate-12" />
-              <div className="flex flex-col items-center gap-1 text-white/90 z-10 px-6 text-center mt-3">
-                <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] opacity-75">
-                  KENTİVA MOBİL BİLDİRİM
-                </span>
+            /* Calm category header for reports without photos */
+            <div className="relative w-full aspect-[16/6] min-h-[140px] flex items-center justify-center overflow-hidden bg-primary shrink-0">
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/40 via-transparent to-transparent pointer-events-none" />
+              <div className="flex flex-col items-center gap-1 text-white z-10 px-6 text-center">
                 <span className="text-base font-semibold tracking-wide truncate max-w-xs">
                   {detail.categoryName}
                 </span>
@@ -302,7 +306,7 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
             {/* Duplicate Notice */}
             {detail.duplicateGroupSize != null && detail.duplicateGroupSize > 1 && (
               <motion.div
-                initial={{ opacity: 0, y: 8 }}
+                initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 className={`flex items-start gap-3 rounded-2xl border p-4 mb-4 text-xs font-medium leading-relaxed ${
                   isDark
@@ -421,7 +425,7 @@ export default function ReportDetailScreen({ reportId, lang, isDark, onClose }: 
             {/* Official Response Highlight Box */}
             {officialResponse && (
               <motion.div
-                initial={{ opacity: 0, y: 8 }}
+                initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 className={`rounded-2xl border p-4.5 mb-4 border-l-4 shadow-sm relative overflow-hidden ${
                   isDark

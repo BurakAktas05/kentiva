@@ -1,0 +1,23 @@
+<svg width="900" height="240" viewBox="0 0 900 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="mark" x1="44" y1="28" x2="172" y2="188" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0EA5E9"/>
+      <stop offset="0.52" stop-color="#0B4F9C"/>
+      <stop offset="1" stop-color="#062F5C"/>
+    </linearGradient>
+    <filter id="shadow" x="18" y="18" width="180" height="180" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#062F5C" flood-opacity="0.24"/>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <rect x="42" y="34" width="148" height="148" rx="34" fill="url(#mark)"/>
+    <path d="M75 132.8V76" stroke="white" stroke-width="15" stroke-linecap="round"/>
+    <path d="M87 111L149 75" stroke="white" stroke-width="15" stroke-linecap="round"/>
+    <path d="M88 114L154 150" stroke="white" stroke-width="15" stroke-linecap="round"/>
+    <path d="M67 151C94 170 142 172 166 142" stroke="white" stroke-opacity="0.32" stroke-width="9" stroke-linecap="round"/>
+    <circle cx="145" cy="79" r="15" fill="#E6B422"/>
+    <circle cx="145" cy="79" r="6" fill="white"/>
+  </g>
+  <text x="224" y="117" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="70" font-weight="800">Kentiva</text>
+  <text x="228" y="153" fill="#475569" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="600">Akıllı belediye platformu</text>
+</svg>

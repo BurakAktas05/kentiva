@@ -52,7 +52,7 @@ describe('MunicipalitySettingsPage', () => {
     render(<MunicipalitySettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Belediye Ayarlari')).toBeInTheDocument();
+      expect(screen.getByText('Belediye Ayarları')).toBeInTheDocument();
     });
 
     expect(screen.getAllByText('kadikoy')[0]).toBeInTheDocument();
@@ -64,7 +64,7 @@ describe('MunicipalitySettingsPage', () => {
     render(<MunicipalitySettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Belediye Ayarlari')).toBeInTheDocument();
+      expect(screen.getByText('Belediye Ayarları')).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByText('Konum & Harita'));

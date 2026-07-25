@@ -87,6 +87,9 @@ public class ProductionSecretsValidator {
     @Value("${app.media-guard.fail-open:true}")
     private boolean mediaGuardFailOpen;
 
+    @Value("${app.media-guard.base-url:}")
+    private String mediaGuardBaseUrl;
+
     @Value("${app.media-validation.fail-open:true}")
     private boolean mediaValidationFailOpen;
 
@@ -131,13 +134,9 @@ public class ProductionSecretsValidator {
         assertValidMessagingConfiguration();
         assertValidCorsConfiguration();
         assertValidSmsConfiguration();
-        assertFailClosedMediaConfiguration();
+        assertMediaProtectionConfiguration();
         assertRateLimitEnabled();
 
-
-        if (geminiApiKey == null || geminiApiKey.isBlank()) {
-            log.warn("GEMINI_API_KEY tanimlanmadi. AI ozellikleri devre disi kalacak.");
-        }
         if (firebaseConfigBase64 == null || firebaseConfigBase64.isBlank()) {
             log.warn("FIREBASE_CONFIG_BASE64 tanimlanmadi. Push bildirimleri devre disi kalacak.");
         }
@@ -233,10 +232,18 @@ public class ProductionSecretsValidator {
         }
     }
 
-    void assertFailClosedMediaConfiguration() {
+    void assertMediaProtectionConfiguration() {
         if (mediaGuardFailOpen || mediaValidationFailOpen || mediaAnonymizationFailOpen) {
             throw new IllegalStateException(
                     "Production ortaminda medya koruma servisleri fail-open calisamaz; MEDIA_GUARD_FAIL_OPEN, MEDIA_VALIDATION_FAIL_OPEN ve MEDIA_ANONYMIZATION_FAIL_OPEN false olmalidir.");
+        }
+        if (isBlank(mediaGuardBaseUrl)) {
+            throw new IllegalStateException(
+                    "MEDIA_GUARD_URL production ortaminda zorunludur.");
+        }
+        if (isBlank(geminiApiKey) || "your-gemini-api-key".equalsIgnoreCase(geminiApiKey.trim())) {
+            throw new IllegalStateException(
+                    "GEMINI_API_KEY production ortaminda medya dogrulama ve KVKK anonimlestirme icin zorunludur.");
         }
     }
 

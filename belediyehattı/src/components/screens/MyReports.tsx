@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'motion/react';
 import {
   ArrowLeft,
@@ -15,12 +15,16 @@ import { Lang, t } from '../../i18n';
 import AiPriorityBadge from '../AiPriorityBadge';
 import SlaIndicator from '../SlaIndicator';
 import { reportStatusBadgeClass } from '../../lib/ui';
+import EmptyState from '../ui/EmptyState';
+import ErrorState from '../ui/ErrorState';
+import LoadingState from '../ui/LoadingState';
 
 const PAGE_SIZE = 120;
 
 interface MyReportsProps {
   onBack: () => void;
   onOpenReport?: (reportId: string) => void;
+  onCreateReport?: () => void;
   lang: Lang;
   isDark: boolean;
 }
@@ -49,33 +53,43 @@ function reportUrgencyScore(r: ApiReportList): number {
   return score;
 }
 
-export default function MyReports({ onBack, onOpenReport, lang, isDark }: MyReportsProps) {
+export default function MyReports({ onBack, onOpenReport, onCreateReport, lang, isDark }: MyReportsProps) {
   const [reports, setReports] = useState<ApiReportList[]>([]);
   const [totalMyReports, setTotalMyReports] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
+  const loadReports = useCallback(async () => {
+    setLoading(true);
+    setLoadError('');
+    try {
+      const rep = await getMyReports(0, PAGE_SIZE);
+      setReports(rep.content || []);
+      setTotalMyReports(rep.totalElements ?? (rep.content || []).length);
+    } catch {
+      setReports([]);
+      setTotalMyReports(0);
+      setLoadError(
+        lang === 'tr'
+          ? 'İhbarlarınız yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.'
+          : 'Could not load your reports. Check your connection and try again.',
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [lang]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const rep = await getMyReports(0, PAGE_SIZE).catch(() => ({ content: [], totalElements: 0 }));
-        if (cancelled) return;
-        setReports(rep.content || []);
-        setTotalMyReports(rep.totalElements ?? (rep.content || []).length);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    void loadReports();
+  }, [loadReports]);
 
   const card = isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white';
   const muted = isDark ? 'text-slate-400' : 'text-slate-500';
   const sortedReports = [...reports].sort((a, b) => reportUrgencyScore(b) - reportUrgencyScore(a));
-  const isEmpty = !loading && totalMyReports === 0;
+  const isEmpty = !loading && !loadError && totalMyReports === 0;
+  const pendingCount = reports.filter((r) => r.status === 'PENDING').length;
+  const processingCount = reports.filter((r) => r.status === 'PROCESSING' || r.status === 'FORWARDED').length;
+  const resolvedCount = reports.filter((r) => r.status === 'RESOLVED').length;
 
   return (
     <div className={`flex min-h-full flex-col pb-8 ${isDark ? 'bg-slate-900' : 'bg-slate-50'}`}>
@@ -98,7 +112,7 @@ export default function MyReports({ onBack, onOpenReport, lang, isDark }: MyRepo
           <h1 className={`truncate text-base font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
             {t('home.reports.title', lang)}
           </h1>
-          {!loading && (
+          {!loading && !loadError && (
             <p className={`text-xs ${muted}`}>{t('home.reports.count', lang, { n: totalMyReports })}</p>
           )}
         </div>
@@ -106,18 +120,49 @@ export default function MyReports({ onBack, onOpenReport, lang, isDark }: MyRepo
 
       <div className="flex-1 px-4 pt-4">
         {loading ? (
-          <div className="space-y-2">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className={`h-20 animate-pulse rounded-2xl border ${card}`} />
-            ))}
-          </div>
+          <LoadingState isDark={isDark} rows={3} />
+        ) : loadError ? (
+          <ErrorState
+            isDark={isDark}
+            title={lang === 'tr' ? 'Yükleme başarısız' : 'Failed to load'}
+            description={loadError}
+            onRetry={() => void loadReports()}
+            retryLabel={lang === 'tr' ? 'Tekrar dene' : 'Try again'}
+          />
         ) : isEmpty ? (
-          <div className={`rounded-2xl border py-14 text-center ${card}`}>
-            <HardHat className="mx-auto mb-3 h-10 w-10 text-slate-300 dark:text-slate-600" />
-            <p className={`text-sm font-semibold ${muted}`}>{t('home.reports.empty.title', lang)}</p>
-            <p className="mt-2 px-6 text-xs leading-relaxed text-slate-400">{t('home.reports.empty.desc', lang)}</p>
-          </div>
+          <EmptyState
+            isDark={isDark}
+            icon={<HardHat className="h-10 w-10" />}
+            title={t('home.reports.empty.title', lang)}
+            description={t('home.reports.empty.desc', lang)}
+            action={
+              onCreateReport ? (
+                <button
+                  type="button"
+                  onClick={onCreateReport}
+                  className="inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-sm active:scale-[0.98]"
+                >
+                  {lang === 'tr' ? 'Yeni ihbar oluştur' : 'Create a new report'}
+                </button>
+              ) : undefined
+            }
+          />
         ) : (
+          <>
+            <div className={`mb-3 grid grid-cols-3 gap-2 rounded-2xl border p-3 ${card}`}>
+              {[
+                { label: lang === 'tr' ? 'Bekleyen' : 'Pending', value: pendingCount },
+                { label: lang === 'tr' ? 'İşlemde' : 'In progress', value: processingCount },
+                { label: lang === 'tr' ? 'Çözülen' : 'Resolved', value: resolvedCount },
+              ].map((item) => (
+                <div key={item.label} className="text-center">
+                  <p className={`text-[10px] font-bold uppercase tracking-wide ${muted}`}>{item.label}</p>
+                  <p className={`mt-0.5 text-lg font-black tabular-nums ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                    {item.value}
+                  </p>
+                </div>
+              ))}
+            </div>
           <ul className="space-y-2">
             {sortedReports.map((report, idx) => (
               <li key={report.id}>
@@ -163,6 +208,7 @@ export default function MyReports({ onBack, onOpenReport, lang, isDark }: MyRepo
               </li>
             ))}
           </ul>
+          </>
         )}
       </div>
     </div>

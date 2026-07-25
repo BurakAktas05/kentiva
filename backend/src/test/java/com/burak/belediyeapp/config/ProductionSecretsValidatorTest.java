@@ -29,7 +29,7 @@ class ProductionSecretsValidatorTest {
         ReflectionTestUtils.setField(validator, "redisHost", "");
         ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "https://admin.kentiva.app,https://app.kentiva.app");
         ReflectionTestUtils.setField(validator, "corsAllowedOriginPatterns", "");
-        ReflectionTestUtils.setField(validator, "geminiApiKey", "");
+        ReflectionTestUtils.setField(validator, "geminiApiKey", "gemini-production-key");
         ReflectionTestUtils.setField(validator, "firebaseConfigBase64", "");
         ReflectionTestUtils.setField(validator, "smsProvider", "netgsm");
         ReflectionTestUtils.setField(validator, "netgsmUsercode", "netgsm-user");
@@ -37,6 +37,7 @@ class ProductionSecretsValidatorTest {
         ReflectionTestUtils.setField(validator, "netgsmHeader", "KENTIVA");
         ReflectionTestUtils.setField(validator, "smsOtpDevBypassEnabled", false);
         ReflectionTestUtils.setField(validator, "mediaGuardFailOpen", false);
+        ReflectionTestUtils.setField(validator, "mediaGuardBaseUrl", "http://media-guard.internal:8000");
         ReflectionTestUtils.setField(validator, "mediaValidationFailOpen", false);
         ReflectionTestUtils.setField(validator, "mediaAnonymizationFailOpen", false);
         ReflectionTestUtils.setField(validator, "requireDurableStorage", true);
@@ -88,6 +89,24 @@ class ProductionSecretsValidatorTest {
         assertThatIllegalStateException()
                 .isThrownBy(() -> validator.validateRequiredSecrets())
                 .withMessageContaining("fail-open");
+    }
+
+    @Test
+    void rejectsMissingMediaGuardUrlInProduction() {
+        ReflectionTestUtils.setField(validator, "mediaGuardBaseUrl", "");
+
+        assertThatIllegalStateException()
+                .isThrownBy(() -> validator.validateRequiredSecrets())
+                .withMessageContaining("MEDIA_GUARD_URL");
+    }
+
+    @Test
+    void rejectsMissingGeminiKeyForFailClosedMediaProtection() {
+        ReflectionTestUtils.setField(validator, "geminiApiKey", "");
+
+        assertThatIllegalStateException()
+                .isThrownBy(() -> validator.validateRequiredSecrets())
+                .withMessageContaining("GEMINI_API_KEY");
     }
 
     @Test

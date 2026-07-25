@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 interface TurkeyMapProps {
   highlightedPlakas: string[]; // Fully registered plaka codes, e.g. ["34"]
@@ -16,15 +16,6 @@ export default function TurkeyMap({
   className = ''
 }: TurkeyMapProps) {
   const [hoveredProvince, setHoveredProvince] = useState<{ name: string; plaka: string } | null>(null);
-  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
-
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setIsDark(document.documentElement.classList.contains('dark'));
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-    return () => observer.disconnect();
-  }, []);
 
   const handleProvinceClick = (e: React.MouseEvent<SVGElement>) => {
     const g = e.currentTarget;
@@ -57,8 +48,8 @@ export default function TurkeyMap({
         {`
           #svg-turkiye-haritasi g[data-plakakodu] {
             transition: fill 0.2s, stroke 0.2s, opacity 0.2s !important;
-            fill: ${isDark ? '#1e293b' : '#f8fafc'} !important;
-            stroke: ${isDark ? '#334155' : '#ffffff'} !important;
+            fill: #f8fafc !important;
+            stroke: #ffffff !important;
           }
           #svg-turkiye-haritasi g[data-plakakodu]:hover {
             opacity: 0.85;

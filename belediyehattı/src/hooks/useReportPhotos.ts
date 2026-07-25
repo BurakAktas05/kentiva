@@ -73,6 +73,7 @@ export function useReportPhotos({ lang, maxPhotos = 3 }: UseReportPhotosProps) {
   const uploadingRef = useRef(false);
   const operationSequenceRef = useRef(0);
   const activeOperationRef = useRef(0);
+  const lastFailedFileRef = useRef<File | null>(null);
 
   const commitPhotos = useCallback((nextPhotos: ReportPhoto[]) => {
     photosRef.current = nextPhotos;
@@ -92,6 +93,7 @@ export function useReportPhotos({ lang, maxPhotos = 3 }: UseReportPhotosProps) {
       activeOperationRef.current = 0;
       operationSequenceRef.current += 1;
       uploadingRef.current = false;
+      lastFailedFileRef.current = null;
       cleanupPhotos(photosRef.current);
       photosRef.current = [];
     };
@@ -143,6 +145,49 @@ export function useReportPhotos({ lang, maxPhotos = 3 }: UseReportPhotosProps) {
     [commitPhotos],
   );
 
+  const uploadFile = async (file: File, previewUrl: string, operationId: number) => {
+    const urls = await uploadMedia(file);
+    const mediaUrl = urls.find((url) => url.trim().length > 0)?.trim();
+
+    if (!isOperationActive(operationId)) {
+      revokePreview(previewUrl);
+      return false;
+    }
+
+    if (!mediaUrl) {
+      throw new Error(lang === 'tr' ? 'Fotoğraf yüklenemedi.' : 'Upload failed.');
+    }
+
+    let cacheValue = previewUrl;
+    try {
+      cacheValue = await fileToBase64(file);
+    } catch {
+      // Keep the session preview when conversion is unsupported.
+    }
+
+    if (!isOperationActive(operationId)) {
+      revokePreview(previewUrl);
+      return false;
+    }
+
+    try {
+      localStorage.setItem(MEDIA_CACHE_PREFIX + mediaUrl, cacheValue);
+    } catch {
+      // A cache failure must not invalidate a successful server upload.
+    }
+
+    const currentPhotos = photosRef.current;
+    if (currentPhotos.length >= maxPhotos) {
+      removeMediaCache(mediaUrl);
+      revokePreview(previewUrl);
+      return false;
+    }
+
+    commitPhotos([...currentPhotos, { mediaUrl, previewUrl }]);
+    lastFailedFileRef.current = null;
+    return true;
+  };
+
   const handleCapturePhoto = async () => {
     if (uploadingRef.current || photosRef.current.length >= maxPhotos) return;
 
@@ -162,50 +207,44 @@ export function useReportPhotos({ lang, maxPhotos = 3 }: UseReportPhotosProps) {
         return;
       }
 
-      const urls = await uploadMedia(file);
-      const mediaUrl = urls.find((url) => url.trim().length > 0)?.trim();
-
-      if (!isOperationActive(operationId)) {
-        revokePreview(previewUrl);
-        return;
+      lastFailedFileRef.current = file;
+      const committed = await uploadFile(file, previewUrl, operationId);
+      if (committed) {
+        capturedPreviewUrl = '';
       }
-
-      if (!mediaUrl) {
-        throw new Error(lang === 'tr' ? 'Fotoğraf yüklenemedi.' : 'Upload failed.');
-      }
-
-      let cacheValue = previewUrl;
-      try {
-        cacheValue = await fileToBase64(file);
-      } catch {
-        // Keep the session preview when conversion is unsupported.
-      }
-
-      if (!isOperationActive(operationId)) {
-        revokePreview(previewUrl);
-        return;
-      }
-
-      try {
-        localStorage.setItem(MEDIA_CACHE_PREFIX + mediaUrl, cacheValue);
-      } catch {
-        // A cache failure must not invalidate a successful server upload.
-      }
-
-      const currentPhotos = photosRef.current;
-      if (currentPhotos.length >= maxPhotos) {
-        removeMediaCache(mediaUrl);
-        revokePreview(previewUrl);
-        return;
-      }
-
-      commitPhotos([...currentPhotos, { mediaUrl, previewUrl }]);
-      capturedPreviewUrl = '';
     } catch (err: unknown) {
       if (capturedPreviewUrl) {
         revokePreview(capturedPreviewUrl);
       }
       if (err instanceof PhotoCaptureCancelledError || !isOperationActive(operationId)) return;
+      setError(err instanceof Error ? err.message : lang === 'tr' ? 'Fotoğraf yüklenemedi.' : 'Upload failed.');
+    } finally {
+      if (activeOperationRef.current === operationId) {
+        activeOperationRef.current = 0;
+        uploadingRef.current = false;
+        if (mountedRef.current) {
+          setIsUploading(false);
+        }
+      }
+    }
+  };
+
+  const retryLastUpload = async () => {
+    const file = lastFailedFileRef.current;
+    if (!file || uploadingRef.current || photosRef.current.length >= maxPhotos) return;
+
+    const operationId = ++operationSequenceRef.current;
+    activeOperationRef.current = operationId;
+    uploadingRef.current = true;
+    setIsUploading(true);
+    setError('');
+    const previewUrl = URL.createObjectURL(file);
+
+    try {
+      await uploadFile(file, previewUrl, operationId);
+    } catch (err: unknown) {
+      revokePreview(previewUrl);
+      if (!isOperationActive(operationId)) return;
       setError(err instanceof Error ? err.message : lang === 'tr' ? 'Fotoğraf yüklenemedi.' : 'Upload failed.');
     } finally {
       if (activeOperationRef.current === operationId) {
@@ -232,6 +271,7 @@ export function useReportPhotos({ lang, maxPhotos = 3 }: UseReportPhotosProps) {
     activeOperationRef.current = 0;
     operationSequenceRef.current += 1;
     uploadingRef.current = false;
+    lastFailedFileRef.current = null;
     cleanupPhotos(photosRef.current);
     commitPhotos([]);
     setIsUploading(false);
@@ -247,6 +287,7 @@ export function useReportPhotos({ lang, maxPhotos = 3 }: UseReportPhotosProps) {
     error,
     setError,
     handleCapturePhoto,
+    retryLastUpload,
     handleRemovePhoto,
     clearPhotos,
     maxPhotos,

@@ -104,7 +104,9 @@ public class MediaSignedUrlService {
                 if (amp >= 0) {
                     token = token.substring(0, amp);
                 }
-                return verifyAndExtractPath(token);
+                // DB'ye yazarken süre dolmuş olsa da imza geçerliyse depolama yolunu çıkar
+                // (istemci formda imzalı URL tutar; erişim GET'inde süre hâlâ zorunlu).
+                return verifyAndExtractPath(token, false);
             }
         }
         String key = resolveStorageKey(trimmed);
@@ -129,6 +131,14 @@ public class MediaSignedUrlService {
     }
 
     public String verifyAndExtractPath(String token) {
+        return verifyAndExtractPath(token, true);
+    }
+
+    /**
+     * @param requireNotExpired {@code true} ise erişim için süre kontrolü yapılır;
+     *                          {@code false} ise yalnızca imza doğrulanır (kalıcı yol çıkarma).
+     */
+    public String verifyAndExtractPath(String token, boolean requireNotExpired) {
         if (token == null || token.isBlank()) {
             throw new BusinessException("Geçersiz medya erişim anahtarı.", "INVALID_MEDIA_TOKEN");
         }
@@ -141,7 +151,7 @@ public class MediaSignedUrlService {
             String path = parts[0];
             long expiresAt = Long.parseLong(parts[1]);
             String signature = parts[2];
-            if (Instant.now().getEpochSecond() > expiresAt) {
+            if (requireNotExpired && Instant.now().getEpochSecond() > expiresAt) {
                 throw new BusinessException("Medya bağlantısının süresi doldu.", "MEDIA_TOKEN_EXPIRED");
             }
             String expected = hmac(path + "|" + expiresAt);

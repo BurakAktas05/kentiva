@@ -1,4 +1,5 @@
-import { ChevronLeft, Clock, Share2, Award, Calendar, CheckCircle2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ChevronLeft, Clock, Share2, Calendar, CheckCircle2 } from 'lucide-react';
 import { resolveMediaUrl, type ApiAnnouncement, type PublicTenant } from '../../api';
 import { Lang, t } from '../../i18n';
 
@@ -24,6 +25,14 @@ export default function AnnouncementDetailScreen({
       )
     : null;
 
+  const [copiedFeedback, setCopiedFeedback] = useState(false);
+
+  useEffect(() => {
+    if (!copiedFeedback) return;
+    const timeout = window.setTimeout(() => setCopiedFeedback(false), 3000);
+    return () => window.clearTimeout(timeout);
+  }, [copiedFeedback]);
+
   const handleShare = async () => {
     const shareData = {
       title: announcement.title,
@@ -35,7 +44,7 @@ export default function AnnouncementDetailScreen({
         await navigator.share(shareData);
       } else {
         await navigator.clipboard.writeText(`${announcement.title}\n\n${announcement.content}`);
-        alert(lang === 'tr' ? 'Duyuru metni panoya kopyalandı!' : 'Announcement copied to clipboard!');
+        setCopiedFeedback(true);
       }
     } catch (err) {
       console.warn('Share failed:', err);
@@ -44,7 +53,17 @@ export default function AnnouncementDetailScreen({
 
   return (
     <div className={`min-h-full flex flex-col ${isDark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'} relative`}>
-      
+      {copiedFeedback && (
+        <div
+          role="status"
+          className={`fixed left-4 right-4 top-4 z-50 mx-auto max-w-sm rounded-2xl border px-4 py-3 text-center text-xs font-semibold shadow-lg ${
+            isDark ? 'border-emerald-500/30 bg-emerald-950/90 text-emerald-100' : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+          }`}
+        >
+          {lang === 'tr' ? 'Duyuru metni panoya kopyalandı!' : 'Announcement copied to clipboard!'}
+        </div>
+      )}
+
       {/* Banner / Cover Image Section */}
       <div className="relative w-full aspect-[16/10] sm:aspect-[16/9] max-h-64 bg-slate-900 overflow-hidden shrink-0">
         {announcement.imageUrl ? (

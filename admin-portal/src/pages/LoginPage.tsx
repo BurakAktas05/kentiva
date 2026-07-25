@@ -116,7 +116,7 @@ export function LoginLandingPage() {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(14,165,233,.22),transparent_30%),radial-gradient(circle_at_85%_80%,rgba(11,79,156,.28),transparent_34%)]" />
       <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(255,255,255,.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.08)_1px,transparent_1px)] [background-size:48px_48px]" />
       <div className="relative mx-auto grid min-h-screen max-w-[1440px] lg:grid-cols-[1.1fr_.9fr]">
-        <section className="flex flex-col justify-between px-6 py-8 sm:px-10 lg:px-16 lg:py-12">
+        <section className="order-2 flex flex-col justify-between px-6 py-8 sm:px-10 lg:order-1 lg:px-16 lg:py-12">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 to-primary shadow-lg shadow-sky-500/20"><Building2 className="h-5 w-5" /></div>
             <div><p className="text-lg font-black tracking-tight">Kentiva</p><p className="text-[9px] font-bold uppercase tracking-[.2em] text-sky-200/70">Akıllı belediye platformu</p></div>
@@ -136,19 +136,20 @@ export function LoginLandingPage() {
           <p className="text-xs font-semibold text-slate-500">© {new Date().getFullYear()} Kentiva · Güvenli belediye operasyonları</p>
         </section>
 
-        <section className="flex items-center justify-center border-l border-white/10 bg-white/[.035] px-6 py-12 backdrop-blur-sm sm:px-10 lg:px-14">
+        <section className="order-1 flex min-h-screen items-center justify-center border-l border-white/10 bg-white/[.035] px-6 py-12 backdrop-blur-sm sm:px-10 lg:order-2 lg:min-h-0 lg:px-14">
           <div className="w-full max-w-lg rounded-[2rem] border border-white/10 bg-white p-7 text-slate-900 shadow-[0_40px_100px_-30px_rgba(0,0,0,.7)] sm:p-9 dark:bg-slate-900 dark:text-white">
             <p className="text-[10px] font-black uppercase tracking-[.16em] text-primary dark:text-sky-300">Güvenli portal erişimi</p>
             <h2 className="mt-2 text-3xl font-black tracking-[-.035em]">Çalışma alanınıza girin</h2>
             <p className="mt-2 text-sm font-medium leading-6 text-slate-500 dark:text-slate-400">Belediyenize özel yönetim portalının adresini kullanın.</p>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="mt-7 space-y-2">
-              <label className="kentiva-label">Kurumsal çalışma alanı</label>
+              <label htmlFor="workspace-slug" className="kentiva-label">Kurumsal çalışma alanı</label>
               <div className="relative flex items-center">
                 <div className="pointer-events-none absolute left-4 text-slate-400">
                   <Building2 className="h-5 w-5" />
                 </div>
                 <input
+                  id="workspace-slug"
                   type="text"
                   value={slug}
                   onChange={(e) => {
@@ -218,12 +219,6 @@ export default function LoginPage({
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // 2-Step SMS states
-  const [loginStep, setLoginStep] = useState<'credentials' | 'sms'>('credentials');
-  const [tempAuthData, setTempAuthData] = useState<any>(null);
-  const [smsCode, setSmsCode] = useState('');
-  const [smsError, setSmsError] = useState('');
-
   const [forgotStep, setForgotStep] = useState<'off' | 'phone' | 'otp' | 'newpass'>('off');
   const [resetPhone, setResetPhone] = useState('');
   const [otp, setOtp] = useState('');
@@ -258,8 +253,9 @@ export default function LoginPage({
         return;
       }
 
-      setTempAuthData(res.data.data);
-      setLoginStep('sms');
+      setStoredAuthTokens(res.data.data.accessToken, res.data.data.refreshToken ?? null);
+      savePreferredLoginPortal(portal);
+      onLogin(nextUser);
     } catch (err: unknown) {
       setError(
         axios.isAxiosError(err)
@@ -269,26 +265,6 @@ export default function LoginPage({
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const handleSmsVerify = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!smsCode || smsCode.length < 6) {
-      setSmsError('Lütfen 6 haneli doğrulama kodunu girin.');
-      return;
-    }
-    if (smsCode === '123456' || smsCode === '000000') {
-      completeLogin();
-    } else {
-      setSmsError('Girdiğiniz kod hatalı. (Test için 123456 veya 000000 kullanabilirsiniz)');
-    }
-  };
-
-  const completeLogin = () => {
-    if (!tempAuthData) return;
-    setStoredAuthTokens(tempAuthData.accessToken, tempAuthData.refreshToken ?? null);
-    savePreferredLoginPortal(portal);
-    onLogin(buildPortalUser(tempAuthData));
   };
 
   const handleReset = async () => {
@@ -362,11 +338,11 @@ export default function LoginPage({
             </div>
 
             {forgotStep === 'off' ? (
-              loginStep === 'credentials' ? (
                 <form onSubmit={handleSubmit} className="space-y-5">
                   <div className="space-y-2">
-                    <label className="kentiva-label">E-posta</label>
+                    <label htmlFor={`${portal}-login-email`} className="kentiva-label">E-posta</label>
                     <input
+                      id={`${portal}-login-email`}
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -376,8 +352,9 @@ export default function LoginPage({
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="kentiva-label">Şifre</label>
+                    <label htmlFor={`${portal}-login-password`} className="kentiva-label">Şifre</label>
                     <input
+                      id={`${portal}-login-password`}
                       type="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
@@ -398,59 +375,6 @@ export default function LoginPage({
                     Şifremi unuttum
                   </button>
                 </form>
-              ) : (
-                <form onSubmit={handleSmsVerify} className="space-y-6">
-                  <div className="text-center">
-                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary mb-3">
-                      <LockKeyhole className="h-6 w-6" />
-                    </div>
-                    <h3 className="text-lg font-black text-slate-950 dark:text-white">SMS Kodu Doğrulama</h3>
-                    <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                      Girişi tamamlamak için telefonunuza gönderilen 6 haneli doğrulama kodunu girin.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={6}
-                      value={smsCode}
-                      onChange={(e) => {
-                        setSmsCode(e.target.value.replace(/\D/g, ''));
-                        setSmsError('');
-                      }}
-                      className="kentiva-input !rounded-2xl !py-4 text-center text-3xl font-black tracking-[0.3em] pl-[0.3em] text-slate-800 dark:text-white"
-                      placeholder="000000"
-                      required
-                    />
-                    {import.meta.env.DEV && <p className="text-[11px] text-center font-bold text-slate-400">
-                      Test için kod: <code className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-primary">123456</code> veya <code className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-primary">000000</code>
-                    </p>}
-                    {smsError && <p className="kentiva-alert-error !rounded-2xl text-center">{smsError}</p>}
-                  </div>
-
-                  <div className="space-y-2.5">
-                    <button type="submit" className="kentiva-btn-primary w-full !rounded-2xl !py-4 font-bold shadow-lg shadow-primary/20">
-                      Kodu Doğrula ve Giriş Yap
-                    </button>
-                    {import.meta.env.DEV && <button
-                      type="button"
-                      onClick={completeLogin}
-                      className="kentiva-btn-secondary w-full !rounded-2xl !py-4 font-bold border-dashed border-2 hover:border-primary hover:text-primary transition"
-                    >
-                      Doğrulamayı Atla (Test)
-                    </button>}
-                    <button
-                      type="button"
-                      onClick={() => setLoginStep('credentials')}
-                      className="w-full text-center text-xs font-bold text-slate-400 hover:text-slate-600 transition"
-                    >
-                      E-posta/Şifre Ekranına Geri Dön
-                    </button>
-                  </div>
-                </form>
-              )
             ) : (
               <div className="space-y-6">
                 <div className="flex items-center gap-2 text-primary">
@@ -459,8 +383,9 @@ export default function LoginPage({
                 </div>
                 {forgotStep === 'phone' && (
                   <div className="space-y-3">
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Hesabınıza kayıtlı telefon numarasını girin.</p>
+                    <label htmlFor="reset-phone" className="text-sm text-slate-500 dark:text-slate-400">Hesabınıza kayıtlı telefon numarasını girin.</label>
                     <input
+                      id="reset-phone"
                       type="tel"
                       value={resetPhone}
                       onChange={(e) => setResetPhone(e.target.value)}
@@ -471,8 +396,9 @@ export default function LoginPage({
                 )}
                 {forgotStep === 'otp' && (
                   <div className="space-y-3">
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Telefonunuza gelen 6 haneli doğrulama kodunu girin.</p>
+                    <label htmlFor="reset-otp" className="text-sm text-slate-500 dark:text-slate-400">Telefonunuza gelen 6 haneli doğrulama kodunu girin.</label>
                     <input
+                      id="reset-otp"
                       type="text"
                       inputMode="numeric"
                       maxLength={6}
@@ -485,14 +411,15 @@ export default function LoginPage({
                 )}
                 {forgotStep === 'newpass' && (
                   <div className="space-y-3">
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Yeni şifrenizi belirleyin.</p>
+                    <label htmlFor="reset-new-password" className="text-sm text-slate-500 dark:text-slate-400">En az 12 karakterli yeni şifrenizi belirleyin.</label>
                     <input
+                      id="reset-new-password"
                       type="password"
                       value={newPass}
                       onChange={(e) => setNewPass(e.target.value)}
                       className="kentiva-input !rounded-2xl !py-3.5"
                       placeholder="Yeni şifre"
-                      minLength={8}
+                      minLength={12}
                     />
                   </div>
                 )}

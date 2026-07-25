@@ -29,15 +29,19 @@ const config: CapacitorConfig = {
   },
   plugins: {
     SplashScreen: {
-      launchAutoHide: true,
+      // Match the bright React launch screen to avoid a color flash during hand-off.
+      launchAutoHide: false,
       launchShowDuration: 0,
-      backgroundColor: '#0b4f9c',
+      backgroundColor: '#f8fafc',
       androidSplashResourceName: 'splash',
+      androidScaleType: 'CENTER_CROP',
       showSpinner: false,
+      splashFullScreen: true,
+      splashImmersive: true,
     },
     StatusBar: {
-      style: 'LIGHT',
-      backgroundColor: '#0b4f9c',
+      style: 'DARK',
+      backgroundColor: '#f8fafc',
     },
     Keyboard: {
       resizeOnFullScreen: true,

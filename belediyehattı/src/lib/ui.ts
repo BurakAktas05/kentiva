@@ -56,12 +56,12 @@ export function primaryBtnClass(disabled = false): string {
 
 /** Kapak / kart görselleri — tüm ekranlarda aynı oran */
 export const coverMediaClass =
-  'relative w-full overflow-hidden rounded-2xl aspect-[16/9] max-h-52 bg-slate-200 dark:bg-slate-800';
+  'relative w-full overflow-hidden rounded-2xl aspect-[2/1] max-h-36 bg-slate-200 dark:bg-slate-800';
 
 export const coverMediaImgClass = 'absolute inset-0 h-full w-full object-cover object-center';
 
 export const announcementCardClass =
-  'relative w-full shrink-0 snap-center aspect-[16/9] rounded-2xl overflow-hidden text-left shadow-sm focus:outline-none focus:ring-2 focus:ring-primary';
+  'relative w-full shrink-0 snap-center aspect-[2/1] max-h-36 rounded-2xl overflow-hidden text-left shadow-sm focus:outline-none focus:ring-2 focus:ring-primary';
 
 export function detailHeaderBar(isDark: boolean): string {
   return `sticky top-0 z-10 flex shrink-0 items-center gap-2 border-b px-4 py-3 pt-safe backdrop-blur-md ${

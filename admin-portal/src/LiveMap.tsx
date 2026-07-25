@@ -1,15 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import 'leaflet.heat';
-import SockJS from 'sockjs-client';
-import { Stomp, type CompatClient, type IMessage } from '@stomp/stompjs';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertCircle, Flame, MapPin, Layers } from 'lucide-react';
-import api, { getStoredAccessToken, type Report, type ReportListItem } from './api';
-import { getSockJsUrl } from './lib/env';
-import { heatMapGradient, reportStatusBadgeClass } from './lib/ui';
+import api, { type Report, type ReportListItem } from './api';
+import { heatMapGradient } from './lib/ui';
+import { useReportLive } from './context/ReportLiveContext';
 
 // Leaflet default icon paths (bundler)
 delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
@@ -23,13 +21,29 @@ type LeafletWithHeat = typeof L & {
   heatLayer(points: [number, number, number][], options?: Record<string, unknown>): L.Layer;
 };
 
-const RecenterMap = ({ coords }: { coords: [number, number] }) => {
+const RecenterMap = ({ coords, enabled }: { coords: [number, number]; enabled: boolean }) => {
   const map = useMap();
   useEffect(() => {
-    map.setView(coords, 13);
-  }, [coords, map]);
+    if (!enabled) return;
+    map.setView(coords, 13, { animate: true });
+  }, [coords, enabled, map]);
   return null;
 };
+
+/** Keep tiles sharp after container size / drawer layout changes */
+function InvalidateSizeOnMount() {
+  const map = useMap();
+  useEffect(() => {
+    const id = window.setTimeout(() => map.invalidateSize(), 80);
+    const onResize = () => map.invalidateSize();
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.clearTimeout(id);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [map]);
+  return null;
+}
 
 function listItemToReport(row: ReportListItem): Report {
   return {
@@ -70,20 +84,23 @@ const LiveMap = ({
   centerLat,
   centerLng,
   zoom,
-  municipalityId,
   onOpenReport,
+  className,
+  pauseRecenter = false,
 }: {
   centerLat?: number;
   centerLng?: number;
   zoom?: number;
+  /** Kept for backward compatibility; live updates now come from ReportLiveContext. */
   municipalityId?: string;
   onOpenReport?: (reportId: string) => void;
+  className?: string;
+  /** When a detail drawer is open, skip map jumps that feel like UI shift */
+  pauseRecenter?: boolean;
 }) => {
   const openReportDetail = useCallback(
     (reportId: string) => {
-      if (onOpenReport) {
-        onOpenReport(reportId);
-      }
+      onOpenReport?.(reportId);
     },
     [onOpenReport],
   );
@@ -91,8 +108,9 @@ const LiveMap = ({
   const [reports, setReports] = useState<Report[]>([]);
   const [newReport, setNewReport] = useState<Report | null>(null);
   const [layerMode, setLayerMode] = useState<MapLayerMode>('both');
-  const [wsConnected, setWsConnected] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const { latestReport, wsConnected } = useReportLive();
+  const lastHandledReportId = useRef<string | null>(null);
 
   const mergeReport = useCallback((incoming: Report) => {
     setReports((prev) => {
@@ -122,91 +140,18 @@ const LiveMap = ({
     };
   }, []);
 
+  // Real-time updates are provided by ReportLiveProvider (single shared WebSocket
+  // connection per municipality) instead of opening a second STOMP connection here.
   useEffect(() => {
-    if (!municipalityId) {
-      return;
+    if (!latestReport?.id || latestReport.id === lastHandledReportId.current) return;
+    lastHandledReportId.current = latestReport.id;
+    if (Number.isFinite(latestReport.latitude) && Number.isFinite(latestReport.longitude)) {
+      mergeReport(latestReport);
+      setNewReport(latestReport);
+      const timer = window.setTimeout(() => setNewReport(null), 5000);
+      return () => window.clearTimeout(timer);
     }
-    const token = getStoredAccessToken();
-    if (!token) {
-      return;
-    }
-
-    let stompClient: CompatClient | null = null;
-    let reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null;
-    let isCurrentEffect = true;
-    let retryCount = 0;
-    let isWsConnected = false;
-
-    const connect = () => {
-      if (!isCurrentEffect) return;
-
-      const socket = new SockJS(getSockJsUrl());
-      stompClient = Stomp.over(socket);
-      stompClient.debug = () => {};
-      const topic = `/topic/municipality/${municipalityId}/reports`;
-      const connectHeaders = { Authorization: `Bearer ${token}` };
-
-      stompClient.connect(
-        connectHeaders,
-        () => {
-          if (!isCurrentEffect) return;
-          isWsConnected = true;
-          setWsConnected(true);
-          retryCount = 0; // reset on success
-          stompClient?.subscribe(topic, (msg: IMessage) => {
-            try {
-              const report = JSON.parse(msg.body) as Report;
-              if (Number.isFinite(report.latitude) && Number.isFinite(report.longitude)) {
-                mergeReport(report);
-                setNewReport(report);
-                setTimeout(() => setNewReport(null), 5000);
-              }
-            } catch {
-              // Ignore malformed real-time messages without breaking the feed.
-            }
-          });
-        },
-        () => {
-          if (!isCurrentEffect) return;
-          isWsConnected = false;
-          setWsConnected(false);
-          // Exponential backoff reconnect
-          const delay = Math.min(30000, Math.pow(2, retryCount) * 1000 + Math.random() * 1000);
-          retryCount++;
-          reconnectTimeoutId = setTimeout(connect, delay);
-        },
-      );
-    };
-
-    const handleOnline = () => {
-      if (!isWsConnected && isCurrentEffect) {
-        if (reconnectTimeoutId) {
-          clearTimeout(reconnectTimeoutId);
-        }
-        retryCount = 0;
-        connect();
-      }
-    };
-
-    window.addEventListener('online', handleOnline);
-    connect();
-
-    return () => {
-      isCurrentEffect = false;
-      window.removeEventListener('online', handleOnline);
-      if (reconnectTimeoutId) {
-        clearTimeout(reconnectTimeoutId);
-      }
-      if (stompClient) {
-        try {
-          stompClient.disconnect(() => {});
-        } catch {
-          /* ignore */
-        }
-      }
-      setWsConnected(false);
-    };
-  }, [mergeReport, municipalityId]);
+  }, [latestReport, mergeReport]);
 
   const heatPoints = useMemo(() => {
     const weight: Record<string, number> = {
@@ -224,7 +169,11 @@ const LiveMap = ({
   const showHeat = layerMode === 'heat' || layerMode === 'both';
 
   return (
-    <div className="relative h-[600px] overflow-hidden rounded-2xl border border-slate-200/90 shadow-sm dark:border-slate-700 dark:shadow-none">
+    <div
+      className={`relative overflow-hidden rounded-2xl border border-slate-200/90 shadow-sm dark:border-slate-700 dark:shadow-none ${
+        className ?? 'h-[600px]'
+      }`}
+    >
       <div className="absolute top-3 left-3 z-[500] flex flex-wrap gap-2">
         {(
           [
@@ -260,10 +209,16 @@ const LiveMap = ({
         </div>
       )}
 
-      <MapContainer center={[centerLat || 41.0082, centerLng || 28.9784]} zoom={zoom || 11} className="h-full w-full grayscale-map">
+      <MapContainer
+        center={[centerLat || 41.0082, centerLng || 28.9784]}
+        zoom={zoom || 11}
+        className="h-full w-full grayscale-map"
+        preferCanvas
+      >
+        <InvalidateSizeOnMount />
         <TileLayer
-          url="https://mt1.google.com/vt/lyrs=m&hl=tr&x={x}&y={y}&z={z}"
-          attribution='&copy; Google Maps'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> katkıda bulunanlar'
         />
         {showHeat && heatPoints.length > 0 && <HeatLayer points={heatPoints} />}
         {showMarkers &&
@@ -272,34 +227,21 @@ const LiveMap = ({
               key={report.id}
               position={[report.latitude, report.longitude]}
               eventHandlers={{
-                click: () => openReportDetail(report.id),
+                click: (e) => {
+                  // Stop Leaflet auto-pan / popup; open drawer only
+                  L.DomEvent.stopPropagation(e.originalEvent);
+                  openReportDetail(report.id);
+                },
               }}
-            >
-              <Popup>
-                <div className="min-w-[160px] p-2">
-                  <h4 className="font-bold text-primary">{report.title}</h4>
-                  <p className="mb-2 text-xs text-slate-500">
-                    {report.categoryName} • {report.district}
-                  </p>
-                  <span className={`kentiva-status-badge ${reportStatusBadgeClass(report.status)}`}>
-                    {report.status}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => openReportDetail(report.id)}
-                    className="mt-3 w-full rounded-lg bg-primary px-2 py-1.5 text-xs font-bold text-white hover:bg-primary/90"
-                  >
-                    Detay
-                  </button>
-                </div>
-              </Popup>
-            </Marker>
+            />
           ))}
-        {newReport && <RecenterMap coords={[newReport.latitude, newReport.longitude]} />}
+        {newReport && (
+          <RecenterMap coords={[newReport.latitude, newReport.longitude]} enabled={!pauseRecenter} />
+        )}
       </MapContainer>
 
       <AnimatePresence>
-        {newReport && (
+        {newReport && !pauseRecenter && (
           <motion.div
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
@@ -315,6 +257,15 @@ const LiveMap = ({
                 <p className="text-[10px] font-bold uppercase tracking-wider text-primary">Yeni ihbar</p>
                 <p className="truncate text-sm font-bold text-slate-900 dark:text-white">{newReport.title}</p>
                 <p className="text-xs text-slate-500">{newReport.district}</p>
+                {onOpenReport && (
+                  <button
+                    type="button"
+                    onClick={() => openReportDetail(newReport.id)}
+                    className="mt-2 text-xs font-bold text-primary hover:underline"
+                  >
+                    Detayı aç
+                  </button>
+                )}
               </div>
             </div>
           </motion.div>

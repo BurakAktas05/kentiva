@@ -6,7 +6,6 @@ import {
   ChevronRight,
   ClipboardList,
   Info,
-  MapPin,
   Navigation,
   Plus,
   ShieldCheck,
@@ -20,10 +19,10 @@ import {
   type ApiAnnouncement,
 } from '../../api';
 import { Lang, t } from '../../i18n';
-import { WeatherWidgetCard } from '../home/HomeWidgets';
 import AnnouncementCarousel from '../home/AnnouncementCarousel';
-import Surveys from './Surveys';
+import { WeatherWidgetCard } from '../home/HomeWidgets';
 import { screenBg, sectionTitleClass } from '../../lib/ui';
+import ErrorState from '../ui/ErrorState';
 
 const MY_REPORTS_PREVIEW_SIZE = 3;
 
@@ -32,9 +31,9 @@ interface HomeProps {
   onViewMyReports: () => void;
   onOpenAnnouncement: (announcement: ApiAnnouncement) => void;
   onSelectMunicipality?: () => void;
-  onReputationChange?: (score: number) => void;
   lang: Lang;
   isDark: boolean;
+  isAuthenticated?: boolean;
   department?: PublicDepartment | null;
   homeMunicipality?: PublicTenant | null;
 }
@@ -44,10 +43,10 @@ export default function Home({
   onViewMyReports,
   onOpenAnnouncement,
   onSelectMunicipality,
-  onReputationChange,
   lang,
   isDark,
-  department,
+  isAuthenticated = true,
+  department: _department,
   homeMunicipality,
 }: HomeProps) {
   const [totalMyReports, setTotalMyReports] = useState(0);
@@ -55,9 +54,18 @@ export default function Home({
   const [reportsLoading, setReportsLoading] = useState(true);
   const [announcements, setAnnouncements] = useState<ApiAnnouncement[]>([]);
   const [announcementsLoading, setAnnouncementsLoading] = useState(true);
+  const [announcementsError, setAnnouncementsError] = useState(false);
   const [citizenName, setCitizenName] = useState('');
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      setTotalMyReports(0);
+      setPreviewTitles([]);
+      setCitizenName('');
+      setReportsLoading(false);
+      return;
+    }
+
     let cancelled = false;
     (async () => {
       setReportsLoading(true);
@@ -79,55 +87,51 @@ export default function Home({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isAuthenticated]);
 
-  useEffect(() => {
+  const loadAnnouncements = () => {
     if (!homeMunicipality?.id) {
       setAnnouncementsLoading(false);
       return;
     }
     setAnnouncementsLoading(true);
+    setAnnouncementsError(false);
     getPublicAnnouncements(homeMunicipality.id)
       .then((res) => setAnnouncements(res || []))
-      .catch((err) => console.error('Duyurular yuklenirken hata:', err))
+      .catch((err) => {
+        console.error('Duyurular yuklenirken hata:', err);
+        setAnnouncements([]);
+        setAnnouncementsError(true);
+      })
       .finally(() => setAnnouncementsLoading(false));
+  };
+
+  useEffect(() => {
+    loadAnnouncements();
   }, [homeMunicipality]);
 
   const mutedText = isDark ? 'text-slate-400' : 'text-slate-500';
 
   return (
     <div className={`pb-8 ${screenBg(isDark)}`}>
-      <div className="px-5 pt-5 pb-3 flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-slate-500">{t('home.welcome', lang)}</p>
-          <h2 className="text-base font-semibold text-slate-800 dark:text-white leading-tight truncate">
-            {citizenName || t('home.welcomeGuest', lang)}
-          </h2>
-        </div>
-        {homeMunicipality && (
-          <div className="flex shrink-0 flex-col items-end gap-1">
-            <button
-              type="button"
-              onClick={onSelectMunicipality}
-              className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
-            >
-              <MapPin className="h-3.5 w-3.5 text-primary" />
-              <span className="max-w-[120px] truncate">{homeMunicipality.displayName}</span>
-            </button>
-            {department && (
-              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-semibold text-primary dark:bg-primary/15 dark:text-sky-300">
-                {department.name}
-              </span>
-            )}
-          </div>
-        )}
+      <div className="px-5 pt-3 pb-2">
+        <p className="text-xs font-medium text-slate-500">{t('home.welcome', lang)}</p>
+        <h2 className="text-base font-semibold text-slate-800 dark:text-white leading-tight truncate">
+          {citizenName || t('home.welcomeGuest', lang)}
+        </h2>
       </div>
+
+      {homeMunicipality?.id && homeMunicipality.onboarded ? (
+        <div className="px-4 pb-2">
+          <WeatherWidgetCard tenant={homeMunicipality} lang={lang} isDark={isDark} />
+        </div>
+      ) : null}
 
       {homeMunicipality && !homeMunicipality.onboarded ? (
         <div className="px-5 py-6">
           <div className={`rounded-3xl border p-6 text-center shadow-lg transition-all ${
-            isDark 
-              ? 'border-amber-500/20 bg-gradient-to-br from-slate-900 to-amber-950/10' 
+            isDark
+              ? 'border-amber-500/20 bg-gradient-to-br from-slate-900 to-amber-950/10'
               : 'border-amber-200 bg-gradient-to-br from-white to-amber-50/20'
           }`}>
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500 shadow-inner">
@@ -153,83 +157,8 @@ export default function Home({
         </div>
       ) : (
         <>
-          {homeMunicipality?.id ? (
-            <div className="px-4 pb-4">
-              <section className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-primary-dark via-primary to-sky-500 p-5 text-white shadow-[0_22px_48px_-24px_rgba(11,79,156,.8)]">
-                <div className="absolute -right-12 -top-16 h-40 w-40 rounded-full border-[28px] border-white/10" />
-                <div className="absolute -bottom-16 right-16 h-32 w-32 rounded-full bg-sky-300/15 blur-2xl" />
-                <div className="relative">
-                  <div className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[.16em] text-sky-100">
-                    <ShieldCheck className="h-4 w-4" />
-                    {lang === 'tr' ? 'Güvenli belediye bildirimi' : 'Secure municipality report'}
-                  </div>
-                  <h3 className="mt-3 max-w-[280px] text-[21px] font-extrabold leading-[1.18] tracking-[-.025em]">
-                    {lang === 'tr' ? 'Kentte gördüğünüz sorunu birkaç adımda bildirin.' : 'Report an issue in your city in a few steps.'}
-                  </h3>
-                  <p className="mt-2 max-w-[300px] text-xs font-medium leading-5 text-blue-100/90">
-                    {lang === 'tr'
-                      ? 'Konumu doğrulayın, fotoğraf ekleyin; süreci belediyenizle şeffaf biçimde takip edin.'
-                      : 'Verify the location, add a photo, and transparently track the process.'}
-                  </p>
-
-                  <button
-                    type="button"
-                    onClick={onCreateReport}
-                    className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-extrabold text-primary shadow-lg shadow-slate-950/15 transition hover:bg-sky-50 active:scale-[.98]"
-                  >
-                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10"><Plus className="h-4 w-4" /></span>
-                    {lang === 'tr' ? 'Yeni ihbar oluştur' : 'Create a new report'}
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-
-                  <div className="mt-5 grid grid-cols-3 gap-2 border-t border-white/15 pt-4">
-                    {[
-                      { icon: Navigation, label: lang === 'tr' ? 'GPS konumu' : 'GPS location' },
-                      { icon: Camera, label: lang === 'tr' ? 'Fotoğraf' : 'Photo' },
-                      { icon: ClipboardList, label: lang === 'tr' ? 'Canlı takip' : 'Live tracking' },
-                    ].map(({ icon: Icon, label }) => (
-                      <div key={label} className="flex min-w-0 items-center gap-1.5 text-[10px] font-bold text-blue-50">
-                        <Icon className="h-3.5 w-3.5 shrink-0 text-sky-200" />
-                        <span className="truncate">{label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </section>
-            </div>
-          ) : null}
-
-          {homeMunicipality?.id ? (
-            <div className="px-4 pb-4">
-              <WeatherWidgetCard tenant={homeMunicipality} lang={lang} isDark={isDark} />
-            </div>
-          ) : null}
-
-          {homeMunicipality && (
-            <div className="px-4 pb-4">
-              <div className="mb-2">
-                <h3 className={sectionTitleClass()}>{t('home.announcements.title', lang)}</h3>
-              </div>
-              {announcementsLoading ? (
-                <div className="w-full aspect-[16/9] animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800/40" />
-              ) : announcements.length === 0 ? (
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 text-center dark:border-slate-800 dark:bg-slate-900">
-                  <Info className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                  <p className="text-xs text-slate-500">{t('home.announcements.empty', lang)}</p>
-                </div>
-              ) : (
-                <AnnouncementCarousel
-                  announcements={announcements}
-                  lang={lang}
-                  isDark={isDark}
-                  onOpen={onOpenAnnouncement}
-                />
-              )}
-            </div>
-          )}
-
           {!homeMunicipality?.id ? (
-            <div className="px-4">
+            <div className="px-4 pb-3">
               <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 dark:border-primary/30 dark:bg-primary/10">
                 <div className="flex gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
@@ -256,21 +185,94 @@ export default function Home({
                 </div>
               </div>
             </div>
-          ) : (
-            <>
-              <div className="px-4 pb-4">{reportsCard()}</div>
-              <div className="pb-4">
-                <Surveys
-                  municipality={homeMunicipality}
+          ) : null}
+
+          {homeMunicipality && (
+            <div className="px-4 pb-3">
+              <div className="mb-2">
+                <h3 className={sectionTitleClass()}>{t('home.announcements.title', lang)}</h3>
+              </div>
+              {announcementsLoading ? (
+                <div className="w-full aspect-[2/1] max-h-36 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800/40" />
+              ) : announcementsError ? (
+                <ErrorState
+                  isDark={isDark}
+                  title={
+                    lang === 'tr'
+                      ? 'Duyurular yüklenemedi'
+                      : lang === 'ar'
+                        ? 'تعذر تحميل الإعلانات'
+                        : 'Could not load announcements'
+                  }
+                  description={
+                    lang === 'tr'
+                      ? 'Bağlantınızı kontrol edip tekrar deneyin.'
+                      : lang === 'ar'
+                        ? 'تحقق من اتصالك وحاول مرة أخرى.'
+                        : 'Check your connection and try again.'
+                  }
+                  onRetry={loadAnnouncements}
+                  retryLabel={lang === 'tr' ? 'Tekrar dene' : lang === 'ar' ? 'إعادة المحاولة' : 'Try again'}
+                />
+              ) : announcements.length === 0 ? (
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center dark:border-slate-800 dark:bg-slate-900">
+                  <Info className="h-7 w-7 text-slate-300 mx-auto mb-1.5" />
+                  <p className="text-xs text-slate-500">{t('home.announcements.empty', lang)}</p>
+                </div>
+              ) : (
+                <AnnouncementCarousel
+                  announcements={announcements}
                   lang={lang}
                   isDark={isDark}
-                  embedded
-                  homeSection
-                  onReputationChange={onReputationChange}
+                  onOpen={onOpenAnnouncement}
                 />
-              </div>
-            </>
+              )}
+            </div>
           )}
+
+          {homeMunicipality?.id ? (
+            <div className="px-4 pb-3">
+              <section className="relative overflow-hidden rounded-[22px] bg-gradient-to-br from-primary-dark via-primary to-sky-500 p-4 text-white shadow-[0_16px_36px_-22px_rgba(11,79,156,.75)]">
+                <div className="absolute -right-10 -top-12 h-28 w-28 rounded-full border-[20px] border-white/10" />
+                <div className="relative">
+                  <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[.14em] text-sky-100">
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    {lang === 'tr' ? 'Resmi belediye bildirimi' : 'Official municipality report'}
+                  </div>
+                  <h3 className="mt-2 max-w-[280px] text-[17px] font-extrabold leading-snug tracking-[-.02em]">
+                    {lang === 'tr' ? 'Kentte gördüğünüz sorunu birkaç adımda bildirin.' : 'Report an issue in your city in a few steps.'}
+                  </h3>
+
+                  <button
+                    type="button"
+                    onClick={onCreateReport}
+                    className="mt-3.5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-3.5 py-2.5 text-sm font-extrabold text-primary shadow-md shadow-slate-950/10 transition hover:bg-sky-50 active:scale-[.98]"
+                  >
+                    <span className="flex h-5 w-5 items-center justify-center rounded-md bg-primary/10"><Plus className="h-3.5 w-3.5" /></span>
+                    {lang === 'tr' ? 'Yeni ihbar oluştur' : 'Create a new report'}
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+
+                  <div className="mt-3.5 grid grid-cols-3 gap-1.5 border-t border-white/15 pt-3">
+                    {[
+                      { icon: Navigation, label: lang === 'tr' ? 'GPS konumu' : 'GPS location' },
+                      { icon: Camera, label: lang === 'tr' ? 'Fotoğraf' : 'Photo' },
+                      { icon: ClipboardList, label: lang === 'tr' ? 'Canlı takip' : 'Live tracking' },
+                    ].map(({ icon: Icon, label }) => (
+                      <div key={label} className="flex min-w-0 items-center gap-1 text-[10px] font-bold text-blue-50">
+                        <Icon className="h-3 w-3 shrink-0 text-sky-200" />
+                        <span className="truncate">{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
+            </div>
+          ) : null}
+
+          {homeMunicipality?.id ? (
+            <div className="px-4 pb-4">{reportsCard()}</div>
+          ) : null}
         </>
       )}
     </div>

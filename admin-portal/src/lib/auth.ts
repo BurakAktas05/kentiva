@@ -48,6 +48,26 @@ export function isPlatformSuperAdmin(user: AuthenticatedPortalUser): boolean {
   return user.roles.includes('ROLE_SUPER_ADMIN') && !user.municipality;
 }
 
+/** Display label for the signed-in portal role (header / identity chrome). */
+export function portalRoleLabel(user: AuthenticatedPortalUser | null | undefined): string {
+  if (!user) return 'Kullanıcı';
+  if (isPlatformSuperAdmin(user)) return 'Platform yöneticisi';
+  if (user.roles.includes('ROLE_SUPER_ADMIN')) return 'Platform yöneticisi';
+  if (user.roles.includes('ROLE_ADMIN')) return 'Sistem yöneticisi';
+  if (user.roles.includes('ROLE_DEPT_MANAGER')) return 'Birim müdürü';
+  if (user.roles.includes('ROLE_FIELD_OFFICER')) return 'Saha görevlisi';
+  if (user.roles.includes('ROLE_WHITE_DESK')) return 'Beyaz masa';
+  return 'Kullanıcı';
+}
+
+/** Field officer without admin / department-manager privileges. */
+export function isFieldOfficerOnly(user: AuthenticatedPortalUser): boolean {
+  return (
+    user.roles.includes('ROLE_FIELD_OFFICER') &&
+    !user.roles.some((r) => ['ROLE_ADMIN', 'ROLE_DEPT_MANAGER', 'ROLE_SUPER_ADMIN'].includes(r))
+  );
+}
+
 export function portalForUser(user: AuthenticatedPortalUser): LoginPortalKind {
   return isPlatformSuperAdmin(user) ? 'super-admin' : 'municipality';
 }

@@ -6,12 +6,13 @@
     "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-serif: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
 
+  /* Match citizen app: mid blue primary, sky secondary — avoid near-black navy */
   --color-primary: #0b4f9c;
-  --color-primary-hover: #094080;
-  --color-primary-dark: #062f5c;
+  --color-primary-hover: #0a4589;
+  --color-primary-dark: #0a3d7a;
   --color-primary-foreground: #ffffff;
-  --color-primary-light: #f1f5f9;
-  --color-primary-100: #c8daf3;
+  --color-primary-light: #eef6fc;
+  --color-primary-100: #d7e8f8;
   --color-secondary: #0ea5e9;
   --color-accent: #e6b422;
 

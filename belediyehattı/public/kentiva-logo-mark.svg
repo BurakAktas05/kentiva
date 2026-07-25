@@ -1,0 +1,25 @@
+<svg width="240" height="240" viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="kentivaMarkBg" x1="28" y1="20" x2="210" y2="220" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38BDF8"/>
+      <stop offset="0.45" stop-color="#0EA5E9"/>
+      <stop offset="1" stop-color="#0B4F9C"/>
+    </linearGradient>
+    <linearGradient id="kentivaMarkSheen" x1="40" y1="36" x2="180" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <!-- Edge-to-edge mark so it fills splash / favicon without empty padding -->
+  <rect width="240" height="240" rx="56" fill="url(#kentivaMarkBg)"/>
+  <path d="M0 56C0 25.072 25.072 0 56 0H184C214.928 0 240 25.072 240 56V120H0V56Z" fill="url(#kentivaMarkSheen)"/>
+  <!-- Abstract K / routes -->
+  <path d="M72 68V172" stroke="white" stroke-width="22" stroke-linecap="round"/>
+  <path d="M92 120L168 68" stroke="white" stroke-width="22" stroke-linecap="round"/>
+  <path d="M92 120L172 172" stroke="white" stroke-width="22" stroke-linecap="round"/>
+  <!-- Horizon / city cue -->
+  <path d="M58 188C88 208 148 210 182 176" stroke="white" stroke-opacity="0.35" stroke-width="12" stroke-linecap="round"/>
+  <!-- Pin accent -->
+  <circle cx="168" cy="72" r="22" fill="#E6B422"/>
+  <circle cx="168" cy="72" r="9" fill="white"/>
+</svg>

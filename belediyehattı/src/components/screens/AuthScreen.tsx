@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mail, Lock, User, Phone, ArrowRight, Building2, Loader2, KeyRound, ShieldCheck, X } from 'lucide-react';
+import { Mail, Lock, User, Phone, ArrowRight, ChevronRight, Loader2, KeyRound, MapPin, ShieldCheck, X } from 'lucide-react';
 import { login, register, sendRegistrationOtp, AuthUser, apiBase, readFriendlyApiError } from '../../api';
 import type { AuthMeta } from '../../lib/authTypes';
 import { Lang, t } from '../../i18n';
@@ -87,9 +87,13 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
       const msg = err instanceof Error ? err.message : '';
       if (msg === 'Failed to fetch' || msg.includes('NetworkError')) {
         setError(
-          lang === 'tr'
-            ? 'Sunucuya bağlanılamadı. http://localhost:3000 adresini kullanın; Ayarlar’daki API adresini temizleyin; backend’in (8080) çalıştığından emin olun.'
-            : 'Cannot reach the server. Use http://localhost:3000, clear API URL in Settings, and ensure the backend (8080) is running.',
+          import.meta.env.DEV
+            ? (lang === 'tr'
+                ? 'Sunucuya bağlanılamadı. http://localhost:3000 adresini kullanın; Ayarlar’daki API adresini temizleyin; backend’in (8080) çalıştığından emin olun.'
+                : 'Cannot reach the server. Use http://localhost:3000, clear API URL in Settings, and ensure the backend (8080) is running.')
+            : (lang === 'tr'
+                ? 'Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.'
+                : 'Could not reach the server. Check your connection and try again.'),
         );
       } else {
         setError(msg || t('auth.error', lang));
@@ -170,32 +174,85 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
     }
   };
 
+  const pageTitle = isLogin
+    ? (lang === 'tr' ? 'Tekrar hoş geldiniz' : lang === 'ar' ? 'مرحبًا بعودتك' : 'Welcome back')
+    : (lang === 'tr' ? 'Kentiva’ya katılın' : lang === 'ar' ? 'انضم إلى Kentiva' : 'Join Kentiva');
+  const pageDescription = isLogin
+    ? (lang === 'tr'
+        ? 'Belediye hizmetlerinize güvenli şekilde erişin.'
+        : lang === 'ar'
+          ? 'يمكنك الوصول إلى خدمات البلدية بأمان.'
+          : 'Access your municipality services securely.')
+    : (lang === 'tr'
+        ? 'İhbar oluşturun ve çözüm sürecini tek yerden takip edin.'
+        : lang === 'ar'
+          ? 'أنشئ البلاغات وتابع عملية الحل من مكان واحد.'
+          : 'Create reports and track their resolution in one place.');
+  const labelClass = `mb-1.5 block text-xs font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`;
+  const inputClass = 'kentiva-input pl-11 pr-4';
+
   return (
-    <div className={`min-h-app w-full overflow-x-hidden flex flex-col items-center justify-center px-4 py-6 pt-safe pb-safe font-sans ${isDark ? 'bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 [background-image:radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(14,165,233,0.08),transparent)]' : 'bg-gradient-to-b from-slate-50 via-white to-slate-100 [background-image:radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(14,165,233,0.12),transparent)]'}`}>
+    <div className={`relative flex min-h-app w-full flex-col items-center overflow-x-hidden px-4 py-6 pt-safe pb-safe font-sans sm:justify-center ${
+      isDark ? 'bg-slate-950' : 'bg-slate-50'
+    }`}>
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+        <div className={`absolute -left-28 -top-24 h-72 w-72 rounded-full blur-3xl ${isDark ? 'bg-primary/10' : 'bg-primary/5'}`} />
+        <div className={`absolute -bottom-28 -right-24 h-72 w-72 rounded-full blur-3xl ${isDark ? 'bg-amber-500/5' : 'bg-amber-100/50'}`} />
+      </div>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md min-w-0"
+        className="relative w-full max-w-md min-w-0"
       >
         {/* Brand */}
-        <div className="text-center mb-10">
-          <div
-            className={`mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-2xl border-4 bg-gradient-to-br from-primary to-primary-dark text-white shadow-xl shadow-primary/30 ring-1 ${isDark ? 'border-slate-800/90 ring-white/10' : 'border-white/90 ring-slate-900/5'}`}
+        <div className="mb-5 flex items-center gap-3 px-1">
+          <img
+            src="/kentiva-app-icon.png"
+            alt=""
+            width={64}
+            height={64}
+            className={`h-16 w-16 shrink-0 rounded-[20px] border object-cover shadow-kentiva-sm ${
+              isDark ? 'border-slate-700' : 'border-slate-200'
+            }`}
             aria-hidden
-          >
-            <Building2 className="h-10 w-10" strokeWidth={1.5} />
+          />
+          <div className="min-w-0">
+            <h1 className={`text-xl font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              {t('app.name', lang)}
+            </h1>
+            <p className={`mt-0.5 text-xs font-medium leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              {t('app.slogan', lang)}
+            </p>
           </div>
-          <h1 className={`text-2xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-800'}`}>{t('app.name', lang)}</h1>
-          <p className={`text-sm mt-1 font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{t('app.slogan', lang)}</p>
         </div>
 
+        <section className={`rounded-[28px] border p-5 shadow-kentiva-sm sm:p-6 ${
+          isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200/90 bg-white'
+        }`}>
+          <div className="mb-5">
+            <h2 className={`text-lg font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              {pageTitle}
+            </h2>
+            <p className={`mt-1 text-xs leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              {pageDescription}
+            </p>
+          </div>
+
         {/* Tab Switcher */}
-        <div className={`flex rounded-2xl p-1.5 mb-8 ${isDark ? 'bg-slate-800/60' : 'bg-slate-200/60'}`}>
+        <div
+          className={`mb-5 flex rounded-2xl p-1 ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}
+          role="tablist"
+          aria-label={lang === 'tr' ? 'Hesap işlemleri' : lang === 'ar' ? 'إجراءات الحساب' : 'Account actions'}
+        >
           <button
             type="button"
             onClick={() => { setIsLogin(true); setError(''); setRegisterStep(1); }}
-            className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${
-              isLogin ? (isDark ? 'bg-slate-900 text-secondary shadow-md shadow-slate-950/50' : 'bg-white text-primary shadow-md shadow-slate-300/50') : (isDark ? 'text-slate-400' : 'text-slate-500')
+            role="tab"
+            aria-selected={isLogin}
+            className={`min-h-11 flex-1 rounded-xl px-3 py-2.5 text-sm font-bold transition-all ${
+              isLogin
+                ? (isDark ? 'bg-slate-700 text-white shadow-sm' : 'bg-white text-slate-900 shadow-sm')
+                : (isDark ? 'text-slate-400' : 'text-slate-500')
             }`}
           >
             {t('auth.login', lang)}
@@ -203,8 +260,12 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
           <button
             type="button"
             onClick={() => { setIsLogin(false); setError(''); setRegisterStep(1); }}
-            className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${
-              !isLogin ? (isDark ? 'bg-slate-900 text-secondary shadow-md shadow-slate-950/50' : 'bg-white text-primary shadow-md shadow-slate-300/50') : (isDark ? 'text-slate-400' : 'text-slate-500')
+            role="tab"
+            aria-selected={!isLogin}
+            className={`min-h-11 flex-1 rounded-xl px-3 py-2.5 text-sm font-bold transition-all ${
+              !isLogin
+                ? (isDark ? 'bg-slate-700 text-white shadow-sm' : 'bg-white text-slate-900 shadow-sm')
+                : (isDark ? 'text-slate-400' : 'text-slate-500')
             }`}
           >
             {t('auth.register', lang)}
@@ -215,98 +276,143 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
           {isLogin ? (
             // Giriş Formu
             <>
-              <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder={t('auth.email', lang)}
-                  required
-                  className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
-                />
+              <div>
+                <label htmlFor="auth-email" className={labelClass}>
+                  {t('auth.email', lang)}
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    id="auth-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder={t('auth.email', lang)}
+                    required
+                    className={inputClass}
+                  />
+                </div>
               </div>
 
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={t('auth.password', lang)}
-                  required
-                  minLength={8}
-                  className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
-                />
+              <div>
+                <label htmlFor="auth-password" className={labelClass}>
+                  {t('auth.password', lang)}
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    id="auth-password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={t('auth.password', lang)}
+                    required
+                    minLength={10}
+                    className={inputClass}
+                  />
+                </div>
+                <p className={`mt-1.5 text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  {lang === 'tr' ? 'En az 10 karakter kullanın.' : 'Use at least 10 characters.'}
+                </p>
               </div>
             </>
           ) : registerStep === 1 ? (
             // Kayıt Adım 1: Kullanıcı Bilgileri
             <>
               <div className="flex flex-col gap-3 sm:flex-row">
-                <div className="flex-1 relative min-w-0">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <div className="flex-1 min-w-0">
+                  <label htmlFor="auth-firstname" className={labelClass}>
+                    {t('auth.firstname', lang)}
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                      id="auth-firstname"
+                      type="text"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      placeholder={t('auth.firstname', lang)}
+                      required
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <label htmlFor="auth-lastname" className={labelClass}>
+                    {t('auth.lastname', lang)}
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                      id="auth-lastname"
+                      type="text"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      placeholder={t('auth.lastname', lang)}
+                      required
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="min-w-0">
+                <label htmlFor="auth-phone" className={labelClass}>
+                  {t('auth.phone', lang)}
+                </label>
+                <div className="relative">
+                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
-                    type="text"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    placeholder={t('auth.firstname', lang)}
+                    id="auth-phone"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => {
+                      setPhone(e.target.value);
+                      setRegistrationOtpMessage('');
+                      setRegistrationOtpCode('');
+                    }}
+                    placeholder={t('auth.phone', lang)}
                     required
-                    className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
+                    className={inputClass}
                   />
                 </div>
-                <div className="flex-1 relative min-w-0">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              </div>
+
+              <div>
+                <label htmlFor="auth-register-email" className={labelClass}>
+                  {t('auth.email', lang)}
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
-                    type="text"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    placeholder={t('auth.lastname', lang)}
+                    id="auth-register-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder={t('auth.email', lang)}
                     required
-                    className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
+                    className={inputClass}
                   />
                 </div>
               </div>
 
-              <div className="relative min-w-0">
-                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => {
-                    setPhone(e.target.value);
-                    setRegistrationOtpMessage('');
-                    setRegistrationOtpCode('');
-                  }}
-                  placeholder={t('auth.phone', lang)}
-                  required
-                  className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
-                />
-              </div>
-
-              <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder={t('auth.email', lang)}
-                  required
-                  className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
-                />
-              </div>
-
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={t('auth.password', lang)}
-                  required
-                  minLength={8}
-                  className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
-                />
+              <div>
+                <label htmlFor="auth-register-password" className={labelClass}>
+                  {t('auth.password', lang)}
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    id="auth-register-password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={t('auth.password', lang)}
+                    required
+                    minLength={8}
+                    className={inputClass}
+                  />
+                </div>
               </div>
 
               <label className="flex items-start gap-3 cursor-pointer mt-1">
@@ -333,18 +439,24 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
                 </p>
               </div>
 
-              <div className="relative">
-                <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={registrationOtpCode}
-                  onChange={(e) => setRegistrationOtpCode(e.target.value.replace(/\D/g, ''))}
-                  placeholder={lang === 'tr' ? 'SMS doğrulama kodu' : 'SMS verification code'}
-                  required
-                  className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-center text-sm font-bold tracking-[0.24em] focus:ring-2 focus:ring-primary focus:border-transparent outline-none shadow-sm ${isDark ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border border-slate-200 text-slate-900'}`}
-                />
+              <div>
+                <label htmlFor="auth-otp" className={labelClass}>
+                  {lang === 'tr' ? 'SMS doğrulama kodu' : 'SMS verification code'}
+                </label>
+                <div className="relative">
+                  <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    id="auth-otp"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={registrationOtpCode}
+                    onChange={(e) => setRegistrationOtpCode(e.target.value.replace(/\D/g, ''))}
+                    placeholder={lang === 'tr' ? 'SMS doğrulama kodu' : 'SMS verification code'}
+                    required
+                    className={`${inputClass} text-center font-bold tracking-[0.24em]`}
+                  />
+                </div>
                 {registrationOtpMessage && (
                   <p className="mt-2 rounded-xl bg-primary/5 px-3 py-2 text-xs font-semibold text-primary">
                     {registrationOtpMessage}
@@ -413,13 +525,32 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
             <button
               type="button"
               onClick={onContinueAsGuest}
-              className={`w-full text-center text-xs font-bold py-3.5 border border-dashed rounded-2xl transition-all cursor-pointer mt-2 ${
-                isDark 
-                  ? 'border-slate-700 text-slate-400 hover:text-sky-400 hover:border-sky-400/50' 
-                  : 'border-slate-300 text-slate-500 hover:text-primary hover:border-primary/50'
+              className={`mt-3 flex min-h-14 w-full items-center gap-3 rounded-2xl border p-3 text-left transition-all active:scale-[0.99] ${
+                isDark
+                  ? 'border-slate-700 bg-slate-800/70 text-slate-200 hover:bg-slate-800'
+                  : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-slate-100'
               }`}
             >
-              {lang === 'tr' ? 'Giriş Yapmadan Devam Et (Misafir)' : 'Continue without Logging In (Guest)'}
+              <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                isDark ? 'bg-slate-700 text-amber-300' : 'bg-white text-amber-600 shadow-sm'
+              }`}>
+                <MapPin className="h-5 w-5" aria-hidden />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-xs font-bold">
+                  {lang === 'tr' ? 'Misafir olarak keşfet' : lang === 'ar' ? 'استكشف كزائر' : 'Explore as a guest'}
+                </span>
+                <span className={`mt-0.5 block text-[11px] font-medium leading-relaxed ${
+                  isDark ? 'text-slate-400' : 'text-slate-500'
+                }`}>
+                  {lang === 'tr'
+                    ? 'Belediyenizi seçin, duyuru ve hizmetleri görüntüleyin.'
+                    : lang === 'ar'
+                      ? 'اختر بلديتك واعرض الإعلانات والخدمات.'
+                      : 'Choose your municipality and view announcements and services.'}
+                </span>
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
             </button>
           )}
         </form>
@@ -431,7 +562,7 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 10 }}
-              className={`mt-6 rounded-2xl border p-5 shadow-md space-y-4 ${isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'}`}
+              className={`mt-5 space-y-4 rounded-2xl border p-4 ${isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-slate-50'}`}
             >
               <div className="flex items-center gap-2 text-primary">
                 <ShieldCheck className="w-5 h-5" />
@@ -440,15 +571,18 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
 
               {forgotMode === 'phone' && (
                 <div className="space-y-3">
-                  <p className="text-xs text-slate-500">{t('auth.resetPhoneDesc', lang)}</p>
+                  <label htmlFor="auth-reset-phone" className="block text-xs text-slate-500">
+                    {t('auth.resetPhoneDesc', lang)}
+                  </label>
                   <div className="relative">
                     <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <input
+                      id="auth-reset-phone"
                       type="tel"
                       value={resetPhone}
                       onChange={(e) => setResetPhone(e.target.value)}
                       placeholder="05XX XXX XX XX"
-                      className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary outline-none ${isDark ? 'bg-slate-900 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-slate-50 border border-slate-200'}`}
+                      className={inputClass}
                     />
                   </div>
                 </div>
@@ -456,17 +590,20 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
 
               {forgotMode === 'otp' && (
                 <div className="space-y-3">
-                  <p className="text-xs text-slate-500">{t('auth.otpDesc', lang)}</p>
+                  <label htmlFor="auth-reset-otp" className="block text-xs text-slate-500">
+                    {t('auth.otpDesc', lang)}
+                  </label>
                   <div className="relative">
                     <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <input
+                      id="auth-reset-otp"
                       type="text"
                       inputMode="numeric"
                       maxLength={6}
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
                       placeholder="6 haneli kod"
-                      className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm tracking-[0.3em] text-center font-bold focus:ring-2 focus:ring-primary outline-none ${isDark ? 'bg-slate-900 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-slate-50 border border-slate-200'}`}
+                      className={`${inputClass} text-center font-bold tracking-[0.3em]`}
                     />
                   </div>
                 </div>
@@ -474,16 +611,19 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
 
               {forgotMode === 'newpass' && (
                 <div className="space-y-3">
-                  <p className="text-xs text-slate-500">{t('auth.newPassDesc', lang)}</p>
+                  <label htmlFor="auth-reset-newpass" className="block text-xs text-slate-500">
+                    {t('auth.newPassDesc', lang)}
+                  </label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <input
+                      id="auth-reset-newpass"
                       type="password"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder={t('auth.newPassword', lang)}
-                      minLength={8}
-                      className={`w-full rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary outline-none ${isDark ? 'bg-slate-900 border border-slate-700 text-white placeholder:text-slate-500' : 'bg-slate-50 border border-slate-200'}`}
+                      minLength={10}
+                      className={inputClass}
                     />
                   </div>
                 </div>
@@ -517,6 +657,16 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
             </motion.div>
           )}
         </AnimatePresence>
+        </section>
+        <p className={`px-5 pt-4 text-center text-[10px] font-medium leading-relaxed ${
+          isDark ? 'text-slate-500' : 'text-slate-400'
+        }`}>
+          {lang === 'tr'
+            ? 'Devam ederek Kentiva’nın güvenli kullanım koşullarını kabul etmiş olursunuz.'
+            : lang === 'ar'
+              ? 'بالمتابعة، فإنك توافق على شروط الاستخدام الآمن لـ Kentiva.'
+              : 'By continuing, you agree to Kentiva’s secure use terms.'}
+        </p>
       </motion.div>
 
       {/* KVKK Modal */}
@@ -538,7 +688,12 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
             >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-base font-bold">{t('auth.kvkkLink', lang)}</h3>
-                <button type="button" onClick={() => setShowKvkk(false)} className={`p-1.5 rounded-lg transition ${isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}>
+                <button
+                  type="button"
+                  onClick={() => setShowKvkk(false)}
+                  aria-label={lang === 'tr' ? 'Aydınlatma metnini kapat' : lang === 'ar' ? 'إغلاق النص' : 'Close privacy notice'}
+                  className={`p-1.5 rounded-lg transition ${isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}
+                >
                   <X className="w-5 h-5" />
                 </button>
               </div>

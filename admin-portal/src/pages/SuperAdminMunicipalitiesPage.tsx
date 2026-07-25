@@ -158,8 +158,8 @@ export default function SuperAdminMunicipalitiesPage() {
         <div className="h-[500px] w-full rounded-2xl overflow-hidden border border-slate-200/90 dark:border-slate-800 shadow-sm z-[10]">
           <MapContainer center={[38.9637, 35.2433]} zoom={6} className="h-full w-full grayscale-map">
             <TileLayer
-              url="https://mt1.google.com/vt/lyrs=m&hl=tr&x={x}&y={y}&z={z}"
-              attribution='&copy; Google Maps'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> katkıda bulunanlar'
             />
 
             {boundaries.map((b) => {

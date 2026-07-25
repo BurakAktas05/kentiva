@@ -12,6 +12,7 @@ from pydantic import BaseModel
 app = FastAPI(title="BelediyeApp Media Guard", version="1.0.0")
 
 MAX_FACE_COVERAGE = float(os.environ.get("MAX_FACE_COVERAGE", "0.22"))
+MAX_IMAGE_BYTES = int(os.environ.get("MAX_IMAGE_BYTES", str(12 * 1024 * 1024)))
 
 _cascade = None
 
@@ -37,7 +38,21 @@ def health():
 
 @app.post("/scan", response_model=ScanResult)
 async def scan_raw(request: Request) -> ScanResult:
-    raw = await request.body()
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > MAX_IMAGE_BYTES:
+                return ScanResult(reject=True, reason="Görüntü boyutu sınırı aşıldı.", face_coverage=0.0)
+        except ValueError:
+            return ScanResult(reject=True, reason="Geçersiz içerik uzunluğu.", face_coverage=0.0)
+
+    raw_buffer = bytearray()
+    async for chunk in request.stream():
+        if len(raw_buffer) + len(chunk) > MAX_IMAGE_BYTES:
+            return ScanResult(reject=True, reason="Görüntü boyutu sınırı aşıldı.", face_coverage=0.0)
+        raw_buffer.extend(chunk)
+
+    raw = bytes(raw_buffer)
     if not raw or len(raw) < 32:
         return ScanResult(reject=True, reason="Geçersiz veya boş görüntü.", face_coverage=0.0)
 

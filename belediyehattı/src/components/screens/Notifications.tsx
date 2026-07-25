@@ -4,6 +4,9 @@ import { ArrowLeft, BellOff, CheckCheck, FileText, UserCheck, Info, Droplets, Za
 import { getNotifications, markAllNotificationsRead, ApiNotification } from '../../api';
 import { Lang, t } from '../../i18n';
 import { kentivaCard, screenHeadingClass } from '../../lib/ui';
+import LoadingState from '../ui/LoadingState';
+import EmptyState from '../ui/EmptyState';
+import ErrorState from '../ui/ErrorState';
 
 interface NotificationsProps {
   onBadgeUpdate: (count: number) => void;
@@ -77,12 +80,15 @@ function isClickableNotification(notif: ApiNotification): boolean {
 export default function Notifications({ onBadgeUpdate, onOpenReport, onNavigate, lang, isDark }: NotificationsProps) {
   const [notifications, setNotifications] = useState<ApiNotification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
-    loadNotifications();
+    void loadNotifications();
   }, []);
 
   const loadNotifications = async () => {
+    setLoading(true);
+    setLoadError('');
     try {
       const data = await getNotifications(0, 50);
       setNotifications(data.content || []);
@@ -90,6 +96,12 @@ export default function Notifications({ onBadgeUpdate, onOpenReport, onNavigate,
       onBadgeUpdate(unread);
     } catch (e) {
       console.error('Bildirimler yüklenemedi', e);
+      setNotifications([]);
+      setLoadError(
+        lang === 'tr'
+          ? 'Bildirimler yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.'
+          : 'Could not load notifications. Check your connection and try again.',
+      );
     } finally {
       setLoading(false);
     }
@@ -152,20 +164,22 @@ export default function Notifications({ onBadgeUpdate, onOpenReport, onNavigate,
       </div>
 
       {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className={`h-24 animate-pulse rounded-2xl ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}
-            />
-          ))}
-        </div>
+        <LoadingState isDark={isDark} rows={3} />
+      ) : loadError ? (
+        <ErrorState
+          isDark={isDark}
+          title={lang === 'tr' ? 'Yükleme başarısız' : 'Failed to load'}
+          description={loadError}
+          onRetry={() => void loadNotifications()}
+          retryLabel={lang === 'tr' ? 'Tekrar dene' : 'Try again'}
+        />
       ) : notifications.length === 0 ? (
-        <div className="text-center py-16">
-          <BellOff className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-          <p className="text-sm font-medium text-slate-500">{t('notif.empty', lang)}</p>
-          <p className="text-xs text-slate-400 mt-1">{t('notif.empty.desc', lang)}</p>
-        </div>
+        <EmptyState
+          isDark={isDark}
+          icon={<BellOff className="h-10 w-10" />}
+          title={t('notif.empty', lang)}
+          description={t('notif.empty.desc', lang)}
+        />
       ) : (
         <div className="space-y-3">
           {notifications.map((notif, idx) => {

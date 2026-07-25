@@ -3,6 +3,12 @@ import { BarChart3, Pencil, Plus, Search, Trash2, ShieldAlert } from 'lucide-rea
 import axios from 'axios';
 import api from '../api';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
+import PageHeader from '../components/ui/PageHeader';
+import LoadingState from '../components/ui/LoadingState';
+import EmptyState from '../components/ui/EmptyState';
+import Button from '../components/ui/Button';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
+import Toast, { type ToastState } from '../components/ui/Toast';
 
 export interface SurveyDetail {
   id: string;
@@ -48,6 +54,16 @@ export default function SurveysPage({ canManage }: SurveysPageProps) {
   const [activeTab, setActiveTab] = useState<'list' | 'analytics'>('list');
   const [analyticsData, setAnalyticsData] = useState<any | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  const [toast, setToast] = useState<ToastState>(null);
+  const [deleteTarget, setDeleteTarget] = useState<SurveyDetail | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(null), 5000);
+    return () => window.clearTimeout(t);
+  }, [toast]);
 
   async function fetchSurveys() {
     try {
@@ -169,22 +185,25 @@ export default function SurveysPage({ canManage }: SurveysPageProps) {
         void fetchAnalytics();
       }
     } catch {
-      alert('Durum güncellenemedi');
+      setToast({ type: 'error', message: 'Durum güncellenemedi.' });
     }
   };
 
-  const handleDelete = async (id: string, survTitle: string) => {
-    if (!canManage) return;
-    if (window.confirm(`"${survTitle}" anketini silmek istediğinize emin misiniz?`)) {
-      try {
-        await api.delete(`/municipalities/me/surveys/${id}`);
-        fetchSurveys();
-        if (activeTab === 'analytics') {
-          void fetchAnalytics();
-        }
-      } catch {
-        alert('Silme işlemi başarısız oldu');
+  const confirmDelete = async () => {
+    if (!canManage || !deleteTarget) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/municipalities/me/surveys/${deleteTarget.id}`);
+      await fetchSurveys();
+      if (activeTab === 'analytics') {
+        void fetchAnalytics();
       }
+      setDeleteTarget(null);
+      setToast({ type: 'success', message: 'Anket silindi.' });
+    } catch {
+      setToast({ type: 'error', message: 'Silme işlemi başarısız oldu.' });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -201,31 +220,34 @@ export default function SurveysPage({ canManage }: SurveysPageProps) {
   };
 
   if (loading) {
-    return <div className="p-8 text-center text-slate-500">Yükleniyor...</div>;
+    return <LoadingState label="Anketler yükleniyor…" />;
   }
 
   const CHART_COLORS = ['#3b82f6', '#10b981', '#6366f1', '#f59e0b', '#ec4899', '#8b5cf6'];
 
   return (
     <div className="p-6">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="kentiva-eyebrow">Katılım</p>
-          <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">Belediye Anketleri</h2>
-          <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">
-            Vatandaşların oylayabileceği anketler oluşturun ve sonuçları izleyin.
-            {!canManage && ' (Salt okunur — yalnızca belediye admini düzenleyebilir.)'}
-          </p>
-        </div>
-        {canManage && activeTab === 'list' && (
-          <button
-            onClick={openNewModal}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-          >
-            <Plus className="h-4 w-4" />
-            Yeni Anket
-          </button>
-        )}
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
+
+      <div className="mb-6">
+        <PageHeader
+          eyebrow="Katılım"
+          title="Belediye Anketleri"
+          subtitle={
+            <>
+              Vatandaşların oylayabileceği anketler oluşturun ve sonuçları izleyin.
+              {!canManage && ' (Salt okunur — yalnızca belediye admini düzenleyebilir.)'}
+            </>
+          }
+          actions={
+            canManage && activeTab === 'list' ? (
+              <Button onClick={openNewModal}>
+                <Plus className="h-4 w-4" />
+                Yeni Anket
+              </Button>
+            ) : undefined
+          }
+        />
       </div>
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200/90 bg-gradient-to-r from-white via-slate-50 to-emerald-50 p-4 shadow-sm dark:border-slate-700 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950">
@@ -315,9 +337,10 @@ export default function SurveysPage({ canManage }: SurveysPageProps) {
                           <Pencil className="h-4 w-4" />
                         </button>
                         <button
-                          onClick={() => handleDelete(s.id, s.title)}
+                          onClick={() => setDeleteTarget(s)}
                           className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors"
                           title="Sil"
+                          aria-label={`${s.title} anketini sil`}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -391,7 +414,12 @@ export default function SurveysPage({ canManage }: SurveysPageProps) {
             ))}
 
             {filtered.length === 0 && (
-              <div className="col-span-full py-12 text-center text-slate-500">Kayıt bulunamadı.</div>
+              <div className="col-span-full">
+                <EmptyState
+                  title="Kayıt bulunamadı"
+                  description={search ? 'Arama kriterlerinize uyan anket bulunamadı.' : 'Henüz anket eklenmemiş.'}
+                />
+              </div>
             )}
           </div>
         </>
@@ -399,9 +427,9 @@ export default function SurveysPage({ canManage }: SurveysPageProps) {
         /* Analytics View */
         <div>
           {analyticsLoading ? (
-            <div className="p-8 text-center text-slate-500">Analizler yükleniyor...</div>
+            <LoadingState label="Analizler yükleniyor…" />
           ) : !analyticsData ? (
-            <div className="p-8 text-center text-slate-500">İstatistik verisi bulunamadı.</div>
+            <EmptyState title="İstatistik verisi bulunamadı" />
           ) : (
             <div>
               {/* KPI Cards */}
@@ -585,25 +613,28 @@ export default function SurveysPage({ canManage }: SurveysPageProps) {
               </div>
 
               <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-700 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600"
-                >
+                <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>
                   İptal
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-hover disabled:opacity-50"
-                >
+                </Button>
+                <Button type="submit" disabled={saving}>
                   {saving ? 'Kaydediliyor...' : editingId ? 'Güncelle' : 'Yayınla'}
-                </button>
+                </Button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Anketi sil"
+        message={deleteTarget ? `"${deleteTarget.title}" anketini silmek istediğinize emin misiniz?` : ''}
+        confirmLabel="Sil"
+        tone="danger"
+        busy={deleting}
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

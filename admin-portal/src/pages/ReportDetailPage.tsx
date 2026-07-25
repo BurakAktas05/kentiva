@@ -30,6 +30,9 @@ import api, { type Report, type ReportListItem, type ReportTimelineEntry, type U
 import { resolveMediaUrl } from '../lib/env';
 import { reportStatusLabel } from '../lib/reportUtils';
 import { reportStatusBadgeClass } from '../lib/ui';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
+import LoadingState from '../components/ui/LoadingState';
+import ErrorState from '../components/ui/ErrorState';
 
 /* ------------------------------------------------------------------ */
 /*  TYPES & HELPERS                                                    */
@@ -39,11 +42,11 @@ function isDefaultPendingNote(text: string) {
   const trimmed = text.trim();
   return trimmed === "Bildiriminiz için teşekkür ederiz. Ekiplerimiz konuyu değerlendirmektedir; süreç hakkında bilgilendirileceksiniz."
     || trimmed === "Thank you for your report. Our teams are working on it and we will update you as soon as possible."
-    || trimmed === "شكراً لبلاğكم. فرقنا تعمل على المعalجة وسنبلغكم عند اكتمal الإجراء."
+    || trimmed === "شكراً لإبلاغكم. فرقنا تعمل على المعالجة وسنبلغكم عند اكتمال الإجراء."
     || trimmed.includes("Bildiriminiz için teşekkür ederiz")
     || trimmed.includes("Thank you for your report")
     || trimmed.includes("%s")
-    || trimmed.includes("شكراً لبlağكم");
+    || trimmed.includes("شكراً لإبلاغكم");
 }
 
 type ReportDetailPageProps = {
@@ -94,16 +97,22 @@ function Lightbox({ images, initialIndex, onClose }: { images: string[]; initial
   });
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/85 backdrop-blur-md" onClick={onClose}>
-      <button type="button" onClick={onClose} className="absolute top-6 right-6 rounded-full bg-white/10 p-3 text-white hover:bg-white/20 transition cursor-pointer z-10">
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/85 backdrop-blur-md"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Fotoğraf görüntüleyici"
+    >
+      <button type="button" onClick={onClose} aria-label="Kapat" className="absolute top-6 right-6 rounded-full bg-white/10 p-3 text-white hover:bg-white/20 transition cursor-pointer z-10">
         <X className="h-6 w-6" />
       </button>
       {images.length > 1 && (
         <>
-          <button type="button" onClick={(e) => { e.stopPropagation(); prev(); }} className="absolute left-6 top-1/2 -translate-y-1/2 rounded-full bg-white/10 p-4 text-white hover:bg-white/20 transition cursor-pointer z-10">
+          <button type="button" onClick={(e) => { e.stopPropagation(); prev(); }} aria-label="Önceki fotoğraf" className="absolute left-6 top-1/2 -translate-y-1/2 rounded-full bg-white/10 p-4 text-white hover:bg-white/20 transition cursor-pointer z-10">
             <ChevronLeft className="h-8 w-8" />
           </button>
-          <button type="button" onClick={(e) => { e.stopPropagation(); next(); }} className="absolute right-6 top-1/2 -translate-y-1/2 rounded-full bg-white/10 p-4 text-white hover:bg-white/20 transition cursor-pointer z-10">
+          <button type="button" onClick={(e) => { e.stopPropagation(); next(); }} aria-label="Sonraki fotoğraf" className="absolute right-6 top-1/2 -translate-y-1/2 rounded-full bg-white/10 p-4 text-white hover:bg-white/20 transition cursor-pointer z-10">
             <ChevronRight className="h-8 w-8" />
           </button>
         </>
@@ -112,7 +121,14 @@ function Lightbox({ images, initialIndex, onClose }: { images: string[]; initial
       {images.length > 1 && (
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2">
           {images.map((_, i) => (
-            <button key={i} type="button" onClick={(e) => { e.stopPropagation(); setIdx(i); }} className={`h-2.5 rounded-full transition-all cursor-pointer ${i === idx ? 'w-8 bg-white' : 'w-2.5 bg-white/30 hover:bg-white/50'}`} />
+            <button
+              key={i}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setIdx(i); }}
+              aria-label={`${i + 1}. fotoğrafa git`}
+              aria-current={i === idx}
+              className={`h-2.5 rounded-full transition-all cursor-pointer ${i === idx ? 'w-8 bg-white' : 'w-2.5 bg-white/30 hover:bg-white/50'}`}
+            />
           ))}
         </div>
       )}
@@ -139,10 +155,10 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [duplicateGroup, setDuplicateGroup] = useState<ReportListItem[]>([]);
   const [bulkBusy, setBulkBusy] = useState<'RESOLVED' | null>(null);
+  const [confirmBulkClose, setConfirmBulkClose] = useState(false);
 
   const [noteText, setNoteText] = useState('');
   const [currentUser, setCurrentUser] = useState<any | null>(null);
-  const [resolvedFiles, setResolvedFiles] = useState<File[]>([]);
   const [activeMediaTab, setActiveMediaTab] = useState<'BEFORE' | 'AFTER'>('BEFORE');
   const [lightboxImages, setLightboxImages] = useState<string[] | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -244,29 +260,26 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
   /* ---------- refresh ---------- */
   const refreshReport = async () => {
     if (!id) return;
-    const [r, tl] = await Promise.all([api.get(`/reports/${id}`), api.get(`/reports/${id}/timeline`)]);
+    const [r, tl, dup] = await Promise.all([
+      api.get(`/reports/${id}`),
+      api.get(`/reports/${id}/timeline`),
+      api.get(`/reports/${id}/duplicate-group`).catch(() => ({ data: { data: [] } })),
+    ]);
     const next = r.data.data as Report;
     setReport(next);
     setTimeline(tl.data.data as ReportTimelineEntry[]);
+    setDuplicateGroup(dup.data.data as ReportListItem[]);
     setActiveMediaTab(next.mediaUrls?.length ? 'BEFORE' : next.resolvedMediaUrls?.length ? 'AFTER' : 'BEFORE');
   };
 
   /* ---------- Patch status ---------- */
   const patchStatus = async (status: string) => {
     if (!id) return;
-    let resolvedUrls: string[] = [];
-    if (status === 'RESOLVED' && resolvedFiles.length > 0) {
-      const formData = new FormData();
-      resolvedFiles.forEach((f) => formData.append('files', f));
-      const uploadRes = await api.post('/reports/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      resolvedUrls = uploadRes.data.data;
-    }
     await api.patch(`/reports/${id}/status`, {
       status,
       note: noteText.trim() || null,
-      resolvedMediaUrls: resolvedUrls.length > 0 ? resolvedUrls : null,
+      resolvedMediaUrls: null,
     });
-    setResolvedFiles([]);
   };
 
   /* ---------- ACCEPT ---------- */
@@ -339,19 +352,28 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
   };
 
   /* ---------- Bulk close duplicate group ---------- */
-  const bulkCloseDuplicateGroup = async () => {
+  const duplicateGroupCloseIds = useMemo(() => {
+    if (!id) return [];
+    return [...new Set([id, ...duplicateGroup.filter((d) => d.status !== 'RESOLVED' && d.status !== 'REJECTED').map((d) => d.id)])];
+  }, [id, duplicateGroup]);
+
+  const runBulkCloseDuplicateGroup = async () => {
     if (!id || !report) return;
-    const ids = [...new Set([id, ...duplicateGroup.filter((d) => d.status !== 'RESOLVED' && d.status !== 'REJECTED').map((d) => d.id)])];
+    const ids = duplicateGroupCloseIds;
     if (ids.length < 2) return;
-    if (!window.confirm(`${ids.length} ihbarı toplu "çözüldü" olarak işaretlemek istiyor musunuz?`)) return;
-    setBulkBusy('RESOLVED'); setError(null);
+    setBulkBusy('RESOLVED'); setError(null); setSuccessMsg(null);
     try {
       const res = await api.patch('/reports/batch/status', { reportIds: ids, status: 'RESOLVED', note: 'Mükerrer grup - toplu kapatma' });
       const result = res.data.data as { successCount: number; failureCount: number };
-      if (result.failureCount > 0) setError(`${result.successCount} güncellendi, ${result.failureCount} başarısız.`);
-      else window.location.reload();
+      if (result.failureCount > 0) {
+        setError(`${result.successCount} güncellendi, ${result.failureCount} başarısız.`);
+      } else {
+        setSuccessMsg('Gruptaki tüm ihbarlar çözüldü olarak işaretlendi.');
+        window.setTimeout(() => setSuccessMsg(null), 3000);
+      }
+      await refreshReport();
     } catch { setError('Toplu güncelleme başarısız.'); }
-    finally { setBulkBusy(null); }
+    finally { setBulkBusy(null); setConfirmBulkClose(false); }
   };
 
   const backNav = embedded ? (
@@ -367,22 +389,42 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
   const wrapEmbedded = (node: ReactNode) => node;
 
   if (error && !report) return wrapEmbedded(
-    <div className="p-6">{backNav}<div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-6 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">{error}</div></div>,
+    <div className="p-6">
+      {backNav}
+      <div className="mt-4">
+        <ErrorState message={error} />
+      </div>
+    </div>,
   );
   if (!report) return wrapEmbedded(
-    <div className="flex items-center justify-center p-12"><div className="flex flex-col items-center gap-3"><div className="h-8 w-8 animate-spin rounded-full border-[3px] border-slate-200 border-t-primary" /><span className="text-sm font-medium text-slate-500">Yükleniyor...</span></div></div>,
+    <div className="p-6"><LoadingState label="Rapor yükleniyor…" /></div>,
   );
 
   return wrapEmbedded(
-    <div className="mx-auto max-w-[1440px] space-y-5 p-4 sm:p-6 lg:p-8">
+    <div className={`mx-auto max-w-[1440px] space-y-5 ${embedded ? 'p-4 sm:p-5' : 'p-4 sm:p-6 lg:p-8'}`}>
       {lightboxImages && <Lightbox images={lightboxImages} initialIndex={lightboxIndex} onClose={() => setLightboxImages(null)} />}
 
-      <div className="flex items-center justify-between gap-4">
+      <ConfirmDialog
+        open={confirmBulkClose}
+        title="Gruptaki tüm ihbarları kapat"
+        message={`${duplicateGroupCloseIds.length} ihbarı toplu "çözüldü" olarak işaretlemek istediğinize emin misiniz? Bu işlem kayda geçecektir.`}
+        confirmLabel="Çözüldü işaretle"
+        cancelLabel="Vazgeç"
+        busy={bulkBusy === 'RESOLVED'}
+        onCancel={() => {
+          if (bulkBusy === 'RESOLVED') return;
+          setConfirmBulkClose(false);
+        }}
+        onConfirm={() => void runBulkCloseDuplicateGroup()}
+      />
+
+      <div className="flex items-center justify-between gap-4 pr-10">
         <div>
           {backNav}
-          <p className="mt-3 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">Belediye operasyon merkezi</p>
+          {!embedded && (
+            <p className="mt-3 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">Belediye operasyon merkezi</p>
+          )}
         </div>
-        <span className="hidden text-xs font-semibold text-slate-400 sm:block">Son görüntüleme · {formatDate(new Date().toISOString())}</span>
       </div>
 
       {/* ---- Alerts ---- */}
@@ -457,10 +499,83 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
         </div>
       </section>
 
+      {/* Sticky primary ops — before long AI/meta content */}
+      {!isClosed && !isSuperAdmin && (
+        <div
+          className={`sticky z-30 -mx-1 rounded-2xl border border-slate-200/90 bg-white/95 px-4 py-3 shadow-md backdrop-blur-md dark:border-slate-700 dark:bg-slate-900/95 sm:mx-0 ${
+            embedded ? 'top-0' : 'top-[4.5rem]'
+          }`}
+        >          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Hızlı işlem</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">
+                {report.status === 'PENDING' ? 'İhbarı işleme alın veya kapatın' : 'Atayın veya çözüme bağlayın'}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {report.status === 'PENDING' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActionStep('ACCEPT');
+                      document.getElementById('report-ops-center')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
+                    className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    İşleme al
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActionStep('REJECT');
+                      document.getElementById('report-ops-center')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
+                    className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-bold text-rose-800 hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-200"
+                  >
+                    <Ban className="h-4 w-4" />
+                    Reddet
+                  </button>
+                </>
+              )}
+              {(report.status === 'PROCESSING' || report.status === 'FORWARDED') && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAssignPanel(true);
+                      document.getElementById('report-ops-center')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
+                    className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  >
+                    <UserCheck className="h-4 w-4" />
+                    Ata
+                  </button>
+                  {canResolve && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActionStep('RESOLVE');
+                        document.getElementById('report-ops-center')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }}
+                      className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700"
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      Çöz
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ================================================================ */}
       {/*  METADATA METRICS GRID                                           */}
       {/* ================================================================ */}
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <MetaCard icon={<Tag className="text-indigo-500" />} label="Kategori" value={report.categoryName} />
         <MetaCard icon={<UserIcon className="text-sky-500" />} label="Vatandaş" value={report.reporterFullName ?? 'Anonim'} />
         <MetaCard icon={<UserCheck className="text-emerald-500" />} label="Saha Görevlisi" value={report.assigneeFullName ?? 'Atanmamış'} />
@@ -536,7 +651,7 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
           )}
 
           {/* ---- OPERATIONS CENTER ---- */}
-          <section className="rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+          <section id="report-ops-center" className="scroll-mt-28 rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
             <div className="flex items-center gap-2 px-6 py-4.5 border-b border-slate-100 dark:border-slate-800">
               <Briefcase className="h-4.5 w-4.5 text-primary" />
               <span className="text-sm font-black text-slate-900 dark:text-white">İhbar Yönetim ve İşlem Merkezi</span>
@@ -635,6 +750,8 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
                     noteText={noteText}
                     setNoteText={setNoteText}
                     disabled={actionBusy}
+                    reportId={id}
+                    statusHint="PROCESSING"
                     placeholder="Vatandaşa iletilecek durum bilgilendirme notu..."
                   />
 
@@ -681,6 +798,8 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
                     noteText={noteText}
                     setNoteText={setNoteText}
                     disabled={actionBusy}
+                    reportId={id}
+                    statusHint={rejectReason}
                     label="Red/İptal Açıklaması"
                     placeholder="Vatandaşa iletilecek gerekçeli iptal açıklaması..."
                   />
@@ -825,28 +944,11 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
                           noteText={noteText}
                           setNoteText={setNoteText}
                           disabled={actionBusy}
+                          reportId={id}
+                          statusHint="RESOLVED"
                           label="Çözüm / Tamamlanma Raporu"
                           placeholder="Çözüm tamamlandığında vatandaşa iletilecek nihai sonuç notu..."
                         />
-
-                        {/* File Upload for Proof */}
-                        <div>
-                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Çözüm Kanıtı Fotoğrafları</label>
-                          <input
-                            type="file"
-                            multiple
-                            accept="image/*"
-                            onChange={(e) => {
-                              if (e.target.files) {
-                                setResolvedFiles(Array.from(e.target.files));
-                              }
-                            }}
-                            className="w-full text-xs text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 file:cursor-pointer"
-                          />
-                          {resolvedFiles.length > 0 && (
-                            <p className="text-[10px] text-slate-500 mt-1.5 font-bold">Seçilen dosya sayısı: {resolvedFiles.length}</p>
-                          )}
-                        </div>
 
                         <button
                           type="button"
@@ -935,7 +1037,7 @@ export default function ReportDetailPage({ reportId: reportIdProp, embedded, onC
                 <button
                   type="button"
                   disabled={bulkBusy !== null}
-                  onClick={() => void bulkCloseDuplicateGroup()}
+                  onClick={() => setConfirmBulkClose(true)}
                   className="mt-4 w-full rounded-xl bg-amber-600 hover:bg-amber-700 px-4 py-3.5 text-xs font-bold text-white transition shadow-sm disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
                 >
                   <CheckCircle2 className="h-4 w-4" />
@@ -968,13 +1070,13 @@ function HeaderMetric({ icon, label, value }: { icon: ReactNode; label: string; 
 
 function MetaCard({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
-    <div className="flex items-center gap-3.5 rounded-2xl border border-slate-150 bg-white p-4.5 shadow-[0_4px_12px_rgba(15,23,42,0.02)] transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
+    <div className="flex items-start gap-3.5 rounded-2xl border border-slate-150 bg-white p-4.5 shadow-[0_4px_12px_rgba(15,23,42,0.02)] transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 dark:bg-slate-800/80">
         {icon}
       </div>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
-        <p className="mt-0.5 text-xs font-extrabold text-slate-900 dark:text-white truncate leading-tight">
+        <p className="mt-0.5 text-xs font-extrabold text-slate-900 dark:text-white break-words leading-snug" title={value}>
           {value}
         </p>
       </div>
@@ -983,35 +1085,76 @@ function MetaCard({ icon, label, value }: { icon: ReactNode; label: string; valu
 }
 
 /* ------------------------------------------------------------------ */
-/*  Note + AI button sub-component                                     */
+/*  Note + AI generate button                                          */
 /* ------------------------------------------------------------------ */
 function NoteWithAI({
   noteText,
   setNoteText,
   disabled,
+  reportId,
+  statusHint,
   label = 'Vatandaşa Bilgi Notu',
   placeholder = 'Vatandaşa iletilecek not...',
 }: {
   noteText: string;
   setNoteText: (v: string) => void;
   disabled: boolean;
+  reportId?: string;
+  statusHint?: string | null;
   label?: string;
   placeholder?: string;
 }) {
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  const generateAiReply = async () => {
+    if (!reportId || aiBusy || disabled) return;
+    setAiBusy(true);
+    setAiError(null);
+    try {
+      const params = statusHint ? { status: statusHint } : undefined;
+      const res = await api.post(`/reports/${reportId}/ai-analysis`, null, { params });
+      const draft = (res.data.data as Report | undefined)?.aiReplyDraft;
+      if (draft?.trim()) {
+        setNoteText(draft.trim());
+      } else {
+        setAiError('AI yanıtı oluşturulamadı. Tekrar deneyin.');
+      }
+    } catch (err: unknown) {
+      setAiError(errorMessage(err, 'AI yanıtı oluşturulamadı.'));
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <label htmlFor="statusNote" className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</label>
+        {reportId ? (
+          <button
+            type="button"
+            onClick={() => void generateAiReply()}
+            disabled={disabled || aiBusy}
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-[10px] font-bold text-indigo-700 transition hover:bg-indigo-100 disabled:opacity-50 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300 dark:hover:bg-indigo-950/70"
+          >
+            <Sparkles className={`h-3.5 w-3.5 ${aiBusy ? 'animate-pulse' : ''}`} />
+            {aiBusy ? 'Oluşturuluyor...' : 'AI yanıtı oluştur'}
+          </button>
+        ) : null}
       </div>
       <textarea
         id="statusNote"
         rows={3}
         value={noteText}
         onChange={(e) => setNoteText(e.target.value)}
-        disabled={disabled}
+        disabled={disabled || aiBusy}
         placeholder={placeholder}
         className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white leading-relaxed font-semibold"
       />
+      {aiError ? (
+        <p role="alert" className="text-[11px] font-semibold text-rose-600 dark:text-rose-400">{aiError}</p>
+      ) : null}
     </div>
   );
 }

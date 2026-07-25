@@ -13,16 +13,27 @@ import {
 } from '../../api';
 import { Lang, t } from '../../i18n';
 import { screenBg, detailHeaderBar, detailBackBtnClass, detailTitleClass, kentivaCard } from '../../lib/ui';
+import ConfirmDialog from '../ui/ConfirmDialog';
 
 interface RanksScreenProps {
   lang: Lang;
   isDark: boolean;
   municipality?: PublicTenant | null;
   onBack: () => void;
+  initialSegment?: 'ranks' | 'rewards';
+  /** Hub içinde gösterildiğinde üst sticky header sadeleşir */
+  embedded?: boolean;
 }
 
-export default function RanksScreen({ lang, isDark, municipality, onBack }: RanksScreenProps) {
-  const [activeSegment, setActiveSegment] = useState<'ranks' | 'rewards'>('ranks');
+export default function RanksScreen({
+  lang,
+  isDark,
+  municipality,
+  onBack,
+  initialSegment = 'ranks',
+  embedded = false,
+}: RanksScreenProps) {
+  const [activeSegment, setActiveSegment] = useState<'ranks' | 'rewards'>(initialSegment);
   const [profile, setProfile] = useState<ApiUserProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
 
@@ -31,6 +42,12 @@ export default function RanksScreen({ lang, isDark, municipality, onBack }: Rank
   const [rewardsLoading, setRewardsLoading] = useState(false);
   const [rewardsError, setRewardsError] = useState('');
   const [redeemingId, setRedeemingId] = useState<string | null>(null);
+  const [redeemFeedback, setRedeemFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [confirmReward, setConfirmReward] = useState<ApiReward | null>(null);
+
+  useEffect(() => {
+    setActiveSegment(initialSegment);
+  }, [initialSegment]);
 
   useEffect(() => {
     loadProfile();
@@ -82,22 +99,32 @@ export default function RanksScreen({ lang, isDark, municipality, onBack }: Rank
     }
   };
 
-  const handleRedeem = async (reward: ApiReward) => {
-    const userPoints = score;
-    if (userPoints < reward.pointCost) {
-      alert(t('rewards.insufficient', lang));
+  useEffect(() => {
+    if (!redeemFeedback) return;
+    const timeout = window.setTimeout(() => setRedeemFeedback(null), 4000);
+    return () => window.clearTimeout(timeout);
+  }, [redeemFeedback]);
+
+  const requestRedeem = (reward: ApiReward) => {
+    if (score < reward.pointCost) {
+      setRedeemFeedback({ type: 'error', message: t('rewards.insufficient', lang) });
       return;
     }
+    setConfirmReward(reward);
+  };
 
-    if (!window.confirm(lang === 'tr' ? `"${reward.title}" ödülünü almak için ${reward.pointCost} puan harcamak istediğinize emin misiniz?` : `Are you sure you want to spend ${reward.pointCost} points for "${reward.title}"?`)) {
-      return;
-    }
-
+  const handleRedeem = async () => {
+    const reward = confirmReward;
+    if (!reward) return;
     setRedeemingId(reward.id);
     try {
       await redeemReward(reward.id);
-      alert(lang === 'tr' ? 'Ödül başarıyla alındı! Kupon kodunuz sisteme kaydedildi.' : 'Reward claimed successfully!');
-      
+      setConfirmReward(null);
+      setRedeemFeedback({
+        type: 'success',
+        message: lang === 'tr' ? 'Ödül başarıyla alındı! Kupon kodunuz sisteme kaydedildi.' : 'Reward claimed successfully!',
+      });
+
       // Reload profile points & lists
       const updatedProfile = await getMyProfile().catch(() => null);
       if (updatedProfile) {
@@ -105,7 +132,10 @@ export default function RanksScreen({ lang, isDark, municipality, onBack }: Rank
       }
       void loadRewards();
     } catch (err: any) {
-      alert(err.message || (lang === 'tr' ? 'Ödül alınırken hata oluştu.' : 'Failed to redeem reward.'));
+      setRedeemFeedback({
+        type: 'error',
+        message: err.message || (lang === 'tr' ? 'Ödül alınırken hata oluştu.' : 'Failed to redeem reward.'),
+      });
     } finally {
       setRedeemingId(null);
     }
@@ -205,7 +235,7 @@ export default function RanksScreen({ lang, isDark, municipality, onBack }: Rank
   }
 
   return (
-    <div className={`min-h-full flex flex-col ${screenBg(isDark)} pb-8`}>
+    <div className={`${embedded ? '' : 'min-h-full'} flex flex-col ${screenBg(isDark)} pb-8`}>
       <header className={detailHeaderBar(isDark)}>
         <button
           type="button"
@@ -247,6 +277,28 @@ export default function RanksScreen({ lang, isDark, municipality, onBack }: Rank
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
+        {redeemFeedback && (
+          <div
+            role="status"
+            className={`flex items-center gap-2 rounded-2xl border px-4 py-3 text-xs font-semibold ${
+              redeemFeedback.type === 'success'
+                ? isDark
+                  ? 'border-emerald-500/30 bg-emerald-950/30 text-emerald-200'
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                : isDark
+                ? 'border-red-500/30 bg-red-950/30 text-red-200'
+                : 'border-red-200 bg-red-50 text-red-700'
+            }`}
+          >
+            {redeemFeedback.type === 'success' ? (
+              <CheckCircle className="h-4 w-4 shrink-0" />
+            ) : (
+              <AlertCircle className="h-4 w-4 shrink-0" />
+            )}
+            <span>{redeemFeedback.message}</span>
+          </div>
+        )}
+
         {/* User XP & Level Overview Card */}
         {profileLoading ? (
           <div className="flex justify-center py-6">
@@ -475,7 +527,7 @@ export default function RanksScreen({ lang, isDark, municipality, onBack }: Rank
                         <button
                           type="button"
                           disabled={!hasEnoughPoints || !hasStock || redeemingId !== null}
-                          onClick={() => handleRedeem(reward)}
+                          onClick={() => requestRedeem(reward)}
                           className="rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white shadow-md shadow-primary/20 disabled:opacity-50 disabled:shadow-none active:scale-95 transition-all cursor-pointer hover:brightness-105"
                         >
                           {redeemingId === reward.id ? '...' : (lang === 'tr' ? 'Ödülü Al' : 'Claim')}
@@ -498,6 +550,23 @@ export default function RanksScreen({ lang, isDark, municipality, onBack }: Rank
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={Boolean(confirmReward)}
+        title={lang === 'tr' ? 'Ödülü Al' : 'Claim Reward'}
+        message={
+          confirmReward
+            ? lang === 'tr'
+              ? `"${confirmReward.title}" ödülünü almak için ${confirmReward.pointCost} puan harcamak istediğinize emin misiniz?`
+              : `Are you sure you want to spend ${confirmReward.pointCost} points for "${confirmReward.title}"?`
+            : ''
+        }
+        confirmLabel={lang === 'tr' ? 'Onayla' : 'Confirm'}
+        cancelLabel={lang === 'tr' ? 'Vazgeç' : 'Cancel'}
+        busy={redeemingId !== null}
+        onConfirm={() => void handleRedeem()}
+        onCancel={() => setConfirmReward(null)}
+      />
     </div>
   );
 }

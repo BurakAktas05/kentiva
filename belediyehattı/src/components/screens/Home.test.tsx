@@ -10,16 +10,12 @@ vi.mock('../../api', () => ({
   getPublicAnnouncements: vi.fn(),
 }));
 
-vi.mock('../home/HomeWidgets', () => ({
-  WeatherWidgetCard: () => <div data-testid="weather-widget">Weather</div>
-}));
-
 vi.mock('../home/AnnouncementCarousel', () => ({
   default: () => <div data-testid="announcement-carousel">Carousel</div>
 }));
 
-vi.mock('./Surveys', () => ({
-  default: () => <div data-testid="surveys-section">Surveys</div>
+vi.mock('../home/HomeWidgets', () => ({
+  WeatherWidgetCard: () => <div data-testid="weather-widget">Weather</div>,
 }));
 
 describe('Home Screen Component', () => {
@@ -69,6 +65,27 @@ describe('Home Screen Component', () => {
     await waitFor(() => {
       expect(screen.getByText('Değerli hemşehrimiz')).toBeInTheDocument();
     });
+  });
+
+  it('does not call private profile APIs for a guest session', async () => {
+    vi.mocked(api.getPublicAnnouncements).mockResolvedValueOnce([]);
+
+    render(
+      <Home
+        onCreateReport={vi.fn()}
+        onViewMyReports={vi.fn()}
+        onOpenAnnouncement={vi.fn()}
+        lang="tr"
+        isDark={false}
+        isAuthenticated={false}
+        homeMunicipality={mockMunicipality}
+      />,
+    );
+
+    expect(await screen.findByText('Değerli hemşehrimiz')).toBeInTheDocument();
+    expect(api.getMyReports).not.toHaveBeenCalled();
+    expect(api.getMyProfile).not.toHaveBeenCalled();
+    expect(api.getPublicAnnouncements).toHaveBeenCalledWith(mockMunicipality.id);
   });
 
   it('loads and displays user profile and reports preview', async () => {

@@ -25,6 +25,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -132,12 +133,23 @@ public class ReportCrudController {
     @Operation(summary = "Tüm raporlar (Saha Ekibi ve üzeri)")
     public ResponseEntity<ApiResponse<Page<ReportListResponse>>> getAllReports(
             @RequestParam(required = false) ReportStatus status,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) java.time.LocalDateTime from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) java.time.LocalDateTime to,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) java.time.LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) java.time.LocalDate toDate,
             @AuthenticationPrincipal AppUser currentUser,
             @PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
 
-        Page<ReportListResponse> page = (status != null)
-                ? reportService.getReportsByStatus(status, currentUser, pageable)
-                : reportService.getAllReports(currentUser, pageable);
+        java.time.LocalDateTime fromTs = from != null
+                ? from
+                : (fromDate != null ? fromDate.atStartOfDay() : null);
+        java.time.LocalDateTime toTs = to != null
+                ? to
+                : (toDate != null ? toDate.atTime(23, 59, 59) : null);
+
+        Page<ReportListResponse> page = reportService.searchStaffReports(
+                currentUser, status, q, fromTs, toTs, pageable);
 
         return ResponseEntity.ok(ApiResponse.success(page));
     }

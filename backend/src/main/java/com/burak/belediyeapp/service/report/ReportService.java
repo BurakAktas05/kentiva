@@ -46,6 +46,16 @@ public class ReportService {
         return queryService.getReportsByStatus(status, user, pageable);
     }
 
+    public Page<ReportListResponse> searchStaffReports(
+            AppUser user,
+            ReportStatus status,
+            String q,
+            java.time.LocalDateTime from,
+            java.time.LocalDateTime to,
+            Pageable pageable) {
+        return queryService.searchStaffReports(user, status, q, from, to, pageable);
+    }
+
     public Page<ReportListResponse> getReportsByDepartment(String departmentId, AppUser user, Pageable pageable) {
         return queryService.getReportsByDepartment(departmentId, user, pageable);
     }

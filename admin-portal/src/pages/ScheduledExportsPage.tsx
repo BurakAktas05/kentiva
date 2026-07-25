@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CalendarClock,
-  CheckCircle2,
   Clock3,
   Download,
-  FileWarning,
   PlayCircle,
   Plus,
   RefreshCw,
@@ -21,11 +19,12 @@ import api, {
   type SpringPage,
 } from '../api';
 import { downloadBlobResponse } from '../lib/downloadExport';
+import LoadingState from '../components/ui/LoadingState';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
+import Toast, { type ToastState } from '../components/ui/Toast';
 
 const FORMAT_LABELS: Record<ExportFormat, string> = { EXCEL: 'Excel', PDF: 'PDF' };
 const FREQUENCY_LABELS: Record<ExportFrequency, string> = { DAILY: 'Günlük', WEEKLY: 'Haftalık' };
-
-type Toast = { type: 'success' | 'error'; message: string } | null;
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -63,9 +62,11 @@ export default function ScheduledExportsPage({ embedded = false }: { embedded?: 
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
-  const [toast, setToast] = useState<Toast>(null);
+  const [toast, setToast] = useState<ToastState>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [runningScheduleId, setRunningScheduleId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ExportSchedule | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [format, setFormat] = useState<ExportFormat>('EXCEL');
   const [frequency, setFrequency] = useState<ExportFrequency>('DAILY');
   const [hourOfDay, setHourOfDay] = useState(6);
@@ -157,14 +158,18 @@ export default function ScheduledExportsPage({ embedded = false }: { embedded?: 
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Bu planı silmek istediğinize emin misiniz?')) return;
+  const confirmDeleteSchedule = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      await api.delete(`/export/schedules/${id}`);
+      await api.delete(`/export/schedules/${deleteTarget.id}`);
       await loadData();
+      setDeleteTarget(null);
       setToast({ type: 'success', message: 'Plan silindi.' });
     } catch {
       setToast({ type: 'error', message: 'Plan silinemedi.' });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -205,21 +210,7 @@ export default function ScheduledExportsPage({ embedded = false }: { embedded?: 
 
   return (
     <div className={embedded ? 'space-y-6' : 'space-y-6 p-6'}>
-      {toast && (
-        <div
-          className={`fixed right-6 top-20 z-50 flex max-w-md items-start gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold shadow-lg ${
-            toast.type === 'success'
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-100'
-              : 'border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-800 dark:bg-rose-950/70 dark:text-rose-100'
-          }`}
-        >
-          {toast.type === 'success' ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> : <FileWarning className="mt-0.5 h-4 w-4 shrink-0" />}
-          <span>{toast.message}</span>
-          <button type="button" onClick={() => setToast(null)} className="ml-2 opacity-60 hover:opacity-100">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
 
       {!embedded && (
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -314,8 +305,8 @@ export default function ScheduledExportsPage({ embedded = false }: { embedded?: 
 
       {!scopeError &&
         (loading ? (
-          <div className="rounded-3xl border border-slate-200/90 bg-white px-6 py-12 text-center text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
-            Veriler yukleniyor...
+          <div className="rounded-3xl border border-slate-200/90 bg-white px-6 py-12 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <LoadingState label="Veriler yükleniyor…" />
           </div>
         ) : (
           <>
@@ -379,9 +370,10 @@ export default function ScheduledExportsPage({ embedded = false }: { embedded?: 
                               </button>
                               <button
                                 type="button"
-                                onClick={() => void handleDelete(schedule.id)}
+                                onClick={() => setDeleteTarget(schedule)}
                                 className="rounded-xl p-2 text-slate-500 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30"
                                 title="Sil"
+                                aria-label="Planı sil"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </button>
@@ -566,6 +558,17 @@ export default function ScheduledExportsPage({ embedded = false }: { embedded?: 
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Planı sil"
+        message="Bu planı silmek istediğinize emin misiniz?"
+        confirmLabel="Sil"
+        tone="danger"
+        busy={deleting}
+        onConfirm={() => void confirmDeleteSchedule()}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

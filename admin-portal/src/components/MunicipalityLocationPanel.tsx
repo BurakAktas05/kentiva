@@ -140,8 +140,8 @@ export default function MunicipalityLocationPanel({
         <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
           <MapContainer center={position} zoom={zoom} className="h-[360px] w-full grayscale-map">
             <TileLayer
-              url="https://mt1.google.com/vt/lyrs=m&hl=tr&x={x}&y={y}&z={z}"
-              attribution='&copy; Google Maps'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> katkıda bulunanlar'
             />
             <PickableMarker center={position} onChange={setPosition} />
             <RecenterMap center={position} zoom={zoom} />

@@ -2,6 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { Gift, Plus, Search, Pencil, Trash2, CheckCircle2, XCircle, ShieldAlert, Star } from 'lucide-react';
 import axios from 'axios';
 import api from '../api';
+import PageHeader from '../components/ui/PageHeader';
+import LoadingState from '../components/ui/LoadingState';
+import EmptyState from '../components/ui/EmptyState';
+import Button from '../components/ui/Button';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
+import Toast, { type ToastState } from '../components/ui/Toast';
 
 export interface Reward {
   id: string;
@@ -53,6 +59,18 @@ export default function RewardsPage() {
   const [claimsSearch, setClaimsSearch] = useState('');
   const [claimsPage, setClaimsPage] = useState(0);
   const [claimsTotalPages, setClaimsTotalPages] = useState(0);
+
+  const [toast, setToast] = useState<ToastState>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Reward | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [claimAction, setClaimAction] = useState<{ claim: RedeemedReward; status: 'CLAIMED' | 'CANCELLED' } | null>(null);
+  const [updatingClaim, setUpdatingClaim] = useState(false);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(null), 5000);
+    return () => window.clearTimeout(t);
+  }, [toast]);
 
   async function fetchRewards() {
     try {
@@ -147,32 +165,43 @@ export default function RewardsPage() {
     }
   };
 
-  const handleDelete = async (id: string, rewardTitle: string) => {
-    if (window.confirm(`"${rewardTitle}" ödülünü silmek istediğinize emin misiniz?`)) {
-      try {
-        await api.delete(`/municipalities/me/rewards/${id}`);
-        fetchRewards();
-      } catch {
-        alert('Silme işlemi başarısız oldu');
-      }
+  const confirmDeleteReward = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/municipalities/me/rewards/${deleteTarget.id}`);
+      await fetchRewards();
+      setDeleteTarget(null);
+      setToast({ type: 'success', message: 'Ödül silindi.' });
+    } catch {
+      setToast({ type: 'error', message: 'Silme işlemi başarısız oldu.' });
+    } finally {
+      setDeleting(false);
     }
   };
 
-  const handleUpdateClaimStatus = async (claimId: string, status: 'CLAIMED' | 'CANCELLED') => {
-    const confirmMsg =
-      status === 'CLAIMED'
-        ? 'Bu ödül kuponunu teslim edildi olarak işaretlemek istiyor musunuz?'
-        : 'Bu ödül kuponunu iptal edip vatandaşın puanını iade etmek istiyor musunuz?';
-
-    if (window.confirm(confirmMsg)) {
-      try {
-        await api.patch(`/municipalities/me/rewards/claims/${claimId}/status`, null, {
-          params: { status },
-        });
-        fetchClaims(claimsPage);
-      } catch (err: any) {
-        alert(err.response?.data?.message || 'Durum güncellenemedi.');
-      }
+  const confirmClaimStatusUpdate = async () => {
+    if (!claimAction) return;
+    setUpdatingClaim(true);
+    try {
+      await api.patch(`/municipalities/me/rewards/claims/${claimAction.claim.id}/status`, null, {
+        params: { status: claimAction.status },
+      });
+      await fetchClaims(claimsPage);
+      setClaimAction(null);
+      setToast({
+        type: 'success',
+        message: claimAction.status === 'CLAIMED' ? 'Kupon teslim edildi olarak işaretlendi.' : 'Kupon iptal edildi.',
+      });
+    } catch (err: unknown) {
+      setToast({
+        type: 'error',
+        message: axios.isAxiosError(err)
+          ? String((err.response?.data as { message?: string } | undefined)?.message ?? 'Durum güncellenemedi.')
+          : 'Durum güncellenemedi.',
+      });
+    } finally {
+      setUpdatingClaim(false);
     }
   };
 
@@ -191,28 +220,27 @@ export default function RewardsPage() {
   );
 
   if (loading) {
-    return <div className="p-8 text-center text-slate-500 dark:text-slate-400">Yükleniyor...</div>;
+    return <LoadingState label="Ödüller yükleniyor…" />;
   }
 
   return (
     <div className="p-6">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="kentiva-eyebrow">Gamification</p>
-          <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">Belediye Ödül Merkezi</h2>
-          <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">
-            Vatandaşların güven puanlarını harcayarak alabilecekleri ödülleri tanımlayın ve talepleri yönetin.
-          </p>
-        </div>
-        {activeTab === 'rewards' && (
-          <button
-            onClick={openNewModal}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 shadow-md shadow-primary/10"
-          >
-            <Plus className="h-4 w-4" />
-            Yeni Ödül Ekle
-          </button>
-        )}
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
+
+      <div className="mb-6">
+        <PageHeader
+          eyebrow="Gamification"
+          title="Belediye Ödül Merkezi"
+          subtitle="Vatandaşların güven puanlarını harcayarak alabilecekleri ödülleri tanımlayın ve talepleri yönetin."
+          actions={
+            activeTab === 'rewards' ? (
+              <Button onClick={openNewModal}>
+                <Plus className="h-4 w-4" />
+                Yeni Ödül Ekle
+              </Button>
+            ) : undefined
+          }
+        />
       </div>
 
       {/* Tabs */}
@@ -299,9 +327,10 @@ export default function RewardsPage() {
                     <Pencil className="h-4 w-4" />
                   </button>
                   <button
-                    onClick={() => handleDelete(r.id, r.title)}
+                    onClick={() => setDeleteTarget(r)}
                     className="inline-flex items-center justify-center p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-rose-600 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
                     title="Sil"
+                    aria-label={`${r.title} ödülünü sil`}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -310,7 +339,12 @@ export default function RewardsPage() {
             ))}
 
             {filteredRewards.length === 0 && (
-              <div className="col-span-full py-12 text-center text-slate-500 dark:text-slate-400">Herhangi bir ödül tanımlanmamış.</div>
+              <div className="col-span-full">
+                <EmptyState
+                  title="Ödül bulunamadı"
+                  description={search ? 'Arama kriterlerinize uyan ödül bulunamadı.' : 'Henüz ödül tanımlanmamış.'}
+                />
+              </div>
             )}
           </div>
         </>
@@ -377,14 +411,14 @@ export default function RewardsPage() {
                         {c.status === 'REDEEMED' ? (
                           <div className="inline-flex gap-2">
                             <button
-                              onClick={() => handleUpdateClaimStatus(c.id, 'CLAIMED')}
+                              onClick={() => setClaimAction({ claim: c, status: 'CLAIMED' })}
                               className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-600 transition-colors"
                               title="Teslim Edildi İşaretle"
                             >
                               <CheckCircle2 size={14} /> Teslim Et
                             </button>
                             <button
-                              onClick={() => handleUpdateClaimStatus(c.id, 'CANCELLED')}
+                              onClick={() => setClaimAction({ claim: c, status: 'CANCELLED' })}
                               className="inline-flex items-center gap-1 rounded-lg bg-rose-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-600 transition-colors"
                               title="İptal Et ve İade Et"
                             >
@@ -400,8 +434,12 @@ export default function RewardsPage() {
 
                   {filteredClaims.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-6 py-10 text-center text-slate-500 dark:text-slate-400">
-                        {claimsLoading ? 'Yükleniyor...' : 'Herhangi bir kupon talebi bulunamadı.'}
+                      <td colSpan={7}>
+                        {claimsLoading ? (
+                          <LoadingState label="Kupon talepleri yükleniyor…" />
+                        ) : (
+                          <EmptyState title="Kupon talebi bulunamadı" />
+                        )}
                       </td>
                     </tr>
                   )}
@@ -532,25 +570,43 @@ export default function RewardsPage() {
               </div>
 
               <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-700 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600"
-                >
+                <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>
                   İptal
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-hover disabled:opacity-50 shadow"
-                >
+                </Button>
+                <Button type="submit" disabled={saving}>
                   {saving ? 'Kaydediliyor...' : editingId ? 'Güncelle' : 'Ekle'}
-                </button>
+                </Button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Ödülü sil"
+        message={deleteTarget ? `"${deleteTarget.title}" ödülünü silmek istediğinize emin misiniz?` : ''}
+        confirmLabel="Sil"
+        tone="danger"
+        busy={deleting}
+        onConfirm={() => void confirmDeleteReward()}
+        onCancel={() => setDeleteTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={Boolean(claimAction)}
+        title={claimAction?.status === 'CLAIMED' ? 'Kuponu teslim et' : 'Kuponu iptal et'}
+        message={
+          claimAction?.status === 'CLAIMED'
+            ? 'Bu ödül kuponunu teslim edildi olarak işaretlemek istiyor musunuz?'
+            : 'Bu ödül kuponunu iptal edip vatandaşın puanını iade etmek istiyor musunuz?'
+        }
+        confirmLabel={claimAction?.status === 'CLAIMED' ? 'Teslim Et' : 'İptal Et'}
+        tone={claimAction?.status === 'CANCELLED' ? 'danger' : 'primary'}
+        busy={updatingClaim}
+        onConfirm={() => void confirmClaimStatusUpdate()}
+        onCancel={() => setClaimAction(null)}
+      />
     </div>
   );
 }

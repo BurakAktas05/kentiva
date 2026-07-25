@@ -3,6 +3,12 @@ import { Building2, Edit2, Globe, Plus, Search, ShieldAlert, Trash2 } from 'luci
 import axios from 'axios';
 import api from '../api';
 import { departmentPublicUrl } from '../lib/branding';
+import PageHeader from '../components/ui/PageHeader';
+import LoadingState from '../components/ui/LoadingState';
+import EmptyState from '../components/ui/EmptyState';
+import Button from '../components/ui/Button';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
+import Toast, { type ToastState } from '../components/ui/Toast';
 
 export interface Department {
   id: string;
@@ -57,12 +63,23 @@ export default function DepartmentsPage() {
   const [municipalities, setMunicipalities] = useState<MunicipalityOption[]>([]);
   const [municipalityId, setMunicipalityId] = useState('');
 
+  const [toast, setToast] = useState<ToastState>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Department | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(null), 5000);
+    return () => window.clearTimeout(t);
+  }, [toast]);
+
   async function fetchDepartments() {
     try {
       const res = await api.get('/departments');
       setDepartments(res.data.data?.content ?? []);
     } catch (err) {
       console.error('Failed to fetch departments', err);
+      setToast({ type: 'error', message: 'Departmanlar yüklenemedi.' });
     } finally {
       setLoading(false);
     }
@@ -140,7 +157,7 @@ export default function DepartmentsPage() {
     setFormError('');
 
     if (isSuperAdmin && !editingDept && !municipalityId) {
-      setFormError('Super admin olarak yeni departman eklerken belediye secmelisiniz.');
+      setFormError('Süper admin olarak yeni departman eklerken belediye seçmelisiniz.');
       return;
     }
 
@@ -166,20 +183,26 @@ export default function DepartmentsPage() {
       }
       await fetchDepartments();
       closeModal();
+      setToast({ type: 'success', message: editingDept ? 'Departman güncellendi.' : 'Departman oluşturuldu.' });
     } catch (err: unknown) {
-      setFormError(errorMessage(err, 'Bir hata olustu.'));
+      setFormError(errorMessage(err, 'Bir hata oluştu.'));
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async (id: string, departmentName: string) => {
-    if (!window.confirm(`"${departmentName}" departmanini pasif yapmak istediginize emin misiniz?`)) return;
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      await api.delete(`/departments/${id}`);
+      await api.delete(`/departments/${deleteTarget.id}`);
       await fetchDepartments();
+      setDeleteTarget(null);
+      setToast({ type: 'success', message: 'Departman pasif yapıldı.' });
     } catch {
-      window.alert('Silme islemi basarisiz oldu');
+      setToast({ type: 'error', message: 'Silme işlemi başarısız oldu.' });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -193,39 +216,36 @@ export default function DepartmentsPage() {
   });
 
   if (loading) {
-    return <div className="p-8 text-center text-slate-500">Yukleniyor...</div>;
+    return <LoadingState label="Departmanlar yükleniyor…" />;
   }
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="kentiva-eyebrow">Cok departmanli yapi</p>
-          <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">Departmanlar</h2>
-          <p className="mt-1 max-w-2xl text-sm font-medium text-slate-600 dark:text-slate-400">
-            Mudurlukleri, URL anahtarlarini ve kamuya acik departman yollarini tek ekrandan yonetin.
-          </p>
-        </div>
-        <button
-          onClick={openNewModal}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-        >
-          <Plus className="h-4 w-4" />
-          Yeni departman
-        </button>
-      </div>
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
+
+      <PageHeader
+        eyebrow="Çok departmanlı yapı"
+        title="Departmanlar"
+        subtitle="Müdürlükleri, URL anahtarlarını ve kamuya açık departman yollarını tek ekrandan yönetin."
+        actions={
+          <Button onClick={openNewModal}>
+            <Plus className="h-4 w-4" />
+            Yeni departman
+          </Button>
+        }
+      />
 
       <div className="grid gap-3 md:grid-cols-3">
-        <StatCard label="Toplam" value={String(departments.length)} helper="Tum departmanlar" />
+        <StatCard label="Toplam" value={String(departments.length)} helper="Tüm departmanlar" />
         <StatCard
           label="Aktif"
           value={String(departments.filter((department) => department.active).length)}
-          helper="Kullanimdaki departmanlar"
+          helper="Kullanımdaki departmanlar"
         />
         <StatCard
-          label="URL hazir"
+          label="URL hazır"
           value={String(departments.filter((department) => department.slug && department.municipalitySlug).length)}
-          helper="Path tabanli erisim"
+          helper="Path tabanlı erişim"
         />
       </div>
 
@@ -233,11 +253,11 @@ export default function DepartmentsPage() {
         <div>
           <p className="text-sm font-semibold text-slate-900 dark:text-white">URL stratejisi</p>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Onerilen model: <code>&lt;tenant&gt;.alanadiniz/departments/&lt;slug&gt;</code>
+            Önerilen model: <code>&lt;tenant&gt;.alanadiniz/departments/&lt;slug&gt;</code>
           </p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-          Belediye hostu subdomain, departmanlar ise ayni host altinda path olarak calisir.
+          Belediye hostu subdomain, departmanlar ise aynı host altında path olarak çalışır.
         </div>
       </div>
 
@@ -261,7 +281,7 @@ export default function DepartmentsPage() {
                 <th className="px-6 py-4 font-medium">Slug / URL</th>
                 <th className="px-6 py-4 font-medium">Belediye</th>
                 <th className="px-6 py-4 font-medium">Durum</th>
-                <th className="px-6 py-4 text-right font-medium">Islemler</th>
+                <th className="px-6 py-4 text-right font-medium">İşlemler</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
@@ -280,7 +300,7 @@ export default function DepartmentsPage() {
                         <div className="min-w-0">
                           <p className="font-semibold text-slate-900 dark:text-white">{department.name}</p>
                           <p className="max-w-xs truncate text-xs text-slate-500 dark:text-slate-400" title={department.description}>
-                            {department.description || 'Aciklama eklenmedi'}
+                            {department.description || 'Açıklama eklenmedi'}
                           </p>
                         </div>
                       </div>
@@ -301,7 +321,7 @@ export default function DepartmentsPage() {
                             {publicUrl}
                           </a>
                         ) : (
-                          <p className="text-xs text-slate-400">URL henuz hazir degil</p>
+                          <p className="text-xs text-slate-400">URL henüz hazır değil</p>
                         )}
                       </div>
                     </td>
@@ -324,15 +344,17 @@ export default function DepartmentsPage() {
                         <button
                           onClick={() => openEditModal(department)}
                           className="rounded-lg p-1.5 text-slate-400 transition-colors hover:text-primary"
-                          title="Duzenle"
+                          title="Düzenle"
+                          aria-label={`${department.name} departmanını düzenle`}
                         >
                           <Edit2 className="h-4 w-4" />
                         </button>
                         {department.active && (
                           <button
-                            onClick={() => handleDelete(department.id, department.name)}
+                            onClick={() => setDeleteTarget(department)}
                             className="rounded-lg p-1.5 text-slate-400 transition-colors hover:text-rose-600"
                             title="Pasif yap"
+                            aria-label={`${department.name} departmanını pasif yap`}
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -344,8 +366,11 @@ export default function DepartmentsPage() {
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
-                    Kayit bulunamadi.
+                  <td colSpan={5}>
+                    <EmptyState
+                      title="Kayıt bulunamadı"
+                      description={search ? 'Arama kriterlerinize uyan departman bulunamadı.' : 'Henüz departman eklenmemiş.'}
+                    />
                   </td>
                 </tr>
               )}
@@ -360,13 +385,13 @@ export default function DepartmentsPage() {
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-700">
               <div>
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                  {editingDept ? 'Departman duzenle' : 'Yeni departman'}
+                  {editingDept ? 'Departmanı düzenle' : 'Yeni departman'}
                 </h3>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  Her departmanin path tabanli kamu yolu bu ekranda belirlenir.
+                  Her departmanın path tabanlı kamu yolu bu ekranda belirlenir.
                 </p>
               </div>
-              <button onClick={closeModal} className="text-slate-400 hover:text-slate-500">
+              <button onClick={closeModal} className="text-slate-400 hover:text-slate-500" aria-label="Kapat">
                 &times;
               </button>
             </div>
@@ -388,7 +413,7 @@ export default function DepartmentsPage() {
                     onChange={(e) => setMunicipalityId(e.target.value)}
                     className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 focus:ring-2 focus:ring-primary dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                   >
-                    <option value="">— Belediye secin —</option>
+                    <option value="">— Belediye seçin —</option>
                     {municipalities.map((municipality) => (
                       <option key={municipality.id} value={municipality.id}>
                         {municipality.name}
@@ -401,7 +426,7 @@ export default function DepartmentsPage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Departman adi *
+                    Departman adı *
                   </label>
                   <input
                     type="text"
@@ -415,13 +440,13 @@ export default function DepartmentsPage() {
                       }
                     }}
                     className="w-full rounded-xl border border-slate-300 px-3 py-2.5 focus:ring-2 focus:ring-primary dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-                    placeholder="Orn: Fen Isleri Mudurlugu"
+                    placeholder="Örn: Fen İşleri Müdürlüğü"
                   />
                 </div>
 
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    URL anahtari
+                    URL anahtarı
                   </label>
                   <input
                     type="text"
@@ -434,25 +459,25 @@ export default function DepartmentsPage() {
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Aciklama</label>
+                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Açıklama</label>
                 <textarea
                   rows={3}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 px-3 py-2.5 focus:ring-2 focus:ring-primary dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-                  placeholder="Departman hakkinda kisa bilgi..."
+                  placeholder="Departman hakkında kısa bilgi..."
                 />
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/50">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                  Kamu yolu onizleme
+                  Kamu yolu önizleme
                 </p>
                 <p className="mt-2 break-all text-sm font-semibold text-slate-900 dark:text-white">
-                  {previewUrl ?? 'Once belediye ve slug secin'}
+                  {previewUrl ?? 'Önce belediye ve slug seçin'}
                 </p>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  Bu yol, departman odakli kampanya veya yonlendirme linklerinde kullanilabilir.
+                  Bu yol, departman odaklı kampanya veya yönlendirme linklerinde kullanılabilir.
                 </p>
               </div>
 
@@ -464,30 +489,33 @@ export default function DepartmentsPage() {
                     onChange={(e) => setIsActive(e.target.checked)}
                     className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
                   />
-                  Aktif kalsin
+                  Aktif kalsın
                 </label>
               )}
 
               <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-                >
-                  Iptal
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
-                >
+                <Button type="button" variant="secondary" onClick={closeModal}>
+                  İptal
+                </Button>
+                <Button type="submit" disabled={saving}>
                   {saving ? 'Kaydediliyor...' : 'Kaydet'}
-                </button>
+                </Button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Departmanı pasif yap"
+        message={deleteTarget ? `"${deleteTarget.name}" departmanını pasif yapmak istediğinize emin misiniz?` : ''}
+        confirmLabel="Pasif yap"
+        tone="danger"
+        busy={deleting}
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

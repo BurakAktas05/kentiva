@@ -58,9 +58,12 @@ type PlanCard = {
   popular: boolean;
   gradientFrom: string;
   gradientTo: string;
+  priceLabel: string;
+  priceHint: string;
   features: string[];
 };
 
+/** Liste fiyatları — sales-package/02-commercial/FIYAT-POLITIKASI.md ile hizalı */
 const PLANS: PlanCard[] = [
   {
     id: 'STARTER',
@@ -70,6 +73,8 @@ const PLANS: PlanCard[] = [
     popular: false,
     gradientFrom: '#64748b',
     gradientTo: '#94a3b8',
+    priceLabel: '₺4.990',
+    priceHint: 'KDV hariç / ay · yıllık ₺49.900',
     features: [
       'Temel ihbar yönetimi',
       'Beyaz Masa girişi',
@@ -84,7 +89,9 @@ const PLANS: PlanCard[] = [
     icon: Star,
     popular: true,
     gradientFrom: '#0ea5e9',
-    gradientTo: '#6366f1',
+    gradientTo: '#0b4f9c',
+    priceLabel: '₺9.999',
+    priceHint: 'KDV hariç / ay · yıllık ₺99.990',
     features: [
       'Başlangıç planındaki her şey',
       'AI önceliklendirme & özetleme',
@@ -102,8 +109,10 @@ const PLANS: PlanCard[] = [
     subtitle: 'Büyük şehir ve il belediyeleri için',
     icon: Crown,
     popular: false,
-    gradientFrom: '#f59e0b',
-    gradientTo: '#ef4444',
+    gradientFrom: '#0b4f9c',
+    gradientTo: '#e6b422',
+    priceLabel: 'Teklif',
+    priceHint: 'Liste başlangıç ₺24.990/ay · MIS & SLA',
     features: [
       'Profesyonel planındaki her şey',
       'MIS entegrasyonu (Sampaş/Kolaylı/Netigma)',
@@ -218,12 +227,9 @@ export default function PricingPage() {
               <h3 className="mt-4 text-xl font-extrabold text-slate-900 dark:text-white">{plan.name}</h3>
               <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">{plan.subtitle}</p>
 
-              {/* Price placeholder */}
               <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-center dark:border-slate-700 dark:bg-slate-950/40">
-                <p className="text-2xl font-extrabold text-slate-900 dark:text-white">Teklif Alın</p>
-                <p className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                  Belediye nüfusuna göre özel fiyatlandırma
-                </p>
+                <p className="text-2xl font-extrabold text-slate-900 dark:text-white">{plan.priceLabel}</p>
+                <p className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">{plan.priceHint}</p>
               </div>
 
               {/* Features */}

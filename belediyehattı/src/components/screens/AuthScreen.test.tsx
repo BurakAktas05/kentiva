@@ -32,13 +32,32 @@ describe('AuthScreen Component', () => {
     fireEvent.change(screen.getByPlaceholderText('Şifre (en az 8 karakter)'), { target: { value: 'password123' } });
 
     // Submit
-    const submitBtn = screen.getAllByRole('button', { name: /Giriş yap/i })[1];
+    const submitBtn = screen.getByRole('button', { name: /Giriş yap/i });
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
       expect(api.login).toHaveBeenCalledWith('test@kentiva.com', 'password123');
       expect(onAuthMock).toHaveBeenCalledWith(mockUser);
     });
+  });
+
+  it('continues as a guest without submitting the login form', () => {
+    const onAuthMock = vi.fn();
+    const onContinueAsGuest = vi.fn();
+
+    render(
+      <AuthScreen
+        onAuth={onAuthMock}
+        onContinueAsGuest={onContinueAsGuest}
+        lang="tr"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Misafir olarak keşfet/i }));
+
+    expect(onContinueAsGuest).toHaveBeenCalledTimes(1);
+    expect(api.login).not.toHaveBeenCalled();
+    expect(onAuthMock).not.toHaveBeenCalled();
   });
 
   it('allows switching to register form and submits successfully', async () => {
@@ -50,7 +69,7 @@ describe('AuthScreen Component', () => {
     render(<AuthScreen onAuth={onAuthMock} lang="tr" />);
 
     // Switch to Register tab
-    const registerTab = screen.getByRole('button', { name: /Kayıt Ol/i });
+    const registerTab = screen.getByRole('tab', { name: /Kayıt Ol/i });
     fireEvent.click(registerTab);
 
     // Register fields should be visible
@@ -69,7 +88,7 @@ describe('AuthScreen Component', () => {
     fireEvent.click(kvkkCheckbox);
 
     // Click "Kayıt Ol"
-    const submitBtnStep1 = screen.getAllByRole('button', { name: /Kayıt Ol/i })[1];
+    const submitBtnStep1 = screen.getByRole('button', { name: /Kayıt Ol/i });
     fireEvent.click(submitBtnStep1);
 
     // Verify OTP was requested
@@ -84,7 +103,7 @@ describe('AuthScreen Component', () => {
     fireEvent.change(screen.getByPlaceholderText('SMS doğrulama kodu'), { target: { value: '000000' } });
 
     // Submit registration (Step 2)
-    const submitBtnStep2 = screen.getAllByRole('button', { name: /Kayıt Ol/i })[1];
+    const submitBtnStep2 = screen.getByRole('button', { name: /Kayıt Ol/i });
     fireEvent.click(submitBtnStep2);
 
     await waitFor(() => {

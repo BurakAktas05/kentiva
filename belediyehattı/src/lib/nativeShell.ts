@@ -4,14 +4,23 @@ import { Keyboard, KeyboardResize } from '@capacitor/keyboard';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { StatusBar, Style } from '@capacitor/status-bar';
 
-const STATUS_BAR_LIGHT = '#0b4f9c';
+const STATUS_BAR_LIGHT = '#f8fafc';
 const STATUS_BAR_DARK = '#0f172a';
 
 export function isNativeApp(): boolean {
   return Capacitor.isNativePlatform();
 }
 
-export async function initNativeShell(isDark: boolean): Promise<void> {
+export async function hideNativeSplash(): Promise<void> {
+  if (!isNativeApp()) return;
+  try {
+    await SplashScreen.hide({ fadeOutDuration: 0 });
+  } catch {
+    /* ignore */
+  }
+}
+
+export async function initNativeShell(isDark: boolean, options?: { hideSplash?: boolean }): Promise<void> {
   if (!isNativeApp()) return;
 
   document.documentElement.classList.add('native-app');
@@ -19,7 +28,7 @@ export async function initNativeShell(isDark: boolean): Promise<void> {
   try {
     await StatusBar.setOverlaysWebView({ overlay: false });
     await StatusBar.setBackgroundColor({ color: isDark ? STATUS_BAR_DARK : STATUS_BAR_LIGHT });
-    await StatusBar.setStyle({ style: Style.Dark });
+    await StatusBar.setStyle({ style: isDark ? Style.Light : Style.Dark });
   } catch {
     /* Web or unsupported */
   }
@@ -31,10 +40,8 @@ export async function initNativeShell(isDark: boolean): Promise<void> {
     /* ignore */
   }
 
-  try {
-    await SplashScreen.hide();
-  } catch {
-    /* ignore */
+  if (options?.hideSplash !== false) {
+    await hideNativeSplash();
   }
 }
 

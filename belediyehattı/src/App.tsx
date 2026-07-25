@@ -2,8 +2,9 @@ import { Fragment, useCallback, useEffect, useRef, useState, lazy, Suspense } fr
 import { Capacitor } from '@capacitor/core';
 import { useEdgeSwipeBack } from './lib/useEdgeSwipeBack';
 import { clearStaleApiOverrideIfNeeded } from './lib/apiBase';
-import { initNativeShell } from './lib/nativeShell';
-import { User, Bell, Building2, CheckCircle2, X } from 'lucide-react';
+import { hideNativeSplash, initNativeShell } from './lib/nativeShell';
+import { usePrefersReducedMotion } from './lib/usePrefersReducedMotion';
+import { User, Bell, Building2, CheckCircle2, Clock3, AlertTriangle, X } from 'lucide-react';
 import {
   resolveMediaUrl,
   type ApiAnnouncement,
@@ -14,10 +15,11 @@ import { useTenant } from './TenantContext';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import { storageService } from './lib/storageService';
 import { useAppSession } from './hooks/useAppSession';
-import { useAppRouting, parsePublicRoute, type Tab, MAIN_TABS } from './hooks/useAppRouting';
+import { useAppRouting, parsePublicRoute, type Tab } from './hooks/useAppRouting';
 import { useAppOfflineSync } from './hooks/useAppOfflineSync';
 import { useAppNotifications } from './hooks/useAppNotifications';
 import BottomNavigation from './components/common/BottomNavigation';
+import SplashScreen from './components/screens/SplashScreen';
 
 const AuthScreen = lazy(() => import('./components/screens/AuthScreen'));
 const Home = lazy(() => import('./components/screens/Home'));
@@ -27,72 +29,28 @@ const Profile = lazy(() => import('./components/screens/Profile'));
 const Notifications = lazy(() => import('./components/screens/Notifications'));
 const Settings = lazy(() => import('./components/screens/Settings'));
 const ReportDetailScreen = lazy(() => import('./components/screens/ReportDetailScreen'));
-const MunicipalityPicker = lazy(() => import('./components/screens/MunicipalityPicker'));
-const KentScreen = lazy(() => import('./components/screens/KentScreen'));
-const CommunityScreen = lazy(() => import('./components/screens/CommunityScreen'));
+const BelediyeHubScreen = lazy(() => import('./components/screens/BelediyeHubScreen'));
 const NotificationPrefsModal = lazy(() => import('./components/screens/NotificationPrefsModal'));
 const IntroductionModal = lazy(() => import('./components/screens/IntroductionModal'));
 const AnnouncementDetailScreen = lazy(() => import('./components/screens/AnnouncementDetailScreen'));
 const RanksScreen = lazy(() => import('./components/screens/RanksScreen'));
+const MunicipalityPicker = lazy(() => import('./components/screens/MunicipalityPicker'));
 
-function LoadingSpinner({ isDark }: { isDark: boolean }) {
+function LoadingSpinner({ isDark, brand }: { isDark: boolean; brand?: boolean }) {
+  if (brand) {
+    return (
+      <div
+        className="flex min-h-app items-center justify-center bg-slate-50"
+        aria-busy
+        aria-live="polite"
+      >
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-primary" />
+      </div>
+    );
+  }
   return (
     <div className={`flex min-h-app items-center justify-center ${isDark ? 'bg-slate-950' : 'bg-slate-100'}`}>
       <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-    </div>
-  );
-}
-
-function AppLoadingScreen({ isDark, lang }: { isDark: boolean; lang: Lang }) {
-  const heading = 'Kentiva';
-  const subtitle = lang === 'tr' ? 'Akıllı Belediyecilik Platformu' : lang === 'ar' ? 'منصة البلدية الذكية' : 'Smart Municipalism Platform';
-  const slogan = lang === 'tr' 
-    ? 'Yapay zeka destekli modern şehir yönetimi ve katılımcı belediyecilik.'
-    : lang === 'ar'
-      ? 'إدارة المدن الحديثة المدعومة بالذكاء الاصطناعي والبلدية التشاركية.'
-      : 'AI-powered modern city management and participatory municipalism.';
-
-  return (
-    <div className={`relative flex flex-col items-center justify-center min-h-app p-6 overflow-hidden transition-all duration-500 ${
-      isDark 
-        ? 'bg-slate-950 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-indigo-950/40 via-slate-950 to-slate-950 text-white' 
-        : 'bg-slate-50 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-indigo-100/50 via-slate-50 to-slate-100 text-slate-900'
-    }`}>
-      <div className="absolute top-1/4 -right-16 w-64 h-64 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 -left-16 w-64 h-64 rounded-full bg-secondary/10 blur-3xl pointer-events-none" />
-
-      <div className={`w-full max-w-sm rounded-3xl p-8 backdrop-blur-md shadow-2xl transition-all border ${
-        isDark 
-          ? 'border-slate-800/80 bg-slate-900/70 shadow-black/40' 
-          : 'border-white bg-white/80 shadow-primary/5'
-      }`}>
-        <div className="mx-auto mb-6 relative flex h-20 w-20 items-center justify-center rounded-[24px] bg-gradient-to-tr from-primary to-secondary text-white shadow-xl shadow-primary/25">
-          <div className="absolute inset-0 rounded-[24px] bg-gradient-to-tr from-primary to-secondary opacity-50 blur-md -z-10 animate-pulse" />
-          <Building2 className="h-10 w-10 text-white animate-bounce" strokeWidth={1.5} />
-        </div>
-
-        <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent dark:from-sky-400 dark:to-indigo-300">
-          {heading}
-        </h1>
-        <p className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-2">
-          {subtitle}
-        </p>
-
-        <div className={`mt-6 p-4 rounded-2xl border text-xs leading-relaxed font-semibold shadow-inner ${
-          isDark 
-            ? 'border-slate-800 bg-slate-950/60 text-slate-400' 
-            : 'border-slate-100 bg-slate-50/50 text-slate-500'
-        }`}>
-          {slogan}
-        </div>
-
-        <div className="mt-8 flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-3 border-primary border-t-transparent" />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-primary dark:text-sky-400 animate-pulse">
-            {lang === 'tr' ? 'Yükleniyor' : lang === 'ar' ? 'جاري التحميل' : 'Loading'}
-          </span>
-        </div>
-      </div>
     </div>
   );
 }
@@ -130,6 +88,8 @@ export default function App() {
   const [isGuest, setIsGuest] = useState(() => storageService.getItem('belediye_is_guest') === 'true');
   const mainContentRef = useRef<HTMLElement>(null);
   const [reportSuccessVisible, setReportSuccessVisible] = useState(false);
+  const [offlineQueuedVisible, setOfflineQueuedVisible] = useState(false);
+  const [offlineSyncErrorVisible, setOfflineSyncErrorVisible] = useState(false);
 
   const [systemIsDark, setSystemIsDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
 
@@ -163,11 +123,43 @@ export default function App() {
   useEffect(() => { storageService.setItem('belediye_lang', lang); }, [lang]);
   useEffect(() => { storageService.setItem('belediye_theme', theme); }, [theme]);
 
+  const reducedMotion = usePrefersReducedMotion();
+  const [minSplashDone, setMinSplashDone] = useState(false);
+  const [bootTimedOut, setBootTimedOut] = useState(false);
+  const [splashExiting, setSplashExiting] = useState(false);
+  const [splashHidden, setSplashHidden] = useState(false);
+
   useEffect(() => {
     if (!reportSuccessVisible) return;
     const timeout = window.setTimeout(() => setReportSuccessVisible(false), 7000);
     return () => window.clearTimeout(timeout);
   }, [reportSuccessVisible]);
+
+  useEffect(() => {
+    if (!offlineQueuedVisible) return;
+    const timeout = window.setTimeout(() => setOfflineQueuedVisible(false), 8000);
+    return () => window.clearTimeout(timeout);
+  }, [offlineQueuedVisible]);
+
+  useEffect(() => {
+    if (!offlineSyncErrorVisible) return;
+    const timeout = window.setTimeout(() => setOfflineSyncErrorVisible(false), 8000);
+    return () => window.clearTimeout(timeout);
+  }, [offlineSyncErrorVisible]);
+
+  useEffect(() => {
+    const onOfflineSync = (event: Event) => {
+      const detail = (event as CustomEvent<{ remaining?: number; synced?: number }>).detail;
+      if (detail && typeof detail.remaining === 'number' && detail.remaining > 0) {
+        setOfflineSyncErrorVisible(true);
+      } else if (detail && typeof detail.synced === 'number' && detail.synced > 0) {
+        setOfflineQueuedVisible(false);
+        setOfflineSyncErrorVisible(false);
+      }
+    };
+    window.addEventListener('kentiva:offline-sync', onOfflineSync);
+    return () => window.removeEventListener('kentiva:offline-sync', onOfflineSync);
+  }, []);
 
   // Shared router path definitions computed statically to bypass temporal dead zone (TDZ)
   const [explicitRoute] = useState<any>(() =>
@@ -213,6 +205,40 @@ export default function App() {
     handleLogout();
   };
 
+  useEffect(() => {
+    const ms = reducedMotion ? 350 : 1800;
+    const timeout = window.setTimeout(() => setMinSplashDone(true), ms);
+    return () => window.clearTimeout(timeout);
+  }, [reducedMotion]);
+
+  // Never block forever if profile / public route API hangs (common on APK + tunnel).
+  useEffect(() => {
+    const ms = reducedMotion ? 1400 : 4200;
+    const timeout = window.setTimeout(() => setBootTimedOut(true), ms);
+    return () => window.clearTimeout(timeout);
+  }, [reducedMotion]);
+
+  // Preload auth (and home) during splash so Suspense does not flash a blank page.
+  useEffect(() => {
+    void import('./components/screens/AuthScreen');
+    void import('./components/screens/Home');
+  }, []);
+
+  // Drop native solid splash as soon as React landing is painted.
+  useEffect(() => {
+    void hideNativeSplash();
+  }, []);
+
+  const bootBusy = (sessionBooting || routeBooting) && !bootTimedOut;
+  const canDismissSplash = minSplashDone && !bootBusy;
+
+  useEffect(() => {
+    if (!canDismissSplash || splashHidden) return;
+    setSplashExiting(true);
+    const timeout = window.setTimeout(() => setSplashHidden(true), reducedMotion ? 40 : 320);
+    return () => window.clearTimeout(timeout);
+  }, [canDismissSplash, splashHidden, reducedMotion]);
+
   // 2. Custom hooks routing manager
   const {
     activeTab,
@@ -223,8 +249,6 @@ export default function App() {
     setOpenAnnouncement,
     reportReturnTab,
     setReportReturnTab,
-    rewardsReturnTab,
-    setRewardsReturnTab,
     openReport,
     closeReport,
     goToTab,
@@ -246,14 +270,22 @@ export default function App() {
   });
 
   useEffect(() => {
+    if (isGuest && !tenant?.id && !routeBooting && !pickerMode) {
+      setPickerMode('onboarding');
+    }
+  }, [isGuest, pickerMode, routeBooting, setPickerMode, tenant?.id]);
+
+  useEffect(() => {
     if (mainContentRef.current) {
       mainContentRef.current.scrollTop = 0;
     }
   }, [activeTab, openReportId, openAnnouncement]);
 
-  const showBottomNavigation = MAIN_TABS.includes(activeTab)
+  const showBottomNavigation =
+    ['home', 'report', 'reports', 'kent', 'profile'].includes(activeTab)
     && !openReportId
-    && !openAnnouncement;
+    && !openAnnouncement
+    && !pickerMode;
 
   // 3. Auto sync background thread queue
   useAppOfflineSync();
@@ -274,52 +306,71 @@ export default function App() {
   });
 
   useEffect(() => {
-    void initNativeShell(isDark);
+    // Splash already hidden on first paint; keep status bar / keyboard in sync with theme.
+    void initNativeShell(isDark, { hideSplash: false });
   }, [isDark]);
 
   const handleReportSubmit = () => {
     setKey((k) => k + 1);
+    setOfflineQueuedVisible(false);
+    setOfflineSyncErrorVisible(false);
     setReportSuccessVisible(true);
-    setActiveTab('home');
+    setActiveTab('reports');
     setOpenReportId(null);
   };
 
+  const handleReportQueuedOffline = () => {
+    setKey((k) => k + 1);
+    setReportSuccessVisible(false);
+    setOfflineSyncErrorVisible(false);
+    setOfflineQueuedVisible(true);
+    setActiveTab('reports');
+    setOpenReportId(null);
+  };
+
+  const authScreen = (
+    <ErrorBoundary>
+      <Suspense fallback={<LoadingSpinner isDark={isDark} brand />}>
+        <AuthScreen
+          onAuth={handleAuthWithClear}
+          onContinueAsGuest={() => {
+            setIsGuest(true);
+            storageService.setItem('belediye_is_guest', 'true');
+            setActiveTab('home');
+            if (!tenant?.id) {
+              setPickerMode('onboarding');
+            }
+          }}
+          lang={lang}
+          isDark={isDark}
+        />
+      </Suspense>
+    </ErrorBoundary>
+  );
+
+  // While splash fades out, paint the next screen underneath (avoids white/blank gap).
+  if (!splashHidden) {
+    const underSplash =
+      splashExiting
+        ? (!user && !isGuest
+            ? authScreen
+            : <LoadingSpinner isDark={isDark} brand />)
+        : null;
+    return (
+      <>
+        {underSplash}
+        <SplashScreen lang={lang} exiting={splashExiting} />
+      </>
+    );
+  }
+
   if (!user && !isGuest) {
-    return (
-      <ErrorBoundary>
-        <Suspense fallback={<LoadingSpinner isDark={isDark} />}>
-          <AuthScreen 
-            onAuth={handleAuthWithClear} 
-            onContinueAsGuest={() => {
-              setIsGuest(true);
-              storageService.setItem('belediye_is_guest', 'true');
-            }} 
-            lang={lang} 
-            isDark={isDark} 
-          />
-        </Suspense>
-      </ErrorBoundary>
-    );
+    return authScreen;
   }
 
-  if (sessionBooting || routeBooting) {
-    return <AppLoadingScreen isDark={isDark} lang={lang} />;
-  }
-
-  if (pickerMode) {
-    return (
-      <ErrorBoundary>
-        <Suspense fallback={<LoadingSpinner isDark={isDark} />}>
-          <MunicipalityPicker
-            lang={lang}
-            isDark={isDark}
-            mode={pickerMode}
-            onSelect={(t) => void handleMunicipalitySelect(t)}
-            onCancel={pickerMode === 'change' ? () => setPickerMode(null) : undefined}
-          />
-        </Suspense>
-      </ErrorBoundary>
-    );
+  // Soft loader only — never remount the full splash after dismiss (felt like a hang).
+  if ((sessionBooting || routeBooting) && !bootTimedOut) {
+    return <LoadingSpinner isDark={isDark} brand />;
   }
 
   const renderAuthRequiredView = (title: string, desc: string) => (
@@ -338,6 +389,18 @@ export default function App() {
         <p className="mt-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400 font-semibold font-sans">
           {desc}
         </p>
+        <ul className={`mt-4 space-y-2 text-left text-[11px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+          {[
+            lang === 'tr' ? 'Konum doğrulama ile resmi kayıt' : 'Official record with verified location',
+            lang === 'tr' ? 'Fotoğraflı kanıt ve canlı durum takibi' : 'Photo evidence and live status tracking',
+            lang === 'tr' ? 'Belediyenizden şeffaf güncelleme' : 'Transparent updates from your municipality',
+          ].map((line) => (
+            <li key={line} className="flex items-start gap-2">
+              <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+              <span>{line}</span>
+            </li>
+          ))}
+        </ul>
         <button
           type="button"
           onClick={() => {
@@ -368,23 +431,31 @@ export default function App() {
       <div className={`min-h-app flex justify-center font-sans ${isDark ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-900'}`}>
         <div className={`w-full max-w-md flex flex-col h-app relative overflow-hidden sm:border-x sm:shadow-kentiva ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200/80'}`}>
 
-        {!openReportId && !openAnnouncement && activeTab !== 'reports' && activeTab !== 'bus' && activeTab !== 'rewards' && (
+        {!openReportId && !openAnnouncement && activeTab !== 'reports' && activeTab !== 'rewards' && !pickerMode && (
           <header className={`px-4 py-3.5 pt-safe z-10 flex justify-between items-center shrink-0 border-b backdrop-blur-md ${isDark ? 'border-slate-800 bg-slate-900/95' : 'border-slate-200/80 bg-white/90'}`}>
             <button
               type="button"
               onClick={() => tenant && setPickerMode('change')}
-              className={`flex min-w-0 flex-1 items-center gap-2.5 text-left rounded-xl -ml-1 p-1 ${tenant ? 'active:bg-slate-100 dark:active:bg-slate-800' : ''}`}
+              className={`flex min-w-0 flex-1 items-center gap-3 text-left rounded-2xl -ml-1 p-1.5 ${tenant ? 'active:bg-slate-100 dark:active:bg-slate-800' : ''}`}
+              aria-label={tenant ? t('settings.changeMunicipality', lang) : t('app.name', lang)}
             >
-              <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary/15 text-primary">
-                <Building2 className="h-5 w-5" />
+              <div className={`relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl shadow-sm ring-1 ${
+                isDark
+                  ? 'bg-gradient-to-br from-sky-500/25 to-primary/20 ring-sky-500/30 text-sky-200'
+                  : 'bg-gradient-to-br from-sky-50 to-primary/10 ring-primary/15 text-primary'
+              }`}>
                 {tenant?.logoUrl ? (
                   <img
                     src={resolveMediaUrl(tenant.logoUrl)}
                     alt=""
-                    className="absolute inset-1 h-7 w-7 rounded bg-white object-contain"
+                    className="h-full w-full object-contain bg-white p-1.5"
                     onError={(event) => { event.currentTarget.style.display = 'none'; }}
                   />
-                ) : null}
+                ) : (
+                  <span className="flex h-full w-full flex-col items-center justify-center">
+                    <Building2 className="h-5 w-5" strokeWidth={2.25} />
+                  </span>
+                )}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 min-w-0">
@@ -397,7 +468,31 @@ export default function App() {
                 </p>
               </div>
             </button>
+            <div className="flex shrink-0 items-center gap-0.5">
             <button
+              type="button"
+              onClick={() => {
+                if (activeTab === 'profile') {
+                  goToTab('home');
+                } else {
+                  goToTab('profile');
+                }
+              }}
+              aria-label={t('tab.profile', lang)}
+              className={`relative shrink-0 p-2 rounded-xl transition-colors ${isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-100'} ${
+                activeTab === 'profile' || activeTab === 'settings' || activeTab === 'ranks'
+                  ? isDark ? 'bg-slate-800 text-sky-200' : 'bg-primary/10 text-primary'
+                  : ''
+              }`}
+            >
+              <User className={`w-5 h-5 ${
+                activeTab === 'profile' || activeTab === 'settings'
+                  ? ''
+                  : isDark ? 'text-slate-300' : 'text-slate-600'
+              }`} strokeWidth={activeTab === 'profile' ? 2.5 : 2} />
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 if (activeTab === 'notifications') {
                   goToTab('home');
@@ -405,6 +500,11 @@ export default function App() {
                   setActiveTab('notifications');
                 }
               }}
+              aria-label={
+                activeTab === 'notifications'
+                  ? (lang === 'tr' ? 'Ana sayfaya dön' : lang === 'ar' ? 'العودة إلى الرئيسية' : 'Back to home')
+                  : t('notif.title', lang)
+              }
               className={`relative shrink-0 p-2 rounded-xl transition-colors ${isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-100'}`}
             >
               <Bell className={`w-5 h-5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`} strokeWidth={activeTab === 'notifications' ? 2.5 : 2} />
@@ -414,12 +514,13 @@ export default function App() {
                 </span>
               )}
             </button>
+            </div>
           </header>
         )}
 
         {reportSuccessVisible && !openReportId && !openAnnouncement && (
           <div
-            className={`mx-4 mt-3 shrink-0 rounded-2xl border p-3 shadow-sm ${
+            className={`mx-4 mt-3 shrink-0 rounded-2xl border p-4 shadow-sm ${
               isDark
                 ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-50'
                 : 'border-emerald-200 bg-emerald-50 text-emerald-950'
@@ -440,31 +541,141 @@ export default function App() {
                   isDark ? 'text-emerald-100/80' : 'text-emerald-800'
                 }`}>
                   {lang === 'tr'
-                    ? 'Durumunu İhbarlarım ekranından takip edebilirsiniz.'
+                    ? 'Belediyeniz değerlendirmeye aldı. Durumu adım adım İhbarlarım’dan izleyebilirsiniz.'
                     : lang === 'ar'
-                      ? 'يمكنك متابعة الحالة من شاشة بلاغاتي.'
-                      : 'You can track its status from My Reports.'}
+                      ? 'بلديتك بدأت المراجعة. تابع الحالة خطوة بخطوة من بلاغاتي.'
+                      : 'Your municipality is reviewing it. Track progress step by step in My Reports.'}
                 </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setReportSuccessVisible(false);
-                    setActiveTab('reports');
-                  }}
-                  className={`mt-2 rounded-xl px-3 py-2 text-xs font-bold transition-colors ${
-                    isDark
-                      ? 'bg-emerald-400/15 text-emerald-100 hover:bg-emerald-400/20'
-                      : 'bg-white text-emerald-800 shadow-sm hover:bg-emerald-100'
-                  }`}
-                >
-                  {lang === 'tr' ? 'İhbarlarım' : lang === 'ar' ? 'بلاغاتي' : 'My Reports'}
-                </button>
+                <div className={`mt-3 flex items-center gap-1.5 text-[10px] font-bold ${
+                  isDark ? 'text-emerald-100/70' : 'text-emerald-700/80'
+                }`}>
+                  <span className="rounded-lg bg-emerald-600 px-2 py-1 text-white">
+                    {lang === 'tr' ? '1. Alındı' : '1. Received'}
+                  </span>
+                  <span aria-hidden>→</span>
+                  <span className="rounded-lg border border-current/20 px-2 py-1 opacity-80">
+                    {lang === 'tr' ? '2. İşlem' : '2. In progress'}
+                  </span>
+                  <span aria-hidden>→</span>
+                  <span className="rounded-lg border border-current/20 px-2 py-1 opacity-80">
+                    {lang === 'tr' ? '3. Çözüm' : '3. Resolved'}
+                  </span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReportSuccessVisible(false);
+                      setActiveTab('reports');
+                    }}
+                    className={`rounded-xl px-3 py-2 text-xs font-bold transition-colors ${
+                      isDark
+                        ? 'bg-emerald-400/20 text-emerald-50 hover:bg-emerald-400/30'
+                        : 'bg-emerald-700 text-white hover:bg-emerald-800'
+                    }`}
+                  >
+                    {lang === 'tr' ? 'Takibe git' : lang === 'ar' ? 'متابعة البلاغ' : 'Track report'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReportSuccessVisible(false)}
+                    className={`rounded-xl px-3 py-2 text-xs font-bold transition-colors ${
+                      isDark
+                        ? 'bg-emerald-400/10 text-emerald-100/80 hover:bg-emerald-400/15'
+                        : 'bg-white/80 text-emerald-800 hover:bg-white'
+                    }`}
+                  >
+                    {lang === 'tr' ? 'Ana sayfada kal' : 'Stay on home'}
+                  </button>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setReportSuccessVisible(false)}
                 className={`shrink-0 rounded-xl p-2 transition-colors ${
                   isDark ? 'text-emerald-100/70 hover:bg-emerald-400/10' : 'text-emerald-700 hover:bg-emerald-100'
+                }`}
+                aria-label={lang === 'tr' ? 'Bildirimi kapat' : 'Dismiss notification'}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {offlineQueuedVisible && !openReportId && !openAnnouncement && (
+          <div
+            className={`mx-4 mt-3 shrink-0 rounded-2xl border p-3 shadow-sm ${
+              isDark
+                ? 'border-amber-500/30 bg-amber-500/10 text-amber-50'
+                : 'border-amber-200 bg-amber-50 text-amber-950'
+            }`}
+            role="status"
+          >
+            <div className="flex items-start gap-3">
+              <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                isDark ? 'bg-amber-400/15 text-amber-300' : 'bg-amber-100 text-amber-800'
+              }`}>
+                <Clock3 className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-extrabold tracking-tight">
+                  {lang === 'tr' ? 'Gönderilmeyi bekliyor' : 'Waiting to send'}
+                </p>
+                <p className={`mt-0.5 text-xs font-semibold leading-relaxed ${
+                  isDark ? 'text-amber-100/80' : 'text-amber-800'
+                }`}>
+                  {lang === 'tr'
+                    ? 'İnternet bağlantısı gelince bildiriminiz otomatik gönderilecek.'
+                    : 'Your report will be sent automatically when you are back online.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOfflineQueuedVisible(false)}
+                className={`shrink-0 rounded-xl p-2 transition-colors ${
+                  isDark ? 'text-amber-100/70 hover:bg-amber-400/10' : 'text-amber-800 hover:bg-amber-100'
+                }`}
+                aria-label={lang === 'tr' ? 'Bildirimi kapat' : 'Dismiss notification'}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {offlineSyncErrorVisible && !openReportId && !openAnnouncement && (
+          <div
+            className={`mx-4 mt-3 shrink-0 rounded-2xl border p-3 shadow-sm ${
+              isDark
+                ? 'border-red-500/30 bg-red-500/10 text-red-50'
+                : 'border-red-200 bg-red-50 text-red-950'
+            }`}
+            role="alert"
+          >
+            <div className="flex items-start gap-3">
+              <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                isDark ? 'bg-red-400/15 text-red-300' : 'bg-red-100 text-red-700'
+              }`}>
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-extrabold tracking-tight">
+                  {lang === 'tr' ? 'Çevrimdışı gönderim tamamlanamadı' : 'Offline sync incomplete'}
+                </p>
+                <p className={`mt-0.5 text-xs font-semibold leading-relaxed ${
+                  isDark ? 'text-red-100/80' : 'text-red-800'
+                }`}>
+                  {lang === 'tr'
+                    ? 'Bazı bekleyen bildirimler gönderilemedi. Bağlantınız varken tekrar denenecek.'
+                    : 'Some queued reports could not be sent. They will be retried when you are online.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOfflineSyncErrorVisible(false)}
+                className={`shrink-0 rounded-xl p-2 transition-colors ${
+                  isDark ? 'text-red-100/70 hover:bg-red-400/10' : 'text-red-700 hover:bg-red-100'
                 }`}
                 aria-label={lang === 'tr' ? 'Bildirimi kapat' : 'Dismiss notification'}
               >
@@ -493,12 +704,12 @@ export default function App() {
                     setActiveTab('reports');
                   }}
                   onOpenAnnouncement={setOpenAnnouncement}
-                  onSelectMunicipality={() => setPickerMode('onboarding')}
-                  onReputationChange={() => setKey((prev) => prev + 1)}
+                  onSelectMunicipality={() => setPickerMode('change')}
                   department={department}
                   lang={lang}
                   isDark={isDark}
                   homeMunicipality={tenant}
+                  isAuthenticated={Boolean(user)}
                 />
               </Fragment>
             )}
@@ -506,25 +717,13 @@ export default function App() {
               isMuniNotOnboarded ? (
                 <NotOnboardedBlockedView lang={lang} isDark={isDark} />
               ) : (
-                <KentScreen
+                <BelediyeHubScreen
                   municipality={tenant}
                   department={department}
                   lang={lang}
                   isDark={isDark}
-                  onSelectMunicipality={() => setPickerMode('onboarding')}
-                  onOpenRewards={() => {
-                    setRewardsReturnTab('kent');
-                    setActiveTab('rewards');
-                  }}
+                  onSelectMunicipality={() => setPickerMode('change')}
                 />
-              )
-            )}
-
-            {activeTab === 'topluluk' && (
-              isMuniNotOnboarded ? (
-                <NotOnboardedBlockedView lang={lang} isDark={isDark} />
-              ) : (
-                <CommunityScreen municipality={tenant} lang={lang} isDark={isDark} />
               )
             )}
             {openReportId && (
@@ -539,9 +738,9 @@ export default function App() {
               !user ? (
                 renderAuthRequiredView(
                   lang === 'tr' ? 'İhbar Oluşturun' : 'Create Report',
-                  lang === 'tr' 
-                    ? 'Yeni bir ihbar kaydı oluşturmak, durum takibi yapabilmek ve sadakat ödülleri kazanabilmek için lütfen kayıt olun veya giriş yapın.' 
-                    : 'Please log in or register to submit reports, track status, and earn loyalty rewards.'
+                  lang === 'tr'
+                    ? 'Yeni bir ihbar kaydı oluşturmak ve durumunu takip etmek için lütfen kayıt olun veya giriş yapın.'
+                    : 'Please log in or register to submit reports and track their status.'
                 )
               ) : isMuniNotOnboarded ? (
                 <NotOnboardedBlockedView lang={lang} isDark={isDark} />
@@ -550,6 +749,7 @@ export default function App() {
                   defaultMunicipality={tenant}
                   defaultDepartment={department}
                   onSubmit={handleReportSubmit}
+                  onQueuedOffline={handleReportQueuedOffline}
                   onCancel={() => goToTab('home')}
                   lang={lang}
                   isDark={isDark}
@@ -560,8 +760,8 @@ export default function App() {
               !user ? (
                 renderAuthRequiredView(
                   lang === 'tr' ? 'İhbarlarım' : 'My Reports',
-                  lang === 'tr' 
-                    ? 'Geçmişte oluşturduğunuz ihbarları incelemek ve durumlarını takip etmek için lütfen kayıt olun veya giriş yapın.' 
+                  lang === 'tr'
+                    ? 'Geçmişte oluşturduğunuz ihbarları incelemek ve durumlarını takip etmek için lütfen kayıt olun veya giriş yapın.'
                     : 'Please log in or register to review your past reports and track their status.'
                 )
               ) : isMuniNotOnboarded ? (
@@ -570,6 +770,7 @@ export default function App() {
                 <MyReports
                   onBack={() => goToTab('home')}
                   onOpenReport={openReport}
+                  onCreateReport={() => setActiveTab('report')}
                   lang={lang}
                   isDark={isDark}
                 />
@@ -579,17 +780,14 @@ export default function App() {
               !user ? (
                 renderAuthRequiredView(
                   lang === 'tr' ? 'Profilinizi Görüntüleyin' : 'View Your Profile',
-                  lang === 'tr' 
-                    ? 'Profil bilgilerinizi düzenlemek, geçmiş ihbarlarınızı incelemek ve kazandığınız sadakat ödüllerini görmek için giriş yapın.' 
-                    : 'Log in to edit your profile, review your report history, and view your loyalty rewards.'
+                  lang === 'tr'
+                    ? 'Profil bilgilerinizi düzenlemek ve geçmiş ihbarlarınızı incelemek için giriş yapın.'
+                    : 'Log in to edit your profile and review your report history.'
                 )
               ) : (
                 <Profile
                   onLogout={handleLogoutWithClear}
                   onSettings={() => setActiveTab('settings')}
-                  onRewards={() => {
-                    setActiveTab('ranks');
-                  }}
                   onChangeMunicipality={() => setPickerMode('change')}
                   municipality={tenant}
                   lang={lang}
@@ -602,15 +800,24 @@ export default function App() {
                 lang={lang}
                 isDark={isDark}
                 municipality={tenant}
-                onBack={() => setActiveTab('profile')}
+                onBack={() => setActiveTab('kent')}
+              />
+            )}
+            {activeTab === 'rewards' && (
+              <RanksScreen
+                lang={lang}
+                isDark={isDark}
+                municipality={tenant}
+                initialSegment="rewards"
+                onBack={() => setActiveTab('kent')}
               />
             )}
             {activeTab === 'notifications' && (
               !user ? (
                 renderAuthRequiredView(
                   lang === 'tr' ? 'Bildirimler' : 'Notifications',
-                  lang === 'tr' 
-                    ? 'İhbarlarınızın güncel durumlarından haberdar olmak ve yeni duyuru bildirimlerini almak için lütfen giriş yapın.' 
+                  lang === 'tr'
+                    ? 'İhbarlarınızın güncel durumlarından haberdar olmak ve yeni duyuru bildirimlerini almak için lütfen giriş yapın.'
                     : 'Please log in to receive updates on your reports and new announcement notifications.'
                 )
               ) : isMuniNotOnboarded ? (
@@ -645,6 +852,47 @@ export default function App() {
         {showBottomNavigation && (
           <BottomNavigation activeTab={activeTab} lang={lang} isDark={isDark} onNavigate={goToTab} />
         )}
+
+        {pickerMode && (
+          <div
+            className={`absolute inset-0 z-[90] flex ${
+              pickerMode === 'change' ? 'items-end sm:items-center justify-center bg-slate-950/55 p-0 sm:p-4 backdrop-blur-[2px]' : ''
+            }`}
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('tenant.title', lang)}
+          >
+            {pickerMode === 'change' ? (
+              <button
+                type="button"
+                className="absolute inset-0 cursor-default"
+                aria-label={t('settings.back', lang)}
+                onClick={() => setPickerMode(null)}
+              />
+            ) : null}
+            <div
+              className={`relative z-10 flex flex-col overflow-hidden ${
+                pickerMode === 'change'
+                  ? `w-full max-h-[92%] rounded-t-[28px] sm:max-h-[85%] sm:max-w-md sm:rounded-3xl shadow-2xl ${
+                      isDark ? 'bg-slate-950' : 'bg-white'
+                    }`
+                  : 'absolute inset-0'
+              }`}
+            >
+              <Suspense fallback={<LoadingSpinner isDark={isDark} />}>
+                <MunicipalityPicker
+                  lang={lang}
+                  isDark={isDark}
+                  mode={pickerMode}
+                  embedded
+                  onSelect={(t) => void handleMunicipalitySelect(t)}
+                  onCancel={pickerMode === 'change' ? () => setPickerMode(null) : undefined}
+                />
+              </Suspense>
+            </div>
+          </div>
+        )}
+
         <Suspense fallback={null}>
           <IntroductionModal
             lang={lang}

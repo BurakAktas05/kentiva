@@ -1,4 +1,4 @@
-import { Home, Map, User, Users } from 'lucide-react';
+import { Building2, ClipboardList, Home, Plus } from 'lucide-react';
 import type { Lang } from '../../i18n';
 import { t } from '../../i18n';
 import type { Tab } from '../../hooks/useAppRouting';
@@ -10,14 +10,17 @@ interface BottomNavigationProps {
   onNavigate: (tab: Tab) => void;
 }
 
+/** Ana · Bildir (merkez) · İhbarlarım · Belediye */
 const NAV_ITEMS = [
-  { tab: 'home', labelKey: 'tab.home', icon: Home },
-  { tab: 'kent', labelKey: 'tab.kent', icon: Map },
-  { tab: 'topluluk', labelKey: 'tab.community', icon: Users },
-  { tab: 'profile', labelKey: 'tab.profile', icon: User },
-] as const;
+  { tab: 'home' as const, labelKey: 'tab.home', icon: Home, center: false },
+  { tab: 'report' as const, labelKey: 'tab.report', icon: Plus, center: true },
+  { tab: 'reports' as const, labelKey: 'tab.reports', icon: ClipboardList, center: false },
+  { tab: 'kent' as const, labelKey: 'tab.belediye', icon: Building2, center: false },
+];
 
 export default function BottomNavigation({ activeTab, lang, isDark, onNavigate }: BottomNavigationProps) {
+  const isKentActive = activeTab === 'kent';
+
   return (
     <nav
       aria-label={lang === 'tr' ? 'Ana menü' : lang === 'ar' ? 'القائمة الرئيسية' : 'Main menu'}
@@ -26,9 +29,32 @@ export default function BottomNavigation({ activeTab, lang, isDark, onNavigate }
       }`}
     >
       <div className="grid grid-cols-4 gap-1">
-        {NAV_ITEMS.map(({ tab, labelKey, icon: Icon }) => {
-          const isActive = activeTab === tab;
+        {NAV_ITEMS.map(({ tab, labelKey, icon: Icon, center }) => {
+          const isActive = tab === 'kent' ? isKentActive : activeTab === tab;
           const label = t(labelKey, lang);
+
+          if (center) {
+            return (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => onNavigate(tab)}
+                aria-current={isActive ? 'page' : undefined}
+                className="relative flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 px-1 py-1 text-[11px] font-bold"
+              >
+                <span
+                  className={`-mt-5 flex h-12 w-12 items-center justify-center rounded-2xl text-white shadow-lg shadow-primary/30 transition active:scale-[0.97] ${
+                    isActive ? 'bg-primary-dark ring-2 ring-primary/40' : 'bg-primary'
+                  }`}
+                >
+                  <Icon aria-hidden="true" className="h-6 w-6" strokeWidth={2.5} />
+                </span>
+                <span className={`max-w-full truncate px-0.5 ${isActive ? 'text-primary' : isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  {label}
+                </span>
+              </button>
+            );
+          }
 
           return (
             <button

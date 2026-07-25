@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Globe, LogIn, Wifi, Battery, Home, MapPin, User, ClipboardList, Cloud, ChevronRight, BarChart3 } from 'lucide-react';
+import { Wifi, Battery, Home, MapPin, User, ClipboardList, Cloud, ChevronRight, BarChart3 } from 'lucide-react';
 import { resolveMediaUrl } from '../lib/env';
 import {
   brandingColor,
@@ -7,24 +7,22 @@ import {
   DEFAULT_ACCENT,
   DEFAULT_PRIMARY,
   DEFAULT_SECONDARY,
-  municipalityPublicUrl,
   type BrandingFormValues,
 } from '../lib/branding';
 
 type Props = {
   form: BrandingFormValues;
   legalName: string;
-  slug: string;
+  slug?: string;
 };
 
-export default function MunicipalityBrandingPreview({ form, legalName, slug }: Props) {
+export default function MunicipalityBrandingPreview({ form, legalName }: Props) {
   const primary = brandingColor(form.primaryColor, DEFAULT_PRIMARY);
   const secondary = brandingColor(form.secondaryColor, DEFAULT_SECONDARY);
   const accent = brandingColor(form.accentColor, DEFAULT_ACCENT);
   const display = form.displayName.trim() || legalName;
   const logoSrc = resolveMediaUrl(form.logoUrl);
   const contrast = contrastLevelOnPrimary(primary);
-  const publicUrl = municipalityPublicUrl(slug || 'belediye');
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
@@ -57,16 +55,26 @@ export default function MunicipalityBrandingPreview({ form, legalName, slug }: P
         <div className="relative w-full h-full pt-7 pb-3 bg-slate-50 dark:bg-slate-900 flex flex-col justify-between overflow-hidden select-none">
           {/* Top Bar — Welcome + Municipality Pill */}
           <div className="px-3.5 pt-3 pb-2.5 flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-[9px] font-medium text-slate-400">Hoş geldiniz 👋</p>
-              <p className="text-[11px] font-semibold text-slate-800 dark:text-white leading-tight truncate">
-                Merhaba, Ahmet Yılmaz
-              </p>
+            <div className="min-w-0 flex items-center gap-2">
+              {logoSrc ? (
+                <img src={logoSrc} alt="" className="h-7 w-7 rounded-lg object-contain bg-white" />
+              ) : (
+                <div
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-[10px] font-bold text-white"
+                  style={{ backgroundColor: primary }}
+                >
+                  {display.slice(0, 1)}
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="text-[9px] font-medium text-slate-400">Hoş geldiniz</p>
+                <p className="text-[11px] font-semibold text-slate-800 leading-tight truncate">
+                  Merhaba, Ahmet Yılmaz
+                </p>
+              </div>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-0.5">
-              <div
-                className="flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-[8px] font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
-              >
+              <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-[8px] font-medium text-slate-600">
                 <MapPin className="h-2.5 w-2.5" style={{ color: primary }} />
                 <span className="max-w-[80px] truncate">{display}</span>
               </div>
@@ -184,47 +192,6 @@ export default function MunicipalityBrandingPreview({ form, legalName, slug }: P
               <span>Profil</span>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Login Ekranı Mockup */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-slate-50 dark:border-slate-700 dark:bg-slate-950">
-        <div className="flex items-center gap-1 border-b border-slate-200 px-3 py-1.5 text-[10px] text-slate-500 dark:border-slate-800">
-          <LogIn className="h-3 w-3" /> Vatandaş Giriş Ekranı
-        </div>
-        <div className="flex flex-col items-center px-4 py-5">
-          {logoSrc ? (
-            <img src={logoSrc} alt="" className="mb-2 h-12 w-12 object-contain" />
-          ) : (
-            <div
-              className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl text-md font-bold text-white"
-              style={{ backgroundColor: primary }}
-            >
-              {display.slice(0, 1)}
-            </div>
-          )}
-          <p className="text-center text-xs font-extrabold text-slate-800 dark:text-white">{display}</p>
-          <p className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-[10px] text-slate-400 dark:border-slate-700 dark:bg-slate-900">
-            Giriş Yapmak İçin Telefon Numaranız
-          </p>
-          <motion.button
-            type="button"
-            className="mt-2 w-full rounded-xl py-2 text-xs font-semibold text-white shadow-sm"
-            style={{ backgroundColor: primary }}
-          >
-            Devam Et
-          </motion.button>
-        </div>
-      </div>
-
-      {/* Web Kamu Sitesi Footer */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200/90 dark:border-slate-700">
-        <div className="flex items-center gap-1 border-b border-slate-200 px-3 py-1.5 text-[10px] text-slate-500 dark:border-slate-800">
-          <Globe className="h-3 w-3" /> Kamu Web Sitesi ({publicUrl.replace(/^https?:\/\//, '')})
-        </div>
-        <div className="p-3 bg-white dark:bg-slate-900" style={{ borderTop: `3px solid ${primary}` }}>
-          <p className="text-xs font-bold text-slate-900 dark:text-white">{display}</p>
-          <p className="text-[10px] text-slate-500">{form.contactEmail || 'destek@belediye.gov.tr'}</p>
         </div>
       </div>
     </motion.div>

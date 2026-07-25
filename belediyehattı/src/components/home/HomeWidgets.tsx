@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Cloud,
   CloudFog,
@@ -11,7 +11,6 @@ import {
   Pill,
   RefreshCw,
   Sun,
-  Wind,
   MapPin,
 } from 'lucide-react';
 import {
@@ -37,7 +36,7 @@ let cachedDeviceCoords: DeviceCoords | null = null;
 let cachedDeviceCoordsAt = 0;
 let deviceCoordsPromise: Promise<DeviceCoords | null> | null = null;
 
-function weatherVisual(code: number | null | undefined, className: string): ReactNode {
+function weatherVisual(code: number | null | undefined, className: string) {
   const c = code ?? -1;
   if (c === 0) return <Sun className={className} strokeWidth={1.5} />;
   if (c >= 1 && c <= 3) return <CloudSun className={className} strokeWidth={1.5} />;
@@ -112,31 +111,6 @@ async function resolveWidgetCoords(
   return { coords: null, source: 'none' };
 }
 
-function WidgetHeader({
-  icon,
-  title,
-  accent,
-  isDark,
-}: {
-  icon: ReactNode;
-  title: string;
-  accent: 'sky' | 'emerald';
-  isDark: boolean;
-}) {
-  const tones = {
-    sky: isDark ? 'bg-sky-500/20 text-sky-300' : 'bg-sky-500/15 text-sky-700',
-    emerald: isDark ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-500/15 text-emerald-700',
-  };
-  return (
-    <div className="flex items-center gap-2.5">
-      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${tones[accent]}`}>
-        {icon}
-      </div>
-      <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-800'}`}>{title}</h3>
-    </div>
-  );
-}
-
 function useWidgetBundle(tenant: PublicTenant) {
   const [bundle, setBundle] = useState<HomeWidgetsBundle | null>(null);
   const [loading, setLoading] = useState(true);
@@ -199,76 +173,99 @@ export function WeatherWidgetCard({ tenant, lang, isDark }: WidgetBaseProps) {
   const hasData = weather?.available && weather.temperatureC != null;
   const theme = weatherCardTheme(weather?.weatherCode, isDark);
 
-  return (
-    <section className={`overflow-hidden rounded-2xl border shadow-sm ${theme}`}>
-      <div className="p-3.5">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <WidgetHeader
-              icon={<Cloud className="h-4 w-4" />}
-              title={t('home.widgets.weather', lang)}
-              accent="sky"
-              isDark={isDark}
-            />
-            <p className={`mt-1 text-[10px] font-medium ${isDark ? 'text-sky-200/80' : 'text-slate-600'}`}>
-              {locationSourceLabel(locationSource, lang)}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={refresh}
-            disabled={loading}
-            aria-label={t('home.widgets.refresh', lang)}
-            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition active:scale-95 disabled:opacity-50 ${
-              isDark ? 'bg-slate-800 text-slate-300' : 'bg-white/70 text-sky-700 shadow-sm'
-            }`}
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
+  const metrics = hasData
+    ? [
+        weather.humidityPercent != null
+          ? {
+              key: 'humidity',
+              label: lang === 'tr' ? 'Nem' : lang === 'ar' ? 'رطوبة' : 'Humidity',
+              value: `${Math.round(weather.humidityPercent)}%`,
+            }
+          : null,
+        weather.windSpeedKmh != null
+          ? {
+              key: 'wind',
+              label: lang === 'tr' ? 'Rüzgar' : lang === 'ar' ? 'رياح' : 'Wind',
+              value: `${Math.round(weather.windSpeedKmh)} km/s`,
+            }
+          : null,
+        weather.usAqi != null || weather.aqiLabel
+          ? {
+              key: 'aqi',
+              label: 'AQI',
+              value: weather.aqiLabel || String(weather.usAqi),
+            }
+          : null,
+      ].filter(Boolean)
+    : [];
 
-        {loading ? (
-          <div className="mt-3 h-20 animate-pulse rounded-xl bg-white/40 dark:bg-slate-700/50" />
-        ) : hasData ? (
-          <div className="mt-2.5 flex items-center gap-3">
-            <div
-              className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl ${
-                isDark ? 'bg-sky-500/15 text-sky-200' : 'bg-white/60 text-sky-600 shadow-inner'
+  return (
+    <section className={`overflow-hidden rounded-2xl border ${theme}`}>
+      <div className="flex items-start gap-3 px-3.5 py-3.5">
+        <div
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
+            isDark ? 'bg-sky-500/15 text-sky-200' : 'bg-white/70 text-sky-600'
+          }`}
+          aria-hidden
+        >
+          {loading ? (
+            <Cloud className="h-5 w-5 animate-pulse" />
+          ) : (
+            weatherVisual(weather?.weatherCode, 'h-5 w-5')
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className={`text-[10px] font-bold uppercase tracking-wide ${isDark ? 'text-sky-200/80' : 'text-slate-500'}`}>
+                {t('home.widgets.weatherDistrict', lang)}
+              </p>
+              {loading ? (
+                <div className="mt-1.5 h-6 w-32 animate-pulse rounded bg-white/40 dark:bg-slate-700/50" />
+              ) : hasData ? (
+                <p className={`mt-0.5 text-xl font-bold tabular-nums leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  {Math.round(weather.temperatureC!)}°
+                  <span className={`ml-2 text-sm font-semibold ${isDark ? 'text-sky-100/90' : 'text-slate-600'}`}>
+                    {weather.description}
+                  </span>
+                </p>
+              ) : (
+                <p className={`mt-1 text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                  {t('home.widgets.weatherUnavailable', lang)}
+                </p>
+              )}
+              <p className={`mt-0.5 truncate text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+                {locationSourceLabel(locationSource, lang)}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={refresh}
+              disabled={loading}
+              aria-label={t('home.widgets.refresh', lang)}
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition active:scale-95 disabled:opacity-50 ${
+                isDark ? 'bg-slate-800 text-slate-300' : 'bg-white/70 text-sky-700'
               }`}
-              aria-hidden
             >
-              {weatherVisual(weather.weatherCode, 'h-8 w-8')}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className={`text-2xl font-bold tabular-nums leading-none ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                {Math.round(weather.temperatureC!)}°
-              </p>
-              <p className={`mt-0.5 text-xs font-semibold ${isDark ? 'text-sky-100/90' : 'text-slate-700'}`}>
-                {weather.description}
-              </p>
-              <div className={`mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                {weather.apparentTemperatureC != null && (
-                  <span>
-                    {t('home.widgets.feelsLike', lang)}{' '}
-                    <strong className={isDark ? 'text-slate-200' : 'text-slate-800'}>
-                      {Math.round(weather.apparentTemperatureC)}°
-                    </strong>
-                  </span>
-                )}
-                {weather.windSpeedKmh != null && (
-                  <span className="inline-flex items-center gap-1">
-                    <Wind className="h-3 w-3" />
-                    {Math.round(weather.windSpeedKmh)} km/h
-                  </span>
-                )}
-              </div>
-            </div>
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+            </button>
           </div>
-        ) : (
-          <p className={`mt-3 text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-            {t('home.widgets.weatherUnavailable', lang)}
-          </p>
-        )}
+
+          {metrics.length > 0 ? (
+            <div className={`mt-3 grid grid-cols-3 gap-2 border-t pt-2.5 ${isDark ? 'border-white/10' : 'border-sky-900/10'}`}>
+              {metrics.map((m) => (
+                <div key={m!.key} className="min-w-0 text-center">
+                  <p className={`text-[10px] font-semibold uppercase tracking-wide ${isDark ? 'text-sky-200/70' : 'text-slate-500'}`}>
+                    {m!.label}
+                  </p>
+                  <p className={`mt-0.5 truncate text-xs font-bold tabular-nums ${isDark ? 'text-white' : 'text-slate-800'}`}>
+                    {m!.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </div>
     </section>
   );

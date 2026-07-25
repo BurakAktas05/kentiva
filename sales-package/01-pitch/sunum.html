@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kentiva — Belediye Sunumu</title>
+  <style>
+    :root {
+      --primary: #0b4f9c;
+      --sky: #0ea5e9;
+      --gold: #e6b422;
+      --slate: #0f172a;
+      --muted: #475569;
+      --bg: #f8fafc;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; font-family: "Segoe UI", system-ui, sans-serif; background: #0a1628; color: var(--slate); }
+    .deck { height: 100%; overflow: hidden; }
+    .slide {
+      display: none; height: 100%; padding: 4.5vh 6vw;
+      background: linear-gradient(160deg, #f8fafc 0%, #e8f1fb 55%, #dbeafe 100%);
+      flex-direction: column; justify-content: center;
+    }
+    .slide.active { display: flex; }
+    .slide.dark {
+      background: linear-gradient(160deg, #062f5c 0%, #0b4f9c 50%, #0ea5e9 120%);
+      color: #fff;
+    }
+    h1 { font-size: clamp(2rem, 4.5vw, 3.4rem); margin: 0 0 0.4em; letter-spacing: -0.03em; }
+    h2 { font-size: clamp(1.5rem, 3vw, 2.4rem); margin: 0 0 0.5em; letter-spacing: -0.02em; }
+    p, li { font-size: clamp(1rem, 1.6vw, 1.25rem); line-height: 1.45; color: inherit; }
+    .muted { color: var(--muted); }
+    .slide.dark .muted { color: rgba(255,255,255,.78); }
+    .eyebrow { text-transform: uppercase; letter-spacing: .14em; font-size: .75rem; font-weight: 700; color: var(--sky); margin-bottom: .75rem; }
+    .slide.dark .eyebrow { color: var(--gold); }
+    .grid { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top: 1.5rem; }
+    .card {
+      background: #fff; border: 1px solid rgba(15,23,42,.08); border-radius: 1.25rem;
+      padding: 1.25rem 1.35rem; box-shadow: 0 18px 40px -28px rgba(11,79,156,.45);
+    }
+    .slide.dark .card { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.18); backdrop-filter: blur(8px); }
+    .card strong { display: block; font-size: 1.05rem; margin-bottom: .35rem; }
+    .price { font-size: 2rem; font-weight: 800; color: var(--primary); }
+    .slide.dark .price { color: #fff; }
+    .popular { outline: 2px solid var(--sky); }
+    .footer {
+      position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between;
+      align-items: center; padding: .75rem 1.5rem; color: rgba(255,255,255,.7); font-size: .8rem;
+      background: linear-gradient(transparent, rgba(6,47,92,.55));
+      pointer-events: none;
+    }
+    .brand { display: flex; align-items: center; gap: .85rem; }
+    .brand img { height: 52px; width: auto; }
+    .nav-hint { opacity: .85; }
+    ul { margin: .5rem 0 0; padding-left: 1.1rem; }
+    .hero-bg {
+      position: absolute; inset: 0; background-size: cover; background-position: center;
+      opacity: .22; pointer-events: none;
+    }
+    .slide.relative { position: relative; }
+    .slide.relative > *:not(.hero-bg) { position: relative; z-index: 1; }
+  </style>
+</head>
+<body>
+  <div class="deck" id="deck">
+    <section class="slide dark active relative">
+      <div class="hero-bg" style="background-image:url('../04-brand/kentiva-sales-hero-v2.png')"></div>
+      <div class="brand"><img src="../04-brand/kentiva-logo-mark-v2.png" alt="Kentiva" /></div>
+      <p class="eyebrow">Akıllı belediye platformu</p>
+      <h1>Bildirimleri tek yerde yönetin.</h1>
+      <p class="muted" style="max-width:38rem">Vatandaş ihbarı, saha ataması, SLA ve şeffaf takip — KVKK’ya duyarlı, çok kiracılı SaaS.</p>
+    </section>
+
+    <section class="slide">
+      <p class="eyebrow">Sorun</p>
+      <h2>Dağınık kanallar, ölçülemez operasyon</h2>
+      <div class="grid">
+        <div class="card"><strong>WhatsApp / telefon</strong><span class="muted">Kayıp ihbar, tekrar arama, denetim yok</span></div>
+        <div class="card"><strong>Excel kuyrukları</strong><span class="muted">SLA görünmez, atama belirsiz</span></div>
+        <div class="card"><strong>Vatandaş güvensizliği</strong><span class="muted">“Ne oldu?” sorusu birimi yorar</span></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <p class="eyebrow">Çözüm</p>
+      <h2>Kentiva operasyon omurgası</h2>
+      <div class="grid">
+        <div class="card"><strong>1. İhbar</strong><span class="muted">Mobil + konum + medya</span></div>
+        <div class="card"><strong>2. Atama</strong><span class="muted">Birim / saha / Beyaz Masa</span></div>
+        <div class="card"><strong>3. SLA</strong><span class="muted">Öncelik, süre, canlı harita</span></div>
+        <div class="card"><strong>4. Şeffaflık</strong><span class="muted">Vatandaş durum takibi</span></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <p class="eyebrow">Ürün</p>
+      <h2>İki yüzey, tek platform</h2>
+      <div class="grid">
+        <div class="card"><strong>Vatandaş uygulaması</strong><ul><li>Konumlu ihbar</li><li>Durum takibi</li><li>Duyuru / kent bilgisi</li></ul></div>
+        <div class="card"><strong>Belediye paneli</strong><ul><li>Kuyruk ve atama</li><li>Harita ve KPI</li><li>Dışa aktarma / denetim</li></ul></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <p class="eyebrow">Güven</p>
+      <h2>Satın alma itirazlarına hazır cevaplar</h2>
+      <div class="grid">
+        <div class="card"><strong>Tenant izolasyonu</strong><span class="muted">Belediye verisi karışmaz</span></div>
+        <div class="card"><strong>KVKK</strong><span class="muted">Onay + medya maskeleme</span></div>
+        <div class="card"><strong>Rol yetkisi</strong><span class="muted">Admin / birim / saha / Beyaz Masa</span></div>
+        <div class="card"><strong>Denetim izi</strong><span class="muted">Kritik işlemler loglanır</span></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <p class="eyebrow">Fiyatlandırma · KDV hariç</p>
+      <h2>90 gün ücretsiz pilot ile başlayın</h2>
+      <div class="grid">
+        <div class="card"><strong>Başlangıç</strong><div class="price">₺4.990<span style="font-size:1rem;font-weight:600">/ay</span></div><span class="muted">Küçük ilçe · temel kuyruk</span></div>
+        <div class="card popular"><strong>Profesyonel</strong><div class="price">₺9.999<span style="font-size:1rem;font-weight:600">/ay</span></div><span class="muted">Önerilen · AI, harita, KVKK</span></div>
+        <div class="card"><strong>Enterprise</strong><div class="price">Teklif</div><span class="muted">MIS · API · özel SLA</span></div>
+      </div>
+      <p class="muted" style="margin-top:1.25rem">Yıllık peşin: 10 ay ücreti. Liste fiyatı sales-package/02-commercial/FIYAT-POLITIKASI.md</p>
+    </section>
+
+    <section class="slide dark">
+      <p class="eyebrow">Sonraki adım</p>
+      <h1>Demo → Pilot → Sözleşme</h1>
+      <p class="muted">demo@kentiva.app · info@kentiva.app</p>
+      <p style="margin-top:1.5rem;font-weight:700">Canlı demo için hazır mısınız?</p>
+    </section>
+  </div>
+  <div class="footer">
+    <span>Kentiva</span>
+    <span class="nav-hint">← → veya tıkla · <span id="pos">1</span>/<span id="total">7</span></span>
+  </div>
+  <script>
+    const slides = [...document.querySelectorAll('.slide')];
+    let i = 0;
+    const pos = document.getElementById('pos');
+    document.getElementById('total').textContent = String(slides.length);
+    function show(n) {
+      i = (n + slides.length) % slides.length;
+      slides.forEach((s, idx) => s.classList.toggle('active', idx === i));
+      pos.textContent = String(i + 1);
+    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); show(i + 1); }
+      if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); show(i - 1); }
+      if (e.key === 'Home') show(0);
+      if (e.key === 'End') show(slides.length - 1);
+    });
+    document.getElementById('deck').addEventListener('click', (e) => {
+      const mid = window.innerWidth / 2;
+      show(e.clientX > mid ? i + 1 : i - 1);
+    });
+  </script>
+</body>
+</html>

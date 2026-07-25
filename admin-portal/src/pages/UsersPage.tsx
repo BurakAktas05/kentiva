@@ -3,6 +3,13 @@ import { Plus, Search, ShieldAlert, UserX } from 'lucide-react';
 import axios from 'axios';
 import api from '../api';
 import type { Department } from './DepartmentsPage';
+import PageHeader from '../components/ui/PageHeader';
+import LoadingState from '../components/ui/LoadingState';
+import EmptyState from '../components/ui/EmptyState';
+import ErrorState from '../components/ui/ErrorState';
+import Button from '../components/ui/Button';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
+import Toast, { type ToastState } from '../components/ui/Toast';
 
 interface UserResponse {
   id: string;
@@ -46,6 +53,16 @@ export default function UsersPage() {
   const [suspendReason, setSuspendReason] = useState('');
   const [suspendError, setSuspendError] = useState('');
   const [suspending, setSuspending] = useState(false);
+
+  const [toast, setToast] = useState<ToastState>(null);
+  const [toggleTarget, setToggleTarget] = useState<UserResponse | null>(null);
+  const [toggling, setToggling] = useState(false);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(null), 5000);
+    return () => window.clearTimeout(t);
+  }, [toast]);
 
   const openSuspendModal = (user: UserResponse) => {
     setSuspendingUser(user);
@@ -147,14 +164,18 @@ export default function UsersPage() {
     }
   };
 
-  const handleToggleEnabled = async (userId: string) => {
-    if (window.confirm('Kullanıcının durumunu değiştirmek istediğinize emin misiniz?')) {
-      try {
-        await api.patch(`/users/${userId}/toggle-enabled`);
-        fetchData();
-      } catch {
-        alert('İşlem başarısız');
-      }
+  const confirmToggleEnabled = async () => {
+    if (!toggleTarget) return;
+    setToggling(true);
+    try {
+      await api.patch(`/users/${toggleTarget.id}/toggle-enabled`);
+      await fetchData();
+      setToggleTarget(null);
+      setToast({ type: 'success', message: 'Kullanıcı durumu güncellendi.' });
+    } catch {
+      setToast({ type: 'error', message: 'İşlem başarısız oldu.' });
+    } finally {
+      setToggling(false);
     }
   };
 
@@ -164,27 +185,27 @@ export default function UsersPage() {
   );
 
   if (loading) {
-    return <div className="p-8 text-center text-slate-500">Yükleniyor...</div>;
+    return <LoadingState label="Personeller yükleniyor…" />;
   }
 
   if (loadError) {
     return (
-      <div className="p-8 text-center">
-        <p className="text-sm font-medium text-red-600 dark:text-red-400">{loadError}</p>
-        <button
-          type="button"
-          onClick={() => void fetchData()}
-          className="mt-4 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white"
-        >
-          Tekrar dene
-        </button>
+      <div className="p-6">
+        <ErrorState
+          message={loadError}
+          action={
+            <Button variant="secondary" onClick={() => void fetchData()}>
+              Tekrar dene
+            </Button>
+          }
+        />
       </div>
     );
   }
 
   const roleLabels: Record<string, string> = {
     'ROLE_SUPER_ADMIN': 'Süper Admin',
-    'ROLE_ADMIN': 'Admin',
+    'ROLE_ADMIN': 'Sistem Yöneticisi',
     'ROLE_WHITE_DESK': 'Beyaz Masa',
     'ROLE_DEPT_MANAGER': 'Birim Müdürü',
     'ROLE_FIELD_OFFICER': 'Saha Görevlisi',
@@ -193,21 +214,20 @@ export default function UsersPage() {
 
   return (
     <div className="p-6">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="kentiva-eyebrow">Ekip</p>
-          <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">Personeller</h2>
-          <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">
-            Belediyenizdeki personelleri yönetin ve departmanlara atayın.
-          </p>
-        </div>
-        <button
-          onClick={openNewModal}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-        >
-          <Plus className="h-4 w-4" />
-          Yeni Personel
-        </button>
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
+
+      <div className="mb-6">
+        <PageHeader
+          eyebrow="Ekip"
+          title="Personeller"
+          subtitle="Belediyenizdeki personelleri yönetin ve departmanlara atayın."
+          actions={
+            <Button onClick={openNewModal}>
+              <Plus className="h-4 w-4" />
+              Yeni Personel
+            </Button>
+          }
+        />
       </div>
 
       <div className="mb-6 max-w-md relative">
@@ -274,9 +294,10 @@ export default function UsersPage() {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button 
-                      onClick={() => handleToggleEnabled(user.id)}
+                    <button
+                      onClick={() => setToggleTarget(user)}
                       className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors" title="Durumu Değiştir"
+                      aria-label={`${user.firstName} ${user.lastName} durumunu değiştir`}
                     >
                       <ShieldAlert className="h-4 w-4" />
                     </button>
@@ -293,8 +314,11 @@ export default function UsersPage() {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
-                    Kayıt bulunamadı.
+                  <td colSpan={4}>
+                    <EmptyState
+                      title="Kayıt bulunamadı"
+                      description={search ? 'Arama kriterlerinize uyan personel bulunamadı.' : 'Henüz personel eklenmemiş.'}
+                    />
                   </td>
                 </tr>
               )}
@@ -352,7 +376,7 @@ export default function UsersPage() {
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Rol *</label>
                 <select value={role} onChange={e => setRole(e.target.value)} className="kentiva-input">
                   <option value="ROLE_WHITE_DESK">Beyaz Masa</option>
-                  <option value="ROLE_ADMIN">Belediye Başkanı</option>
+                  <option value="ROLE_ADMIN">Sistem Yöneticisi</option>
                 </select>
               </div>
 
@@ -438,6 +462,20 @@ export default function UsersPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(toggleTarget)}
+        title="Durumu değiştir"
+        message={
+          toggleTarget
+            ? `${toggleTarget.firstName} ${toggleTarget.lastName} kullanıcısının durumunu değiştirmek istediğinize emin misiniz?`
+            : ''
+        }
+        confirmLabel="Değiştir"
+        busy={toggling}
+        onConfirm={() => void confirmToggleEnabled()}
+        onCancel={() => setToggleTarget(null)}
+      />
     </div>
   );
 }

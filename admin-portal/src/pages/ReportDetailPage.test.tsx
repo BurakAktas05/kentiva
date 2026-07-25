@@ -93,7 +93,7 @@ describe('ReportDetailPage', () => {
     setupMocks();
 
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <ReportDetailPage reportId="report-123" />
       </MemoryRouter>
     );
@@ -111,7 +111,7 @@ describe('ReportDetailPage', () => {
     vi.mocked(api.patch).mockResolvedValue({ data: { data: mockProcessingReport } });
 
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <ReportDetailPage reportId="report-123" />
       </MemoryRouter>
     );
@@ -144,7 +144,7 @@ describe('ReportDetailPage', () => {
     vi.mocked(api.patch).mockResolvedValue({ data: { data: { ...mockProcessingReport, status: 'RESOLVED' } } });
 
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <ReportDetailPage reportId="report-123" />
       </MemoryRouter>
     );

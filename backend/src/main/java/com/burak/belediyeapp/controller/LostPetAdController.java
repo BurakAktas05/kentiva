@@ -6,9 +6,14 @@ import com.burak.belediyeapp.entity.LostPetAd;
 import com.burak.belediyeapp.exception.BusinessException;
 import com.burak.belediyeapp.exception.ResourceNotFoundException;
 import com.burak.belediyeapp.repository.ILostPetAdRepository;
+import com.burak.belediyeapp.security.RateLimit;
 import com.burak.belediyeapp.service.notification.LostPetNotificationService;
+import com.burak.belediyeapp.util.SocialAdPrivacy;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,6 +29,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Tag(name = "Kayıp Evcil Hayvan İlanları", description = "Vatandaşların kayıp evcil hayvan duyuruları")
 public class LostPetAdController {
+
+    private static final int MAX_PUBLIC_LIST = 50;
 
     private final ILostPetAdRepository lostPetAdRepository;
     private final LostPetNotificationService lostPetNotificationService;
@@ -43,53 +50,68 @@ public class LostPetAdController {
     ) {}
 
     public record CreateLostPetAdRequest(
-            String petName,
-            String petType,
-            String breed,
-            String lastSeenDistrict,
-            String contactPhone,
-            String description,
-            String mediaUrl
+            @NotBlank @Size(max = 100) String petName,
+            @NotBlank @Size(max = 50) String petType,
+            @Size(max = 100) String breed,
+            @NotBlank @Size(max = 100) String lastSeenDistrict,
+            @NotBlank @Size(max = 30) String contactPhone,
+            @Size(max = 2000) String description,
+            @Size(max = 500) String mediaUrl
     ) {}
 
-    private LostPetAdResponse mapToLostPetResponse(LostPetAd ad) {
+    private LostPetAdResponse mapToLostPetResponse(LostPetAd ad, boolean revealContact) {
         return new LostPetAdResponse(
                 ad.getId(),
-                ad.getUser().getId(),
+                SocialAdPrivacy.publicUserId(ad.getUser().getId(), revealContact),
                 ad.getUser().getFullName(),
                 ad.getPetName(),
                 ad.getPetType(),
                 ad.getBreed(),
                 ad.getLastSeenDistrict(),
-                ad.getContactPhone(),
+                SocialAdPrivacy.publicPhone(ad.getContactPhone(), revealContact),
                 ad.getDescription(),
                 ad.getMediaUrl(),
                 ad.getCreatedAt()
         );
     }
 
-    @GetMapping("/api/v1/public/social/lost-pet-ads")
-    @Operation(summary = "Kayıp ilanlarını listele (Vatandaş)")
-    public ResponseEntity<ApiResponse<List<LostPetAdResponse>>> getLostPetAds(
-            @RequestParam(required = false) String district) {
+    private List<LostPetAdResponse> listAds(String district, boolean revealContact) {
         List<LostPetAd> ads;
         if (district != null && !district.isBlank()) {
             ads = lostPetAdRepository.findByLastSeenDistrictOrderByCreatedAtDesc(district.trim());
         } else {
             ads = lostPetAdRepository.findAllByOrderByCreatedAtDesc();
         }
-        List<LostPetAdResponse> list = ads.stream()
-                .map(this::mapToLostPetResponse)
+        return ads.stream()
+                .limit(MAX_PUBLIC_LIST)
+                .map(ad -> mapToLostPetResponse(ad, revealContact))
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(ApiResponse.success(list));
+    }
+
+    @GetMapping("/api/v1/public/social/lost-pet-ads")
+    @RateLimit(requests = 30, window = 60)
+    @Operation(summary = "Kayıp ilanlarını listele (anonim — telefon maskeli)")
+    public ResponseEntity<ApiResponse<List<LostPetAdResponse>>> getLostPetAdsPublic(
+            @RequestParam(required = false) String district) {
+        return ResponseEntity.ok(ApiResponse.success(listAds(district, false)));
+    }
+
+    @GetMapping("/api/v1/social/lost-pet-ads")
+    @PreAuthorize("hasRole('CITIZEN')")
+    @RateLimit(requests = 60, window = 60)
+    @Operation(summary = "Kayıp ilanlarını listele (girişli — iletişim açık)")
+    public ResponseEntity<ApiResponse<List<LostPetAdResponse>>> getLostPetAdsAuthenticated(
+            @RequestParam(required = false) String district) {
+        return ResponseEntity.ok(ApiResponse.success(listAds(district, true)));
     }
 
     @PostMapping("/api/v1/social/lost-pet-ads")
     @PreAuthorize("hasRole('CITIZEN')")
+    @RateLimit(requests = 10, window = 60)
     @Operation(summary = "Yeni kayıp ilanı oluştur (Vatandaş)")
     public ResponseEntity<ApiResponse<LostPetAdResponse>> createLostPetAd(
             @AuthenticationPrincipal AppUser user,
-            @RequestBody CreateLostPetAdRequest request) {
+            @Valid @RequestBody CreateLostPetAdRequest request) {
 
         LostPetAd ad = LostPetAd.builder()
                 .user(user)
@@ -105,7 +127,7 @@ public class LostPetAdController {
         LostPetAd saved = lostPetAdRepository.save(ad);
         lostPetNotificationService.broadcast(saved.getId());
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Kayıp hayvan ilanı yayınlandı", mapToLostPetResponse(saved)));
+                .body(ApiResponse.success("Kayıp hayvan ilanı yayınlandı", mapToLostPetResponse(saved, true)));
     }
 
     @DeleteMapping("/api/v1/social/lost-pet-ads/{id}")

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { ChevronLeft, CalendarDays, Droplets, Zap, MapPin, Clock, Info } from 'lucide-react';
 import { fetchHomeWidgets, type OutageWidget, type EventWidget, type PublicTenant } from '../../api';
 import { Lang, t } from '../../i18n';
+import ErrorState from '../ui/ErrorState';
 
 interface CityCalendarProps {
   municipality: PublicTenant | null;
@@ -18,24 +19,51 @@ export default function CityCalendar({ municipality, lang, isDark, onBack, embed
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<'all' | 'outage' | 'event'>('all');
 
+  const [loadError, setLoadError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
+
   useEffect(() => {
     if (!municipality?.id) {
+      setLoading(false);
+      setLoadError('');
+      return;
+    }
+    if (
+      typeof municipality.centerLat !== 'number' ||
+      typeof municipality.centerLng !== 'number' ||
+      !Number.isFinite(municipality.centerLat) ||
+      !Number.isFinite(municipality.centerLng)
+    ) {
+      setOutages([]);
+      setEvents([]);
+      setLoadError(
+        lang === 'tr'
+          ? 'Belediye konum bilgisi eksik; takvim verileri yüklenemedi.'
+          : 'Municipality location is missing; calendar data could not be loaded.',
+      );
       setLoading(false);
       return;
     }
     setLoading(true);
-    fetchHomeWidgets(municipality.id, municipality.centerLat ?? 41.0082, municipality.centerLng ?? 28.9784)
+    setLoadError('');
+    fetchHomeWidgets(municipality.id, municipality.centerLat, municipality.centerLng)
       .then((res) => {
         setOutages(res.outages ?? []);
         setEvents(res.events ?? []);
       })
       .catch(() => {
-        // Fallback
+        setOutages([]);
+        setEvents([]);
+        setLoadError(
+          lang === 'tr'
+            ? 'Takvim verileri yüklenemedi. Lütfen tekrar deneyin.'
+            : 'Could not load calendar data. Please try again.',
+        );
       })
       .finally(() => {
         setLoading(false);
       });
-  }, [municipality]);
+  }, [municipality, lang, reloadKey]);
 
   const filteredItems = [
     ...outages.map((o) => ({ ...o, type: 'outage' as const, date: o.startsAt ? new Date(o.startsAt) : new Date() })),
@@ -55,7 +83,7 @@ export default function CityCalendar({ municipality, lang, isDark, onBack, embed
     >
       {!embedded && onBack && (
         <div className="flex items-center gap-3 border-b border-slate-200 p-4 dark:border-slate-800">
-          <button type="button" onClick={onBack} className="-ml-2 p-2 text-slate-500 dark:text-slate-400">
+          <button type="button" onClick={onBack} aria-label={t('settings.back', lang)} className="-ml-2 p-2 text-slate-500 dark:text-slate-400">
             <ChevronLeft className="h-6 w-6" />
           </button>
           <div>
@@ -128,6 +156,14 @@ export default function CityCalendar({ municipality, lang, isDark, onBack, embed
             <Info className="h-12 w-12 text-slate-400 mb-2" />
             <p className="text-sm font-medium text-slate-500">{t('report.needTenant', lang)}</p>
           </div>
+        ) : loadError ? (
+          <ErrorState
+            isDark={isDark}
+            title={lang === 'tr' ? 'Yükleme başarısız' : 'Failed to load'}
+            description={loadError}
+            onRetry={() => setReloadKey((k) => k + 1)}
+            retryLabel={lang === 'tr' ? 'Tekrar dene' : 'Try again'}
+          />
         ) : displayedItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <CalendarDays className="h-14 w-14 text-slate-300 dark:text-slate-700 mb-3" />

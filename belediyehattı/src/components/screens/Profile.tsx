@@ -11,11 +11,11 @@ import {
 } from '../../api';
 import { Lang, t } from '../../i18n';
 import MunicipalityCard from '../MunicipalityCard';
+import ErrorState from '../ui/ErrorState';
 
 interface ProfileProps {
   onLogout: () => void;
   onSettings: () => void;
-  onRewards: () => void;
   onChangeMunicipality?: () => void;
   municipality?: PublicTenant | null;
   lang: Lang;
@@ -27,7 +27,6 @@ type ProfileDataState = 'current' | 'offline' | 'saved' | 'partial';
 export default function Profile({
   onLogout,
   onSettings,
-  onRewards,
   onChangeMunicipality,
   municipality,
   lang,
@@ -152,19 +151,18 @@ export default function Profile({
 
   if (loadError && !profile) {
     return (
-      <div className="p-6 text-center">
-        <p className="text-sm text-red-600 dark:text-red-400">{loadError}</p>
-        <button
-          type="button"
-          onClick={() => {
+      <div className="p-6">
+        <ErrorState
+          isDark={isDark}
+          title={lang === 'tr' ? 'Yükleme başarısız' : lang === 'ar' ? 'فشل التحميل' : 'Failed to load'}
+          description={loadError}
+          onRetry={() => {
             setLoading(true);
             setLoadError('');
             void loadProfile();
           }}
-          className="mt-4 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white"
-        >
-          Tekrar dene
-        </button>
+          retryLabel={lang === 'tr' ? 'Tekrar dene' : lang === 'ar' ? 'إعادة المحاولة' : 'Try again'}
+        />
       </div>
     );
   }
@@ -307,29 +305,6 @@ export default function Profile({
         <h3 className={`mb-2 px-1 font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-800'}`}>
           {t('profile.account', lang)}
         </h3>
-
-        <button
-          type="button"
-          onClick={onRewards}
-          className={`flex w-full items-center justify-between rounded-2xl border p-4 shadow-sm transition-all active:scale-95 ${
-            isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'
-          }`}
-        >
-          <div className="flex items-center gap-3">
-            <div className={`rounded-xl p-2 ${isDark ? 'bg-primary/20 text-sky-400' : 'bg-primary/10 text-primary'}`}>
-              <Award className="h-5 w-5" />
-            </div>
-            <div className="text-left">
-              <span className={`block text-sm font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
-                {lang === 'tr' ? 'Rütbe & Ödüller' : 'Ranks & Rewards'}
-              </span>
-              <span className="block text-[10px] text-slate-400 mt-0.5 font-medium">
-                {lang === 'tr' ? 'Puan durumunu gör ve hediyeleri al' : 'View status and claim rewards'}
-              </span>
-            </div>
-          </div>
-          <ChevronRight className="h-5 w-5 text-slate-400" />
-        </button>
 
         <button
           type="button"

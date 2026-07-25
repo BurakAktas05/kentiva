@@ -982,7 +982,8 @@ export async function voteSurvey(surveyId: string, selectedOption: number): Prom
 
 export async function getBloodAds(district?: string): Promise<ApiBloodSearchAd[]> {
   const q = district ? `?district=${encodeURIComponent(district)}` : '';
-  return apiFetch<ApiBloodSearchAd[]>(`/public/social/blood-ads${q}`);
+  const base = getToken() ? '/social' : '/public/social';
+  return apiFetch<ApiBloodSearchAd[]>(`${base}/blood-ads${q}`);
 }
 
 export async function createBloodAd(payload: {
@@ -1007,7 +1008,8 @@ export async function deleteBloodAd(id: string): Promise<void> {
 
 export async function getLostPetAds(district?: string): Promise<ApiLostPetAd[]> {
   const q = district ? `?district=${encodeURIComponent(district)}` : '';
-  return apiFetch<ApiLostPetAd[]>(`/public/social/lost-pet-ads${q}`);
+  const base = getToken() ? '/social' : '/public/social';
+  return apiFetch<ApiLostPetAd[]>(`${base}/lost-pet-ads${q}`);
 }
 
 export async function createLostPetAd(payload: {
@@ -1033,7 +1035,8 @@ export async function deleteLostPetAd(id: string): Promise<void> {
 
 export async function getItemDonationAds(district?: string): Promise<ApiItemDonationAd[]> {
   const q = district ? `?district=${encodeURIComponent(district)}` : '';
-  return apiFetch<ApiItemDonationAd[]>(`/public/social/item-donation-ads${q}`);
+  const base = getToken() ? '/social' : '/public/social';
+  return apiFetch<ApiItemDonationAd[]>(`${base}/item-donation-ads${q}`);
 }
 
 export async function createItemDonationAd(payload: {

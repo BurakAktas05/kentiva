@@ -28,10 +28,11 @@ import {
   MessageSquare,
   Gift,
   ClipboardPlus,
-  Package,
-  Crown,
   Briefcase,
   Cpu,
+  ChevronDown,
+  UserCheck,
+  ShieldAlert,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api, { clearAuthStorage, type PredictiveInsight, type Stats } from './api';
@@ -43,13 +44,16 @@ import { reportStatusLabel } from './lib/reportUtils';
 import { ReportLiveProvider, useReportLive } from './context/ReportLiveContext';
 import LoginPage, { LoginLandingPage } from './pages/LoginPage';
 import ErrorBoundary from './components/ErrorBoundary';
+import Toast from './components/ui/Toast';
 import {
   buildPortalUser,
+  isFieldOfficerOnly,
   isPlatformSuperAdmin,
   loginPathForCurrentHost,
   loginPathForPortal,
   loginPathForUser,
   portalForHostname,
+  portalRoleLabel,
   type AuthenticatedPortalUser,
 } from './lib/auth';
 
@@ -101,6 +105,30 @@ const MapFallback = () => (
   </motion.div>
 );
 
+const UnauthorizedPage = () => (
+  <motion.div
+    initial={{ opacity: 0, y: 8 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="flex min-h-[60vh] flex-col items-center justify-center gap-4 p-6 text-center"
+  >
+    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-50 text-rose-500 dark:bg-rose-500/10">
+      <ShieldAlert size={28} aria-hidden="true" />
+    </div>
+    <div>
+      <h1 className="text-lg font-bold text-slate-900 dark:text-white">Bu sayfaya yetkiniz yok</h1>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        Bu içeriği görüntülemek için gerekli yetkiye sahip değilsiniz.
+      </p>
+    </div>
+    <Link
+      to="/"
+      className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-primary/90"
+    >
+      Ana sayfaya dön
+    </Link>
+  </motion.div>
+);
+
 const ProtectedRoute = ({
   user,
   allow,
@@ -109,7 +137,7 @@ const ProtectedRoute = ({
   user: AuthenticatedPortalUser;
   allow: (u: AuthenticatedPortalUser) => boolean;
   children: React.ReactNode;
-}) => (allow(user) ? <>{children}</> : <Navigate to="/" replace />);
+}) => (allow(user) ? <>{children}</> : <UnauthorizedPage />);
 
 // --- Components ---
 const Sidebar = ({
@@ -124,9 +152,10 @@ const Sidebar = ({
   const location = useLocation();
   const { newCount: liveNewReports } = useReportLive();
   const { t } = useTranslation();
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   type MenuItem = { name: string; icon: typeof LayoutDashboard; path: string };
-  type MenuGroup = { title: string; items: MenuItem[] };
+  type MenuGroup = { title: string; items: MenuItem[]; collapsible?: boolean };
 
   const menuGroups: MenuGroup[] = isPlatformSuperAdmin(user)
     ? [
@@ -144,61 +173,136 @@ const Sidebar = ({
         }
       ]
     : (() => {
-        const overviewItems: MenuItem[] = [
-          { name: t('dashboard'), icon: LayoutDashboard, path: '/' }
-        ];
-        if (user.roles.includes('ROLE_ADMIN') && user.municipality) {
-          overviewItems.push({ name: t('pilot_success'), icon: TrendingUp, path: '/pilot' });
-          overviewItems.push({ name: t('executive_dashboard'), icon: Briefcase, path: '/executive' });
+        const canManagePr = user.roles.some((r) => ['ROLE_ADMIN', 'ROLE_DEPT_MANAGER'].includes(r));
+        const canManageOrg =
+          user.roles.some((r) => ['ROLE_ADMIN', 'ROLE_DEPT_MANAGER'].includes(r)) && Boolean(user.municipality);
+        const isMunicipalityAdmin = user.roles.includes('ROLE_ADMIN') && Boolean(user.municipality);
+        const isFieldOfficer = user.roles.includes('ROLE_FIELD_OFFICER');
+        const isWhiteDesk = user.roles.includes('ROLE_WHITE_DESK');
+        const canWhiteDesk =
+          user.roles.some((r) => ['ROLE_WHITE_DESK', 'ROLE_DEPT_MANAGER', 'ROLE_ADMIN'].includes(r)) &&
+          Boolean(user.municipality);
+
+        // FIELD_OFFICER: dashboard + reports + stats only
+        if (isFieldOfficer && !canManagePr && !isWhiteDesk) {
+          return [
+            {
+              title: t('overview_group'),
+              items: [
+                { name: t('dashboard'), icon: LayoutDashboard, path: '/' },
+                { name: t('reports'), icon: FileText, path: '/reports' },
+                { name: t('stats'), icon: PieChart, path: '/stats' },
+              ],
+            },
+          ];
         }
 
-        const trackingItems: MenuItem[] = [
+        // WHITE_DESK (without admin/dept manager)
+        if (isWhiteDesk && !canManagePr) {
+          const items: MenuItem[] = [
+            { name: t('dashboard'), icon: LayoutDashboard, path: '/' },
+            { name: t('reports'), icon: FileText, path: '/reports' },
+          ];
+          if (canWhiteDesk) {
+            items.push({ name: t('white_desk_entry'), icon: ClipboardPlus, path: '/reports/new-white-desk' });
+          }
+          items.push({ name: t('stats'), icon: PieChart, path: '/stats' });
+          return [{ title: t('overview_group'), items }];
+        }
+
+        // ROLE_ADMIN municipality — primary IA
+        if (isMunicipalityAdmin) {
+          const genelItems: MenuItem[] = [
+            { name: t('dashboard'), icon: LayoutDashboard, path: '/' },
+            { name: t('reports'), icon: FileText, path: '/reports' },
+          ];
+          if (canWhiteDesk) {
+            genelItems.push({ name: t('white_desk_entry'), icon: ClipboardPlus, path: '/reports/new-white-desk' });
+          }
+          genelItems.push({ name: t('stats'), icon: PieChart, path: '/stats' });
+
+          const groups: MenuGroup[] = [
+            { title: t('overview_group'), items: genelItems },
+            {
+              title: t('org_group'),
+              items: [
+                { name: t('staff'), icon: Users, path: '/staff' },
+                { name: t('departments'), icon: Building2, path: '/departments' },
+              ],
+            },
+            {
+              title: t('pr_group'),
+              items: [
+                { name: t('announcements'), icon: Megaphone, path: '/announcements' },
+                { name: t('events_outages'), icon: CalendarClock, path: '/events-outages' },
+                { name: t('surveys'), icon: BarChart3, path: '/surveys' },
+              ],
+            },
+            {
+              title: t('system_group'),
+              items: [
+                { name: t('municipality_settings'), icon: SettingsIcon, path: '/municipality-settings' },
+                { name: t('audit_logs'), icon: Shield, path: '/audit-logs' },
+              ],
+            },
+            {
+              title: t('advanced_group'),
+              collapsible: true,
+              items: [
+                { name: t('pilot_success'), icon: TrendingUp, path: '/pilot' },
+                { name: t('executive_dashboard'), icon: Briefcase, path: '/executive' },
+                { name: t('rewards'), icon: Gift, path: '/rewards' },
+                { name: t('scheduled_exports') || 'Planlı Dışa Aktarma', icon: Download, path: '/scheduled-exports' },
+                { name: t('pricing'), icon: Sparkles, path: '/pricing' },
+                { name: t('marketing_kit'), icon: Megaphone, path: '/marketing-kit' },
+              ],
+            },
+          ];
+          return groups;
+        }
+
+        // DEPT_MANAGER and other municipality staff
+        const genelItems: MenuItem[] = [
+          { name: t('dashboard'), icon: LayoutDashboard, path: '/' },
           { name: t('reports'), icon: FileText, path: '/reports' },
-          { name: t('stats'), icon: PieChart, path: '/stats' }
         ];
-        if (user.roles.some((r) => ['ROLE_WHITE_DESK', 'ROLE_DEPT_MANAGER', 'ROLE_ADMIN'].includes(r)) && user.municipality) {
-          trackingItems.splice(1, 0, { name: t('white_desk_entry'), icon: ClipboardPlus, path: '/reports/new-white-desk' });
+        if (canWhiteDesk) {
+          genelItems.push({ name: t('white_desk_entry'), icon: ClipboardPlus, path: '/reports/new-white-desk' });
         }
+        genelItems.push({ name: t('stats'), icon: PieChart, path: '/stats' });
 
-
-        const prItems: MenuItem[] = [
-          { name: t('announcements'), icon: Megaphone, path: '/announcements' },
-          { name: t('surveys'), icon: BarChart3, path: '/surveys' }
-        ];
-        if (user.roles.includes('ROLE_ADMIN') && user.municipality) {
-          prItems.push({ name: t('events_outages'), icon: CalendarClock, path: '/events-outages' });
-          prItems.push({ name: t('rewards'), icon: Gift, path: '/rewards' });
-          prItems.push({ name: t('marketing_kit'), icon: Package, path: '/marketing-kit' });
-          prItems.push({ name: t('scheduled_exports') || 'Planlı Dışa Aktarma', icon: Download, path: '/scheduled-exports' });
+        const groups: MenuGroup[] = [{ title: t('overview_group'), items: genelItems }];
+        if (canManagePr) {
+          groups.push({
+            title: t('pr_group'),
+            items: [
+              { name: t('announcements'), icon: Megaphone, path: '/announcements' },
+              { name: t('events_outages'), icon: CalendarClock, path: '/events-outages' },
+              { name: t('surveys'), icon: BarChart3, path: '/surveys' },
+            ],
+          });
         }
-
-        const orgItems: MenuItem[] = [
-          { name: t('staff'), icon: Users, path: '/staff' },
-          { name: t('departments'), icon: Building2, path: '/departments' }
-        ];
-
-        const systemItems: MenuItem[] = [];
-        if (user.roles.includes('ROLE_ADMIN') && user.municipality) {
-          systemItems.push({ name: t('municipality_settings'), icon: SettingsIcon, path: '/municipality-settings' });
-          systemItems.push({ name: t('pricing'), icon: Crown, path: '/pricing' });
+        if (canManageOrg) {
+          groups.push({
+            title: t('org_group'),
+            items: [
+              { name: t('staff'), icon: Users, path: '/staff' },
+              { name: t('departments'), icon: Building2, path: '/departments' },
+            ],
+          });
         }
-
-        if (user.roles.some((r) => ['ROLE_ADMIN', 'ROLE_SUPER_ADMIN'].includes(r))) {
-          systemItems.push({ name: t('audit_logs'), icon: Shield, path: '/audit-logs' });
-        }
-        if (user.roles.includes('ROLE_SUPER_ADMIN')) {
-          systemItems.push({ name: t('municipalities'), icon: MapPinned, path: '/admin/municipalities' });
-          systemItems.push({ name: t('onboarding'), icon: Sparkles, path: '/admin/onboarding' });
-        }
-
-        return [
-          { title: t('overview_group'), items: overviewItems },
-          { title: t('tracking_group'), items: trackingItems },
-          { title: t('pr_group'), items: prItems },
-          { title: t('org_group'), items: orgItems },
-          { title: t('system_group'), items: systemItems }
-        ];
+        return groups;
       })();
+
+  const advancedActive = menuGroups.some(
+    (g) =>
+      g.collapsible &&
+      g.items.some((item) => location.pathname === item.path || location.pathname.startsWith(`${item.path}/`)),
+  );
+
+  useEffect(() => {
+    if (advancedActive) setAdvancedOpen(true);
+  }, [advancedActive]);
 
   return (
     <aside className={`fixed inset-y-0 left-0 z-50 w-72 border-r border-slate-200/70 bg-white/95 shadow-[12px_0_40px_-30px_rgba(15,23,42,0.35)] backdrop-blur-xl transition-transform duration-200 dark:border-slate-800 dark:bg-slate-950/95 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
@@ -214,8 +318,8 @@ const Sidebar = ({
           </div>
         </div>
 
-        <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-5">
-          {menuGroups.map((group) => {
+        <nav className="flex flex-1 flex-col space-y-5 overflow-y-auto px-3 py-5">
+          {menuGroups.filter((g) => !g.collapsible).map((group) => {
             if (group.items.length === 0) return null;
             return (
               <div key={group.title} className="space-y-1">
@@ -229,13 +333,13 @@ const Sidebar = ({
                       : location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
                   return (
                     <Link
-                      key={item.name}
+                      key={item.path}
                       to={item.path}
                       onClick={() => setOpen(false)}
-                      className={`group relative flex min-h-10 items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition-all ${
+                      className={`group relative flex min-h-10 items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
                         isActive
                           ? 'bg-primary text-white shadow-md shadow-primary/15 dark:bg-primary dark:text-white'
-                          : 'text-slate-600 hover:translate-x-0.5 hover:bg-slate-100/80 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-white'
+                          : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-white'
                       }`}
                     >
                       <item.icon size={18} strokeWidth={isActive ? 2.25 : 2} />
@@ -251,6 +355,45 @@ const Sidebar = ({
               </div>
             );
           })}
+          {menuGroups
+            .filter((g) => g.collapsible)
+            .map((group) => {
+              if (group.items.length === 0) return null;
+              const isCollapsedAdvanced = !advancedOpen;
+              return (
+                <div key={group.title} className="mt-auto space-y-1 border-t border-slate-200/80 pt-4 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setAdvancedOpen((o) => !o)}
+                    className="flex w-full items-center justify-between rounded-lg px-3 py-1 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 transition hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+                    aria-expanded={advancedOpen}
+                  >
+                    <span>{group.title}</span>
+                    <ChevronDown size={14} className={`transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {!isCollapsedAdvanced &&
+                    group.items.map((item) => {
+                      const isActive =
+                        location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
+                      return (
+                        <Link
+                          key={item.path}
+                          to={item.path}
+                          onClick={() => setOpen(false)}
+                          className={`group relative flex min-h-10 items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
+                            isActive
+                              ? 'bg-primary text-white shadow-md shadow-primary/15 dark:bg-primary dark:text-white'
+                              : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-white'
+                          }`}
+                        >
+                          <item.icon size={18} strokeWidth={isActive ? 2.25 : 2} />
+                          <span className="flex-1">{item.name}</span>
+                        </Link>
+                      );
+                    })}
+                </div>
+              );
+            })}
         </nav>
 
         <div className="border-t border-slate-200/80 p-3 dark:border-slate-800">
@@ -270,6 +413,7 @@ const Sidebar = ({
               }}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-950/30 dark:hover:text-red-400 transition-colors"
               title={t('logout')}
+              aria-label={t('logout')}
             >
               <LogOut size={16} />
             </button>
@@ -287,6 +431,14 @@ interface SystemNotification {
   type: 'warning' | 'info' | 'danger';
   link?: string;
 }
+
+const userInitials = (fullName?: string | null): string => {
+  if (!fullName) return '?';
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+};
 
 const Header = ({
   user,
@@ -431,7 +583,7 @@ const Header = ({
           onChange={(e) => setLanguage(e.target.value as Language)}
           aria-label="Dil seçimi"
           title="Dil seçimi"
-          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 outline-none focus:ring-1 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 outline-none focus:ring-1 focus:ring-primary/20"
         >
           <option value="tr">TR</option>
           <option value="en">EN</option>
@@ -542,8 +694,10 @@ const Header = ({
 
         <div className="mx-1 hidden h-7 w-px bg-slate-200 sm:block dark:bg-slate-700" />
         <div className="hidden items-center gap-2 rounded-lg border border-transparent px-2 py-1 sm:flex dark:hover:border-slate-700">
-          <div className="h-8 w-8 shrink-0 rounded-lg bg-primary/15 ring-1 ring-primary/10 dark:bg-primary/25" />
-          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Yönetici</span>
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-xs font-bold text-primary ring-1 ring-primary/10 dark:bg-primary/25 dark:text-sky-200">
+            {userInitials(user?.fullName)}
+          </div>
+          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{portalRoleLabel(user)}</span>
         </div>
       </div>
     </header>
@@ -563,6 +717,28 @@ const MunicipalityDashboard = ({ user }: { user: AuthenticatedPortalUser }) => {
   const [insights, setInsights] = useState<PredictiveInsight[]>([]);
   const [exporting, setExporting] = useState<'excel' | 'pdf' | null>(null);
   const [mapReportId, setMapReportId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const fieldOnly = isFieldOfficerOnly(user);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(null), 5000);
+    return () => window.clearTimeout(t);
+  }, [toast]);
+
+  useEffect(() => {
+    if (!mapReportId) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMapReportId(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [mapReportId]);
 
   useEffect(() => {
     api
@@ -575,11 +751,13 @@ const MunicipalityDashboard = ({ user }: { user: AuthenticatedPortalUser }) => {
       .then((res) => setRecentReports(res.data.data?.content ?? []))
       .catch(() => {});
 
-    api
-      .get('/dashboard/predictive-insights')
-      .then((res) => setInsights(((res.data.data as PredictiveInsight[]) ?? []).slice(0, 3)))
-      .catch(() => setInsights([]));
-  }, []);
+    if (!fieldOnly) {
+      api
+        .get('/dashboard/predictive-insights')
+        .then((res) => setInsights(((res.data.data as PredictiveInsight[]) ?? []).slice(0, 3)))
+        .catch(() => setInsights([]));
+    }
+  }, [fieldOnly]);
 
   const handleExport = async (format: 'excel' | 'pdf') => {
     setExporting(format);
@@ -591,7 +769,7 @@ const MunicipalityDashboard = ({ user }: { user: AuthenticatedPortalUser }) => {
         `kentiva-raporlar-${new Date().toISOString().slice(0, 10)}.${format === 'excel' ? 'xlsx' : 'pdf'}`,
       );
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Dışa aktarma başarısız oldu.');
+      setToast({ type: 'error', message: e instanceof Error ? e.message : 'Dışa aktarma başarısız oldu.' });
     } finally {
       setExporting(null);
     }
@@ -607,218 +785,327 @@ const MunicipalityDashboard = ({ user }: { user: AuthenticatedPortalUser }) => {
 
   if (!stats) return <DashboardLoadingSkeleton />;
 
+  if (fieldOnly) {
+    const assignedOpen = (stats.pendingReports ?? 0) + (stats.processingReports ?? 0);
+    return (
+      <div className="mx-auto max-w-3xl space-y-6 p-4 sm:p-6 lg:p-8">
+        <div className="rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-sm sm:p-8 dark:border-slate-800 dark:bg-slate-900">
+          <p className="kentiva-eyebrow">Saha operasyonu</p>
+          <h2 className="mt-2 text-3xl font-black tracking-[-0.04em] text-slate-950 dark:text-white">Bana atananlar</h2>
+          <p className="mt-2 text-sm font-medium text-slate-500 dark:text-slate-400">
+            Bugün odaklanmanız gereken atanmış ihbarlar. Liste, size atanmış kayıtları gösterir.
+          </p>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-amber-200/80 bg-amber-50/60 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">Bekleyen / açık</p>
+              <p className="mt-1 text-3xl font-black tabular-nums text-slate-950 dark:text-white">{assignedOpen}</p>
+            </div>
+            <div className="rounded-2xl border border-sky-200/80 bg-sky-50/60 p-4 dark:border-sky-900/40 dark:bg-sky-950/20">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-sky-700 dark:text-sky-300">İşleniyor</p>
+              <p className="mt-1 text-3xl font-black tabular-nums text-slate-950 dark:text-white">{stats.processingReports}</p>
+            </div>
+          </div>
+          <Link
+            to="/reports"
+            className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-primary-hover sm:w-auto"
+          >
+            <UserCheck size={18} />
+            Atanmış ihbarları aç
+            <ArrowRight size={16} />
+          </Link>
+        </div>
+        {recentReports.length > 0 && (
+          <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <h3 className="mb-3 text-sm font-bold text-slate-900 dark:text-white">Son atananlar</h3>
+            <div className="space-y-2">
+              {recentReports.slice(0, 5).map((r) => (
+                <Link
+                  key={r.id}
+                  to={`/reports/${r.id}`}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 px-3 py-2.5 text-sm hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"
+                >
+                  <span className="truncate font-medium text-slate-900 dark:text-white">{r.title}</span>
+                  <span className={`kentiva-status-badge shrink-0 ${reportStatusBadgeClass(r.status)}`}>{reportStatusLabel(r.status)}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const workQueue = [
+    {
+      label: 'Bekleyen',
+      hint: 'Değerlendirme bekleyen',
+      value: stats.pendingReports,
+      to: '/reports?status=PENDING',
+      icon: Clock,
+      tone: 'border-amber-200/90 bg-amber-50 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100',
+    },
+    {
+      label: 'İşleniyor',
+      hint: 'Sahada devam eden',
+      value: stats.processingReports,
+      to: '/reports?status=PROCESSING',
+      icon: AlertCircle,
+      tone: 'border-sky-200/90 bg-sky-50 text-sky-900 dark:border-sky-900/50 dark:bg-sky-950/40 dark:text-sky-100',
+    },
+  ];
+
   const statCards = [
     {
-      name: 'Toplam Rapor',
+      name: 'Toplam',
       value: stats.totalReports,
       icon: FileText,
       iconWrap: 'bg-primary/10 text-primary ring-1 ring-primary/15',
+      to: '/reports',
     },
     {
       name: 'Bekleyen',
       value: stats.pendingReports,
       icon: Clock,
       iconWrap: 'bg-amber-50 text-amber-700 ring-1 ring-amber-600/15 dark:bg-amber-950/30 dark:text-amber-200',
+      to: '/reports?status=PENDING',
     },
     {
       name: 'İşleniyor',
       value: stats.processingReports,
       icon: AlertCircle,
       iconWrap: 'bg-sky-50 text-sky-700 ring-1 ring-sky-600/15 dark:bg-sky-950/40 dark:text-sky-200',
+      to: '/reports?status=PROCESSING',
     },
     {
       name: 'Çözülen',
       value: stats.resolvedReports,
       icon: CheckCircle2,
       iconWrap: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/15 dark:bg-emerald-950/30 dark:text-emerald-200',
+      to: '/reports?status=RESOLVED',
     },
     {
-      name: 'Reddedilen',
+      name: 'Red',
       value: stats.rejectedReports,
       icon: AlertCircle,
       iconWrap: 'bg-red-50 text-red-700 ring-1 ring-red-600/15 dark:bg-red-950/30 dark:text-red-200',
+      to: '/reports?status=REJECTED',
     },
     {
-      name: 'Vatandaş Memnuniyeti',
-      value: stats.averageSatisfaction != null ? `${Number(stats.averageSatisfaction).toFixed(1)} / 5.0` : '—',
+      name: 'Memnuniyet',
+      value: stats.averageSatisfaction != null ? `${Number(stats.averageSatisfaction).toFixed(1)}` : '—',
       icon: Sparkles,
       iconWrap: 'bg-violet-50 text-violet-700 ring-1 ring-violet-600/15 dark:bg-violet-950/30 dark:text-violet-200',
+      to: undefined as string | undefined,
     },
   ];
 
   return (
-    <div className="mx-auto max-w-[1600px] space-y-7 p-4 sm:p-6 lg:p-8">
-      <div className="relative overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-[0_24px_70px_-40px_rgba(15,23,42,0.4)] sm:p-8 dark:border-slate-800 dark:bg-slate-900">
-        <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-primary/8 blur-3xl" />
-        <div className="relative flex flex-col justify-between gap-5 md:flex-row md:items-end">
-        <div>
-          <p className="kentiva-eyebrow">Operasyon merkezi</p>
-          <h2 className="mt-2 text-3xl font-black tracking-[-0.04em] text-slate-950 sm:text-4xl dark:text-white">Hoş geldiniz</h2>
-          <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-slate-500 dark:text-slate-400">Kent genelindeki talepleri, saha operasyonlarını ve hizmet performansını tek merkezden yönetin.</p>
+    <>
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
+    <div className="mx-auto max-w-[1600px] space-y-5 p-4 sm:p-6 lg:p-8">
+      {/* Compact ops bar */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <p className="kentiva-eyebrow">Operasyon haritası</p>
+          <h2 className="mt-1 text-2xl font-black tracking-[-0.04em] text-slate-950 sm:text-3xl dark:text-white">
+            Bugün
+          </h2>
+          <p className="mt-1 max-w-xl text-sm font-medium text-slate-500 dark:text-slate-400">
+            Haritadan ihbar seçin; kuyruk ve son kayıtlar yanında hazır.
+          </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {workQueue.map((row) => (
+            <Link
+              key={row.label}
+              to={row.to}
+              className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-3.5 py-2 shadow-sm transition hover:-translate-y-px ${row.tone}`}
+            >
+              <row.icon size={16} />
+              <span className="text-xs font-bold uppercase tracking-wide">{row.label}</span>
+              <span className="text-lg font-black tabular-nums">{row.value}</span>
+            </Link>
+          ))}
           <button
             type="button"
             onClick={() => handleExport('excel')}
             disabled={exporting !== null}
-            className="kentiva-btn-secondary"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
           >
-            <Download size={17} />
-            {exporting === 'excel' ? 'İndiriliyor…' : 'Excel'}
+            <Download size={14} />
+            {exporting === 'excel' ? '…' : 'Excel'}
           </button>
           <button
             type="button"
             onClick={() => handleExport('pdf')}
             disabled={exporting !== null}
-            className="kentiva-btn-secondary"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
           >
-            <Download size={17} />
-            {exporting === 'pdf' ? 'İndiriliyor…' : 'PDF'}
+            <Download size={14} />
+            {exporting === 'pdf' ? '…' : 'PDF'}
           </button>
         </div>
-        </div>
       </div>
 
-      {insights.length > 0 && (
-        <section className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="mb-4 flex items-center gap-2">
-            <TrendingUp size={18} className="text-primary" />
-            <h3 className="text-base font-bold text-slate-900 dark:text-white">Tahminsel uyarılar</h3>
-            <Sparkles size={16} className="text-sky-500" />
-          </div>
-          <div className="grid gap-3 md:grid-cols-3">
-            {insights.map((item, idx) => (
-              <div
-                key={`${item.categoryName}-${item.district}-${idx}`}
-                className={`rounded-xl border p-4 ${
-                  item.riskLevel === 'HIGH'
-                    ? 'border-red-200/80 bg-red-50/80 dark:border-red-900/50 dark:bg-red-950/30'
-                    : item.riskLevel === 'MEDIUM'
-                      ? 'border-amber-200/80 bg-amber-50/80 dark:border-amber-900/50 dark:bg-amber-950/30'
-                      : 'border-slate-200/80 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-800/40'
-                }`}
-              >
-                <p className="font-bold text-slate-900 dark:text-white">{item.categoryName}</p>
-                <p className="text-xs text-slate-500">{item.district || 'Genel'}</p>
-                <p className="mt-2 flex gap-2 text-xs text-slate-600 dark:text-slate-400">
-                  <span>Açık: {item.openCount}</span>
-                  <span>Trend: ×{item.trendRatio}</span>
-                </p>
-                <p className="mt-2 flex gap-2 text-sm text-slate-700 dark:text-slate-300">
-                  <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-600" />
-                  <span className="line-clamp-3">{item.recommendation}</span>
-                </p>
+      {/* Map-first stage */}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12 xl:gap-5">
+        <div className="xl:col-span-9">
+          <div className="overflow-hidden rounded-[1.75rem] border border-slate-200/90 bg-white shadow-[0_24px_70px_-42px_rgba(15,23,42,0.45)] dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 dark:border-slate-800 sm:px-5">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Canlı harita</h3>
+                <p className="text-[11px] font-medium text-slate-500">İşaretçiye tıklayınca detay açılır</p>
               </div>
-            ))}
-          </div>
-          <Link to="/stats" className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline">
-            Tüm analizler <ArrowRight size={12} />
-          </Link>
-        </section>
-      )}
-
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {statCards.map((stat) => (
-          <div
-            key={stat.name}
-            className="group relative flex min-h-24 items-center gap-3 overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900 dark:hover:border-primary/25"
-          >
-            <div
-              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${stat.iconWrap}`}
-            >
-              <stat.icon size={18} strokeWidth={2.2} />
+              <Link to="/reports" className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline">
+                Liste <ArrowRight size={12} />
+              </Link>
             </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">{stat.name}</p>
-              <p className="mt-1 text-2xl font-black leading-none tabular-nums tracking-tight text-slate-950 dark:text-white">{stat.value}</p>
+            <div className="p-2 sm:p-3">
+              <Suspense fallback={<MapFallback />}>
+                <LiveMap
+                  className="h-[min(72vh,820px)] min-h-[420px]"
+                  centerLat={user.municipality?.centerLat}
+                  centerLng={user.municipality?.centerLng}
+                  zoom={user.municipality?.defaultZoom}
+                  municipalityId={user.municipality?.id}
+                  pauseRecenter={Boolean(mapReportId)}
+                  onOpenReport={(id) => setMapReportId(id)}
+                />
+              </Suspense>
             </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
-          <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
-            <div className="mb-6 flex flex-wrap items-end justify-between gap-2 border-b border-slate-100 pb-4 dark:border-slate-800">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Canlı harita</h3>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Isı katmanı · işaretçi
-              </span>
-            </div>
-            <Suspense fallback={<MapFallback />}>
-              <LiveMap
-                centerLat={user.municipality?.centerLat}
-                centerLng={user.municipality?.centerLng}
-                zoom={user.municipality?.defaultZoom}
-                municipalityId={user.municipality?.id}
-                onOpenReport={(id) => setMapReportId(id)}
-              />
-            </Suspense>
           </div>
         </div>
 
-        {/* Son Raporlar widget */}
-        <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <h3 className="mb-4 text-base font-bold text-slate-900 dark:text-white">Son Bildiriler</h3>
-          {recentReports.length === 0 ? (
-            <p className="text-sm text-slate-500">Henüz bildirim yok.</p>
-          ) : (
-            <div className="space-y-3">
-              {recentReports.map((r) => (
-                <a
-                  key={r.id}
-                  href={`/reports/${r.id}`}
-                  className="flex items-start gap-3 rounded-xl border border-slate-100 p-3 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"
-                >
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary dark:bg-primary/25 dark:text-sky-300">
-                    <FileText size={14} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-slate-900 dark:text-white">{r.title}</p>
-                    <div className="mt-1 flex items-center gap-2">
-                      <span className={`kentiva-status-badge ${reportStatusBadgeClass(r.status)}`}>{reportStatusLabel(r.status)}</span>
-                      <span className="text-[10px] text-slate-400">{r.createdAt ? new Date(r.createdAt).toLocaleDateString('tr-TR') : ''}</span>
+        <aside className="flex flex-col gap-4 xl:col-span-3">
+          <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Son bildiriler</h3>
+              <Link to="/reports" className="text-[11px] font-bold text-primary hover:underline">
+                Tümü
+              </Link>
+            </div>
+            {recentReports.length === 0 ? (
+              <p className="text-sm text-slate-500">Henüz bildirim yok.</p>
+            ) : (
+              <div className="space-y-2">
+                {recentReports.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => setMapReportId(r.id)}
+                    className="flex w-full items-start gap-3 rounded-xl border border-slate-100 p-3 text-left transition-colors hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary dark:bg-primary/25 dark:text-sky-300">
+                      <FileText size={14} />
                     </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-slate-900 dark:text-white">{r.title}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <span className={`kentiva-status-badge ${reportStatusBadgeClass(r.status)}`}>
+                          {reportStatusLabel(r.status)}
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          {r.createdAt ? new Date(r.createdAt).toLocaleDateString('tr-TR') : ''}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {insights.length > 0 && (
+            <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+              <div className="mb-3 flex items-center gap-2">
+                <TrendingUp size={16} className="text-primary" />
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Uyarılar</h3>
+              </div>
+              <div className="space-y-2">
+                {insights.slice(0, 2).map((item, idx) => (
+                  <div
+                    key={`${item.categoryName}-${item.district}-${idx}`}
+                    className={`rounded-xl border p-3 ${
+                      item.riskLevel === 'HIGH'
+                        ? 'border-red-200/80 bg-red-50/80 dark:border-red-900/50 dark:bg-red-950/30'
+                        : 'border-amber-200/80 bg-amber-50/80 dark:border-amber-900/50 dark:bg-amber-950/30'
+                    }`}
+                  >
+                    <p className="text-xs font-bold text-slate-900 dark:text-white">{item.categoryName}</p>
+                    <p className="mt-1 line-clamp-2 text-[11px] text-slate-600 dark:text-slate-400">{item.recommendation}</p>
                   </div>
-                </a>
-              ))}
+                ))}
+              </div>
+              <Link to="/stats" className="mt-3 inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline">
+                Analizler <ArrowRight size={11} />
+              </Link>
             </div>
           )}
-          <a href="/reports" className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline">
-            Tümünü gör <ArrowRight size={12} />
-          </a>
-        </div>
+        </aside>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
+        {statCards.map((stat) => {
+          const cardClassName =
+            'group relative flex min-h-[4.5rem] items-center gap-2.5 overflow-hidden rounded-2xl border border-slate-200/80 bg-white px-3 py-3 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-md dark:border-slate-800 dark:bg-slate-900';
+          const content = (
+            <>
+              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${stat.iconWrap}`}>
+                <stat.icon size={16} strokeWidth={2.2} />
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  {stat.name}
+                </p>
+                <p className="mt-0.5 text-xl font-black leading-none tabular-nums tracking-tight text-slate-950 dark:text-white">
+                  {stat.value}
+                </p>
+              </div>
+            </>
+          );
+          if (stat.to) {
+            return (
+              <Link key={stat.name} to={stat.to} className={cardClassName} aria-label={`${stat.name} raporlarını görüntüle`}>
+                {content}
+              </Link>
+            );
+          }
+          return (
+            <div key={stat.name} className={cardClassName}>
+              {content}
+            </div>
+          );
+        })}
       </div>
 
       <AnimatePresence>
         {mapReportId && (
-          <div className="fixed inset-0 z-[2000] flex justify-end">
-            {/* Backdrop */}
+          <div className="fixed inset-0 z-[2000] flex justify-end overflow-hidden">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: 0.15 }}
               onClick={() => setMapReportId(null)}
-              className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs cursor-pointer"
+              className="absolute inset-0 bg-slate-950/45 backdrop-blur-[2px] cursor-pointer"
             />
-            {/* Drawer Panel */}
             <motion.div
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-              className="relative flex h-full w-full max-w-3xl flex-col overflow-hidden bg-slate-50 shadow-2xl dark:bg-slate-950 border-l border-slate-200 dark:border-slate-800"
+              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+              className="relative flex h-full w-full max-w-3xl flex-col overflow-hidden border-l border-slate-200 bg-slate-50 shadow-2xl dark:border-slate-800 dark:bg-slate-950"
+              onClick={(e) => e.stopPropagation()}
             >
               <button
                 type="button"
                 onClick={() => setMapReportId(null)}
-                className="absolute right-4 top-4 z-10 rounded-lg border border-slate-200 bg-white p-2 text-slate-600 shadow-sm hover:bg-slate-50 transition-colors dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                className="absolute right-4 top-4 z-20 rounded-lg border border-slate-200 bg-white p-2 text-slate-600 shadow-sm hover:bg-slate-50 transition-colors dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
                 aria-label="Kapat"
               >
                 <X className="h-4 w-4" />
               </button>
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto overscroll-contain">
                 <Suspense fallback={<div className="p-6 text-slate-500">Yükleniyor...</div>}>
                   <ReportDetailPage
                     reportId={mapReportId}
@@ -832,6 +1119,7 @@ const MunicipalityDashboard = ({ user }: { user: AuthenticatedPortalUser }) => {
         )}
       </AnimatePresence>
     </div>
+    </>
   );
 };
 
@@ -847,7 +1135,6 @@ const App = () => {
   const [user, setUser] = useState<AuthenticatedPortalUser | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(() => Boolean(localStorage.getItem('token')));
-  const [darkMode] = useState(() => localStorage.getItem('kentiva_theme') === 'dark');
   const hostPortal = typeof window !== 'undefined' ? portalForHostname(window.location.hostname) : null;
   const loginRedirectPath = loginPathForCurrentHost();
 
@@ -863,21 +1150,15 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    const root = document.documentElement;
-    if (darkMode) {
-      root.classList.add('dark');
-      localStorage.setItem('kentiva_theme', 'dark');
-    } else {
-      root.classList.remove('dark');
-      localStorage.setItem('kentiva_theme', 'light');
-    }
-  }, [darkMode]);
+    document.documentElement.classList.remove('dark');
+    localStorage.setItem('kentiva_theme', 'light');
+  }, []);
 
-  if (loading) return <div className="flex h-screen items-center justify-center bg-slate-100 text-sm font-medium text-slate-500 dark:bg-slate-950 dark:text-slate-400">Yükleniyor…</div>;
+  if (loading) return <div className="flex h-screen items-center justify-center bg-slate-100 text-sm font-medium text-slate-500">Yükleniyor…</div>;
 
   return (
     <LanguageProvider>
-    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <Router>
         <ErrorBoundary>
         <Routes>
         <Route
@@ -912,7 +1193,7 @@ const App = () => {
         <Route path="/*" element={
           !user ? <Navigate to={loginRedirectPath} replace /> : (
             <ReportLiveProvider municipalityId={user.municipality?.id}>
-            <div className="kentiva-app-shell flex min-h-screen bg-slate-100 dark:bg-slate-950">
+            <div className="kentiva-app-shell flex min-h-screen bg-slate-100">
               <Sidebar isOpen={sidebarOpen} setOpen={setSidebarOpen} user={user} />
               
               <div className="flex flex-1 flex-col lg:ml-72">
@@ -975,8 +1256,34 @@ const App = () => {
                         </ProtectedRoute>
                       }
                     />
-                    <Route path="/staff" element={<UsersPage />} />
-                    <Route path="/departments" element={<DepartmentsPage />} />
+                    <Route
+                      path="/staff"
+                      element={
+                        <ProtectedRoute
+                          user={user}
+                          allow={(u) =>
+                            u.roles.some((r) => ['ROLE_ADMIN', 'ROLE_DEPT_MANAGER', 'ROLE_SUPER_ADMIN'].includes(r)) &&
+                            (u.roles.includes('ROLE_SUPER_ADMIN') || Boolean(u.municipality))
+                          }
+                        >
+                          <UsersPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/departments"
+                      element={
+                        <ProtectedRoute
+                          user={user}
+                          allow={(u) =>
+                            u.roles.some((r) => ['ROLE_ADMIN', 'ROLE_DEPT_MANAGER', 'ROLE_SUPER_ADMIN'].includes(r)) &&
+                            (u.roles.includes('ROLE_SUPER_ADMIN') || Boolean(u.municipality))
+                          }
+                        >
+                          <DepartmentsPage />
+                        </ProtectedRoute>
+                      }
+                    />
                     <Route
                       path="/municipality-settings"
                       element={

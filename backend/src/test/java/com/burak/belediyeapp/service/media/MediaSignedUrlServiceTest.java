@@ -60,6 +60,25 @@ class MediaSignedUrlServiceTest {
     }
 
     @Test
+    void persistableStoragePathAcceptsExpiredButValidSignedAccessUrl() {
+        ReflectionTestUtils.setField(service, "expirationMinutes", 0L);
+        String signed = service.signForClient("branding/muni/logo.png");
+        // Token expiresAt == now; küçük gecikme ile süre dolmuş sayılır
+        try {
+            Thread.sleep(1100);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        String token = signed.substring(signed.indexOf("token=") + "token=".length());
+        assertThatThrownBy(() -> service.verifyAndExtractPath(token))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", "MEDIA_TOKEN_EXPIRED");
+
+        String key = service.persistableStoragePath(signed);
+        assertThat(key).isEqualTo("branding/muni/logo.png");
+    }
+
+    @Test
     void guessContentTypeForJpeg() {
         assertThat(service.guessContentType("reports/a.jpeg")).isEqualTo("image/jpeg");
     }

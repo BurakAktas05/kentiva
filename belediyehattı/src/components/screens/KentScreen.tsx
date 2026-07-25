@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { MapPin, ChevronRight, Gift } from 'lucide-react';
-import { fetchPublicStatsOverview, type PublicDepartment, type PublicStatsOverview, type PublicTenant } from '../../api';
+import { ChevronLeft, MapPin } from 'lucide-react';
+import { type PublicDepartment, type PublicTenant } from '../../api';
 import { Lang, t } from '../../i18n';
 import { screenHeadingClass, screenSubtitleClass } from '../../lib/ui';
 import { PharmacyWidgetCard } from '../home/HomeWidgets';
@@ -13,25 +12,32 @@ interface KentScreenProps {
   department?: PublicDepartment | null;
   lang: Lang;
   isDark: boolean;
+  onBack?: () => void;
   onSelectMunicipality?: () => void;
-  onOpenRewards?: () => void;
+  titleOverride?: string;
+  subtitleOverride?: string;
 }
 
-export default function KentScreen({ municipality, department, lang, isDark, onSelectMunicipality, onOpenRewards }: KentScreenProps) {
-  const [publicOverview, setPublicOverview] = useState<PublicStatsOverview | null>(null);
-  const cardStyle = isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200/80 bg-white';
-
-  useEffect(() => {
-    fetchPublicStatsOverview()
-      .then(setPublicOverview)
-      .catch(() => setPublicOverview(null));
-  }, []);
-
+export default function KentScreen({
+  municipality,
+  department,
+  lang,
+  isDark,
+  onBack,
+  onSelectMunicipality,
+  titleOverride,
+  subtitleOverride,
+}: KentScreenProps) {
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pb-6">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pb-4">
       <div className="px-5 pt-4 pb-2">
-        <h2 className={screenHeadingClass(isDark)}>{t('tab.kent', lang)}</h2>
-        <p className={`mt-0.5 ${screenSubtitleClass()}`}>{t('kent.subtitle', lang)}</p>
+        {onBack && (
+          <button type="button" onClick={onBack} aria-label={t('settings.back', lang)} className="-ml-2 mb-1 p-2 text-slate-500 dark:text-slate-400">
+            <ChevronLeft className="h-6 w-6" />
+          </button>
+        )}
+        <h2 className={screenHeadingClass(isDark)}>{titleOverride || t('tab.kent', lang)}</h2>
+        <p className={`mt-0.5 ${screenSubtitleClass()}`}>{subtitleOverride || t('kent.subtitle', lang)}</p>
         {municipality && (
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <p className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
@@ -70,65 +76,7 @@ export default function KentScreen({ municipality, department, lang, isDark, onS
       ) : (
         <div className="space-y-4 px-4">
           <PharmacyWidgetCard tenant={municipality} lang={lang} isDark={isDark} />
-
-
-
-          {/* Ödüller Kartı */}
-          {onOpenRewards && (
-            <section 
-              onClick={onOpenRewards}
-              className={`rounded-2xl border shadow-sm p-4 cursor-pointer transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-between ${
-                isDark
-                  ? 'border-slate-800 bg-slate-900/60 hover:bg-slate-900'
-                  : 'border-slate-200/80 bg-white hover:bg-slate-50/50'
-              }`}
-            >
-              <div className="flex items-center gap-3.5 min-w-0">
-                <div 
-                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
-                    isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-500/15 text-amber-600'
-                  }`}
-                >
-                  <Gift className="h-6 w-6" strokeWidth={1.5} />
-                </div>
-                <div className="min-w-0">
-                  <h3 className={`truncate text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-800'}`}>
-                    {t('kent.rewards.cardTitle', lang)}
-                  </h3>
-                  <p className={`mt-0.5 text-xs truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    {t('kent.rewards.cardDesc', lang)}
-                  </p>
-                </div>
-              </div>
-              <ChevronRight className={`w-5 h-5 shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
-            </section>
-          )}
-
-          {/* Belediye İletişim Kartı */}
           <MunicipalitySupportCard municipality={municipality} lang={lang} isDark={isDark} />
-
-        </div>
-      )}
-
-      {publicOverview && (
-        <div className="mt-4 px-4">
-          <p className="mb-2 text-xs font-medium text-slate-500">{t('home.public.eyebrow', lang)}</p>
-          <div className="grid grid-cols-3 gap-2">
-            <div className={`rounded-xl border px-3 py-2.5 ${cardStyle}`}>
-              <p className="text-[10px] text-slate-500">{t('home.public.total', lang)}</p>
-              <p className="text-sm font-bold tabular-nums text-slate-800 dark:text-white">
-                {publicOverview.totalReports}
-              </p>
-            </div>
-            <div className={`rounded-xl border px-3 py-2.5 ${cardStyle}`}>
-              <p className="text-[10px] text-slate-500">{t('home.public.resolved', lang)}</p>
-              <p className="text-sm font-bold tabular-nums text-emerald-600">{publicOverview.resolvedReports}</p>
-            </div>
-            <div className={`rounded-xl border px-3 py-2.5 ${cardStyle}`}>
-              <p className="text-[10px] text-slate-500">{t('home.public.rate', lang)}</p>
-              <p className="text-sm font-bold tabular-nums text-primary">%{publicOverview.resolutionRatePercent}</p>
-            </div>
-          </div>
         </div>
       )}
 

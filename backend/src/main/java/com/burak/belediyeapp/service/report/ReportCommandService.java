@@ -259,7 +259,7 @@ public class ReportCommandService {
     }
 
     @Transactional
-    @PreAuthorize("hasAnyAuthority('ROLE_WHITE_DESK','ROLE_DEPT_MANAGER','ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_DEPT_MANAGER','ROLE_ADMIN')")
     @CacheEvict(value = CacheNames.DASHBOARD_STATS, allEntries = true)
     public ReportResponse assignReport(String reportId, AssignReportRequest request, AppUser assignedBy) {
         Report report = reportSupport.findReportOrThrow(reportId);
@@ -333,7 +333,7 @@ public class ReportCommandService {
      * tek bir başarısızlık tüm grubu rollback'e SÜRÜKLEMEZ ve uzun txn'ler DB connection'larını
      * tutmaz (audit gereğince hata satır bazlı raporlanır).
      */
-    @PreAuthorize("hasAnyAuthority('ROLE_WHITE_DESK','ROLE_DEPT_MANAGER','ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_DEPT_MANAGER','ROLE_ADMIN')")
     public BulkReportOperationResult bulkAssignReports(BulkAssignReportsRequest request, AppUser assignedBy) {
         List<String> ids = ReportSupport.distinctIds(request.reportIds());
         List<BulkReportOperationResult.BulkReportFailure> failures = new ArrayList<>();
@@ -375,7 +375,9 @@ public class ReportCommandService {
      */
     @PreAuthorize("hasAnyAuthority('ROLE_FIELD_OFFICER','ROLE_DEPT_MANAGER','ROLE_ADMIN')")
     public void performAiAnalysis(String reportId, ReportStatus status, AppUser currentUser) {
-        log.info("AI analizi devre dışı bırakıldı: reportId={}", reportId);
+        // self üzerinden çağırarak @Transactional proxy'sini garanti altına alırız.
+        AiContext ctx = self.loadReportWithTenantCheck(reportId, currentUser);
+        applyAiAnalysisOutsideTx(reportId, ctx, status);
     }
 
     /**
@@ -384,7 +386,8 @@ public class ReportCommandService {
      * yine de raporun belediye kapsamına bağlanır.
      */
     public void performAiAnalysisAsSystem(String reportId) {
-        log.info("Sistem AI analizi devre dışı bırakıldı: reportId={}", reportId);
+        AiContext ctx = self.loadReportForSystemAi(reportId);
+        applyAiAnalysisOutsideTx(reportId, ctx, null);
     }
 
     /**

@@ -14,9 +14,12 @@ import {
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from 'recharts';
 import api, { type Stats } from '../api';
+import ErrorState from '../components/ui/ErrorState';
+import Button from '../components/ui/Button';
+import ToastComponent, { type ToastState } from '../components/ui/Toast';
 
 /* ───── Types ───── */
-type TimeRange = '24h' | '7d' | '30d';
+type TimeRange = '7d' | '30d';
 
 type PilotSummary = {
   citizenUsers: number;
@@ -35,8 +38,6 @@ type PilotSummary = {
   trialTotalDays?: number | null;
 };
 
-type Toast = { type: 'success' | 'error'; message: string } | null;
-
 const numberFormat = new Intl.NumberFormat('tr-TR');
 function fmt(n: number) {
   return numberFormat.format(n ?? 0);
@@ -48,11 +49,13 @@ export default function ExecutiveDashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [pilot, setPilot] = useState<PilotSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState<TimeRange>('7d');
-  const [toast, setToast] = useState<Toast>(null);
+  const [toast, setToast] = useState<ToastState>(null);
 
   const load = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const [statsRes, pilotRes] = await Promise.allSettled([
         api.get('/dashboard/stats'),
@@ -60,8 +63,11 @@ export default function ExecutiveDashboardPage() {
       ]);
       if (statsRes.status === 'fulfilled') setStats(statsRes.value.data.data);
       if (pilotRes.status === 'fulfilled') setPilot(pilotRes.value.data.data);
+      if (statsRes.status === 'rejected' && pilotRes.status === 'rejected') {
+        setLoadError('Yönetici özeti yüklenemedi. Lütfen tekrar deneyin.');
+      }
     } catch {
-      // silent
+      setLoadError('Yönetici özeti yüklenemedi. Lütfen tekrar deneyin.');
     } finally {
       setLoading(false);
     }
@@ -80,6 +86,10 @@ export default function ExecutiveDashboardPage() {
   /* ───── Derived KPIs ───── */
   const kpis = useMemo(() => {
     if (!stats && !pilot) return null;
+    const periodReports =
+      timeRange === '30d'
+        ? (pilot?.reportsLast30Days ?? stats?.totalReports ?? 0)
+        : (pilot?.reportsLast7Days ?? stats?.totalReports ?? 0);
     return {
       totalReports: stats?.totalReports ?? pilot?.totalReports ?? 0,
       openReports: (stats?.pendingReports ?? 0) + (stats?.processingReports ?? 0),
@@ -92,8 +102,10 @@ export default function ExecutiveDashboardPage() {
       satisfaction: stats?.averageSatisfaction ?? null,
       reportsLast7Days: pilot?.reportsLast7Days ?? 0,
       reportsLast30Days: pilot?.reportsLast30Days ?? 0,
+      periodReports,
+      periodLabel: timeRange === '30d' ? 'Son 30 gün' : 'Son 7 gün',
     };
-  }, [stats, pilot]);
+  }, [stats, pilot, timeRange]);
 
   /* ───── Category chart data ───── */
   const categoryData = useMemo(() => {
@@ -109,20 +121,20 @@ export default function ExecutiveDashboardPage() {
     if (!kpis || !pilot) return '';
     const municipalityName = pilot.municipalityName || 'Belediye';
     const lines = [
-      `📊 ${municipalityName} — Kentiva Özet Rapor`,
-      `📅 ${new Date().toLocaleDateString('tr-TR')}`,
+      `${municipalityName} — Kentiva Özet Rapor`,
+      `${new Date().toLocaleDateString('tr-TR')}`,
       '',
-      `👥 Vatandaş kullanıcısı: ${fmt(kpis.citizenUsers)}`,
-      `📋 Toplam ihbar: ${fmt(kpis.totalReports)}`,
-      `⏳ Açık iş yükü: ${fmt(kpis.openReports)}`,
-      `✅ Çözülen: ${fmt(kpis.resolvedReports)}`,
-      `📈 Çözüm oranı: %${kpis.resolutionRate}`,
+      `Vatandaş kullanıcısı: ${fmt(kpis.citizenUsers)}`,
+      `Toplam ihbar: ${fmt(kpis.totalReports)}`,
+      `Açık iş yükü: ${fmt(kpis.openReports)}`,
+      `Çözülen: ${fmt(kpis.resolvedReports)}`,
+      `Çözüm oranı: %${kpis.resolutionRate}`,
     ];
     if (kpis.avgResolutionHours != null) {
-      lines.push(`⏱️ Ort. çözüm süresi: ${kpis.avgResolutionHours} saat`);
+      lines.push(`Ort. çözüm süresi: ${kpis.avgResolutionHours} saat`);
     }
     if (kpis.satisfaction != null) {
-      lines.push(`⭐ Memnuniyet: ${Number(kpis.satisfaction).toFixed(1)} / 5.0`);
+      lines.push(`Memnuniyet: ${Number(kpis.satisfaction).toFixed(1)} / 5.0`);
     }
     lines.push('', `Son 7 gün: ${fmt(kpis.reportsLast7Days)} ihbar`);
     lines.push(`Son 30 gün: ${fmt(kpis.reportsLast30Days)} ihbar`);
@@ -150,29 +162,24 @@ export default function ExecutiveDashboardPage() {
     );
   }
 
-  if (!kpis) {
+  if (loadError || !kpis) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center p-6 text-sm font-semibold text-slate-500 dark:text-slate-400">
-        Veriler yüklenemedi. Lütfen sayfayı yenileyin.
+      <div className="flex min-h-[50vh] items-center justify-center p-6">
+        <ErrorState
+          message={loadError || 'Veriler yüklenemedi. Lütfen tekrar deneyin.'}
+          action={
+            <Button variant="secondary" onClick={() => void load()}>
+              Tekrar dene
+            </Button>
+          }
+        />
       </div>
     );
   }
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
-      {/* Toast */}
-      {toast && (
-        <div
-          role="status"
-          className={`fixed right-4 top-20 z-50 rounded-xl border px-4 py-3 text-sm font-bold shadow-lg ${
-            toast.type === 'success'
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-100'
-              : 'border-red-200 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100'
-          }`}
-        >
-          {toast.message}
-        </div>
-      )}
+      <ToastComponent toast={toast} onDismiss={() => setToast(null)} />
 
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -205,25 +212,32 @@ export default function ExecutiveDashboardPage() {
         </div>
       </div>
 
-      {/* Time range selector */}
-      <div className="flex gap-1 rounded-2xl border border-slate-200/90 bg-white p-1.5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        {(['24h', '7d', '30d'] as TimeRange[]).map((range) => {
-          const labels: Record<TimeRange, string> = { '24h': 'Son 24 Saat', '7d': 'Son 7 Gün', '30d': 'Son 30 Gün' };
-          return (
-            <button
-              key={range}
-              type="button"
-              onClick={() => setTimeRange(range)}
-              className={`flex-1 rounded-xl py-2.5 text-xs font-bold transition-all ${
-                timeRange === range
-                  ? 'bg-primary text-white shadow-md'
-                  : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800'
-              }`}
-            >
-              {labels[range]}
-            </button>
-          );
-        })}
+      {/* Time range selector — dönemsel ihbar sayısı pilot özetinden gelir */}
+      <div className="space-y-2">
+        <div className="flex gap-1 rounded-2xl border border-slate-200/90 bg-white p-1.5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          {(['7d', '30d'] as TimeRange[]).map((range) => {
+            const labels: Record<TimeRange, string> = { '7d': 'Son 7 Gün', '30d': 'Son 30 Gün' };
+            return (
+              <button
+                key={range}
+                type="button"
+                onClick={() => setTimeRange(range)}
+                className={`flex-1 rounded-xl py-2.5 text-xs font-bold transition-all ${
+                  timeRange === range
+                    ? 'bg-primary text-white shadow-md'
+                    : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800'
+                }`}
+              >
+                {labels[range]}
+              </button>
+            );
+          })}
+        </div>
+        {kpis && (
+          <p className="px-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
+            {kpis.periodLabel}: {fmt(kpis.periodReports)} ihbar · diğer KPI’lar tüm dönem özetidir
+          </p>
+        )}
       </div>
 
       {/* KPI Cards — 2x3 grid, large numbers */}
@@ -264,7 +278,7 @@ export default function ExecutiveDashboardPage() {
           label="Ort. Çözüm Süresi"
           value={kpis.avgResolutionHours != null ? `${kpis.avgResolutionHours}s` : '—'}
           color="bg-rose-50 text-rose-700 ring-rose-600/15 dark:bg-rose-950/40 dark:text-rose-200"
-          sub={kpis.satisfaction != null ? `⭐ ${Number(kpis.satisfaction).toFixed(1)}` : undefined}
+          sub={kpis.satisfaction != null ? `${Number(kpis.satisfaction).toFixed(1)}` : undefined}
         />
       </div>
 

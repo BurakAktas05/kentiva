@@ -45,12 +45,46 @@ import {
 import { kentivaCard, kentivaInputClass, primaryBtnClass, segmentBarClass, segmentBtnClass } from '../../lib/ui';
 import type { CommunitySegment } from './CommunityScreen';
 import { storageService } from '../../lib/storageService';
+import ConfirmDialog from '../ui/ConfirmDialog';
+
+function isMaskedContactPhone(phone: string | null | undefined): boolean {
+  return Boolean(phone && phone.trim().startsWith('***'));
+}
+
+function ContactPhoneAction({
+  phone,
+  lang,
+  className,
+  children,
+}: {
+  phone: string;
+  lang: Lang;
+  className: string;
+  children?: React.ReactNode;
+}) {
+  if (isMaskedContactPhone(phone)) {
+    return (
+      <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 text-right max-w-[14rem]">
+        {lang === 'tr'
+          ? 'İletişim için giriş yapın'
+          : 'Log in to see contact'}
+      </p>
+    );
+  }
+
+  return (
+    <a href={`tel:${phone}`} className={className}>
+      {children}
+    </a>
+  );
+}
 
 interface SocialAdsProps {
   municipality: PublicTenant | null;
   lang: Lang;
   isDark: boolean;
   onBack?: () => void;
+  onRequestAuth?: () => void;
   embedded?: boolean;
   forcedTab?: CommunitySegment;
   hideSegmentBar?: boolean;
@@ -63,6 +97,7 @@ export default function SocialAds({
   lang,
   isDark,
   onBack,
+  onRequestAuth,
   embedded,
   forcedTab,
   hideSegmentBar,
@@ -83,6 +118,10 @@ export default function SocialAds({
   const [formType, setFormType] = useState<SocialTab>('blood');
   const [submitting, setSubmitting] = useState(false);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; type: SocialTab } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Blood Form State
   const [bloodType, setBloodType] = useState('A+');
@@ -120,6 +159,7 @@ export default function SocialAds({
     if (!currentUser) {
       setShowAuthPrompt(true);
     } else {
+      setFormError('');
       setFormType(type);
       setIsModalOpen(true);
     }
@@ -128,6 +168,12 @@ export default function SocialAds({
   useEffect(() => {
     if (forcedTab) setActiveTab(forcedTab);
   }, [forcedTab]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timeout = window.setTimeout(() => setToast(null), 4000);
+    return () => window.clearTimeout(timeout);
+  }, [toast]);
 
   const applyDistrictToForms = (district: string) => {
     if (!district) return;
@@ -261,8 +307,9 @@ export default function SocialAds({
 
   const handleSubmitItem = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError('');
     if (!itemTitle || !itemDistrict || !itemContactPhone || !itemDescription) {
-      alert(t('social.ads.form.required', lang));
+      setFormError(t('social.ads.form.required', lang));
       return;
     }
     setSubmitting(true);
@@ -286,10 +333,10 @@ export default function SocialAds({
       setIsModalOpen(false);
       resetForms();
       if (focusDistrictName) void fetchAds(focusDistrictName);
-      alert(t('social.ads.success.items', lang));
+      setToast({ type: 'success', message: t('social.ads.success.items', lang) });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error';
-      alert(msg);
+      setFormError(msg);
     } finally {
       setSubmitting(false);
       setImageUploading(false);
@@ -298,8 +345,9 @@ export default function SocialAds({
 
   const handleSubmitBlood = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError('');
     if (!hospitalName || !hospitalDistrict || !patientName || !contactPhone || !description) {
-      alert(lang === 'tr' ? 'Lütfen tüm alanları doldurun.' : 'Please fill in all fields.');
+      setFormError(lang === 'tr' ? 'Lütfen tüm alanları doldurun.' : 'Please fill in all fields.');
       return;
     }
     setSubmitting(true);
@@ -315,9 +363,9 @@ export default function SocialAds({
       setIsModalOpen(false);
       resetForms();
       if (focusDistrictName) void fetchAds(focusDistrictName);
-      alert(t('social.ads.success.blood', lang));
+      setToast({ type: 'success', message: t('social.ads.success.blood', lang) });
     } catch (err: any) {
-      alert(err.message || (lang === 'tr' ? 'İlan oluşturulurken hata oluştu.' : 'An error occurred while creating ad.'));
+      setFormError(err.message || (lang === 'tr' ? 'İlan oluşturulurken hata oluştu.' : 'An error occurred while creating ad.'));
     } finally {
       setSubmitting(false);
     }
@@ -325,8 +373,9 @@ export default function SocialAds({
 
   const handleSubmitLostPet = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError('');
     if (!petName || !petBreed || !lastSeenDistrict || !petContactPhone || !petDescription) {
-      alert(lang === 'tr' ? 'Lütfen tüm alanları doldurun.' : 'Please fill in all fields.');
+      setFormError(lang === 'tr' ? 'Lütfen tüm alanları doldurun.' : 'Please fill in all fields.');
       return;
     }
     setSubmitting(true);
@@ -353,17 +402,23 @@ export default function SocialAds({
       setIsModalOpen(false);
       resetForms();
       if (focusDistrictName) void fetchAds(focusDistrictName);
-      alert(t('social.ads.success.lost', lang));
+      setToast({ type: 'success', message: t('social.ads.success.lost', lang) });
     } catch (err: any) {
-      alert(err.message || (lang === 'tr' ? 'İlan oluşturulurken hata oluştu.' : 'An error occurred while creating ad.'));
+      setFormError(err.message || (lang === 'tr' ? 'İlan oluşturulurken hata oluştu.' : 'An error occurred while creating ad.'));
     } finally {
       setSubmitting(false);
       setImageUploading(false);
     }
   };
 
-  const handleDeleteAd = async (id: string, type: SocialTab) => {
-    if (!window.confirm(t('social.ads.confirm.delete', lang))) return;
+  const handleDeleteAd = (id: string, type: SocialTab) => {
+    setPendingDelete({ id, type });
+  };
+
+  const confirmDeleteAd = async () => {
+    if (!pendingDelete) return;
+    const { id, type } = pendingDelete;
+    setDeleting(true);
     try {
       if (type === 'blood') {
         await deleteBloodAd(id);
@@ -373,9 +428,15 @@ export default function SocialAds({
         await deleteItemDonationAd(id);
       }
       if (focusDistrictName) void fetchAds(focusDistrictName);
-      alert(t('social.ads.success.delete', lang));
+      setToast({ type: 'success', message: t('social.ads.success.delete', lang) });
+      setPendingDelete(null);
     } catch (err: any) {
-      alert(err.message || (lang === 'tr' ? 'İlan silinirken hata oluştu.' : 'An error occurred while deleting ad.'));
+      setToast({
+        type: 'error',
+        message: err.message || (lang === 'tr' ? 'İlan silinirken hata oluştu.' : 'An error occurred while deleting ad.'),
+      });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -387,7 +448,7 @@ export default function SocialAds({
     >
       {!embedded && onBack && (
         <div className="flex items-center gap-3 border-b border-slate-200 p-4 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-20">
-          <button type="button" onClick={onBack} className="-ml-2 p-2 text-slate-500 dark:text-slate-400">
+          <button type="button" onClick={onBack} aria-label={t('settings.back', lang)} className="-ml-2 p-2 text-slate-500 dark:text-slate-400">
             <ChevronLeft className="h-6 w-6" />
           </button>
           <div>
@@ -597,13 +658,14 @@ export default function SocialAds({
                         </div>
                       </div>
 
-                      <a
-                        href={`tel:${ad.contactPhone}`}
+                      <ContactPhoneAction
+                        phone={ad.contactPhone}
+                        lang={lang}
                         className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-red-500 px-4 py-2 text-xs font-bold text-white shadow-md shadow-red-500/10 hover:brightness-105 active:scale-[0.98] transition-all"
                       >
                         <Phone className="h-3.5 w-3.5" />
                         <span>{ad.contactPhone}</span>
-                      </a>
+                      </ContactPhoneAction>
                     </div>
 
                     {/* Footer Date */}
@@ -689,13 +751,14 @@ export default function SocialAds({
                             </div>
                           </div>
 
-                          <a
-                            href={`tel:${ad.contactPhone}`}
+                          <ContactPhoneAction
+                            phone={ad.contactPhone}
+                            lang={lang}
                             className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-indigo-600/10 hover:brightness-105 active:scale-[0.98] transition-all"
                           >
                             <Phone className="h-3.5 w-3.5" />
                             <span>{ad.contactPhone}</span>
-                          </a>
+                          </ContactPhoneAction>
                         </div>
 
                         {/* Footer Date */}
@@ -760,13 +823,14 @@ export default function SocialAds({
                             <User className="h-3 w-3" />
                             {ad.userName}
                           </span>
-                          <a
-                            href={`tel:${ad.contactPhone}`}
+                          <ContactPhoneAction
+                            phone={ad.contactPhone}
+                            lang={lang}
                             className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white"
                           >
                             <Phone className="h-3.5 w-3.5" />
                             {t('social.ads.call', lang)}
-                          </a>
+                          </ContactPhoneAction>
                         </div>
                         <div className="mt-2 flex items-center gap-1 text-[10px] text-slate-400">
                           <Clock className="h-3 w-3" />
@@ -823,8 +887,9 @@ export default function SocialAds({
                   </p>
                 </div>
                 <button
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => { setIsModalOpen(false); setFormError(''); }}
                   className="rounded-full bg-slate-100 p-1.5 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400"
+                  aria-label={lang === 'tr' ? 'Kapat' : 'Close'}
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -836,13 +901,23 @@ export default function SocialAds({
                   <button
                     key={tab}
                     type="button"
-                    onClick={() => setFormType(tab)}
+                    onClick={() => { setFormType(tab); setFormError(''); }}
                     className={segmentBtnClass(formType === tab, isDark)}
                   >
                     {t(`community.segment.${tab}`, lang)}
                   </button>
                 ))}
               </div>
+
+              {formError && (
+                <div
+                  role="alert"
+                  className="mt-4 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300"
+                >
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{formError}</span>
+                </div>
+              )}
 
               {formType === 'blood' ? (
                 // BLOOD AD FORM
@@ -1291,6 +1366,42 @@ export default function SocialAds({
         )}
       </AnimatePresence>
 
+      {/* Toast Feedback Banner */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            role="status"
+            className={`fixed left-4 right-4 top-4 z-[120] mx-auto max-w-sm rounded-2xl border px-4 py-3 text-xs font-semibold shadow-lg ${
+              toast.type === 'success'
+                ? isDark
+                  ? 'border-emerald-500/30 bg-emerald-950/90 text-emerald-100'
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                : isDark
+                ? 'border-red-500/30 bg-red-950/90 text-red-100'
+                : 'border-red-200 bg-red-50 text-red-700'
+            }`}
+          >
+            {toast.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        title={lang === 'tr' ? 'İlanı Sil' : 'Delete Post'}
+        message={t('social.ads.confirm.delete', lang)}
+        confirmLabel={lang === 'tr' ? 'Sil' : 'Delete'}
+        cancelLabel={lang === 'tr' ? 'Vazgeç' : 'Cancel'}
+        tone="danger"
+        busy={deleting}
+        onConfirm={() => void confirmDeleteAd()}
+        onCancel={() => setPendingDelete(null)}
+      />
+
       {/* Guest Auth Prompt */}
       {showAuthPrompt && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
@@ -1313,6 +1424,10 @@ export default function SocialAds({
                 type="button"
                 onClick={() => {
                   storageService.removeItem('belediye_is_guest');
+                  if (onRequestAuth) {
+                    onRequestAuth();
+                    return;
+                  }
                   window.location.reload();
                 }}
                 className="w-full rounded-2xl bg-primary py-3 text-xs font-bold text-white shadow-lg shadow-primary/20 hover:brightness-105 active:scale-[0.98] transition-all cursor-pointer font-sans"

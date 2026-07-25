@@ -15,11 +15,11 @@ export type Tab =
   | 'profile'
   | 'notifications'
   | 'settings'
-  | 'bus'
   | 'rewards'
   | 'ranks';
 
-export const MAIN_TABS: Tab[] = ['home', 'kent', 'topluluk', 'profile'];
+/** Bottom nav: Ana · Bildir · İhbarlarım · Belediye */
+export const MAIN_TABS: Tab[] = ['home', 'report', 'reports', 'kent'];
 
 export type PublicRouteContext = {
   municipalitySlug: string;
@@ -190,7 +190,8 @@ export function useAppRouting({
   const goToTab = useCallback((tab: Tab) => {
     setActiveTab((current) => {
       if (current === tab) return current;
-      if (MAIN_TABS.includes(current) && MAIN_TABS.includes(tab)) {
+      const bothMain = MAIN_TABS.includes(current) && MAIN_TABS.includes(tab);
+      if (bothMain) {
         setNavStack((stack) => [...stack, current].slice(-8));
       }
       return tab;
@@ -222,16 +223,12 @@ export function useAppRouting({
       setActiveTab('profile');
       return true;
     }
-    if (activeTab === 'bus') {
+    if (activeTab === 'ranks' || activeTab === 'rewards') {
       setActiveTab('kent');
       return true;
     }
-    if (activeTab === 'rewards') {
-      setActiveTab(rewardsReturnTab);
-      return true;
-    }
-    if (activeTab === 'ranks') {
-      setActiveTab('profile');
+    if (activeTab === 'kent' || activeTab === 'topluluk') {
+      setActiveTab('home');
       return true;
     }
     if (activeTab === 'report' || activeTab === 'notifications' || activeTab === 'reports') {
@@ -251,7 +248,7 @@ export function useAppRouting({
       return true;
     }
     return false;
-  }, [activeTab, openReportId, openAnnouncement, closeReport, pickerMode, isPrefsModalOpen, setIsIntroModalOpen, setIsPrefsModalOpen, setPickerMode, rewardsReturnTab]);
+  }, [activeTab, openReportId, openAnnouncement, closeReport, pickerMode, isPrefsModalOpen, setIsIntroModalOpen, setIsPrefsModalOpen, setPickerMode]);
 
   useEffect(() => registerNativeBackHandler(popNavigation), [popNavigation]);
 

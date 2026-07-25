@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   CheckCircle2,
@@ -25,6 +25,13 @@ import { reportStatusBadgeClass } from '../lib/ui';
 import { useReportLive } from '../context/ReportLiveContext';
 import { reportToListItem } from '../lib/reportUtils';
 import type { Report } from '../api';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
+import ToastBanner from '../components/ui/Toast';
+import PageHeader from '../components/ui/PageHeader';
+import LoadingState from '../components/ui/LoadingState';
+import EmptyState from '../components/ui/EmptyState';
+import ErrorState from '../components/ui/ErrorState';
+import Button from '../components/ui/Button';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Tüm durumlar' },
@@ -35,6 +42,13 @@ const STATUS_OPTIONS = [
   { value: 'REJECTED', label: 'Reddedildi' },
   { value: 'OUT_OF_JURISDICTION', label: 'Yetki Alanı Dışı' },
 ];
+
+const SAVED_VIEW_CHIPS = [
+  { value: '', label: 'Tümü' },
+  { value: 'PENDING', label: 'Bekleyen' },
+  { value: 'PROCESSING', label: 'İşleniyor' },
+  { value: 'RESOLVED', label: 'Çözüldü' },
+] as const;
 
 const BULK_STATUS_OPTIONS = [
   { value: 'PROCESSING', label: 'İşleniyor' },
@@ -51,6 +65,7 @@ function hasAnyRole(roles: string[], allowed: string[]) {
 }
 
 export default function ReportsPage() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialQuery = searchParams.get('q')?.trim() ?? '';
   const initialStatus = searchParams.get('status')?.trim() ?? '';
@@ -60,6 +75,7 @@ export default function ReportsPage() {
   const [size] = useState(15);
   const [status, setStatus] = useState(initialStatus);
   const [searchText, setSearchText] = useState(initialQuery);
+  const [debouncedSearch, setDebouncedSearch] = useState(initialQuery);
   const [fromDate, setFromDate] = useState(initialFrom);
   const [toDate, setToDate] = useState(initialTo);
   const [data, setData] = useState<SpringPage<ReportListItem> | null>(null);
@@ -71,6 +87,7 @@ export default function ReportsPage() {
   const [modal, setModal] = useState<BulkModal>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
+  const [confirmResolveId, setConfirmResolveId] = useState<string | null>(null);
   const [officers, setOfficers] = useState<User[]>([]);
   const [assigneeId, setAssigneeId] = useState('');
   const [bulkStatus, setBulkStatus] = useState('PROCESSING');
@@ -92,7 +109,7 @@ export default function ReportsPage() {
     try {
       await api.patch(`/reports/${id}/status`, {
         status: 'RESOLVED',
-        note: 'Tablo üzerinden hızlıca çözüldü.',
+        note: 'Operatör tarafından listeden hızlı çözüm olarak işaretlendi.',
         resolvedMediaUrls: null,
       });
       showToast('success', 'İhbar çözüldü olarak işaretlendi.');
@@ -134,7 +151,7 @@ export default function ReportsPage() {
     return remaining;
   };
 
-  const canAssign = hasAnyRole(roles, ['ROLE_DEPT_MANAGER', 'ROLE_ADMIN', 'ROLE_SUPER_ADMIN']);
+  const canAssign = hasAnyRole(roles, ['ROLE_DEPT_MANAGER', 'ROLE_ADMIN']);
   const canChangeStatus = hasAnyRole(roles, [
     'ROLE_FIELD_OFFICER',
     'ROLE_DEPT_MANAGER',
@@ -152,12 +169,23 @@ export default function ReportsPage() {
     return BULK_STATUS_OPTIONS;
   }, [currentUser]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(searchText);
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [searchText]);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const params: Record<string, string | number> = { page, size, sort: 'createdAt,desc' };
       if (status) params.status = status;
+      const q = debouncedSearch.trim();
+      if (q) params.q = q;
+      if (fromDate) params.fromDate = fromDate;
+      if (toDate) params.toDate = toDate;
       const res = await api.get('/reports', { params });
       setData(res.data.data as SpringPage<ReportListItem>);
     } catch {
@@ -166,7 +194,7 @@ export default function ReportsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, size, status]);
+  }, [page, size, status, debouncedSearch, fromDate, toDate]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -206,7 +234,7 @@ export default function ReportsPage() {
     lastHandledReportId.current = latestReport.id;
 
     const item = reportToListItem(latestReport);
-    const q = searchText.trim().toLowerCase();
+    const q = debouncedSearch.trim().toLowerCase();
     const matchesSearch =
       !q ||
       [item.title, item.categoryName, item.district, item.id].some((f) =>
@@ -215,6 +243,11 @@ export default function ReportsPage() {
           .includes(q),
       );
     const matchesStatus = !status || item.status === status;
+    const createdAtTs = item.createdAt ? Date.parse(item.createdAt) : null;
+    const fromTs = fromDate ? Date.parse(`${fromDate}T00:00:00`) : null;
+    const toTs = toDate ? Date.parse(`${toDate}T23:59:59`) : null;
+    const matchesFrom = fromTs == null || (createdAtTs != null && createdAtTs >= fromTs);
+    const matchesTo = toTs == null || (createdAtTs != null && createdAtTs <= toTs);
 
     setData((prev) => {
       if (!prev) return prev;
@@ -226,7 +259,7 @@ export default function ReportsPage() {
           ...prev,
           content: newContent,
         };
-      } else if (page === 0 && matchesStatus && matchesSearch) {
+      } else if (page === 0 && matchesStatus && matchesSearch && matchesFrom && matchesTo) {
         return {
           ...prev,
           content: [item, ...prev.content].slice(0, size),
@@ -258,35 +291,19 @@ export default function ReportsPage() {
     return () => {
       window.clearTimeout(timer);
     };
-  }, [latestReport, page, size, status, searchText]);
+  }, [latestReport, page, size, status, debouncedSearch, fromDate, toDate]);
 
   const totalPages = data?.totalPages ?? 0;
   const rows = useMemo(() => data?.content ?? [], [data]);
-  const filteredRows = useMemo(() => {
-    const q = searchText.trim().toLowerCase();
-    const fromTs = fromDate ? Date.parse(`${fromDate}T00:00:00`) : null;
-    const toTs = toDate ? Date.parse(`${toDate}T23:59:59`) : null;
-    return rows.filter((r) => {
-      const matchesSearch =
-        !q ||
-        [r.title, r.categoryName, r.district, r.id]
-          .filter(Boolean)
-          .some((v) => String(v).toLowerCase().includes(q));
-      const createdAtTs = r.createdAt ? Date.parse(r.createdAt) : null;
-      const matchesFrom = fromTs == null || (createdAtTs != null && createdAtTs >= fromTs);
-      const matchesTo = toTs == null || (createdAtTs != null && createdAtTs <= toTs);
-      return matchesSearch && matchesFrom && matchesTo;
-    });
-  }, [fromDate, rows, searchText, toDate]);
   const selectedCount = selected.size;
-  const visibleIds = useMemo(() => filteredRows.map((row) => row.id), [filteredRows]);
+  const visibleIds = useMemo(() => rows.map((row) => row.id), [rows]);
   const visiblePending = useMemo(
-    () => filteredRows.filter((row) => row.status === 'PENDING').length,
-    [filteredRows],
+    () => rows.filter((row) => row.status === 'PENDING').length,
+    [rows],
   );
   const visibleResolved = useMemo(
-    () => filteredRows.filter((row) => row.status === 'RESOLVED').length,
-    [filteredRows],
+    () => rows.filter((row) => row.status === 'RESOLVED').length,
+    [rows],
   );
 
   const pageIds = useMemo(() => rows.map((r) => r.id), [rows]);
@@ -315,6 +332,21 @@ export default function ReportsPage() {
   };
 
   const clearSelection = () => setSelected(new Set());
+
+  const applyStatusView = (value: string) => {
+    setStatus(value);
+    setPage(0);
+    clearSelection();
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set('status', value);
+    else next.delete('status');
+    setSearchParams(next, { replace: true });
+  };
+
+  useEffect(() => {
+    const nextStatus = searchParams.get('status')?.trim() ?? '';
+    setStatus((prev) => (prev === nextStatus ? prev : nextStatus));
+  }, [searchParams]);
 
   const handleImportClick = () => {
     fileInputRef.current?.click();
@@ -459,22 +491,25 @@ export default function ReportsPage() {
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-5 p-4 sm:p-6 lg:p-8">
-      {toast && (
-        <div
-          role="status"
-          className={`fixed right-6 top-20 z-50 flex max-w-md items-start gap-2 rounded-xl border px-4 py-3 text-sm font-semibold shadow-lg ${
-            toast.type === 'success'
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-100'
-              : 'border-red-200 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-950/80 dark:text-red-100'
-          }`}
-        >
-          {toast.type === 'success' ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> : null}
-          <span>{toast.message}</span>
-          <button type="button" onClick={() => setToast(null)} className="ml-2 opacity-60 hover:opacity-100">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
+      <ToastBanner toast={toast} onDismiss={() => setToast(null)} />
+
+      <ConfirmDialog
+        open={Boolean(confirmResolveId)}
+        title="İhbarı çözüldü işaretle"
+        message="Bu ihbarı çözüldü olarak işaretlemek istediğinize emin misiniz? İşlem kayda geçecektir."
+        confirmLabel="Çözüldü işaretle"
+        cancelLabel="Vazgeç"
+        busy={confirmResolveId ? resolvingIds.has(confirmResolveId) : false}
+        onCancel={() => {
+          if (confirmResolveId && resolvingIds.has(confirmResolveId)) return;
+          setConfirmResolveId(null);
+        }}
+        onConfirm={() => {
+          if (!confirmResolveId) return;
+          const id = confirmResolveId;
+          void handleQuickResolve(id).finally(() => setConfirmResolveId(null));
+        }}
+      />
 
       <AnimatePresence>
         {incomingBanner && (
@@ -509,12 +544,11 @@ export default function ReportsPage() {
         )}
       </AnimatePresence>
 
-      <div className="relative flex flex-col gap-5 overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-[0_24px_70px_-40px_rgba(15,23,42,.4)] sm:p-7 lg:flex-row lg:items-end lg:justify-between dark:border-slate-800 dark:bg-slate-900">
-        <div className="pointer-events-none absolute -right-10 -top-20 h-52 w-52 rounded-full bg-sky-400/10 blur-3xl" />
-        <div>
-          <p className="kentiva-eyebrow">Operasyon kuyruğu</p>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
-            <h2 className="text-3xl font-black tracking-[-.04em] text-slate-950 dark:text-white">Rapor yönetimi</h2>
+      <PageHeader
+        eyebrow="Operasyon kuyruğu"
+        title={
+          <div className="flex flex-wrap items-center gap-2">
+            <span>Rapor yönetimi</span>
             {sessionNewCount > 0 && (
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500 px-2.5 py-0.5 text-xs font-bold text-white animate-pulse">
                 <Plus className="h-3.5 w-3.5" />
@@ -533,11 +567,35 @@ export default function ReportsPage() {
               {wsConnected ? 'Canlı' : 'Çevrimdışı'}
             </span>
           </div>
-          <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">
-            Vatandaş taleplerini öncelik, SLA ve birim sorumluluğuyla yönetin.
-          </p>
-        </div>
-        <div className="relative flex max-w-4xl flex-wrap items-center gap-2">
+        }
+        subtitle={
+          <>
+            <span className="block">Vatandaş taleplerini öncelik, SLA ve birim sorumluluğuyla yönetin.</span>
+            <span className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Kayıtlı görünümler">
+              {SAVED_VIEW_CHIPS.map((chip) => {
+                const active = status === chip.value;
+                return (
+                  <button
+                    key={chip.label}
+                    type="button"
+                    onClick={() => applyStatusView(chip.value)}
+                    disabled={bulkBusy}
+                    className={`min-h-9 rounded-full px-3.5 py-1.5 text-xs font-bold transition ${
+                      active
+                        ? 'bg-primary text-white shadow-sm'
+                        : 'border border-slate-200 bg-slate-50 text-slate-600 hover:bg-white dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:bg-slate-800'
+                    }`}
+                    aria-pressed={active}
+                  >
+                    {chip.label}
+                  </button>
+                );
+              })}
+            </span>
+          </>
+        }
+        actions={
+          <>
           {canCreateWhiteDesk && currentUser?.municipality && (
             <Link
               to="/reports/new-white-desk"
@@ -569,15 +627,7 @@ export default function ReportsPage() {
             <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <select
               value={status}
-              onChange={(e) => {
-                setStatus(e.target.value);
-                setPage(0);
-                clearSelection();
-                const next = new URLSearchParams(searchParams);
-                if (e.target.value) next.set('status', e.target.value);
-                else next.delete('status');
-                setSearchParams(next, { replace: true });
-              }}
+              onChange={(e) => applyStatusView(e.target.value)}
               disabled={bulkBusy}
               className="appearance-none rounded-xl border border-slate-200/90 bg-white py-2.5 pl-10 pr-8 text-sm font-semibold text-slate-800 shadow-sm focus:ring-2 focus:ring-primary disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             >
@@ -594,6 +644,7 @@ export default function ReportsPage() {
             onChange={(e) => {
               const value = e.target.value;
               setFromDate(value);
+              setPage(0);
               const next = new URLSearchParams(searchParams);
               if (value) next.set('from', value);
               else next.delete('from');
@@ -607,6 +658,7 @@ export default function ReportsPage() {
             onChange={(e) => {
               const value = e.target.value;
               setToDate(value);
+              setPage(0);
               const next = new URLSearchParams(searchParams);
               if (value) next.set('to', value);
               else next.delete('to');
@@ -614,6 +666,15 @@ export default function ReportsPage() {
             }}
             className="rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:ring-2 focus:ring-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
           />
+          <button
+            type="button"
+            onClick={() => load()}
+            disabled={bulkBusy}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold shadow-sm hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Yenile
+          </button>
           {canImport && (
             <>
               <input
@@ -627,27 +688,20 @@ export default function ReportsPage() {
                 type="button"
                 onClick={handleImportClick}
                 disabled={bulkBusy}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold shadow-sm hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+                title="Toplu rapor yükle"
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-60 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
               >
-                <Upload className="h-4 w-4" />
-                Toplu Rapor Yükle
+                <Upload className="h-3.5 w-3.5" />
+                İçe aktar
               </button>
             </>
           )}
-          <button
-            type="button"
-            onClick={() => load()}
-            disabled={bulkBusy}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold shadow-sm hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            Yenile
-          </button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="grid gap-3 xl:grid-cols-[1fr_1fr_1fr_1.45fr]">
-        <MetricCard label="Görünen kayıt" value={String(filteredRows.length)} helper="Aktif filtrelere uyan kayıtlar" />
+        <MetricCard label="Görünen kayıt" value={String(rows.length)} helper="Aktif filtrelere uyan kayıtlar" />
         <MetricCard label="Bekleyen" value={String(visiblePending)} helper="Hızlı müdahale gerektirenler" />
         <MetricCard label="Çözülen" value={String(visibleResolved)} helper="Bu görünümde sonuçlananlar" />
         <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_12px_35px_-25px_rgba(15,23,42,.35)] dark:border-slate-800 dark:bg-slate-900">
@@ -723,8 +777,8 @@ export default function ReportsPage() {
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_18px_50px_-32px_rgba(15,23,42,.45)] dark:border-slate-800 dark:bg-slate-900">
         {error && (
-          <div className="border-b border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
-            {error}
+          <div className="border-b border-slate-100 p-4 dark:border-slate-800">
+            <ErrorState message={error} action={<Button variant="secondary" onClick={() => void load()}>Tekrar dene</Button>} />
           </div>
         )}
         <div className="overflow-x-auto">
@@ -756,21 +810,25 @@ export default function ReportsPage() {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {loading && rows.length === 0 ? (
                 <tr>
-                  <td colSpan={colSpan} className="px-4 py-16 text-center text-slate-500">
-                    Yükleniyor…
+                  <td colSpan={colSpan} className="px-4 py-10">
+                    <LoadingState label="Raporlar yükleniyor…" />
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={colSpan} className="px-4 py-16 text-center text-slate-500">
-                    Kayıt bulunamadı.
+                  <td colSpan={colSpan} className="px-4 py-10">
+                    <EmptyState
+                      title="Kayıt bulunamadı."
+                      description="Filtreleri değiştirip tekrar deneyin veya arama kriterlerinizi genişletin."
+                    />
                   </td>
                 </tr>
               ) : (
-                filteredRows.map((r) => (
+                rows.map((r) => (
                   <tr
                     key={r.id}
-                    className={`transition-colors hover:bg-primary/[.035] dark:hover:bg-slate-800/40 ${
+                    onClick={() => navigate(`/reports/${r.id}`)}
+                    className={`cursor-pointer transition-colors hover:bg-primary/[.035] dark:hover:bg-slate-800/40 ${
                       selected.has(r.id) ? 'bg-primary/5 dark:bg-primary/10' : ''
                     } ${
                       highlightedIds.has(r.id)
@@ -778,7 +836,7 @@ export default function ReportsPage() {
                         : ''
                     }`}
                   >
-                    <td className="px-3 py-3">
+                    <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selected.has(r.id)}
@@ -844,15 +902,16 @@ export default function ReportsPage() {
                     <td className="whitespace-nowrap px-4 py-3 text-slate-500 dark:text-slate-400">
                       {r.createdAt ? new Date(r.createdAt).toLocaleString('tr-TR') : '—'}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-3">
                         {r.status === 'PROCESSING' && canChangeStatus && (
                           <button
                             type="button"
-                            onClick={() => void handleQuickResolve(r.id)}
-                            disabled={resolvingIds.has(r.id)}
+                            onClick={() => setConfirmResolveId(r.id)}
+                            disabled={resolvingIds.has(r.id) || bulkBusy}
                             className="inline-flex items-center justify-center rounded-lg p-1 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50 dark:hover:bg-emerald-950/50"
                             title="Hızlı Çözüldü Olarak İşaretle"
+                            aria-label="Hızlı çözüldü olarak işaretle"
                           >
                             {resolvingIds.has(r.id) ? (
                               <RefreshCw className="h-4 w-4 animate-spin text-slate-400" />

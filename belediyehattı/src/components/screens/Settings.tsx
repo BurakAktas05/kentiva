@@ -212,7 +212,7 @@ export default function Settings({
   return (
     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="pb-6">
       <div className="flex items-center gap-3 border-b border-slate-200 p-4 dark:border-slate-700">
-        <button type="button" onClick={onBack} className="-ml-2 p-2 text-slate-500 dark:text-slate-400">
+        <button type="button" onClick={onBack} aria-label={t('settings.back', lang)} className="-ml-2 p-2 text-slate-500 dark:text-slate-400">
           <ChevronLeft className="h-6 w-6" />
         </button>
         <h2 className="text-lg font-bold text-slate-800 dark:text-white">{t('settings.title', lang)}</h2>

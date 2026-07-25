@@ -58,7 +58,7 @@ describe('MunicipalityOnboardingPage', () => {
 
   it('navigates through onboarding steps correctly', async () => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <MunicipalityOnboardingPage />
       </MemoryRouter>
     );

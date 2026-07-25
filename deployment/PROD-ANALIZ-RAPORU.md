@@ -1,74 +1,96 @@
-# Prod Analiz Raporu
+# Kentiva Yayın Öncesi Analiz Raporu
 
-Tarih: 27 Haziran 2026
-Durum: Sartli hazir
+Tarih: 25 Temmuz 2026
+Durum: Şartlı hazır — kod tabanı release candidate seviyesinde, canlı ortam kapıları henüz tamamlanmadı
 
-## Yonetici Ozeti
+## Yönetici özeti
 
-Proje kod tabani guvenlik, performans ve urun butunlugu acisindan anlamli sekilde guclendirildi. Arka uc testleri, yonetim paneli, vatandas uygulamasi ve tanitim sitesi derleme/test sureclerinden basariyla gecmistir. Uretim ortami icin kritik konfigrasyon dogrulamalari eklendi, konteyner calisma modeli sertlestirildi ve belediye onboarding akisindaki gercek bir urun hatasi giderildi.
+Kentiva’nın backend, yönetim portalı, vatandaş uygulaması, public sitesi, media-guard servisi ve dağıtım yapılandırmaları yayın öncesi incelendi. Test ve üretim derlemeleri başarılıdır. İnceleme sırasında bulunan güvenlik ve kullanıcı deneyimi engelleri giderilmiştir.
 
-Bugun itibariyla yazilim tarafi "demo ve staging icin hazir", "kontrollu canliya gecis icin buyuk olcude hazir" seviyesindedir. Ancak gercek canliya cikis icin kod disi zorunlu kalemler halen vardir: uretim sirlarinin atanmasi, S3 ve Redis servislerinin baglanmasi, alan adi ve HTTPS yonetimi, yedekleme ve alarm entegrasyonlari, staging ortaminda son smoke test.
+Kod tabanı kontrollü bir staging yayınına hazırdır. Buna karşın doğrudan genel canlı yayına “tamam” denmemelidir. Gerçek staging ortamında kritik uçtan uca akış, yük testi, yedek geri dönüşü, mağaza imzalama ve üretim servis bağlantıları tamamlanmadan canlıya çıkış onayı verilmemelidir.
 
-## Tamamlanan Kritik Iyilestirmeler
+## Bu denetimde giderilen kritik bulgular
 
-### Guvenlik
+### Vatandaş uygulaması
 
-- Uretimde zayif JWT secret, zayif setup token, HTTP tabanli public URL ve gevsek CORS ayarlari artik uygulama acilisinda engelleniyor.
-- Uretimde yerel disk depolama yerine kalici obje depolama beklentisi zorunlu hale getirildi.
-- Dagitik ortam icin Redis tabanli cache zorunlulugu tanimlandi.
-- Medya koruma adimlarinda fail-open davranislari kapatildi.
-- Audit kayitlari, websocket kimlik aktarimi ve istek korelasyon izleme alanlari daha guvenli hale getirildi.
+- Açılış, giriş ve kayıt ekranları açık renkli Kentiva tasarım diline uyarlandı.
+- Splash geçişini kilitleyen zamanlayıcı sorunu giderildi.
+- Misafir girişinin belediye seçimine ve misafir ana sayfasına ilerlemesi düzeltildi.
+- Misafir oturumunda özel kullanıcı API’lerinin çağrılması engellendi.
+- Kayıt ve şifre sıfırlama asgari şifre uzunluğu backend politikasıyla 10 karakterde eşlendi.
+- Yeni uygulama ikonu ve Android/iOS/PWA ikon setleri üretildi.
+- Android yedekleme kapatıldı; release imzalama bilgileri ortam değişkenlerine bağlandı.
 
-### Islevsellik
+### Kimlik doğrulama ve portal güvenliği
 
-- Belediye onboarding akisi duzeltildi.
-- Sinir/boundary ve entegrasyon adimlari tekrar aktif hale getirildi.
-- Artik belediye kurulumunda atlanmis kritik konfigurasyon ekranlari yok.
-- Transit ile ilgili artik kullanilmayan akislar ve bagimli eski parcalar temizlendi.
+- Yönetim portalındaki yalnızca tarayıcıda çalışan, sabit kod kabul eden sahte SMS doğrulama adımı kaldırıldı.
+- Sunucunun başarıyla ürettiği tokenlar güvenli oturum depolamasına yazılarak giriş tamamlanıyor.
+- Mobil yönetim girişinde kritik form ilk ekrana alındı.
+- Giriş alanları programatik olarak etiketlendi ve yönetici şifre sıfırlama alt sınırı 12 karaktere çıkarıldı.
+- Üretimde SMS OTP geliştirme kısa yolu varsayılan olarak kapatıldı.
 
-### Performans ve Operasyon
+### KVKK ve medya güvenliği
 
-- Frontend build/test zinciri sadelestirildi ve daha stabil hale getirildi.
-- CI sureci backend ve tum frontend uygulamalari icin test + build calistiracak sekilde guclendirildi.
-- Docker imaji non-root kullanici ile calisacak sekilde sertlestirildi.
-- Readiness healthcheck eklendi.
-- Compose bagimliliklari servis sagligina gore iyilestirildi.
+- Anonim ihbar takibinden medya bağlantıları ve iç işlem notları kaldırıldı.
+- Görsel anonimleştirme servisinin bozuk/boş AI yanıtını “tespit yok” sayarak orijinal görseli bırakabildiği fail-open yolu kapatıldı.
+- Üretim başlangıcı artık `MEDIA_GUARD_URL` ve `GEMINI_API_KEY` olmadan başarısız oluyor.
+- Media-guard istek gövdesine 12 MB sınır kondu; büyük veya geçersiz uzunluklu istekler reddediliyor.
+- Media-guard, doğrulama ve anonimleştirme adımlarının üretimde fail-closed olması zorunlu tutuldu.
 
-## Dogrulama Sonuclari
+### Tenant izolasyonu ve API
 
-27 Haziran 2026 tarihinde asagidaki kontroller basariyla tamamlandi:
+- Personel ihbar araması belediye ve departman kapsamını koruyan sunucu taraflı filtrelere taşındı.
+- Belediyesini seçmemiş vatandaşın istemci tarafından verilen başka bir belediye kapsamını sorgulaması engellendi.
+- Genel ihbar takip uç noktasına oran sınırlama eklendi.
+- Hassas akışlar için tenant, erişim ve kamu API testleri başarıyla çalıştı.
 
-- Backend: `mvn test` basarili
-- Backend test sonucu: 115 test, 0 failure, 0 error, 1 skipped
-- Admin portal: test basarili
-- Admin portal: production build basarili
-- Vatandas uygulamasi: test basarili
-- Vatandas uygulamasi: production build basarili
-- Public site: test basarili
-- Public site: production build basarili
+### CI, bağımlılıklar ve operasyon
 
-## Canliya Cikis Icin Hala Zorunlu Olanlar
+- Frontend CI zincirine lint adımı eklendi.
+- E2E testleri ortam değişkeni yoksa atlanıyor; değişkenler verildiğinde başarısız test artık CI’ı durduruyor.
+- Mobil üretim bağımlılık taraması sıfır bulguya indirildi.
+- Yönetim portalı React Router 7.18.1’e yükseltildi; public sitede React Router ve PostCSS yamaları uygulandı.
+- Railway örneğine zorunlu RabbitMQ ve media-guard değişkenleri eklendi.
+- Docker Compose yapılandırması ve media-guard konteyneri doğrulandı.
 
-Bu maddeler kod icinde olabildigince hazirlandi, ancak gercekten tamamlandi diyebilmek icin ortama uygulanmalidir:
+## Doğrulama sonuçları
 
-- Uretim `JWT_SECRET` ve `APP_SETUP_TOKEN` degerlerini 32+ karakter guclu sirlar olarak tanimlamak
-- S3 uyumlu kalici depolama baglamak
-- Redis baglamak
-- Uretim alan adlarini HTTPS ile yayinlamak
-- Yedekleme ve geri donus prosedurunu calistirip dogrulamak
-- Uygulama loglari, hata alarmi ve uptime izleme araclarini baglamak
-- Staging ortaminda gercek belediye senaryolariyla smoke test yapmak
-- KVKK, acik riza, log saklama ve veri silme politikalarini is kurallariyla eslemek
+- Backend: 146 test çalıştı, 0 hata, 0 başarısız, 1 ortam bağımlı entegrasyon testi atlandı.
+- Yönetim portalı: lint başarılı; 16 test başarılı; üretim derlemesi başarılı.
+- Vatandaş uygulaması: typecheck/lint başarılı; 21 test başarılı; üretim derlemesi başarılı.
+- Public site: typecheck/lint başarılı; 12 test başarılı; üretim derlemesi başarılı.
+- Android: Capacitor senkronizasyonu ve `bundleRelease` başarılı.
+- Media-guard: Docker imajı başarılı; health endpoint’i ve 12 MB istek sınırı smoke testi başarılı.
+- Docker Compose: örnek ortam dosyasıyla yapılandırma doğrulaması başarılı.
+- E2E: test iskeleti çalıştı; staging adresleri ve test hesapları verilmediği için 1 senaryo atlandı.
+- Görsel kontrol: 390×844, 768×1024 ve 1440×900 boyutlarında public site, yönetim girişi ve vatandaş uygulamasında yatay taşma, kırık görsel veya tarayıcı hatası görülmedi.
+- Gizli dosya kontrolü: yerel `.env`, Firebase ve Google servis dosyaları ignore kuralları içinde; commit kapsamına alınmadı.
 
-## Ticari AciDan Degerlendirme
+## Bilinen kalan riskler
 
-Bu surum artik "hobi proje" gorunumunden cikmis durumda. Kod tabani, belediyelere satilabilecek bir B2G SaaS urunu icin daha profesyonel ve savunulabilir hale geldi. Ozellikle onboarding, gizli anahtar politikasi, CORS/S3/Redis zorunlulugu, healthcheck, CI ve test kapsamindaki gelisimler satis surecinde teknik guven verir.
+### Yayın öncesi zorunlu kapılar
 
-## Durus
+- İzole staging ortamında vatandaş kayıt/giriş, ihbar oluşturma, medya yükleme, admin atama/durum değişikliği ve vatandaş takibi uçtan uca çalıştırılmalı.
+- Belediye A hesabının Belediye B verisine erişemediği gerçek veritabanı ve gerçek JWT ile doğrulanmalı.
+- PostgreSQL, Redis, RabbitMQ, S3/R2, media-guard, Netgsm, Gemini ve gerekiyorsa Firebase üretim değişkenleri atanmalı.
+- Android App Bundle gerçek yayın anahtarıyla imzalanmalı; keystore depoya eklenmemeli.
+- iOS release derlemesi, imzalama, izin metinleri ve App Store arşivi macOS/Xcode ortamında doğrulanmalı.
+- Yedek alma ve geri yükleme tatbikatı yapılmalı.
+- Log, alarm, uptime ve kuyruk derinliği izleme bağlanmalı.
+- 5 dakika / 100 istek-sn kapasite testi ile p95, hata oranı ve dropped iteration kriterleri ölçülmeli.
+- Mağaza gizlilik beyanları, KVKK metinleri ve veri silme prosedürü hukuk/operasyon sahibi tarafından onaylanmalı.
 
-Bugun icin dogru ifade su olur:
+### Bağımlılık istisnası
 
-- "Kod tabani ciddi sekilde prod-ready seviyesine getirildi."
-- "Temel testler ve build surecleri calisiyor."
-- "Canliya cikis icin kalan maddeler daha cok ortam, operasyon ve kurum politikasi tarafinda."
-- "Yuzde 100 canli hazir" demek icin staging dagitimi ve operasyonel dogrulama daha yapilmali.
+`npm audit --omit=dev`, yönetim portalı ve public sitede React Router’ın yalnızca RSC/server-action çalışma biçimini etkileyen iki yüksek seviye kaydı raporluyor. Her iki uygulama da statik BrowserRouter SPA olarak çalışıyor; RSC, SSR veya server action kullanmıyor. Kullanılan sürüm 7.18.1 ve diğer yönlendirme açıklarının yamalarını içeriyor. Buna rağmen upstream tamamen temiz bir sürüm yayımlandığında tekrar güncellenmelidir.
+
+### Doğrulanamayan alanlar
+
+- Bu Windows makinesinde iOS derlemesi yapılamadı.
+- Gerçek üretim sırları ve dış servisler kullanılmadı.
+- Android release bundle imzalama anahtarı olmadığı için üretilen yerel AAB imzasızdır.
+- Staging E2E ve kapasite testi ortam bilgileri bulunmadığı için çalıştırılamadı.
+
+## Sonuç
+
+Kentiva kod tabanı, mevcut otomatik ve görsel kontroller temelinde staging için hazır bir release candidate’tır. Kod tarafında tespit edilen yayın engelleyiciler kapatılmıştır. Canlı yayın kararı için yukarıdaki ortam, imzalama, E2E, kapasite, yedek ve operasyon kapıları tamamlanmalıdır.

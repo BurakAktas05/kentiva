@@ -30,6 +30,7 @@ export default function Surveys({
   const [votingId, setVotingId] = useState<string | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, number>>({});
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [voteError, setVoteError] = useState<string | null>(null);
 
   useEffect(() => {
     loadSurveys();
@@ -65,6 +66,7 @@ export default function Surveys({
     if (!selectedOption) return;
 
     setVotingId(surveyId);
+    setVoteError(null);
     try {
       const updated = await voteSurvey(surveyId, selectedOption);
       
@@ -83,7 +85,14 @@ export default function Surveys({
       setSuccessMessage(t('surveys.success.vote', lang));
       setTimeout(() => setSuccessMessage(null), 4000);
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Oy verilirken bir hata olustu.');
+      setVoteError(
+        err instanceof Error
+          ? err.message
+          : lang === 'tr'
+            ? 'Oy verilirken bir hata oluştu.'
+            : 'An error occurred while voting.',
+      );
+      setTimeout(() => setVoteError(null), 5000);
     } finally {
       setVotingId(null);
     }
@@ -112,7 +121,7 @@ export default function Surveys({
       )}
       {!embedded && !homeSection && onBack && (
         <div className="flex items-center gap-3 border-b border-slate-200 p-4 dark:border-slate-800">
-          <button type="button" onClick={onBack} className="-ml-2 p-2 text-slate-500 dark:text-slate-400">
+          <button type="button" onClick={onBack} aria-label={t('settings.back', lang)} className="-ml-2 p-2 text-slate-500 dark:text-slate-400">
             <ChevronLeft className="h-6 w-6" />
           </button>
           <div>
@@ -130,10 +139,26 @@ export default function Surveys({
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
+              role="status"
               className="rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-4 flex items-center gap-3 text-emerald-600 dark:text-emerald-400 text-xs font-bold"
             >
               <Award className="h-5 w-5 text-emerald-500 flex-shrink-0" />
               <span>{successMessage}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Error Alert Banner */}
+        <AnimatePresence>
+          {voteError && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              role="alert"
+              className="rounded-2xl bg-red-500/10 border border-red-500/20 p-4 flex items-center gap-3 text-red-600 dark:text-red-400 text-xs font-bold"
+            >
+              <span>{voteError}</span>
             </motion.div>
           )}
         </AnimatePresence>

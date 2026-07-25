@@ -47,7 +47,7 @@ public class ImageAnonymizationService {
     @Autowired(required = false)
     private IMediaAnonymizationFailureRepository failureRepository;
 
-    private final RestClient http = RestClient.builder()
+    private RestClient http = RestClient.builder()
             .requestFactory(requestFactory())
             .build();
 
@@ -179,6 +179,7 @@ public class ImageAnonymizationService {
         String url = "https://generativelanguage.googleapis.com/v1beta/models/" + model
                 + ":generateContent?key=" + apiKey;
 
+        Exception lastFailure = null;
         for (int attempt = 1; attempt <= 2; attempt++) {
             try {
                 String response = http.post()
@@ -190,43 +191,37 @@ public class ImageAnonymizationService {
 
                 return parseDetections(response);
             } catch (Exception e) {
+                lastFailure = e;
                 log.warn("Gemini yuz/plaka tespit hatasi (deneme {}): {}", attempt, e.getMessage());
             }
         }
-        return List.of();
+        throw new IllegalStateException("Sensitive region detection failed", lastFailure);
     }
 
     private List<BoundingBox> parseDetections(String response) {
         List<BoundingBox> boxes = new ArrayList<>();
-        try {
-            JSONObject json = new JSONObject(response);
-            String text = json.getJSONArray("candidates")
-                    .getJSONObject(0)
-                    .getJSONObject("content")
-                    .getJSONArray("parts")
-                    .getJSONObject(0)
-                    .getString("text");
+        JSONObject json = new JSONObject(response);
+        String text = json.getJSONArray("candidates")
+                .getJSONObject(0)
+                .getJSONObject("content")
+                .getJSONArray("parts")
+                .getJSONObject(0)
+                .getString("text");
 
-            String cleanedText = text.trim();
-            if (cleanedText.startsWith("```")) {
-                cleanedText = cleanedText.replaceAll("^```(?:json)?|```$", "").trim();
-            }
-            JSONObject result = new JSONObject(cleanedText);
-            JSONArray detections = result.optJSONArray("detections");
-            if (detections == null) {
-                return boxes;
-            }
-            for (int i = 0; i < detections.length(); i++) {
-                JSONObject detection = detections.getJSONObject(i);
-                boxes.add(new BoundingBox(
-                        detection.getInt("x"),
-                        detection.getInt("y"),
-                        detection.getInt("width"),
-                        detection.getInt("height")
-                ));
-            }
-        } catch (Exception e) {
-            log.warn("Tespit sonucu ayrıştırılamadı: {}", e.getMessage());
+        String cleanedText = text.trim();
+        if (cleanedText.startsWith("```")) {
+            cleanedText = cleanedText.replaceAll("^```(?:json)?|```$", "").trim();
+        }
+        JSONObject result = new JSONObject(cleanedText);
+        JSONArray detections = result.getJSONArray("detections");
+        for (int i = 0; i < detections.length(); i++) {
+            JSONObject detection = detections.getJSONObject(i);
+            boxes.add(new BoundingBox(
+                    detection.getInt("x"),
+                    detection.getInt("y"),
+                    detection.getInt("width"),
+                    detection.getInt("height")
+            ));
         }
         return boxes;
     }

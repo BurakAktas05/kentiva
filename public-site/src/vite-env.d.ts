@@ -21,9 +21,13 @@ interface ImportMetaEnv {
   readonly VITE_CITIZEN_APP_URL?: string;
   /** Demo talep e-postası */
   readonly VITE_DEMO_EMAIL?: string;
-  /** Public fiyat etiketi, ör. ₺9.999 */
+  /** Public fiyat etiketi (Profesyonel), ör. ₺9.999 */
   readonly VITE_MONTHLY_PRICE_LABEL?: string;
-  /** Pilot süresi etiketi, ör. 3 ay */
+  /** Başlangıç plan fiyatı */
+  readonly VITE_STARTER_PRICE_LABEL?: string;
+  /** Enterprise fiyat etiketi */
+  readonly VITE_ENTERPRISE_PRICE_LABEL?: string;
+  /** Pilot süresi etiketi, ör. 90 gün */
   readonly VITE_PILOT_DURATION_LABEL?: string;
 }
 
