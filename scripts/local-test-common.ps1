@@ -1,4 +1,4 @@
-# Kentiva — yerel manuel test ortak yardımcıları (dot-source)
+# Kentiva — yerel geliştirme yardımcıları (dot-source)
 $ErrorActionPreference = 'Stop'
 
 function Get-ProjectRoot {
@@ -85,175 +85,8 @@ function Wait-BackendHealth {
     throw "Backend $TimeoutSec sn içinde yanıt vermedi. PostgreSQL ve Spring Boot loglarını kontrol edin."
 }
 
-function Get-TunnelStatePath {
-    return Join-Path $PSScriptRoot '.local-tunnel.state.json'
-}
-
-function Set-EnvFileValue {
-    param(
-        [Parameter(Mandatory = $true)][string]$FilePath,
-        [Parameter(Mandatory = $true)][string]$Key,
-        [Parameter(Mandatory = $true)][string]$Value
-    )
-    $lines = @()
-    if (Test-Path $FilePath) {
-        $lines = Get-Content -Path $FilePath -Encoding utf8
-    }
-    $pattern = "^\s*$([regex]::Escape($Key))\s*="
-    $found = $false
-    $out = foreach ($line in $lines) {
-        if ($line -match $pattern) {
-            $found = $true
-            "$Key=$Value"
-        } else {
-            $line
-        }
-    }
-    if (-not $found) {
-        if ($out.Count -gt 0 -and $out[-1] -ne '') { $out += '' }
-        $out += "$Key=$Value"
-    }
-    Set-Content -Path $FilePath -Value $out -Encoding utf8
-}
-
-function Get-TunnelUrlFilePath {
-    return Join-Path $PSScriptRoot 'tunnel-url.txt'
-}
-
-function Save-TunnelState {
-    param(
-        [string]$PublicBaseUrl,
-        [string]$Provider,
-        [string]$ApiBaseUrl
-    )
-    $base = $PublicBaseUrl.TrimEnd('/')
-    $state = [ordered]@{
-        updatedAt     = (Get-Date).ToString('o')
-        provider      = $Provider
-        publicBaseUrl = $base
-        apiBaseUrl    = $ApiBaseUrl.TrimEnd('/')
-    }
-    $path = Get-TunnelStatePath
-    $state | ConvertTo-Json | Set-Content -Path $path -Encoding utf8
-    Set-Content -Path (Get-TunnelUrlFilePath) -Value $base -Encoding utf8 -NoNewline
-    return $path
-}
-
-function Read-TunnelBaseUrl {
-    param([string]$Override = '')
-    if ($Override) { return $Override.Trim().TrimEnd('/') }
-    $file = Get-TunnelUrlFilePath
-    if (Test-Path $file) {
-        return (Get-Content $file -Raw).Trim().TrimEnd('/')
-    }
-    $state = Get-TunnelState
-    if ($state -and $state.publicBaseUrl) {
-        return $state.publicBaseUrl.TrimEnd('/')
-    }
-    return $null
-}
-
-function Get-TunnelState {
-    $path = Get-TunnelStatePath
-    if (-not (Test-Path $path)) {
-        return $null
-    }
-    return Get-Content $path -Raw | ConvertFrom-Json
-}
-
-function Resolve-TunnelProvider {
-    param([ValidateSet('auto', 'ngrok', 'localtunnel')][string]$Preferred = 'auto')
-    if ($Preferred -ne 'auto') { return $Preferred }
-    if (Test-CommandExists 'ngrok') { return 'ngrok' }
-    return 'localtunnel'
-}
-
-function Start-NgrokTunnel {
-    param([int]$Port = 8080)
-    if (-not (Test-CommandExists 'ngrok')) {
-        throw 'ngrok bulunamadı. https://ngrok.com/download kurun veya -TunnelProvider localtunnel kullanın.'
-    }
-    $existing = Get-Process -Name 'ngrok' -ErrorAction SilentlyContinue
-    if ($existing) {
-        Write-Host 'Mevcut ngrok süreci kullanılıyor.' -ForegroundColor Yellow
-    } else {
-        Start-Process -FilePath 'ngrok' -ArgumentList @('http', "$Port") -WindowStyle Minimized | Out-Null
-        Start-Sleep -Seconds 4
-    }
-    $deadline = (Get-Date).AddSeconds(30)
-    while ((Get-Date) -lt $deadline) {
-        try {
-            $api = Invoke-RestMethod -Uri 'http://127.0.0.1:4040/api/tunnels' -TimeoutSec 5
-            $https = $api.tunnels | Where-Object { $_.public_url -like 'https://*' } | Select-Object -First 1
-            if ($https.public_url) {
-                return $https.public_url.TrimEnd('/')
-            }
-        } catch { Start-Sleep -Seconds 2 }
-    }
-    throw 'ngrok tünel URL''si alınamadı. http://127.0.0.1:4040 açılıyor mu kontrol edin.'
-}
-
-function Start-LocaltunnelTunnel {
-    param([int]$Port = 8080)
-    $lt = Join-Path $env:TEMP "kentiva-lt-$Port.log"
-    $ltErr = Join-Path $env:TEMP "kentiva-lt-$Port.err.log"
-    foreach ($f in @($lt, $ltErr)) { if (Test-Path $f) { Remove-Item $f -Force } }
-    $npx = if (Test-CommandExists 'npx.cmd') { 'npx.cmd' } else { 'npx' }
-    $proc = Start-Process -FilePath $npx -ArgumentList @(
-        '--yes', 'localtunnel', '--port', "$Port", '--local-host', '127.0.0.1'
-    ) -PassThru -WindowStyle Hidden -RedirectStandardOutput $lt -RedirectStandardError $ltErr
-    $deadline = (Get-Date).AddSeconds(60)
-    $url = $null
-    while ((Get-Date) -lt $deadline) {
-        if (Test-Path $lt) {
-            $text = Get-Content $lt -Raw -ErrorAction SilentlyContinue
-            if ($text -match '(https://[a-z0-9-]+\.loca\.lt)') {
-                $url = $Matches[1].TrimEnd('/')
-                break
-            }
-        }
-        if ($proc.HasExited -and -not $url) {
-            $tail = if (Test-Path $lt) { Get-Content $lt -Tail 20 } else { @() }
-            throw "localtunnel başarısız. Çıktı:`n$($tail -join "`n")"
-        }
-        Start-Sleep -Seconds 2
-    }
-    if (-not $url) { throw 'localtunnel URL okunamadı.' }
-    return $url
-}
-
-function Start-PublicTunnel {
-    param(
-        [ValidateSet('auto', 'ngrok', 'localtunnel')][string]$Provider = 'auto',
-        [int]$Port = 8080
-    )
-    $resolved = Resolve-TunnelProvider -Preferred $Provider
-    Write-Host "Tünel sağlayıcı: $resolved (port $Port)" -ForegroundColor Cyan
-    switch ($resolved) {
-        'ngrok' { return @{ Url = (Start-NgrokTunnel -Port $Port); Provider = 'ngrok' } }
-        default { return @{ Url = (Start-LocaltunnelTunnel -Port $Port); Provider = 'localtunnel' } }
-    }
-}
-
-function Write-MobileEnvFile {
-    param(
-        [string]$ProjectRoot,
-        [string]$ApiBaseUrl
-    )
-    $citizenDir = Get-CitizenAppDir
-    $content = @(
-        '# scripts/start-local.ps1 — telefon/APK tünel API',
-        "VITE_API_BASE_URL=$ApiBaseUrl"
-    ) -join "`n"
-    Set-Content -Path (Join-Path $citizenDir '.env.local') -Value $content -Encoding utf8
-    Write-Host "Yazıldı: $(Split-Path $citizenDir -Leaf)\.env.local -> $ApiBaseUrl" -ForegroundColor Green
-}
-
 function Write-FrontendEnvFiles {
-    param(
-        [string]$ProjectRoot,
-        [string]$MobileApiBaseUrl = ''
-    )
+    param([string]$ProjectRoot)
     $adminEnv = @(
         '# scripts/start-local.ps1 — localhost API',
         'VITE_API_BASE=http://localhost:8080/api/v1'
@@ -264,12 +97,14 @@ function Write-FrontendEnvFiles {
         'VITE_ADMIN_PORTAL_URL=http://localhost:5173',
         'VITE_SITE_URL=http://localhost:5174'
     ) -join "`n"
+    $citizenEnv = @(
+        '# scripts/start-local.ps1',
+        'VITE_API_BASE_URL=http://localhost:8080/api/v1'
+    ) -join "`n"
     Set-Content -Path (Join-Path $ProjectRoot 'admin-portal\.env.local') -Value $adminEnv -Encoding utf8
     Set-Content -Path (Join-Path $ProjectRoot 'public-site\.env.local') -Value $publicEnv -Encoding utf8
-    if ($MobileApiBaseUrl) {
-        Write-MobileEnvFile -ProjectRoot $ProjectRoot -ApiBaseUrl $MobileApiBaseUrl
-    }
-    Write-Host 'Yazıldı: admin-portal\.env.local, public-site\.env.local' -ForegroundColor Green
+    Set-Content -Path (Join-Path (Get-CitizenAppDir) '.env.local') -Value $citizenEnv -Encoding utf8
+    Write-Host 'Yazıldı: admin-portal / public-site / vatandaş .env.local' -ForegroundColor Green
 }
 
 function Start-DevServerWindow {
@@ -286,22 +121,16 @@ function Start-DevServerWindow {
 }
 
 function Start-SpringBootWindow {
-    param(
-        [string]$ProjectRoot,
-        [string]$PublicBaseUrl = '',
-        [string]$ExtraCors = ''
-    )
-    $envLines = @()
-    if ($PublicBaseUrl) {
-        $envLines += "`$env:APP_PUBLIC_URL='$($PublicBaseUrl.TrimEnd('/'))'"
-    }
-    $defaultCors = 'http://localhost:5173,http://localhost:3000,http://localhost:5174,https://localhost'
-    if ($ExtraCors) {
-        $envLines += "`$env:APP_CORS_ALLOWED_ORIGINS='$defaultCors,$ExtraCors'"
-    }
-    $envBlock = if ($envLines.Count) { ($envLines -join '; ') + '; ' } else { '' }
-    $cmd = "${envBlock}.\mvnw.cmd spring-boot:run `"-Dspring-boot.run.profiles=dev`""
+    param([string]$ProjectRoot)
+    $cmd = '.\mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=dev"'
     Start-DevServerWindow -Title 'Kentiva Backend (8080)' -WorkingDirectory (Join-Path $ProjectRoot 'backend') -Command $cmd
+}
+
+function Start-FrontendWindows {
+    param([string]$ProjectRoot)
+    Start-DevServerWindow -Title 'Admin Portal (5173)' -WorkingDirectory (Join-Path $ProjectRoot 'admin-portal') -Command 'npm run dev'
+    Start-DevServerWindow -Title 'Public Site' -WorkingDirectory (Join-Path $ProjectRoot 'public-site') -Command 'npm run dev'
+    Start-DevServerWindow -Title 'Citizen App (3000)' -WorkingDirectory (Get-CitizenAppDir) -Command 'npm run dev'
 }
 
 function Test-AndroidSdk {

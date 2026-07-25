@@ -10,11 +10,15 @@ import com.burak.belediyeapp.repository.IReportRepository;
 import com.burak.belediyeapp.service.notification.FirebasePushClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -24,16 +28,21 @@ import java.util.Map;
 @Slf4j
 public class SlaMonitoringService {
 
+    private static final int BATCH_SIZE = 200;
+
     private final IReportRepository reportRepository;
     private final IAppUserRepository userRepository;
     private final INotificationRepository notificationRepository;
     private final FirebasePushClient firebasePushClient;
 
+    @Autowired
+    @Lazy
+    private SlaMonitoringService self;
+
     /**
-     * Her saat başı asenkron çalışarak SLA süresi dolmuş ihbarları kontrol eder.
+     * Hourly SLA scan. DB writes stay in short transactions; Firebase is outside.
      */
     @Scheduled(cron = "0 0 * * * *")
-    @Transactional
     public void checkSlaBreaches() {
         log.info("SLA breaches check started...");
         List<ReportStatus> activeStatuses = Arrays.asList(
@@ -42,34 +51,53 @@ public class SlaMonitoringService {
                 ReportStatus.FORWARDED
         );
 
-        List<Report> activeReports = reportRepository.findUnresolvedReportsNotSlaBreached(activeStatuses);
         LocalDateTime now = LocalDateTime.now();
+        int page = 0;
+        List<Report> batch;
+        do {
+            batch = reportRepository.findUnresolvedReportsNotSlaBreached(
+                    activeStatuses, PageRequest.of(page, BATCH_SIZE));
+            List<String> breachedIds = new ArrayList<>();
+            for (Report report : batch) {
+                String priority = report.getAiPriority();
+                int hoursLimit = getSlaHoursLimit(priority);
 
-        for (Report report : activeReports) {
-            String priority = report.getAiPriority();
-            int hoursLimit = getSlaHoursLimit(priority);
+                LocalDateTime baseTime = report.getCreatedAt();
+                if (report.getReportStatus() == ReportStatus.PROCESSING && report.getProcessedAt() != null) {
+                    baseTime = report.getProcessedAt();
+                }
 
-            LocalDateTime baseTime = report.getCreatedAt();
-            if (report.getReportStatus() == ReportStatus.PROCESSING && report.getProcessedAt() != null) {
-                baseTime = report.getProcessedAt();
-            }
-
-            if (baseTime.plusHours(hoursLimit).isBefore(now)) {
-                report.setSlaBreached(true);
-                reportRepository.save(report);
-                log.warn("SLA breached for report ID: {} (Tracking: {}). Priority: {}. Created: {}", 
-                        report.getId(), report.getTrackingNumber(), priority, report.getCreatedAt());
-
-                if (report.getMunicipality() != null) {
-                    sendSlaAlertToManagers(report);
+                if (baseTime.plusHours(hoursLimit).isBefore(now)) {
+                    breachedIds.add(report.getId());
                 }
             }
-        }
+            for (String reportId : breachedIds) {
+                Report breached = self.markSlaBreached(reportId);
+                if (breached != null && breached.getMunicipality() != null) {
+                    sendSlaAlertToManagers(breached);
+                }
+            }
+            page++;
+        } while (batch.size() == BATCH_SIZE);
+    }
+
+    @Transactional
+    public Report markSlaBreached(String reportId) {
+        return reportRepository.findByIdForRealtimePush(reportId).map(report -> {
+            if (report.isSlaBreached()) {
+                return null;
+            }
+            report.setSlaBreached(true);
+            Report saved = reportRepository.save(report);
+            log.warn("SLA breached for report ID: {} (Tracking: {}). Priority: {}. Created: {}",
+                    report.getId(), report.getTrackingNumber(), report.getAiPriority(), report.getCreatedAt());
+            return saved;
+        }).orElse(null);
     }
 
     private int getSlaHoursLimit(String priority) {
         if (priority == null) {
-            return 72; // varsayılan Medium SLA
+            return 72;
         }
         return switch (priority.toUpperCase()) {
             case "CRITICAL", "HIGH" -> 24;
@@ -85,24 +113,16 @@ public class SlaMonitoringService {
         List<AppUser> managers = userRepository.findAllByRoles_NameAndMunicipalityId("ROLE_DEPT_MANAGER", municipalityId);
 
         String title = "SLA İhlali Uyarısı";
-        String body = String.format("'%s' başlıklı ihbar (%s) çözüm süresini (SLA) aşmıştır!", 
+        String body = String.format("'%s' başlıklı ihbar (%s) çözüm süresini (SLA) aşmıştır!",
                 report.getTitle(), report.getTrackingNumber() != null ? report.getTrackingNumber() : report.getId());
 
-        // Hem adminlere hem birim müdürlerine bildirim yolla
         sendAlertToUserList(admins, report, title, body);
         sendAlertToUserList(managers, report, title, body);
     }
 
     private void sendAlertToUserList(List<AppUser> users, Report report, String title, String body) {
         for (AppUser user : users) {
-            Notification notification = Notification.builder()
-                    .user(user)
-                    .title(title)
-                    .body(body)
-                    .type("SLA_ALERT")
-                    .reportId(report.getId())
-                    .build();
-            notificationRepository.save(notification);
+            self.persistSlaNotification(user.getId(), report.getId(), title, body);
 
             if (user.getFcmToken() != null && !user.getFcmToken().isBlank()) {
                 try {
@@ -113,9 +133,23 @@ public class SlaMonitoringService {
                             Map.of("reportId", report.getId(), "type", "SLA_ALERT")
                     );
                 } catch (Exception e) {
-                    log.warn("Failed to send SLA breach push notification to user: {}", user.getEmail(), e);
+                    log.warn("Failed to send SLA breach push notification to userId={}", user.getId());
                 }
             }
         }
+    }
+
+    @Transactional
+    public void persistSlaNotification(String userId, String reportId, String title, String body) {
+        userRepository.findById(userId).ifPresent(user -> {
+            Notification notification = Notification.builder()
+                    .user(user)
+                    .title(title)
+                    .body(body)
+                    .type("SLA_ALERT")
+                    .reportId(reportId)
+                    .build();
+            notificationRepository.save(notification);
+        });
     }
 }

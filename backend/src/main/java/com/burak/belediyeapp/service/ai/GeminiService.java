@@ -24,14 +24,6 @@ import java.util.Set;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.ArrayList;
-import java.util.Base64;
-import java.awt.image.BufferedImage;
-import javax.imageio.ImageIO;
-import java.io.ByteArrayOutputStream;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.Loader;
-import org.apache.pdfbox.rendering.PDFRenderer;
-import org.apache.pdfbox.text.PDFTextStripper;
 
 /**
  * Google Gemini — öncelik, özet, kategori uyumu ve önerilen kategori.
@@ -84,7 +76,11 @@ public class GeminiService {
             return null;
         }
 
-        String categoryOptions = categoryRepository.findAllByActiveTrue().stream()
+        String municipalityId = report.getMunicipality() != null ? report.getMunicipality().getId() : null;
+        String categoryOptions = (municipalityId != null
+                ? categoryRepository.findAllByActiveTrueAndMunicipalityIsNullOrMunicipality_Id(municipalityId)
+                : categoryRepository.findAllByActiveTrueAndMunicipalityIsNull())
+                .stream()
                 .map(c -> c.getName())
                 .collect(Collectors.joining(", "));
 
@@ -619,7 +615,8 @@ public class GeminiService {
     private static SimpleClientHttpRequestFactory requestFactory() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(5_000);
-        factory.setReadTimeout(180_000); // 3 dakika — multi-pass PDF analizi (20 sayfa × 2 pass = ~40 Gemini çağrısı)
+        // Interactive text analysis — keep well under former 180s PDF-era timeout.
+        factory.setReadTimeout(45_000);
         return factory;
     }
 

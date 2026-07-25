@@ -59,8 +59,6 @@ export default function Settings({
   const [prefsLoading, setPrefsLoading] = useState(true);
   const [announcements, setAnnouncements] = useState(true);
   const [outages, setOutages] = useState(true);
-  const [bloodDonations, setBloodDonations] = useState(true);
-  const [lostPets, setLostPets] = useState(true);
   const [surveys, setSurveys] = useState(true);
   const [locationPromptEnabled, setLocationPromptEnabled] = useState(() => {
     return storageService.getItem('belediye_location_auto_prompt') !== 'false';
@@ -124,8 +122,6 @@ export default function Settings({
         if (!prefs) return;
         setAnnouncements(prefs.announcementsEnabled);
         setOutages(prefs.outagesEnabled);
-        setBloodDonations(prefs.bloodDonationsEnabled);
-        setLostPets(prefs.lostPetsEnabled);
         setSurveys(prefs.surveysEnabled);
       })
       .catch((err) => {
@@ -137,7 +133,7 @@ export default function Settings({
   }, []);
 
   const handleTogglePref = async (
-    key: 'announcements' | 'outages' | 'blood' | 'lost' | 'surveys',
+    key: 'announcements' | 'outages' | 'surveys',
     currentVal: boolean,
   ) => {
     setSavingId(key);
@@ -146,8 +142,6 @@ export default function Settings({
     const updatedPayload = {
       announcementsEnabled: key === 'announcements' ? !currentVal : announcements,
       outagesEnabled: key === 'outages' ? !currentVal : outages,
-      bloodDonationsEnabled: key === 'blood' ? !currentVal : bloodDonations,
-      lostPetsEnabled: key === 'lost' ? !currentVal : lostPets,
       surveysEnabled: key === 'surveys' ? !currentVal : surveys,
     };
 
@@ -155,8 +149,6 @@ export default function Settings({
       await updateNotificationPreferences(updatedPayload);
       if (key === 'announcements') setAnnouncements(!currentVal);
       if (key === 'outages') setOutages(!currentVal);
-      if (key === 'blood') setBloodDonations(!currentVal);
-      if (key === 'lost') setLostPets(!currentVal);
       if (key === 'surveys') setSurveys(!currentVal);
 
       setNotice({
@@ -319,8 +311,6 @@ export default function Settings({
               {[
                 { id: 'announcements', label: t('notification.prefs.announcements', lang), val: announcements },
                 { id: 'outages', label: t('notification.prefs.outages', lang), val: outages },
-                { id: 'blood', label: t('notification.prefs.blood', lang), val: bloodDonations },
-                { id: 'lost', label: t('notification.prefs.lost', lang), val: lostPets },
                 { id: 'surveys', label: t('notification.prefs.surveys', lang), val: surveys },
               ].map((item) => (
                 <div key={item.id} className="flex items-center justify-between p-3.5">

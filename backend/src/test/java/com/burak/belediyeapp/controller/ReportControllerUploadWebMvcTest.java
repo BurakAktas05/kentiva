@@ -17,9 +17,12 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -28,6 +31,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(ReportCrudController.class)
 @AutoConfigureMockMvc(addFilters = false)
 class ReportControllerUploadWebMvcTest {
+
+    private static byte[] tinyJpeg() throws Exception {
+        BufferedImage img = new BufferedImage(2, 2, BufferedImage.TYPE_INT_RGB);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        if (!ImageIO.write(img, "jpg", out)) {
+            throw new IllegalStateException("JPEG writer unavailable");
+        }
+        return out.toByteArray();
+    }
 
     @Autowired MockMvc mockMvc;
 
@@ -40,7 +52,6 @@ class ReportControllerUploadWebMvcTest {
     @MockitoBean JwtAuthenticationSupport jwtAuthenticationSupport;
     @MockitoBean IAppUserRepository userRepository;
     @MockitoBean ApiKeyAuthFilter apiKeyAuthFilter;
-    @MockitoBean com.burak.belediyeapp.service.media.ImageAnonymizationService imageAnonymizationService;
     @MockitoBean com.burak.belediyeapp.security.SubscriptionInterceptor subscriptionInterceptor;
     @MockitoBean com.burak.belediyeapp.security.RateLimitInterceptor rateLimitInterceptor;
     @MockitoBean com.burak.belediyeapp.repository.IMunicipalityRepository municipalityRepository;
@@ -53,14 +64,11 @@ class ReportControllerUploadWebMvcTest {
         org.mockito.Mockito.when(rateLimitInterceptor.preHandle(
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(true);
-        org.mockito.Mockito.when(imageAnonymizationService.anonymize(
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
-                .thenAnswer(inv -> inv.getArgument(0));
     }
 
     @Test
     void imageUploadValidatesMediaAndReturnsStoredUrl() throws Exception {
-        MockMultipartFile file = new MockMultipartFile("files", "photo.jpg", "image/jpeg", new byte[] {1, 2, 3});
+        MockMultipartFile file = new MockMultipartFile("files", "photo.jpg", "image/jpeg", tinyJpeg());
         when(storageService.uploadBytes(any(), eq("image/jpeg"), eq("reports"), eq("photo.jpg")))
                 .thenReturn("/api/v1/media/access?token=signed");
 
@@ -72,7 +80,8 @@ class ReportControllerUploadWebMvcTest {
 
     @Test
     void nonImageUploadReturnsValidationError() throws Exception {
-        MockMultipartFile file = new MockMultipartFile("files", "note.txt", "text/plain", "hello".getBytes());
+        MockMultipartFile file = new MockMultipartFile(
+                "files", "note.txt", "text/plain", "this is clearly not an image file content".getBytes());
 
         mockMvc.perform(multipart("/api/v1/reports/upload").file(file))
                 .andExpect(status().isBadRequest())

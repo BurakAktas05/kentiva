@@ -1,8 +1,7 @@
-# Kentiva - Android APK derleme yardimcisi
-# Kullanim:
-#   .\scripts\build-apk.ps1 -ApiBaseUrl "https://YOUR.ngrok-free.app/api/v1"
-#   .\scripts\build-apk.ps1 -ApiBaseUrl "https://..." -Release
-# Yerel tunel (start-local.ps1 sonrasi): .\scripts\build-apk-local.ps1
+# Kentiva - Android APK derleme yardımcısı
+# Kullanım:
+#   .\scripts\build-apk.ps1 -ApiBaseUrl "https://api.kentiva.app/api/v1"
+#   .\scripts\build-apk.ps1 -ApiBaseUrl "https://api.kentiva.app/api/v1" -Release
 #
 param(
     [Parameter(Mandatory = $true)]

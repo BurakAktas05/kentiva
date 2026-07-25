@@ -31,14 +31,6 @@ public class UserNotificationPreference {
     private boolean outagesEnabled = true;
 
     @Builder.Default
-    @Column(name = "blood_donations_enabled", nullable = false)
-    private boolean bloodDonationsEnabled = true;
-
-    @Builder.Default
-    @Column(name = "lost_pets_enabled", nullable = false)
-    private boolean lostPetsEnabled = true;
-
-    @Builder.Default
     @Column(name = "surveys_enabled", nullable = false)
     private boolean surveysEnabled = true;
 

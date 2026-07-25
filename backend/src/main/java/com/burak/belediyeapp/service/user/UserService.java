@@ -8,20 +8,15 @@ import com.burak.belediyeapp.dto.request.user.UpdateUserRolesRequest;
 import com.burak.belediyeapp.dto.response.user.UserResponse;
 import com.burak.belediyeapp.entity.AppUser;
 import com.burak.belediyeapp.entity.Department;
-import com.burak.belediyeapp.entity.ItemDonationAd;
-import com.burak.belediyeapp.entity.LostPetAd;
 import com.burak.belediyeapp.entity.Municipality;
 import com.burak.belediyeapp.entity.Role;
 import com.burak.belediyeapp.exception.BusinessException;
 import com.burak.belediyeapp.exception.ResourceNotFoundException;
 import com.burak.belediyeapp.repository.IAppUserRepository;
-import com.burak.belediyeapp.repository.IBloodSearchAdRepository;
 import com.burak.belediyeapp.repository.IDepartmentRepository;
-import com.burak.belediyeapp.repository.IItemDonationAdRepository;
 import com.burak.belediyeapp.repository.IRefreshTokenRepository;
 import com.burak.belediyeapp.repository.IRoleRepository;
 import com.burak.belediyeapp.repository.IMunicipalityRepository;
-import com.burak.belediyeapp.repository.ILostPetAdRepository;
 import com.burak.belediyeapp.repository.IMunicipalitySurveyVoteRepository;
 import com.burak.belediyeapp.repository.INotificationRepository;
 import com.burak.belediyeapp.repository.ISystemFeedbackRepository;
@@ -38,7 +33,6 @@ import com.burak.belediyeapp.security.JwtAuthenticationSupport;
 import com.burak.belediyeapp.security.TokenBlacklistService;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -49,11 +43,8 @@ import java.util.stream.Collectors;
 public class UserService {
 
     private final IAppUserRepository userRepository;
-    private final IBloodSearchAdRepository bloodSearchAdRepository;
     private final IRoleRepository roleRepository;
     private final IDepartmentRepository departmentRepository;
-    private final ILostPetAdRepository lostPetAdRepository;
-    private final IItemDonationAdRepository itemDonationAdRepository;
     private final IRefreshTokenRepository refreshTokenRepository;
     private final IUserNotificationPreferenceRepository userNotificationPreferenceRepository;
     private final INotificationRepository notificationRepository;
@@ -66,8 +57,6 @@ public class UserService {
     private final com.burak.belediyeapp.service.notification.NotificationService notificationService;
     private final com.burak.belediyeapp.service.media.MediaSignedUrlService mediaSignedUrlService;
     private final com.burak.belediyeapp.service.security.PasswordPolicyService passwordPolicyService;
-    private final com.burak.belediyeapp.service.storage.StorageService storageService;
-
     @Transactional(readOnly = true)
     public UserResponse getUserProfile(AppUser currentUser) {
         return mapToResponse(currentUser);
@@ -313,7 +302,6 @@ public class UserService {
 
         String previousEmail = user.getEmail();
 
-        deleteUserOwnedSocialContent(userId);
         userNotificationPreferenceRepository.deleteByUserId(userId);
         notificationRepository.deleteAllByUserId(userId);
         systemFeedbackRepository.deleteAllByUserId(userId);
@@ -421,26 +409,6 @@ public class UserService {
         if (!currentUser.hasRole("ROLE_SUPER_ADMIN") && roleNames.contains("ROLE_SUPER_ADMIN")) {
             throw new BusinessException("Super admin rolü atanamaz", "ROLE_ESCALATION_NOT_ALLOWED");
         }
-    }
-
-    private void deleteUserOwnedSocialContent(String userId) {
-        List<LostPetAd> lostPetAds = lostPetAdRepository.findAllByUserId(userId);
-        for (LostPetAd ad : lostPetAds) {
-            if (ad.getMediaUrl() != null && !ad.getMediaUrl().isBlank()) {
-                storageService.deleteFile(ad.getMediaUrl());
-            }
-        }
-        lostPetAdRepository.hardDeleteAllByUserId(userId);
-
-        List<ItemDonationAd> itemDonationAds = itemDonationAdRepository.findAllByUserId(userId);
-        for (ItemDonationAd ad : itemDonationAds) {
-            if (ad.getMediaUrl() != null && !ad.getMediaUrl().isBlank()) {
-                storageService.deleteFile(ad.getMediaUrl());
-            }
-        }
-        itemDonationAdRepository.hardDeleteAllByUserId(userId);
-
-        bloodSearchAdRepository.hardDeleteAllByUserId(userId);
     }
 
     private void anonymizeUser(AppUser user) {

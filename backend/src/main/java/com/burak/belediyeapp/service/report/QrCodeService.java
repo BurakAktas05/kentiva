@@ -15,15 +15,22 @@ import java.util.Base64;
 @Slf4j
 public class QrCodeService {
 
-    @Value("${app.public-url:http://localhost:3000}")
-    private String publicUrl;
+    /**
+     * Public marketing / tracking site (QR links). Falls back to APP_PUBLIC_URL.
+     * Prefer APP_PUBLIC_SITE_URL=https://www.kentiva.app in production.
+     */
+    @Value("${app.public-site-url:${app.public-base-url:http://localhost:5174}}")
+    private String publicSiteUrl;
 
     public String generateQrCodeBase64(String trackingNumber) {
         if (trackingNumber == null || trackingNumber.isBlank()) {
             return null;
         }
         try {
-            String trackingUrl = publicUrl + "/reports/track/" + trackingNumber;
+            String base = publicSiteUrl == null || publicSiteUrl.isBlank()
+                    ? "http://localhost:5174"
+                    : publicSiteUrl.replaceAll("/+$", "");
+            String trackingUrl = base + "/reports/track/" + trackingNumber;
             QRCodeWriter qrCodeWriter = new QRCodeWriter();
             BitMatrix bitMatrix = qrCodeWriter.encode(trackingUrl, BarcodeFormat.QR_CODE, 250, 250);
 

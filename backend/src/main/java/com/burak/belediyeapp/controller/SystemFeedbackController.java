@@ -30,7 +30,6 @@ public class SystemFeedbackController {
     private final SystemFeedbackService feedbackService;
 
     @PostMapping
-    @Transactional
     @Operation(summary = "Uygulama hakkında geri bildirim gönder (Citizen)")
     public ResponseEntity<ApiResponse<SystemFeedbackResponse>> submitFeedback(
             @AuthenticationPrincipal AppUser currentUser,

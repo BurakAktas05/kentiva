@@ -196,7 +196,18 @@ public class AuthService {
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        String key = request.email().toLowerCase();
+        String input = request.email().trim();
+        String targetEmail = input;
+
+        if (!input.contains("@")) {
+            String normalizedPhone = smsOtpService.normalizePhoneNumber(input);
+            Optional<AppUser> userByPhone = findUserByPhone(normalizedPhone != null ? normalizedPhone : input);
+            if (userByPhone.isPresent()) {
+                targetEmail = userByPhone.get().getEmail();
+            }
+        }
+
+        String key = targetEmail.toLowerCase();
 
         // Brute-force koruması
         if (loginAttemptService.isBlocked(key)) {
@@ -208,7 +219,7 @@ public class AuthService {
 
         try {
             authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(request.email(), request.password())
+                    new UsernamePasswordAuthenticationToken(targetEmail, request.password())
             );
         } catch (Exception e) {
             loginAttemptService.loginFailed(key);
@@ -217,10 +228,11 @@ public class AuthService {
 
         loginAttemptService.loginSucceeded(key);
 
-        AppUser user = userRepository.findByEmail(request.email())
-                .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı", "email", request.email()));
+        final String lookupEmail = targetEmail;
+        AppUser user = userRepository.findByEmail(lookupEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı", "email/phone", lookupEmail));
 
-        log.info("Kullanıcı girişi: {}", user.getEmail());
+        log.info("Kullanıcı girişi: userId={}", user.getId());
         return buildAuthResponse(user);
     }
 

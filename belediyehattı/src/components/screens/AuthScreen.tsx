@@ -14,8 +14,9 @@ interface AuthScreenProps {
 
 export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = false }: AuthScreenProps) {
   const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
+  const [phoneOrEmail, setPhoneOrEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
@@ -42,7 +43,12 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
     try {
       let user: AuthUser;
       if (isLogin) {
-        user = await login(email, password);
+        if (!phoneOrEmail.trim()) {
+          setError(lang === 'tr' ? 'Telefon numaranızı girin.' : 'Enter your phone number.');
+          setLoading(false);
+          return;
+        }
+        user = await login(phoneOrEmail.trim(), password);
         onAuth(user);
       } else {
         if (!phone.trim()) {
@@ -51,6 +57,22 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
           return;
         }
         if (registerStep === 1) {
+          if (password.length < 8) {
+            setError(lang === 'tr' ? 'Şifre en az 8 karakter olmalıdır.' : 'Password must be at least 8 characters.');
+            setLoading(false);
+            return;
+          }
+          if (password !== confirmPassword) {
+            setError(lang === 'tr' ? 'Şifreler birbiriyle eşleşmiyor.' : 'Passwords do not match.');
+            setLoading(false);
+            return;
+          }
+          if (!kvkkApproved) {
+            setError(lang === 'tr' ? 'Lütfen KVKK aydınlatma metnini onaylayın.' : 'Please accept the privacy policy.');
+            setLoading(false);
+            return;
+          }
+
           setRegistrationOtpLoading(true);
           try {
             const result = await sendRegistrationOtp(phone.trim());
@@ -71,10 +93,12 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
             setLoading(false);
             return;
           }
+          const digits = phone.replace(/\D/g, '');
+          const generatedEmail = `${digits}@kentiva.app`;
           user = await register(
             firstName,
             lastName,
-            email,
+            generatedEmail,
             password,
             phone,
             registrationOtpCode,
@@ -89,8 +113,8 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
         setError(
           import.meta.env.DEV
             ? (lang === 'tr'
-                ? 'Sunucuya bağlanılamadı. http://localhost:3000 adresini kullanın; Ayarlar’daki API adresini temizleyin; backend’in (8080) çalıştığından emin olun.'
-                : 'Cannot reach the server. Use http://localhost:3000, clear API URL in Settings, and ensure the backend (8080) is running.')
+                ? 'Sunucuya bağlanılamadı. Backend’in (8080) ve tünelin çalıştığından emin olun.'
+                : 'Cannot reach the server. Ensure the backend (8080) and tunnel are running.')
             : (lang === 'tr'
                 ? 'Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.'
                 : 'Could not reach the server. Check your connection and try again.'),
@@ -134,10 +158,9 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'ngrok-skip-browser-warning': 'true',
-            'bypass-tunnel-reminder': 'true',
+            'bypass-tunnel-reminder': 'true'
           },
-          body: JSON.stringify({ phoneNumber: resetPhone }),
+          body: JSON.stringify({ phoneNumber: resetPhone })
         }).then(async r => {
           if (!r.ok) {
             throw new Error(await readFriendlyApiError(r, 'Doğrulama kodu gönderilemedi.'));
@@ -152,10 +175,9 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'ngrok-skip-browser-warning': 'true',
-            'bypass-tunnel-reminder': 'true',
+            'bypass-tunnel-reminder': 'true'
           },
-          body: JSON.stringify({ phoneNumber: resetPhone, otpCode, newPassword }),
+          body: JSON.stringify({ phoneNumber: resetPhone, otpCode, newPassword })
         }).then(async r => {
           if (!r.ok) {
             throw new Error(await readFriendlyApiError(r, 'Şifre sıfırlanamadı.'));
@@ -175,62 +197,44 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
   };
 
   const pageTitle = isLogin
-    ? (lang === 'tr' ? 'Tekrar hoş geldiniz' : lang === 'ar' ? 'مرحبًا بعودتك' : 'Welcome back')
-    : (lang === 'tr' ? 'Kentiva’ya katılın' : lang === 'ar' ? 'انضم إلى Kentiva' : 'Join Kentiva');
+    ? (lang === 'tr' ? 'Hoş Geldiniz' : lang === 'ar' ? 'مرحبًا بك' : 'Welcome')
+    : registerStep === 1
+      ? (lang === 'tr' ? 'Kayıt Olun (Adım 1/2)' : lang === 'ar' ? 'التسجيل (الخطوة 1)' : 'Sign Up (Step 1/2)')
+      : (lang === 'tr' ? 'SMS Doğrulama (Adım 2/2)' : lang === 'ar' ? 'تأكيد الرسائل (الخطوة 2)' : 'SMS Verification (Step 2/2)');
+
   const pageDescription = isLogin
     ? (lang === 'tr'
-        ? 'Belediye hizmetlerinize güvenli şekilde erişin.'
-        : lang === 'ar'
-          ? 'يمكنك الوصول إلى خدمات البلدية بأمان.'
-          : 'Access your municipality services securely.')
-    : (lang === 'tr'
-        ? 'İhbar oluşturun ve çözüm sürecini tek yerden takip edin.'
-        : lang === 'ar'
-          ? 'أنشئ البلاغات وتابع عملية الحل من مكان واحد.'
-          : 'Create reports and track their resolution in one place.');
+        ? 'Belediye hizmetlerine erişmek ve ihbar takibi yapmak için giriş yapın.'
+        : 'Log in to access municipality services and track your reports.')
+    : registerStep === 1
+      ? (lang === 'tr'
+          ? 'İhbar oluşturmak ve süreçleri takip etmek için hesabınızı oluşturun.'
+          : 'Create your account to submit and track reports.')
+      : (lang === 'tr'
+          ? `${phone} numarasına gönderilen 6 haneli doğrulama kodunu girin.`
+          : `Enter the 6-digit code sent to ${phone}.`);
+
   const labelClass = `mb-1.5 block text-xs font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`;
   const inputClass = 'kentiva-input pl-11 pr-4';
 
   return (
     <div className={`relative flex min-h-app w-full flex-col items-center overflow-x-hidden px-4 py-6 pt-safe pb-safe font-sans sm:justify-center ${
-      isDark ? 'bg-slate-950' : 'bg-slate-50'
+      isDark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'
     }`}>
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
         <div className={`absolute -left-28 -top-24 h-72 w-72 rounded-full blur-3xl ${isDark ? 'bg-primary/10' : 'bg-primary/5'}`} />
         <div className={`absolute -bottom-28 -right-24 h-72 w-72 rounded-full blur-3xl ${isDark ? 'bg-amber-500/5' : 'bg-amber-100/50'}`} />
       </div>
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         className="relative w-full max-w-md min-w-0"
       >
-        {/* Brand */}
-        <div className="mb-5 flex items-center gap-3 px-1">
-          <img
-            src="/kentiva-app-icon.png"
-            alt=""
-            width={64}
-            height={64}
-            className={`h-16 w-16 shrink-0 rounded-[20px] border object-cover shadow-kentiva-sm ${
-              isDark ? 'border-slate-700' : 'border-slate-200'
-            }`}
-            aria-hidden
-          />
-          <div className="min-w-0">
-            <h1 className={`text-xl font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-              {t('app.name', lang)}
-            </h1>
-            <p className={`mt-0.5 text-xs font-medium leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              {t('app.slogan', lang)}
-            </p>
-          </div>
-        </div>
-
-        <section className={`rounded-[28px] border p-5 shadow-kentiva-sm sm:p-6 ${
+        <section className={`rounded-[28px] border p-6 shadow-kentiva-sm sm:p-7 ${
           isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200/90 bg-white'
         }`}>
-          <div className="mb-5">
-            <h2 className={`text-lg font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+          <div className="mb-6">
+            <h2 className={`text-xl font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
               {pageTitle}
             </h2>
             <p className={`mt-1 text-xs leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -240,9 +244,9 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
 
         {/* Tab Switcher */}
         <div
-          className={`mb-5 flex rounded-2xl p-1 ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}
+          className={`mb-6 flex rounded-2xl p-1 ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}
           role="tablist"
-          aria-label={lang === 'tr' ? 'Hesap işlemleri' : lang === 'ar' ? 'إجراءات الحساب' : 'Account actions'}
+          aria-label={lang === 'tr' ? 'Hesap işlemleri' : 'Account actions'}
         >
           <button
             type="button"
@@ -274,20 +278,20 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {isLogin ? (
-            // Giriş Formu
+            // Giriş Formu (Telefon No veya E-posta)
             <>
               <div>
-                <label htmlFor="auth-email" className={labelClass}>
-                  {t('auth.email', lang)}
+                <label htmlFor="auth-phone-login" className={labelClass}>
+                  {lang === 'tr' ? 'Telefon Numarası' : 'Phone Number'}
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
-                    id="auth-email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder={t('auth.email', lang)}
+                    id="auth-phone-login"
+                    type="text"
+                    value={phoneOrEmail}
+                    onChange={(e) => setPhoneOrEmail(e.target.value)}
+                    placeholder="05XX XXX XX XX"
                     required
                     className={inputClass}
                   />
@@ -307,17 +311,13 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder={t('auth.password', lang)}
                     required
-                    minLength={10}
                     className={inputClass}
                   />
                 </div>
-                <p className={`mt-1.5 text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                  {lang === 'tr' ? 'En az 10 karakter kullanın.' : 'Use at least 10 characters.'}
-                </p>
               </div>
             </>
           ) : registerStep === 1 ? (
-            // Kayıt Adım 1: Kullanıcı Bilgileri
+            // Kayıt Adım 1: Kullanıcı Bilgileri & Telefon
             <>
               <div className="flex flex-col gap-3 sm:flex-row">
                 <div className="flex-1 min-w-0">
@@ -358,7 +358,7 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
 
               <div className="min-w-0">
                 <label htmlFor="auth-phone" className={labelClass}>
-                  {t('auth.phone', lang)}
+                  {lang === 'tr' ? 'Telefon Numarası (Zorunlu)' : 'Phone Number (Required)'}
                 </label>
                 <div className="relative">
                   <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -371,25 +371,7 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
                       setRegistrationOtpMessage('');
                       setRegistrationOtpCode('');
                     }}
-                    placeholder={t('auth.phone', lang)}
-                    required
-                    className={inputClass}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="auth-register-email" className={labelClass}>
-                  {t('auth.email', lang)}
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input
-                    id="auth-register-email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder={t('auth.email', lang)}
+                    placeholder="05XX XXX XX XX"
                     required
                     className={inputClass}
                   />
@@ -415,7 +397,26 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
                 </div>
               </div>
 
-              <label className="flex items-start gap-3 cursor-pointer mt-1">
+              <div>
+                <label htmlFor="auth-confirm-password" className={labelClass}>
+                  {lang === 'tr' ? 'Şifre Tekrarı' : 'Confirm Password'}
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    id="auth-confirm-password"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder={lang === 'tr' ? 'Şifrenizi tekrar girin' : 'Repeat your password'}
+                    required
+                    minLength={8}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+
+              <label className="flex items-start gap-3 cursor-pointer mt-2">
                 <input
                   type="checkbox"
                   checked={kvkkApproved}
@@ -441,7 +442,7 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
 
               <div>
                 <label htmlFor="auth-otp" className={labelClass}>
-                  {lang === 'tr' ? 'SMS doğrulama kodu' : 'SMS verification code'}
+                  {lang === 'tr' ? 'SMS Doğrulama Kodu' : 'SMS Verification Code'}
                 </label>
                 <div className="relative">
                   <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -452,7 +453,7 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
                     maxLength={6}
                     value={registrationOtpCode}
                     onChange={(e) => setRegistrationOtpCode(e.target.value.replace(/\D/g, ''))}
-                    placeholder={lang === 'tr' ? 'SMS doğrulama kodu' : 'SMS verification code'}
+                    placeholder="6 haneli kod"
                     required
                     className={`${inputClass} text-center font-bold tracking-[0.24em]`}
                   />
@@ -470,7 +471,7 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
                   onClick={() => setRegisterStep(1)}
                   className="kentiva-btn-secondary"
                 >
-                  {lang === 'tr' ? 'Geri Git' : 'Go Back'}
+                  {lang === 'tr' ? 'Geri Dön' : 'Go Back'}
                 </button>
                 <button
                   type="button"
@@ -491,21 +492,25 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
               animate={{ opacity: 1, scale: 1 }}
               className="kentiva-alert-error"
             >
-              <div className="w-1.5 h-1.5 bg-red-600 rounded-full" />
-              {error}
+              <div className="w-1.5 h-1.5 bg-red-600 rounded-full shrink-0" />
+              <span>{error}</span>
             </motion.div>
           )}
 
           <button
             type="submit"
-            disabled={loading || (!isLogin && registerStep === 1 && (!kvkkApproved || !phone.trim())) || (!isLogin && registerStep === 2 && registrationOtpCode.length !== 6)}
+            disabled={loading || registrationOtpLoading || (!isLogin && registerStep === 1 && (!kvkkApproved || !phone.trim())) || (!isLogin && registerStep === 2 && registrationOtpCode.length !== 6)}
             className="kentiva-btn-primary"
           >
-            {loading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
+            {loading || registrationOtpLoading ? (
+              <Loader2 className="w-5 h-5 animate-spin mx-auto" />
             ) : (
               <>
-                {isLogin ? t('auth.login', lang) : t('auth.register', lang)}
+                {isLogin
+                  ? t('auth.login', lang)
+                  : registerStep === 1
+                    ? (lang === 'tr' ? 'Devam Et (SMS OTP Kodu Gönder)' : 'Continue (Send SMS OTP)')
+                    : (lang === 'tr' ? 'Kayıt Ol ve Giriş Yap' : 'Complete Registration')}
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
@@ -515,7 +520,7 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
             <button
               type="button"
               onClick={() => setForgotMode('phone')}
-              className="w-full text-center text-xs font-semibold text-primary mt-2 py-2"
+              className="w-full text-center text-xs font-semibold text-primary mt-2 py-2 hover:underline"
             >
               {t('auth.forgotPassword', lang)}
             </button>
@@ -525,7 +530,7 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
             <button
               type="button"
               onClick={onContinueAsGuest}
-              className={`mt-3 flex min-h-14 w-full items-center gap-3 rounded-2xl border p-3 text-left transition-all active:scale-[0.99] ${
+              className={`mt-3 flex min-h-14 w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition-all active:scale-[0.99] ${
                 isDark
                   ? 'border-slate-700 bg-slate-800/70 text-slate-200 hover:bg-slate-800'
                   : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-slate-100'
@@ -538,16 +543,14 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block text-xs font-bold">
-                  {lang === 'tr' ? 'Misafir olarak keşfet' : lang === 'ar' ? 'استكشف كزائر' : 'Explore as a guest'}
+                  {lang === 'tr' ? 'Misafir olarak keşfet' : 'Explore as a guest'}
                 </span>
                 <span className={`mt-0.5 block text-[11px] font-medium leading-relaxed ${
                   isDark ? 'text-slate-400' : 'text-slate-500'
                 }`}>
                   {lang === 'tr'
                     ? 'Belediyenizi seçin, duyuru ve hizmetleri görüntüleyin.'
-                    : lang === 'ar'
-                      ? 'اختر بلديتك واعرض الإعلانات والخدمات.'
-                      : 'Choose your municipality and view announcements and services.'}
+                    : 'Choose your municipality and view announcements and services.'}
                 </span>
               </span>
               <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />

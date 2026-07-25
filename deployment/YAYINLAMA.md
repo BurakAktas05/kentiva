@@ -1,284 +1,277 @@
-# Kentiva — Yayınlama, APK ve manuel test rehberi
+# Kentiva — Yayınlama rehberi
 
-Bu rehber production ortamını sırayla kurmanız içindir.
+Bu belgeyi **yayınlayan arkadaş** takip eder. Kod yazmaya gerek yok: anahtarları doldur,
+uygun servisleri bağla, checklist’i kapat.
 
-- Doküman dizini: [`README.md`](README.md)
-- Anahtar şablonu: [`ANAHTARLAR.template.env`](ANAHTARLAR.template.env) → `ANAHTARLAR.local.env` (commit etme)
-- Media Guard: [`MEDIA-GUARD.md`](MEDIA-GUARD.md) *(API’den önce veya birlikte)*
+- Anahtar şablonu: [`ANAHTARLAR.template.env`](ANAHTARLAR.template.env) → `ANAHTARLAR.local.env` (**commit etme**)
+- Media Guard: [`MEDIA-GUARD.md`](MEDIA-GUARD.md)
 - Kontrol listesi: [`PROD-CHECKLIST.md`](PROD-CHECKLIST.md)
 - Rollback: [`ROLLBACK.md`](ROLLBACK.md)
-
-## Bileşenler
-
-| Bileşen | Nerede host | Giriş |
-|---------|-------------|-------|
-| Backend API + PostgreSQL + Redis + RabbitMQ | **Railway / eşdeğer yönetilen altyapı** | — |
-| Media Guard | **Railway private service** (iç ağ) | — |
-| Belediye yönetim paneli | **Vercel** (`admin-portal`) | `/login` → belediye çalışma alanı |
-| Platform sahibi paneli | Aynı güvenli deployment, ayrı giriş | `/super-admin/login` (`/platform/login` kısayolu) |
-| Kamu sitesi | **Vercel** (`public-site`) | Giriş yok |
-| Vatandaş web (opsiyonel) | **Vercel** (`belediyehattı`) | Kayıt/giriş |
-| Android APK | Yerel derleme | Vatandaş kayıt/giriş |
-
-**Platform sahibi public site veya belediye girişinde oturum açmaz.** İlk kurulum:
-`https://<admin-vercel>/setup`; sonraki girişler: `https://<admin-vercel>/super-admin/login`.
-Belediye kullanıcıları `https://<admin-vercel>/login` üzerinden kendi çalışma alanına yönlenir.
+- S3 uyumlu medya (R2 / AWS / MinIO): [`STORAGE.md`](STORAGE.md)
 
 ---
 
-## 1. Railway — Backend
+## Servis seçimi (ne nereye?)
 
-### 1.1 Proje oluşturma
+Kentiva’nın ihtiyaçları sabit; sağlayıcı serbest. Aşağıdaki **önerilen** set pilot /
+sıfır-trafik için en az sürtünmeli kombinasyon. Alternatifler aynı env değişkenleriyle
+çalışır.
 
-1. [railway.app](https://railway.app) → New Project → Deploy from GitHub repo (`belediyeapp` kökü).
-2. **PostgreSQL**, kalıcı **Redis** ve kalıcı **RabbitMQ** servislerini ekleyin.
-   Bağlantı bilgilerini yalnızca backend servisine secret olarak bağlayın.
-3. Servis ayarları:
-   - Build: Dockerfile ([`Dockerfile`](../Dockerfile), [`railway.json`](../railway.json))
-   - Healthcheck: `/actuator/health`
+| İhtiyaç | Önerilen (pilot) | Alternatifler | Neden |
+|---------|------------------|---------------|--------|
+| API (Spring Boot Docker) | **Railway** | Render, Fly.io, Google Cloud Run, AWS ECS/Fargate, DigitalOcean App Platform | Dockerfile hazır; Postgres/Redis eklentisi kolay |
+| PostgreSQL + PostGIS | Railway Postgres (+ PostGIS) | Supabase, Neon (+ PostGIS), AWS RDS, self-host | Flyway + PostGIS zorunlu |
+| Redis | Railway Redis | Upstash, ElastiCache, Redis Cloud | Cache + rate-limit |
+| RabbitMQ | Railway RabbitMQ | CloudAMQP, Amazon MQ | İhbar sonrası async işler (prod zorunlu) |
+| Media Guard (FastAPI) | Aynı platformda **private** servis | Ayrı küçük VPS / Cloud Run (iç ağ) | Public domain **vermeyin** |
+| Medya dosyaları (S3 API) | **Cloudflare R2** *veya* **AWS S3** | Backblaze B2, MinIO, DigitalOcean Spaces | Backend `APP_STORAGE_TYPE=s3` |
+| Admin / public / vatandaş web | **Vercel** | Netlify, Cloudflare Pages, Railway static | Vite `dist`; root directory ayrı |
+| DNS + SSL | Domain sağlayıcı + platform SSL | Cloudflare DNS, Route53, Namecheap | CNAME → Railway/Vercel |
+| SMS OTP | **NetGSM** | (Twilio kodda yok — kullanmayın) | Prod validator NetGSM ister |
+| AI | **Google Gemini** API key | — | `GEMINI_API_KEY` |
+| Push | **Firebase** (FCM) | — | `FIREBASE_CONFIG_BASE64` + `google-services.json` |
 
-### 1.2 PostGIS
+**Önerilen uçtan uca pilot paketi:** Railway (API + DB + Redis + Rabbit + Media Guard) +
+Vercel (3 frontend) + S3/R2 (medya) + NetGSM + Gemini + Firebase + domain DNS.
 
-Flyway `V1__create_extensions.sql` ile `postgis` kurulur. İlk deploy’da extension hatası alırsanız Railway Postgres → **Query** sekmesinde bir kez çalıştırın:
+Cloudflare zorunlu değildir; yalnızca R2 veya DNS tercih ederseniz [`STORAGE.md`](STORAGE.md)
+içinde R2 örneği vardır.
+
+---
+
+## Tahmini maliyet — henüz kullanıcı yokken
+
+Fiyatlar **2026 ortası kamu listelerine dayalı kabaca tahmindir** (USD, aylık, KDV hariç).
+Sağlayıcı fiyatları değişir; yayın öncesi panellerden doğrulayın. Amaç: “sıfır ihbar /
+sıfır vatandaş” iken sabit fatura bandını görmek.
+
+### Senaryo A — Minimum canlı (önerilen pilot)
+
+Sürekli ayakta prod; trafik ≈ 0; 1 küçük belediye demo / smoke test.
+
+| Kalem | Sağlayıcı örneği | Aylık (yaklaşık) | Not |
+|-------|------------------|------------------|-----|
+| API + Media Guard compute | Railway Hobby/Pro pay-as-you-go | **$15–35** | 2 container (API + Media Guard), idle düşük |
+| PostgreSQL | Railway / yönetilen PG | **$5–15** | Küçük instance; PostGIS |
+| Redis | Railway / Upstash free→paid | **$0–10** | Upstash free tier yetebilir |
+| RabbitMQ | Railway / CloudAMQP | **$0–10** | En küçük plan |
+| Object storage | R2 veya S3 | **$0–2** | Depolama + istek ≈ 0 |
+| Frontend (3 proje) | Vercel Hobby | **$0** | Ticari limitlere dikkat; Pro ~$20/üye |
+| DNS | Registrar | **$1–2** | Domain yıllık ~$10–15 → aylığa yay |
+| SMS NetGSM | NetGSM kredi | **$0–5** | Kullanım yoksa kredi bekler; min paket değişken |
+| Gemini API | Google AI | **$0–3** | Free tier / çok düşük çağrı |
+| Firebase | Google | **$0** | Spark / düşük FCM |
+| **Toplam** | | **≈ $25–80 / ay** | Tipik orta nokta **~$40–55** |
+
+### Senaryo B — Çok kısıtlı staging (geceleri kapatılabilir)
+
+| Kalem | Tahmin | Not |
+|-------|--------|-----|
+| Tek küçük API + paylaşımlı DB | **$10–25** | Render/Fly free tier’lar kısıtlı; prod profili için uygun değil |
+| Frontends | **$0** | Vercel Hobby |
+| SMS / AI | **$0** | Key var, çağrı yok |
+| **Toplam** | **≈ $10–30** | Soft-launch / yatırımcı demosu; 7/24 SLA yok |
+
+### Senaryo C — “Kurumsal hazır” boş ortam
+
+Ayrı staging + prod, managed backup, gözlem.
+
+| Kalem | Tahmin |
+|-------|--------|
+| Prod + staging compute/DB | **$80–180** |
+| S3 + monitoring + log | **$10–30** |
+| **Toplam** | **≈ $90–210 / ay** |
+
+### Maliyeti şişiren / düşüren unsurlar
+
+| Artırır | Düşürür |
+|---------|---------|
+| 7/24 büyük JVM heap, her zaman sıcak replica | Railway/Render’da sleep (prod için önerilmez) |
+| Public Media Guard + ekstra egress | Private iç ağ URL |
+| Vercel Pro takım koltukları | Hobby + tek sahip |
+| NetGSM yüksek kontör peşin | Kullandıkça kontör |
+| Gemini yüksek kota | Sadece key; çağrı yokken ≈ 0 |
+
+**Sonuç:** Kullanıcı yokken Kentiva’yı önerilen pakette ayakta tutmak genelde
+**ayda ~$40–60 (≈ ₺1.300–2.000, kura bağlı)** bandındadır. İlk ödeme çoğu zaman
+domain + NetGSM min kontör + Railway/Vercel kart doğrulamasıdır.
+
+---
+
+## Hedef mimari (mantıksal)
+
+| Bileşen | Rol |
+|---------|-----|
+| API | Spring Boot (`prod`), HTTPS |
+| PostgreSQL + PostGIS | Flyway, tenant verisi |
+| Redis | Cache + rate-limit |
+| RabbitMQ | Async ihbar pipeline |
+| S3 uyumlu bucket | İhbar medyası (imzalı URL) |
+| Media Guard | Private yüz taraması |
+| Admin / Public / Citizen web | Vite SPA |
+| Android APK | `scripts/build-apk.ps1 -Release` |
+
+Giriş URL’leri (domain’lerinize göre):
+
+- Belediye personeli: `https://admin…/login`
+- Platform sahibi: `https://admin…/super-admin/login`
+- İlk kurulum (bir kez): `https://admin…/setup` + `APP_SETUP_TOKEN`
+
+```mermaid
+flowchart TB
+  DNS[DNS + SSL] --> FE[Static frontends]
+  DNS --> API[API container]
+  API --> PG[(Postgres+PostGIS)]
+  API --> RD[(Redis)]
+  API --> MQ[[RabbitMQ]]
+  API --> OBJ[(S3 uyumlu medya)]
+  API --> MG[Media Guard private]
+  API --> SMS[NetGSM]
+  API --> AI[Gemini]
+```
+
+---
+
+## 0. Anahtar dosyası
+
+```bash
+cp deployment/ANAHTARLAR.template.env deployment/ANAHTARLAR.local.env
+```
+
+```powershell
+openssl rand -base64 64   # JWT_SECRET
+openssl rand -hex 32      # APP_SETUP_TOKEN
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("service-account.json"))  # FIREBASE
+```
+
+---
+
+## 1. Domain / DNS
+
+1. Domain alın (Namecheap, Google Domains, Cloudflare Registrar, vs.).
+2. `api.`, `admin.`, `www.` (veya apex), isteğe `app.` CNAME’lerini
+   API ve frontend hostlarına bağlayın.
+3. Platformun ürettiği SSL sertifikasını kullanın (Railway/Vercel otomatik HTTPS).
+
+---
+
+## 2. Object storage (medya)
+
+S3 uyumlu bir bucket oluşturun (R2, AWS S3, B2, Spaces, MinIO).
+
+```env
+APP_STORAGE_TYPE=s3
+S3_ENDPOINT=
+S3_ACCESS_KEY=
+S3_SECRET_KEY=
+S3_BUCKET_NAME=
+S3_REGION=auto
+S3_PUBLIC_URL=
+```
+
+Ayrıntı / R2 örneği: [`STORAGE.md`](STORAGE.md). Bucket’ı public yapmaya gerek yok
+(Kentiva imzalı URL kullanır).
+
+---
+
+## 3. Backend platformu (ör. Railway)
+
+1. GitHub repo → deploy (kök [`Dockerfile`](../Dockerfile) / [`railway.json`](../railway.json)).
+2. PostgreSQL + Redis + RabbitMQ ekleyin.
+3. Media Guard’ı **private** servis olarak ekleyin ([`MEDIA-GUARD.md`](MEDIA-GUARD.md)).
+4. `ANAHTARLAR.local.env` Railway Variables’a yapıştırın.
+
+**Minimum zorunlu**
+
+| Değişken | Not |
+|----------|-----|
+| `SPRING_PROFILES_ACTIVE=prod` | Prod kapıları |
+| `JWT_SECRET` / `APP_SETUP_TOKEN` | |
+| `APP_PUBLIC_URL` | `https://api…` (imzalı medya) |
+| `APP_PUBLIC_SITE_URL` | `https://www…` (QR takip) |
+| `APP_CORS_ALLOWED_ORIGINS` | Frontend origin’leri |
+| `APP_CACHE_TYPE=redis` + `REDIS_URL` | |
+| `APP_MESSAGING_RABBIT_ENABLED=true` + RabbitMQ | |
+| `APP_STORAGE_TYPE=s3` + S3_* | |
+| `MEDIA_GUARD_URL` | Private iç URL |
+| `MEDIA_*_FAIL_OPEN=false` | Üçü de |
+| `SMS_PROVIDER=netgsm` + NetGSM | |
+| `GEMINI_API_KEY` | Önerilir |
+| `FIREBASE_CONFIG_BASE64` | Önerilir |
+
+PostGIS ilk hatada:
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS postgis;
 ```
 
-### 1.3 Ortam değişkenleri
-
-[`ANAHTARLAR.template.env`](ANAHTARLAR.template.env) veya [`railway.env.example`](../railway.env.example) içindekileri Railway **Variables**’a yapıştırın.
-
-**Minimum zorunlu:**
-
-| Değişken | Açıklama |
-|----------|----------|
-| `JWT_SECRET` | `openssl rand -base64 64` |
-| `APP_SETUP_TOKEN` | `openssl rand -hex 32` |
-| `APP_PUBLIC_URL` | `https://<servis>.up.railway.app` |
-| `APP_CORS_ALLOWED_ORIGINS` | Vercel URL’leri (virgülle); önce tahmini yazıp Vercel sonrası güncelleyin |
-| `APP_CACHE_TYPE=redis` + `REDIS_URL` | Dağıtık cache ve rate-limit durumu |
-| `APP_MESSAGING_RABBIT_ENABLED=true` | İhbar sonrası işlerin dayanıklı kuyrukta işlenmesi |
-| `RABBITMQ_HOST/PORT/USERNAME/PASSWORD` | Kalıcı RabbitMQ bağlantısı |
-| `APP_STORAGE_TYPE=s3` + S3/R2 anahtarları | Kalıcı ve ölçeklenebilir medya depolama |
-| `MEDIA_GUARD_FAIL_OPEN=false` | Medya güvenliği üretimde kapalı geçilemez |
-| `MEDIA_VALIDATION_FAIL_OPEN=false` | Medya doğrulaması üretimde kapalı geçilemez |
-| `MEDIA_ANONYMIZATION_FAIL_OPEN=false` | Anonimleştirme üretimde kapalı geçilemez |
-
-**Önerilen:** `GEMINI_API_KEY`, `FIREBASE_CONFIG_BASE64` ve altyapı kapasitesine
-göre Hikari/async/Rabbit consumer değerleri. Prod profili eksik kalıcı depolama,
-Redis, RabbitMQ, SMS, rate-limit veya fail-closed medya ayarıyla başlamayı reddeder.
-
-### 1.4 Media Guard (zorunlu)
-
-Prod boot `MEDIA_GUARD_URL` ister. Adımlar: [`MEDIA-GUARD.md`](MEDIA-GUARD.md).
-
-Özet: aynı projede private FastAPI servisi (`services/media-guard`) deploy edin;
-public domain vermeyin; backend’e yalnızca iç URL verin.
-
-### 1.5 Deploy doğrulama
-
-```bash
-curl https://<RAILWAY_HOST>/actuator/health
+```powershell
+.\scripts\check-backend-health.ps1 -BaseUrl "https://api.example.com"
 ```
 
-PowerShell:
+---
+
+## 4. Frontends (ör. Vercel)
+
+| Proje root | Env |
+|------------|-----|
+| `admin-portal` | `VITE_API_BASE=https://api…/api/v1` |
+| `public-site` | `VITE_API_BASE`, `VITE_ADMIN_PORTAL_URL`, `VITE_SITE_URL`, `VITE_CITIZEN_APP_URL` |
+| `belediyehattı` (opsiyonel) | `VITE_API_BASE_URL=https://api…/api/v1` |
+
+Deploy sonrası CORS’a frontend origin’lerini ekleyin.
+
+### İlk süper admin
+
+1. `https://admin…/setup`
+2. `APP_SETUP_TOKEN`
+3. Sonra `/super-admin/login`
+
+---
+
+## 5. Android APK
 
 ```powershell
-.\scripts\check-backend-health.ps1 -BaseUrl "https://<RAILWAY_HOST>"
+.\scripts\build-apk.ps1 -ApiBaseUrl "https://api.example.com/api/v1" -Release
 ```
 
-Beklenen: `{"status":"UP"}` (veya benzeri).
+- `belediyehattı/android/app/google-services.json`
+- İmza anahtarları repo dışında
+- [`STORE-LISTELEME.md`](STORE-LISTELEME.md)
 
 ---
 
-## 2. Vercel — Admin portal
+## 6. Smoke test
 
-1. [vercel.com](https://vercel.com) → Import repo.
-2. **Root Directory:** `admin-portal`
-3. Framework: Vite (otomatik)
-4. Build: `npm run build` — Output: `dist`
-5. Environment:
+1. Super-admin + belediye onboarding  
+2. Vatandaş ihbar + fotoğraf  
+3. Admin atama / durum / SLA  
+4. Public QR takip  
+5. Anket + duyuru  
+6. Push (cihaz)
 
-```
-VITE_API_BASE=https://<RAILWAY_HOST>/api/v1
-VITE_ADMIN_PORTAL_BASE_URL=https://<VERCEL_ADMIN_URL>
-VITE_PUBLIC_SITE_BASE=https://<PUBLIC_DOMAIN>
-VITE_PUBLIC_SITE_ROOT_DOMAIN=<PUBLIC_ROOT_DOMAIN>
-```
-
-Belediye panelleri için wildcard DNS/SSL hazırsa ayrıca
-`VITE_MUNICIPALITY_PORTAL_ROOT_DOMAIN=panel.<PUBLIC_ROOT_DOMAIN>` tanımlayın. Böylece
-`belediye-kodu.panel.<PUBLIC_ROOT_DOMAIN>/municipality/login` adresleri kullanılır. Wildcard
-altyapısı yoksa uygulama otomatik olarak güvenli
-`/municipality/login?tenant=belediye-kodu` adresini üretir; yerelde de bu yöntem çalışır.
-
-İsteğe bağlı `platform.<PUBLIC_ROOT_DOMAIN>` ve belediye wildcard alan adlarını aynı Vercel
-deployment’ına bağlayabilirsiniz. Platform sahibi rotası yalnızca `/super-admin/login` üzerinden
-belediyeye bağlı olmayan `ROLE_SUPER_ADMIN` hesabını kabul eder.
-
-6. Deploy → URL’yi not edin (`VERCEL_ADMIN_URL`).
-
-`vercel.json` SPA yönlendirmesi için repoda mevcuttur.
+Tam liste: [`PROD-CHECKLIST.md`](PROD-CHECKLIST.md)
 
 ---
 
-## 3. CORS güncelleme
-
-Railway’de `APP_CORS_ALLOWED_ORIGINS` değerine ekleyin (virgül, boşluksuz):
-
-```
-https://<VERCEL_ADMIN_URL>,https://<VERCEL_PUBLIC_URL>,https://<VERCEL_CITIZEN_URL>
-```
-
-Yerel geliştirme için `http://localhost:5173,http://localhost:3000,http://localhost:5174` de kalabilir.
-
-Redeploy backend (değişken kaydedince otomatik).
-
----
-
-## 4. Süper admin kurulumu
-
-1. Railway’de `APP_SETUP_TOKEN` tanımlı olsun.
-2. Tarayıcı: `https://<VERCEL_ADMIN_URL>/setup`
-3. Kurulum token’ı + e-posta/şifre girin → **İlk süper admin** oluşur.
-4. `https://<VERCEL_ADMIN_URL>/super-admin/login` ile giriş yapın.
-5. Süper admin (belediyeye bağlı olmayan) → platform belediye listesi görünür.
-
-> Production’da `admin@kentiva.app` / `admin123` **yoktur**; yalnızca `dev` profilinde.
-
-Kurulumdan sonra güvenlik için `APP_SETUP_TOKEN` değerini rotate edebilirsiniz (bootstrap bir kez).
-
----
-
-## 5. Vercel — Public site
-
-1. Yeni Vercel projesi, **Root Directory:** `public-site`
-2. Environment:
-
-```
-VITE_API_BASE=https://<RAILWAY_HOST>/api/v1
-VITE_ADMIN_PORTAL_URL=https://<VERCEL_ADMIN_URL>
-VITE_MUNICIPALITY_PORTAL_URL=https://<VERCEL_ADMIN_URL>/login
-VITE_SUPER_ADMIN_PORTAL_URL=https://<VERCEL_ADMIN_URL>/super-admin/login
-VITE_SITE_URL=https://<VERCEL_PUBLIC_URL>
-VITE_CITIZEN_APP_URL=https://<VERCEL_CITIZEN_URL>
-```
-
-3. Deploy → ana sayfa ve canlı istatistikler API’ye bağlanmalı; “Yönetim paneli” linki admin URL’sine gitmeli.
-
----
-
-## 6. Vercel — Vatandaş web (opsiyonel)
-
-**Root Directory:** `belediyehattı`
-
-```
-VITE_API_BASE_URL=https://<RAILWAY_HOST>/api/v1
-```
-
----
-
-## 7. Android APK (Windows)
-
-### Önkoşullar
-
-- Android Studio, JDK 21, Android SDK 36
-- [`belediyehattı/README.md`](../belediyehattı/README.md)
-
-### Production derleme
+## Yerel geliştirme
 
 ```powershell
-# Otomatik (.env yazar + build + debug APK):
-.\scripts\build-apk.ps1 -ApiBaseUrl "https://<RAILWAY_HOST>/api/v1"
-
-# Release (imzalı keystore gerekir):
-.\scripts\build-apk.ps1 -ApiBaseUrl "https://<RAILWAY_HOST>/api/v1" -Release
+docker compose --env-file .env.docker up --build
+# veya
+.\scripts\start-local.ps1
 ```
 
-Elle:
-
-```powershell
-cd belediyehattı
-copy .env.example .env
-# .env: VITE_API_BASE_URL=https://<RAILWAY_HOST>/api/v1
-# CAPACITOR_DEV_SERVER_URL TANIMLAMAYIN
-npm install
-npm run build:native
-```
-
-Push için (opsiyonel): `android/app/google-services.json` (Firebase Console).
-
-**Release APK:**
-
-- Android Studio → `npm run cap:android` → **Build → Generate Signed Bundle / APK**
-- veya imzalı keystore ile: `cd android; .\gradlew.bat assembleRelease`
-
-Release build **HTTPS** API zorunludur (HTTP cleartext kapalı).
-
-### Hızlı debug APK
-
-```powershell
-cd belediyehattı\android
-.\gradlew.bat assembleDebug
-```
-
-APK: `android/app/build/outputs/apk/debug/app-debug.apk`
-
-### Yerel manuel test (Railway yok — **APK en sonda**)
-
-Tam rehber: [`scripts/YEREL-MANUEL-TEST.md`](../scripts/YEREL-MANUEL-TEST.md)
-
-| Adım | Komut / iş |
-|------|------------|
-| 1–5 | `.\scripts\start-local.ps1` — DB, backend, tünel, admin, public (**APK yok**) |
-| 3b | Siz doğrulayın: `https://…/actuator/health` |
-| 6 | `.\scripts\build-apk-local.ps1` — tünel URL: `scripts/tunnel-url.txt` |
-
-### Ortam
-
-| Bileşen | Adres |
-|---------|--------|
-| Backend (PC + tünel) | `http://localhost:8080` / `https://XXXX.ngrok-free.app` |
-| Belediye çalışma alanı seçimi | `http://localhost:5173/login` |
-| Platform sahibi girişi | `http://localhost:5173/super-admin/login` |
-| Kamu sitesi | `http://localhost:5174` |
-| APK API | `https://XXXX.ngrok-free.app/api/v1` |
-
-Tünel sonrası kök `.env`: `APP_PUBLIC_URL=https://XXXX.ngrok-free.app` (medya önizlemesi). `APP_CORS_ALLOWED_ORIGINS` için localhost portları yeterlidir; mobil uygulama tarayıcı CORS’una tabi değildir.
+Tünel araçları (ngrok vb.) bu repoda yok; staging/prod URL ile test edin.
 
 ---
 
-## Manuel test checklist
+## Sık sorunlar
 
-- [ ] `GET https://<RAILWAY_HOST>/actuator/health` → 200
-- [ ] Admin `/setup` → süper admin oluştur
-- [ ] Platform sahibi `/super-admin/login` → platform paneli
-- [ ] Belediye `/login` → tenant seçimi → `/municipality/login?tenant=...`
-- [ ] Public site açılıyor, istatistik API hatasız
-- [ ] Public site → yönetim paneli linki doğru
-- [ ] Admin’den API isteği → tarayıcıda CORS hatası yok
-- [ ] APK: kayıt/giriş, bildirim oluşturma
-- [ ] APK: foto yükleme (S3 ayarlıysa)
-- [ ] Push (Firebase + `google-services.json` varsa)
-
----
-
-## Sorun giderme
-
-| Sorun | Çözüm |
-|-------|--------|
-| Flyway / PostGIS hata | DB’de `CREATE EXTENSION postgis;` |
-| CORS hatası | `APP_CORS_ALLOWED_ORIGINS` tam Vercel origin (https, sonunda `/` yok) |
-| Medya yüklenmiyor | `APP_STORAGE_TYPE=s3` ve S3/R2 anahtarları; `APP_PUBLIC_URL` doğru |
-| APK API’ye bağlanmıyor | `VITE_API_BASE_URL` HTTPS; release’de cleartext kapalı |
-| `/setup` token reddediyor | Railway `APP_SETUP_TOKEN` ile formdaki değer aynı mı |
-
----
-
-## İlgili dosyalar
-
-- [`ANAHTARLAR.template.env`](ANAHTARLAR.template.env) — tüm anahtarlar tek şablonda
-- [`.env.example`](../.env.example) — backend yerel
-- [`railway.env.example`](../railway.env.example) — Railway kısa liste
-- [`belediyehattı/.env.example`](../belediyehattı/.env.example) — mobil/web vatandaş
+| Belirti | Kontrol |
+|---------|---------|
+| Boot reddi | `prod` + Redis + Rabbit + S3 + Media Guard + NetGSM + fail-open=false |
+| CORS | `APP_CORS_ALLOWED_ORIGINS` tam HTTPS origin |
+| Medya bozuk | S3_* , `APP_PUBLIC_URL` |
+| Setup 403 | `APP_SETUP_TOKEN`, henüz süper admin yok |
+| WebSocket | Proxy WebSocket desteği açık mı |

@@ -9,7 +9,6 @@ import { Capacitor } from '@capacitor/core';
 export type Tab =
   | 'home'
   | 'kent'
-  | 'topluluk'
   | 'report'
   | 'reports'
   | 'profile'
@@ -227,7 +226,7 @@ export function useAppRouting({
       setActiveTab('kent');
       return true;
     }
-    if (activeTab === 'kent' || activeTab === 'topluluk') {
+    if (activeTab === 'kent') {
       setActiveTab('home');
       return true;
     }

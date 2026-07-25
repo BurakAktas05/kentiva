@@ -436,6 +436,7 @@ public class ReportCommandService {
     public void persistAiResult(String reportId, String municipalityId, GeminiService.AIAnalysisResult result) {
         Report report = reportSupport.findReportOrThrow(reportId);
         report.setAiSummary(composeSummaryWithRationale(result.summary(), result.priorityRationale()));
+        report.setAiPriority(blankToNull(truncate(result.priority(), 20)));
         report.setAiSlaRisk(blankToNull(truncate(result.slaRisk(), 20)));
         report.setAiReplyDraft(blankToNull(result.replyDraft()));
         report.setAiDuplicateHint(blankToNull(truncate(result.duplicateHint(), 500)));

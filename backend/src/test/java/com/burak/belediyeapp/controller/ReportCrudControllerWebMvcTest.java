@@ -8,7 +8,6 @@ import com.burak.belediyeapp.repository.IAppUserRepository;
 import com.burak.belediyeapp.security.ApiKeyAuthFilter;
 import com.burak.belediyeapp.security.JwtAuthenticationSupport;
 import com.burak.belediyeapp.service.auth.JwtService;
-import com.burak.belediyeapp.service.media.ImageAnonymizationService;
 import com.burak.belediyeapp.service.media.MediaGuardClient;
 import com.burak.belediyeapp.service.report.ReportDraftAnalysisService;
 import com.burak.belediyeapp.service.report.ReportService;
@@ -45,7 +44,6 @@ class ReportCrudControllerWebMvcTest {
     @MockitoBean private ReportDraftAnalysisService draftAnalysisService;
     @MockitoBean private StorageService storageService;
     @MockitoBean private MediaGuardClient mediaGuardClient;
-    @MockitoBean private ImageAnonymizationService imageAnonymizationService;
     @MockitoBean private JwtService jwtService;
     @MockitoBean private JwtAuthenticationSupport jwtAuthenticationSupport;
     @MockitoBean private IAppUserRepository userRepository;

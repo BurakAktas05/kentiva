@@ -43,8 +43,12 @@ RAILWAY_ENV_VARS.txt
 deployment/ANAHTARLAR.local.env
 
 ### Yerel tünel test durumu (scripts) ###
-scripts/.local-tunnel.state.json
-scripts/tunnel-url.txt
+# Local IDE / OS noise
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
 
 ### Yerel Spring dev profili (DB şifresi vb.) ###
 **/application-dev.properties
@@ -69,8 +73,6 @@ dist/
 boot.log
 boot-error.log
 ngrok.log
-scripts/tunnel-url.txt
-scripts/.local-tunnel.state.json
 uploads/
 
 # IDE / Runtime Metadata

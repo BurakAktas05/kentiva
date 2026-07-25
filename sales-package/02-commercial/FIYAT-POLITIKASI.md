@@ -35,7 +35,7 @@ Bu belge public site (`#fiyatlandirma`), admin `/pricing` ve satış tekliflerin
 
 **Profesyonel (+):** Sınırsız departman, canlı harita/ısı, AI önceliklendirme, KVKK yüz/plaka maskeleme, anket/duyuru, pazarlama kiti (QR/afiş), başkan özeti, standart kurulum eğitimi.
 
-**Enterprise (+):** MIS (Sampaş/Kolaylı/Netigma vb.), webhook/API anahtarı, özel SLA, sosyal ilanlar, öncelikli destek, yerinde/uzaktan özel eğitim.
+**Enterprise (+):** MIS (Sampaş/Kolaylı/Netigma vb.), webhook/API anahtarı, özel SLA, öncelikli destek, yerinde/uzaktan özel eğitim.
 
 Tam özellik matrisi: admin portal `PricingPage` / bu paketteki one-pager.
 

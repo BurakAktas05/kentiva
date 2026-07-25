@@ -35,7 +35,7 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import api, { clearAuthStorage, type PredictiveInsight, type Stats } from './api';
+import api, { clearAuthStorage, getStoredAccessToken, type PredictiveInsight, type Stats } from './api';
 import { LanguageProvider, useTranslation, type Language } from './context/LanguageContext';
 import { downloadBlobResponse } from './lib/downloadExport';
 import DashboardLoadingSkeleton from './components/DashboardLoadingSkeleton';
@@ -1134,18 +1134,20 @@ const Dashboard = ({ user }: { user: AuthenticatedPortalUser }) => {
 const App = () => {
   const [user, setUser] = useState<AuthenticatedPortalUser | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [loading, setLoading] = useState(() => Boolean(localStorage.getItem('token')));
+  const [loading, setLoading] = useState(() => Boolean(getStoredAccessToken()));
   const hostPortal = typeof window !== 'undefined' ? portalForHostname(window.location.hostname) : null;
   const loginRedirectPath = loginPathForCurrentHost();
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = getStoredAccessToken();
     if (token) {
       api.get('/auth/me').then(res => {
         setUser(buildPortalUser(res.data.data));
       }).catch(() => {
         clearAuthStorage();
       }).finally(() => setLoading(false));
+    } else {
+      setLoading(false);
     }
   }, []);
 

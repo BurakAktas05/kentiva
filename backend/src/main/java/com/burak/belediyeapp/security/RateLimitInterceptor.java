@@ -82,13 +82,10 @@ public class RateLimitInterceptor implements HandlerInterceptor {
                 && !"anonymousUser".equals(securityAuth.getPrincipal())) {
             return "user:" + securityAuth.getName();
         }
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isBlank()) {
-            ip = request.getRemoteAddr();
-        } else {
-            ip = ip.split(",")[0].trim();
-        }
-        return "ip:" + ip;
+        // Use container-resolved remote address only. With
+        // server.forward-headers-strategy=framework, Tomcat already applies
+        // trusted proxy headers. Never trust raw client X-Forwarded-For here.
+        return "ip:" + request.getRemoteAddr();
     }
 
     @Override

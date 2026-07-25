@@ -12,7 +12,7 @@ const AUTH_PATHS = [
   '/auth/register/otp',
   '/auth/refresh',
   '/auth/forgot-password',
-  '/auth/reset-password',
+  '/auth/reset-password'
 ];
 
 type ApiEnvelope<T = unknown> = {
@@ -341,7 +341,7 @@ function looksTechnical(message: string): boolean {
     'constraint',
     'nullpointer',
     'undefined',
-    ' at ',
+    ' at '
   ].some((needle) => lower.includes(needle));
 }
 
@@ -402,10 +402,9 @@ async function tryRefreshToken(): Promise<boolean> {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true',
-          'bypass-tunnel-reminder': 'true',
+          'bypass-tunnel-reminder': 'true'
         },
-        body: JSON.stringify({ refreshToken: refresh }),
+        body: JSON.stringify({ refreshToken: refresh })
       });
       const json = await parseJsonBody(res);
       if (!res.ok || !json.success || !json.data) return false;
@@ -440,9 +439,8 @@ async function handleUnauthorized(path: string): Promise<never> {
 async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'ngrok-skip-browser-warning': 'true',
     'bypass-tunnel-reminder': 'true',
-    ...(opts.headers as Record<string, string> || {}),
+    ...(opts.headers as Record<string, string> || {})
   };
   const token = getToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -479,9 +477,8 @@ async function publicFetch<T>(path: string): Promise<T> {
   const normalized = path.startsWith('/') ? path : `/${path}`;
   const res = await fetch(`${apiBase()}${normalized}`, {
     headers: {
-      'ngrok-skip-browser-warning': 'true',
-      'bypass-tunnel-reminder': 'true',
-    },
+      'bypass-tunnel-reminder': 'true'
+    }
   });
   const json = await parseJsonBody(res);
   if (!res.ok || !json.success) {
@@ -574,10 +571,9 @@ export async function login(email: string, password: string): Promise<AuthUser> 
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'ngrok-skip-browser-warning': 'true',
-      'bypass-tunnel-reminder': 'true',
+      'bypass-tunnel-reminder': 'true'
     },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password })
   });
   const json = await parseJsonBody(res);
   if (!res.ok || !json.success) {
@@ -592,7 +588,7 @@ export async function login(email: string, password: string): Promise<AuthUser> 
 export async function sendRegistrationOtp(phoneNumber: string): Promise<{ devOtpCode?: string }> {
   return apiFetch<{ devOtpCode?: string }>('/auth/register/otp', {
     method: 'POST',
-    body: JSON.stringify({ phoneNumber }),
+    body: JSON.stringify({ phoneNumber })
   });
 }
 
@@ -619,7 +615,7 @@ export async function register(
       kvkkApproved,
       tcNo: tcNo || null,
       birthYear: birthYear || null
-    }),
+    })
   });
   setTokens(data.accessToken, data.refreshToken);
   saveUser(data);
@@ -687,14 +683,14 @@ export async function createReport(
     longitude,
     district: district ?? null,
     mediaUrls,
-    kvkkApproved,
+    kvkkApproved
   };
   if (targetMunicipalityId) {
     body.targetMunicipalityId = targetMunicipalityId;
   }
   return apiFetch<ApiReportDetail>('/reports', {
     method: 'POST',
-    body: JSON.stringify(body),
+    body: JSON.stringify(body)
   });
 }
 
@@ -703,8 +699,7 @@ export async function uploadMedia(file: File): Promise<string[]> {
     const formData = new FormData();
     formData.append('files', file);
     const headers: Record<string, string> = {
-      'ngrok-skip-browser-warning': 'true',
-      'bypass-tunnel-reminder': 'true',
+      'bypass-tunnel-reminder': 'true'
     };
     const token = getToken();
     if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -789,7 +784,7 @@ export async function setPreferredMunicipality(municipalityId: string): Promise<
   try {
     const profile = await apiFetch<ApiUserProfile>('/users/me/preferred-municipality', {
       method: 'PATCH',
-      body: JSON.stringify({ municipalityId }),
+      body: JSON.stringify({ municipalityId })
     });
     storageService.setItem('belediye_offline_profile', JSON.stringify(profile));
     if (profile.preferredMunicipality) {
@@ -820,7 +815,7 @@ export async function fetchNearbyReportHints(
     latitude: String(latitude),
     longitude: String(longitude),
     municipalityId,
-    radiusMeters: String(radiusMeters),
+    radiusMeters: String(radiusMeters)
   });
   return apiFetch(`/reports/nearby-hints?${q}`);
 }
@@ -844,7 +839,7 @@ export async function fetchNearbyReports(
   const q = new URLSearchParams({
     latitude: String(latitude),
     longitude: String(longitude),
-    radiusMeters: String(radiusMeters),
+    radiusMeters: String(radiusMeters)
   });
   return apiFetch(`/reports/nearby?${q}`);
 }
@@ -867,20 +862,20 @@ export async function analyzeReportDraft(payload: {
 }): Promise<ReportDraftAnalysis> {
   return apiFetch('/reports/analyze-draft', {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify(payload)
   });
 }
 
 export async function updateFcmToken(fcmToken: string): Promise<void> {
   await apiFetch('/users/fcm-token', {
     method: 'PATCH',
-    body: JSON.stringify({ fcmToken }),
+    body: JSON.stringify({ fcmToken })
   });
 }
 
 export async function deleteMyAccount(): Promise<void> {
   await apiFetch('/users/me', {
-    method: 'DELETE',
+    method: 'DELETE'
   });
 }
 
@@ -915,53 +910,10 @@ export interface ApiSurvey {
   totalVotes: number;
 }
 
-export interface ApiBloodSearchAd {
-  id: string;
-  userId: string;
-  userName: string;
-  bloodType: string;
-  hospitalName: string;
-  hospitalDistrict: string;
-  patientName: string;
-  contactPhone: string;
-  description: string;
-  createdAt: string;
-}
-
-export interface ApiLostPetAd {
-  id: string;
-  userId: string;
-  userName: string;
-  petName: string;
-  petType: string;
-  breed: string;
-  lastSeenDistrict: string;
-  contactPhone: string;
-  description: string;
-  mediaUrl: string | null;
-  createdAt: string;
-}
-
-export interface ApiItemDonationAd {
-  id: string;
-  userId: string;
-  userName: string;
-  itemTitle: string;
-  category: string;
-  district: string;
-  itemCondition: string;
-  contactPhone: string;
-  description: string;
-  mediaUrl: string | null;
-  createdAt: string;
-}
-
 export interface ApiNotificationPreferences {
   id: string;
   announcementsEnabled: boolean;
   outagesEnabled: boolean;
-  bloodDonationsEnabled: boolean;
-  lostPetsEnabled: boolean;
   surveysEnabled: boolean;
 }
 
@@ -976,87 +928,7 @@ export async function getPublicSurveys(municipalityId: string): Promise<ApiSurve
 export async function voteSurvey(surveyId: string, selectedOption: number): Promise<ApiSurvey> {
   return apiFetch<ApiSurvey>(`/public/surveys/${encodeURIComponent(surveyId)}/vote`, {
     method: 'POST',
-    body: JSON.stringify({ selectedOption }),
-  });
-}
-
-export async function getBloodAds(district?: string): Promise<ApiBloodSearchAd[]> {
-  const q = district ? `?district=${encodeURIComponent(district)}` : '';
-  const base = getToken() ? '/social' : '/public/social';
-  return apiFetch<ApiBloodSearchAd[]>(`${base}/blood-ads${q}`);
-}
-
-export async function createBloodAd(payload: {
-  bloodType: string;
-  hospitalName: string;
-  hospitalDistrict: string;
-  patientName: string;
-  contactPhone: string;
-  description: string;
-}): Promise<ApiBloodSearchAd> {
-  return apiFetch<ApiBloodSearchAd>('/social/blood-ads', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-}
-
-export async function deleteBloodAd(id: string): Promise<void> {
-  await apiFetch(`/social/blood-ads/${encodeURIComponent(id)}`, {
-    method: 'DELETE',
-  });
-}
-
-export async function getLostPetAds(district?: string): Promise<ApiLostPetAd[]> {
-  const q = district ? `?district=${encodeURIComponent(district)}` : '';
-  const base = getToken() ? '/social' : '/public/social';
-  return apiFetch<ApiLostPetAd[]>(`${base}/lost-pet-ads${q}`);
-}
-
-export async function createLostPetAd(payload: {
-  petName: string;
-  petType: string;
-  breed: string;
-  lastSeenDistrict: string;
-  contactPhone: string;
-  description: string;
-  mediaUrl: string;
-}): Promise<ApiLostPetAd> {
-  return apiFetch<ApiLostPetAd>('/social/lost-pet-ads', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-}
-
-export async function deleteLostPetAd(id: string): Promise<void> {
-  await apiFetch(`/social/lost-pet-ads/${encodeURIComponent(id)}`, {
-    method: 'DELETE',
-  });
-}
-
-export async function getItemDonationAds(district?: string): Promise<ApiItemDonationAd[]> {
-  const q = district ? `?district=${encodeURIComponent(district)}` : '';
-  const base = getToken() ? '/social' : '/public/social';
-  return apiFetch<ApiItemDonationAd[]>(`${base}/item-donation-ads${q}`);
-}
-
-export async function createItemDonationAd(payload: {
-  itemTitle: string;
-  category: string;
-  district: string;
-  itemCondition: string;
-  contactPhone: string;
-  description: string;
-  mediaUrl: string;
-}): Promise<ApiItemDonationAd> {
-  return apiFetch<ApiItemDonationAd>('/social/item-donation-ads', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-}
-
-export async function deleteItemDonationAd(id: string): Promise<void> {
-  await apiFetch(`/social/item-donation-ads/${encodeURIComponent(id)}`, {
-    method: 'DELETE',
+    body: JSON.stringify({ selectedOption })
   });
 }
 
@@ -1067,24 +939,18 @@ export async function getNotificationPreferences(): Promise<ApiNotificationPrefe
 export async function updateNotificationPreferences(payload: {
   announcementsEnabled: boolean;
   outagesEnabled: boolean;
-  bloodDonationsEnabled: boolean;
-  lostPetsEnabled: boolean;
   surveysEnabled: boolean;
 }): Promise<ApiNotificationPreferences> {
   return apiFetch<ApiNotificationPreferences>('/users/me/notification-preferences', {
     method: 'PUT',
-    body: JSON.stringify(payload),
+    body: JSON.stringify(payload)
   });
 }
-
-// ============================================
-// Ulaşım / Otobüs Hatları APIs
-// ============================================
 
 export async function submitSystemFeedback(rating: number, content: string): Promise<void> {
   await apiFetch('/system-feedback', {
     method: 'POST',
-    body: JSON.stringify({ rating, content }),
+    body: JSON.stringify({ rating, content })
   });
 }
 
@@ -1136,7 +1002,7 @@ export async function fetchRedeemedRewards(): Promise<ApiRedeemedReward[]> {
 export async function redeemReward(rewardId: string): Promise<ApiRedeemedReward> {
   return await apiFetch<ApiRedeemedReward>('/users/me/rewards/redeem', {
     method: 'POST',
-    body: JSON.stringify({ rewardId }),
+    body: JSON.stringify({ rewardId })
   });
 }
 

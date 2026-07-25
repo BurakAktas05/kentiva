@@ -16,19 +16,19 @@ describe('AuthScreen Component', () => {
     vi.clearAllMocks();
   });
 
-  it('renders login form by default and submits credentials', async () => {
+  it('renders login form by default and submits credentials with phone number', async () => {
     const onAuthMock = vi.fn();
-    const mockUser = { id: 'user-1', email: 'test@kentiva.com', firstName: 'John', lastName: 'Doe' } as any;
+    const mockUser = { id: 'user-1', email: '05551234567@kentiva.app', firstName: 'John', lastName: 'Doe' } as any;
     vi.mocked(api.login).mockResolvedValueOnce(mockUser);
 
     render(<AuthScreen onAuth={onAuthMock} lang="tr" />);
 
     // Check defaults
-    expect(screen.getByPlaceholderText('E-posta adresi')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('05XX XXX XX XX')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Şifre (en az 8 karakter)')).toBeInTheDocument();
 
     // Fill credentials
-    fireEvent.change(screen.getByPlaceholderText('E-posta adresi'), { target: { value: 'test@kentiva.com' } });
+    fireEvent.change(screen.getByPlaceholderText('05XX XXX XX XX'), { target: { value: '05551234567' } });
     fireEvent.change(screen.getByPlaceholderText('Şifre (en az 8 karakter)'), { target: { value: 'password123' } });
 
     // Submit
@@ -36,7 +36,7 @@ describe('AuthScreen Component', () => {
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
-      expect(api.login).toHaveBeenCalledWith('test@kentiva.com', 'password123');
+      expect(api.login).toHaveBeenCalledWith('05551234567', 'password123');
       expect(onAuthMock).toHaveBeenCalledWith(mockUser);
     });
   });
@@ -62,7 +62,7 @@ describe('AuthScreen Component', () => {
 
   it('allows switching to register form and submits successfully', async () => {
     const onAuthMock = vi.fn();
-    const mockUser = { id: 'user-1', email: 'test@kentiva.com', firstName: 'John', lastName: 'Doe' } as any;
+    const mockUser = { id: 'user-1', email: '05551234567@kentiva.app', firstName: 'John', lastName: 'Doe' } as any;
     vi.mocked(api.register).mockResolvedValueOnce(mockUser);
     vi.mocked(api.sendRegistrationOtp).mockResolvedValueOnce({ devOtpCode: '000000' });
 
@@ -79,16 +79,16 @@ describe('AuthScreen Component', () => {
     // Fill fields for Step 1
     fireEvent.change(screen.getByPlaceholderText('Ad'), { target: { value: 'John' } });
     fireEvent.change(screen.getByPlaceholderText('Soyad'), { target: { value: 'Doe' } });
-    fireEvent.change(screen.getByPlaceholderText('Telefon numarası'), { target: { value: '05551234567' } });
-    fireEvent.change(screen.getByPlaceholderText('E-posta adresi'), { target: { value: 'test@kentiva.com' } });
+    fireEvent.change(screen.getByPlaceholderText('05XX XXX XX XX'), { target: { value: '05551234567' } });
     fireEvent.change(screen.getByPlaceholderText('Şifre (en az 8 karakter)'), { target: { value: 'password123' } });
+    fireEvent.change(screen.getByPlaceholderText('Şifrenizi tekrar girin'), { target: { value: 'password123' } });
 
     // Check KVKK box
     const kvkkCheckbox = screen.getByRole('checkbox');
     fireEvent.click(kvkkCheckbox);
 
-    // Click "Kayıt Ol"
-    const submitBtnStep1 = screen.getByRole('button', { name: /Kayıt Ol/i });
+    // Click "Devam Et"
+    const submitBtnStep1 = screen.getByRole('button', { name: /Devam Et/i });
     fireEvent.click(submitBtnStep1);
 
     // Verify OTP was requested
@@ -97,20 +97,20 @@ describe('AuthScreen Component', () => {
     });
 
     // Check that OTP code input is now visible
-    expect(screen.getByPlaceholderText('SMS doğrulama kodu')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('6 haneli kod')).toBeInTheDocument();
 
     // Fill OTP code
-    fireEvent.change(screen.getByPlaceholderText('SMS doğrulama kodu'), { target: { value: '000000' } });
+    fireEvent.change(screen.getByPlaceholderText('6 haneli kod'), { target: { value: '000000' } });
 
     // Submit registration (Step 2)
-    const submitBtnStep2 = screen.getByRole('button', { name: /Kayıt Ol/i });
+    const submitBtnStep2 = screen.getByRole('button', { name: /Kayıt Ol ve Giriş Yap/i });
     fireEvent.click(submitBtnStep2);
 
     await waitFor(() => {
       expect(api.register).toHaveBeenCalledWith(
         'John',
         'Doe',
-        'test@kentiva.com',
+        '05551234567@kentiva.app',
         'password123',
         '05551234567',
         '000000',

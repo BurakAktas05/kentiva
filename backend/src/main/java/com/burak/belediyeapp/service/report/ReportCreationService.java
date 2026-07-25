@@ -371,14 +371,15 @@ public class ReportCreationService {
     private String generateUniqueTrackingNumber() {
         java.time.LocalDate now = java.time.LocalDate.now();
         String dateStr = now.format(java.time.format.DateTimeFormatter.ofPattern("yyMMdd"));
+        // 12 chars from 36-symbol alphabet ≈ 4.7e18 values/day — not enumerable via public track API.
         String alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         java.security.SecureRandom rng = new java.security.SecureRandom();
         while (true) {
-            StringBuilder sb = new StringBuilder(4);
-            for (int i = 0; i < 4; i++) {
+            StringBuilder sb = new StringBuilder(12);
+            for (int i = 0; i < 12; i++) {
                 sb.append(alpha.charAt(rng.nextInt(alpha.length())));
             }
-            String trackingNum = "KNT-" + dateStr + "-" + sb.toString();
+            String trackingNum = "KNT-" + dateStr + "-" + sb;
             if (!reportRepository.existsByTrackingNumber(trackingNum)) {
                 return trackingNum;
             }

@@ -405,6 +405,8 @@ public interface IReportRepository extends JpaRepository<Report, String>, JpaSpe
 
     boolean existsByTrackingNumber(String trackingNumber);
 
-    @Query("SELECT r FROM Report r LEFT JOIN FETCH r.municipality WHERE r.reportStatus IN :statuses AND r.slaBreached = false")
-    java.util.List<Report> findUnresolvedReportsNotSlaBreached(@Param("statuses") java.util.Collection<ReportStatus> statuses);
+    @Query("SELECT r FROM Report r WHERE r.reportStatus IN :statuses AND r.slaBreached = false ORDER BY r.createdAt ASC")
+    java.util.List<Report> findUnresolvedReportsNotSlaBreached(
+            @Param("statuses") java.util.Collection<ReportStatus> statuses,
+            org.springframework.data.domain.Pageable pageable);
 }

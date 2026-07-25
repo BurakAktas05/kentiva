@@ -136,6 +136,13 @@ public class ReportCreatedEventListener {
             log.error("Mukerrer ihbar analizi tamamlanamadi: reportId={}, err={}", reportId, e.getMessage(), e);
             throw new RuntimeException("Duplicate analysis failed", e);
         }
+
+        try {
+            reportService.performAiAnalysisAsSystem(reportId);
+        } catch (Exception e) {
+            // AI is best-effort: duplicate/media pipeline already succeeded.
+            log.warn("Sistem AI analizi tamamlanamadi: reportId={}, err={}", reportId, e.getMessage());
+        }
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
@@ -222,28 +229,19 @@ public class ReportCreatedEventListener {
                 }
             } catch (Exception e) {
                 log.warn("KVKK anonymization failed: reportId={}, err={}", reportId, e.getMessage());
-
-                // DLQ'ya kaydet — periyodik retry ile tekrar denenecek
+                // Görseli silme — DLQ gerçek retry ile anonimleştirene kadar saklanır.
+                // Max retry aşılınca ImageAnonymizationService medyayı KVKK için temizler.
                 imageAnonymizationService.recordFailure(reportId, imageUrl, e.getMessage());
 
-                // KVKK Uyarısı: Görseli kaldırıp, raporu koruma fallback'i
-                try {
-                    self.removeMediaUrl(reportId, imageUrl);
-                    storageService.deleteFile(imageUrl);
-                } catch (Exception ex) {
-                    log.error("Hatalı görsel temizlenemedi: imageUrl={}, err={}", imageUrl, ex.getMessage());
-                }
-                
                 reportRepository.findById(reportId).ifPresent(report -> {
                     historyRepository.save(com.burak.belediyeapp.entity.ReportHistory.builder()
                             .report(report)
                             .oldStatus(report.getReportStatus())
                             .newStatus(report.getReportStatus())
                             .changedBy(null)
-                            .note("[SİSTEM] Görsel, KVKK anonimleştirme hatası nedeniyle güvenlik amacıyla kaldırıldı. İhbarın kendisi korunarak işleme alındı. Hata DLQ'ya kaydedildi.")
+                            .note("[SİSTEM] Görsel anonimleştirme geçici olarak başarısız. Yeniden denenecek; ihbar işleme alındı.")
                             .build());
                 });
-                return;
             }
         }
     }

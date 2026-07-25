@@ -11,7 +11,7 @@ import com.burak.belediyeapp.dto.response.report.ReportResponse;
 import com.burak.belediyeapp.entity.AppUser;
 import com.burak.belediyeapp.entity.ReportStatus;
 import com.burak.belediyeapp.exception.BusinessException;
-import com.burak.belediyeapp.service.media.ImageAnonymizationService;
+import com.burak.belediyeapp.service.media.ImageContentValidator;
 import com.burak.belediyeapp.service.media.MediaGuardClient;
 import com.burak.belediyeapp.service.report.ReportDraftAnalysisService;
 import com.burak.belediyeapp.service.report.ReportService;
@@ -47,7 +47,6 @@ public class ReportCrudController {
     private final ReportDraftAnalysisService draftAnalysisService;
     private final StorageService storageService;
     private final MediaGuardClient mediaGuardClient;
-    private final ImageAnonymizationService imageAnonymizationService;
 
     @PostMapping("/upload")
     @RateLimit(requests = 5, window = 60)
@@ -64,10 +63,6 @@ public class ReportCrudController {
             if (file.isEmpty()) {
                 continue;
             }
-            String ct = file.getContentType();
-            if (ct == null || !ct.startsWith("image/")) {
-                throw new BusinessException("Yalnızca görüntü dosyaları yüklenebilir.", "INVALID_MEDIA_TYPE");
-            }
             if (file.getSize() > 12 * 1024 * 1024) {
                 throw new BusinessException("Dosya boyutu 12 MB'ı aşamaz.", "FILE_TOO_LARGE");
             }
@@ -77,8 +72,11 @@ public class ReportCrudController {
             } catch (Exception e) {
                 throw new BusinessException("Dosya okunamadı.", "FILE_READ_ERROR");
             }
-            mediaGuardClient.validateImageOrThrow(bytes, ct);
-            urls.add(storageService.uploadBytes(bytes, ct, "reports", file.getOriginalFilename()));
+            ImageContentValidator.ValidatedImage validated =
+                    ImageContentValidator.validateOrThrow(bytes, file.getContentType());
+            mediaGuardClient.validateImageOrThrow(bytes, validated.contentType());
+            urls.add(storageService.uploadBytes(
+                    bytes, validated.contentType(), "reports", file.getOriginalFilename()));
         }
 
         return ResponseEntity.ok(ApiResponse.success("Dosyalar yüklendi", urls));

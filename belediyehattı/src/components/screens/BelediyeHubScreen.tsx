@@ -3,6 +3,7 @@ import {
   Award,
   ChevronLeft,
   ChevronRight,
+  ClipboardList,
   Gift,
   Headphones,
 } from 'lucide-react';
@@ -20,8 +21,9 @@ import { PharmacyWidgetCard } from '../home/HomeWidgets';
 import MunicipalitySupportCard from '../MunicipalitySupportCard';
 import CityCalendar from './CityCalendar';
 import RanksScreen from './RanksScreen';
+import Surveys from './Surveys';
 
-type DetailView = 'support' | 'ranks' | null;
+type DetailView = 'support' | 'ranks' | 'surveys' | null;
 
 interface BelediyeHubScreenProps {
   municipality: PublicTenant | null;
@@ -29,6 +31,7 @@ interface BelediyeHubScreenProps {
   lang: Lang;
   isDark: boolean;
   onSelectMunicipality?: () => void;
+  initialDetail?: DetailView;
 }
 
 function DrawerRow({
@@ -70,8 +73,9 @@ export default function BelediyeHubScreen({
   lang,
   isDark,
   onSelectMunicipality,
+  initialDetail = null,
 }: BelediyeHubScreenProps) {
-  const [detail, setDetail] = useState<DetailView>(null);
+  const [detail, setDetail] = useState<DetailView>(initialDetail);
   const [ranksSegment, setRanksSegment] = useState<'ranks' | 'rewards'>('ranks');
 
   if (detail === 'ranks') {
@@ -81,6 +85,18 @@ export default function BelediyeHubScreen({
         isDark={isDark}
         municipality={municipality}
         initialSegment={ranksSegment}
+        embedded
+        onBack={() => setDetail(null)}
+      />
+    );
+  }
+
+  if (detail === 'surveys') {
+    return (
+      <Surveys
+        municipality={municipality}
+        lang={lang}
+        isDark={isDark}
         embedded
         onBack={() => setDetail(null)}
       />
@@ -190,6 +206,15 @@ export default function BelediyeHubScreen({
               title={lang === 'tr' ? 'İletişim' : lang === 'ar' ? 'تواصل' : 'Contact'}
               desc={lang === 'tr' ? 'Telefon, e-posta ve web' : 'Phone, email and website'}
               onClick={() => setDetail('support')}
+            />
+            <div className={`mx-4 h-px ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`} />
+            <DrawerRow
+              isDark={isDark}
+              icon={<ClipboardList className="h-5 w-5" />}
+              iconTone={isDark ? 'bg-violet-500/15 text-violet-300' : 'bg-violet-50 text-violet-700'}
+              title={t('surveys.title', lang)}
+              desc={t('home.surveys.hint', lang)}
+              onClick={() => setDetail('surveys')}
             />
             <div className={`mx-4 h-px ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`} />
             <DrawerRow

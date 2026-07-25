@@ -19,8 +19,6 @@ export default function NotificationPrefsModal({ lang, isDark, isOpen, onClose }
 
   const [announcements, setAnnouncements] = useState(true);
   const [outages, setOutages] = useState(true);
-  const [bloodDonations, setBloodDonations] = useState(true);
-  const [lostPets, setLostPets] = useState(true);
   const [surveys, setSurveys] = useState(true);
 
   useEffect(() => {
@@ -33,8 +31,6 @@ export default function NotificationPrefsModal({ lang, isDark, isOpen, onClose }
         if (!prefs) return;
         setAnnouncements(prefs.announcementsEnabled);
         setOutages(prefs.outagesEnabled);
-        setBloodDonations(prefs.bloodDonationsEnabled);
-        setLostPets(prefs.lostPetsEnabled);
         setSurveys(prefs.surveysEnabled);
       })
       .catch((err) => {
@@ -52,8 +48,6 @@ export default function NotificationPrefsModal({ lang, isDark, isOpen, onClose }
       await updateNotificationPreferences({
         announcementsEnabled: announcements,
         outagesEnabled: outages,
-        bloodDonationsEnabled: bloodDonations,
-        lostPetsEnabled: lostPets,
         surveysEnabled: surveys,
       });
       storageService.setItem('belediye_notification_prefs_onboarded', 'true');
@@ -91,20 +85,7 @@ export default function NotificationPrefsModal({ lang, isDark, isOpen, onClose }
       state: outages,
       setter: setOutages,
     },
-    {
-      id: 'blood',
-      title: t('notification.prefs.blood', lang),
-      desc: lang === 'tr' ? 'Ilcenizdeki acil kan bagisi cagrilari' : 'Urgent blood donation requests in your district',
-      state: bloodDonations,
-      setter: setBloodDonations,
-    },
-    {
-      id: 'lost',
-      title: t('notification.prefs.lost', lang),
-      desc: lang === 'tr' ? 'Yakinlarinizda yayinlanan kayip hayvan ilanlari' : 'Lost pet listings published near you',
-      state: lostPets,
-      setter: setLostPets,
-    },
+    
     {
       id: 'surveys',
       title: t('notification.prefs.surveys', lang),

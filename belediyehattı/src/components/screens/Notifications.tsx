@@ -11,7 +11,7 @@ import ErrorState from '../ui/ErrorState';
 interface NotificationsProps {
   onBadgeUpdate: (count: number) => void;
   onOpenReport?: (reportId: string) => void;
-  onNavigate?: (tab: 'home' | 'kent' | 'topluluk' | 'profile' | 'reports' | 'report') => void;
+  onNavigate?: (tab: 'home' | 'kent' | 'profile' | 'reports' | 'report') => void;
   lang: Lang;
   isDark: boolean;
 }
@@ -122,11 +122,11 @@ export default function Notifications({ onBadgeUpdate, onOpenReport, onNavigate,
       onOpenReport(notif.reportId);
     } else if (notif.type === 'BLOOD_DONATION' || notif.type === 'LOST_PET') {
       if (onNavigate) {
-        onNavigate('topluluk');
+        onNavigate('home');
       }
     } else if (notif.type === 'SURVEY') {
       if (onNavigate) {
-        onNavigate('home');
+        onNavigate('kent');
       }
     }
   };

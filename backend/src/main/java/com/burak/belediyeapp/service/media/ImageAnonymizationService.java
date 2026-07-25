@@ -1,16 +1,21 @@
 package com.burak.belediyeapp.service.media;
 
 import com.burak.belediyeapp.entity.MediaAnonymizationFailure;
+import com.burak.belediyeapp.entity.ReportMedia;
 import com.burak.belediyeapp.repository.IMediaAnonymizationFailureRepository;
+import com.burak.belediyeapp.repository.IReportRepository;
+import com.burak.belediyeapp.service.storage.StorageService;
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 
 import javax.imageio.ImageIO;
@@ -20,12 +25,13 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 
 /**
  * KVKK uyumu icin yuklenen fotograflarda yuz ve plaka bolgelerini piksellestirir.
- * Başarısız işlemleri Dead Letter Queue'ya kaydeder ve periyodik olarak yeniden dener.
+ * Basarisiz islemleri DLQ'ya kaydeder ve periyodik olarak gercekten yeniden dener.
  */
 @Service
 @Slf4j
@@ -40,12 +46,21 @@ public class ImageAnonymizationService {
     @Value("${app.media-anonymization.fail-open:true}")
     private boolean failOpen;
 
-    /** DLQ'daki başarısız işlemler için maksimum yeniden deneme. */
     @Value("${app.media-anonymization.max-retries:5}")
     private int maxRetries;
 
     @Autowired(required = false)
     private IMediaAnonymizationFailureRepository failureRepository;
+
+    @Autowired(required = false)
+    private StorageService storageService;
+
+    @Autowired(required = false)
+    private IReportRepository reportRepository;
+
+    @Autowired
+    @Lazy
+    private ImageAnonymizationService self;
 
     private RestClient http = RestClient.builder()
             .requestFactory(requestFactory())
@@ -76,12 +91,9 @@ public class ImageAnonymizationService {
         }
     }
 
-    /**
-     * Anonimleştirme hatasını DLQ'ya kaydeder. Periyodik retry job'ı tarafından tekrar denenecektir.
-     */
     public void recordFailure(String reportId, String imageUrl, String errorMessage) {
         if (failureRepository == null) {
-            log.warn("DLQ repository bulunamadı, anonimleştirme hatası yalnızca loglanıyor: reportId={}, imageUrl={}", reportId, imageUrl);
+            log.warn("DLQ repository bulunamadı, anonimleştirme hatası yalnızca loglanıyor: reportId={}", reportId);
             return;
         }
         try {
@@ -93,19 +105,15 @@ public class ImageAnonymizationService {
                     .lastAttemptAt(LocalDateTime.now())
                     .build();
             failureRepository.save(failure);
-            log.info("Anonimleştirme hatası DLQ'ya kaydedildi: reportId={}, imageUrl={}", reportId, imageUrl);
+            log.info("Anonimleştirme hatası DLQ'ya kaydedildi: reportId={}", reportId);
         } catch (Exception e) {
             log.error("DLQ kaydı oluşturulamadı: reportId={}, err={}", reportId, e.getMessage());
         }
     }
 
-    /**
-     * DLQ'daki çözülmemiş anonimleştirme hatalarını periyodik olarak yeniden dener.
-     * Her 30 dakikada bir çalışır.
-     */
     @Scheduled(cron = "0 */30 * * * *")
     public void retryFailedAnonymizations() {
-        if (failureRepository == null) {
+        if (failureRepository == null || storageService == null || reportRepository == null) {
             return;
         }
         List<MediaAnonymizationFailure> pending = failureRepository
@@ -121,23 +129,40 @@ public class ImageAnonymizationService {
 
             if (failure.getRetryCount() >= maxRetries) {
                 failure.setMaxRetriesExceeded(true);
+                failure.setErrorMessage(
+                        (failure.getErrorMessage() != null ? failure.getErrorMessage() + " | " : "")
+                                + "Max retry aşıldı; görsel KVKK için kaldırılıyor.");
                 failureRepository.save(failure);
-                log.error("DLQ: Maksimum retry ({}) aşıldı, manuel inceleme gerekiyor: reportId={}, imageUrl={}",
-                        maxRetries, failure.getReportId(), failure.getImageUrl());
+                purgeMediaForKvkk(failure);
+                log.error("DLQ: Maksimum retry ({}) aşıldı: reportId={}", maxRetries, failure.getReportId());
                 continue;
             }
 
             try {
-                // Not: Burada gerçek görsel yeniden indirme ve anonimleştirme mantığı,
-                // StorageService üzerinden yapılmalıdır. Ancak görselin hâlâ mevcut olup
-                // olmadığı kontrol edilir — silinmişse resolved olarak işaretlenir.
-                log.info("DLQ retry deneme {}/{}: reportId={}, imageUrl={}",
-                        failure.getRetryCount(), maxRetries, failure.getReportId(), failure.getImageUrl());
+                byte[] bytes = storageService.downloadFile(failure.getImageUrl());
+                if (bytes == null || bytes.length == 0) {
+                    failure.setResolved(true);
+                    failure.setResolvedAt(LocalDateTime.now());
+                    failure.setErrorMessage("Görsel depoda bulunamadı; kayıt kapatıldı.");
+                    failureRepository.save(failure);
+                    log.warn("DLQ: görsel yok, kayıt kapatıldı: reportId={}", failure.getReportId());
+                    continue;
+                }
 
-                // Bu noktada başarılı bir tekrar deneme yapıldığını varsayıyoruz.
-                // Gerçek uygulama, storageService.downloadFile + anonymize + re-upload
-                // akışını tekrarlamalıdır. Şu anda sadece kayıt güncellemesi yapılır.
+                byte[] anonymized = anonymize(bytes, "image/jpeg");
+                if (anonymized != null && anonymized.length > 0 && !Arrays.equals(anonymized, bytes)) {
+                    String newUrl = storageService.uploadBytes(
+                            anonymized, "image/jpeg", "reports", "anonymized-retry.jpg");
+                    String persistable = storageService.persistableStoragePath(newUrl);
+                    self.replaceMediaUrl(failure.getReportId(), failure.getImageUrl(), persistable);
+                    storageService.deleteFile(failure.getImageUrl());
+                }
+
+                failure.setResolved(true);
+                failure.setResolvedAt(LocalDateTime.now());
                 failureRepository.save(failure);
+                log.info("DLQ retry başarılı: reportId={}, deneme={}/{}",
+                        failure.getReportId(), failure.getRetryCount(), maxRetries);
             } catch (Exception e) {
                 failure.setErrorMessage(e.getMessage());
                 failureRepository.save(failure);
@@ -147,7 +172,46 @@ public class ImageAnonymizationService {
         }
     }
 
-    /** Çözülmemiş DLQ hata sayısı (dashboard metriği). */
+    private void purgeMediaForKvkk(MediaAnonymizationFailure failure) {
+        try {
+            self.removeMediaUrl(failure.getReportId(), failure.getImageUrl());
+            storageService.deleteFile(failure.getImageUrl());
+            failure.setResolved(true);
+            failure.setResolvedAt(LocalDateTime.now());
+            failureRepository.save(failure);
+        } catch (Exception e) {
+            log.error("KVKK medya temizliği başarısız: reportId={}, err={}", failure.getReportId(), e.getMessage());
+        }
+    }
+
+    @Transactional
+    public void replaceMediaUrl(String reportId, String oldUrl, String newUrl) {
+        reportRepository.findById(reportId).ifPresent(report -> {
+            if (report.getMediaList() == null) {
+                return;
+            }
+            for (ReportMedia media : report.getMediaList()) {
+                if (oldUrl.equals(media.getImageUrl())) {
+                    media.setImageUrl(newUrl);
+                }
+            }
+            reportRepository.save(report);
+        });
+    }
+
+    @Transactional
+    public void removeMediaUrl(String reportId, String imageUrl) {
+        reportRepository.findById(reportId).ifPresent(report -> {
+            if (report.getMediaList() == null) {
+                return;
+            }
+            boolean removed = report.getMediaList().removeIf(media -> imageUrl.equals(media.getImageUrl()));
+            if (removed) {
+                reportRepository.save(report);
+            }
+        });
+    }
+
     public long getUnresolvedFailureCount() {
         return failureRepository != null ? failureRepository.countByResolvedFalse() : 0;
     }

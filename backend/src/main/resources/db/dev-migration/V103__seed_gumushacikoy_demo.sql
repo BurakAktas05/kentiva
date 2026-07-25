@@ -273,11 +273,10 @@ ON CONFLICT DO NOTHING;
 
 INSERT INTO user_notification_preferences (
     id, user_id,
-    announcements_enabled, outages_enabled, blood_donations_enabled,
-    lost_pets_enabled, surveys_enabled,
+    announcements_enabled, outages_enabled, surveys_enabled,
     created_at, updated_at
 )
-SELECT seed.id, u.id, TRUE, TRUE, TRUE, TRUE, TRUE,
+SELECT seed.id, u.id, TRUE, TRUE, TRUE,
        CURRENT_TIMESTAMP - INTERVAL '90 days', CURRENT_TIMESTAMP
 FROM (VALUES
     ('05a00000-000f-4000-8000-000000000001', 'gumushacikoy.vatandas@kentiva.app'),
@@ -287,8 +286,6 @@ JOIN app_users u ON u.email = seed.email
 ON CONFLICT (user_id) DO UPDATE SET
     announcements_enabled = TRUE,
     outages_enabled = TRUE,
-    blood_donations_enabled = TRUE,
-    lost_pets_enabled = TRUE,
     surveys_enabled = TRUE,
     updated_at = CURRENT_TIMESTAMP;
 

@@ -435,13 +435,9 @@ public class SmsOtpService {
     }
 
     private boolean sendViaTwilio(String phone, String message, boolean otpBody) {
-        if (otpBody) {
-            log.warn("Twilio entegrasyonu henüz aktif değil. OTP loglanmadı: {}", maskPhone(phone));
-        } else {
-            log.warn("Twilio entegrasyonu henüz aktif değil. SMS loglanıyor: {} → {}",
-                    maskPhone(phone), truncateForLog(message));
-        }
-        return true;
+        // Do not pretend delivery succeeded — Twilio is not implemented.
+        log.error("Twilio SMS provider seçili ancak entegrasyon yok. Gönderim başarısız: {}", maskPhone(phone));
+        return false;
     }
 
     // ── Metrik Kayıt & Dashboard ──────────────────────

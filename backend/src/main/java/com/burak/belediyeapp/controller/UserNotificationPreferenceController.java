@@ -19,54 +19,40 @@ public class UserNotificationPreferenceController {
 
     private final IUserNotificationPreferenceRepository preferenceRepository;
 
-    // --- DTO RECORDS ---
-
     public record NotificationPreferenceResponse(
             String id,
             boolean announcementsEnabled,
             boolean outagesEnabled,
-            boolean bloodDonationsEnabled,
-            boolean lostPetsEnabled,
             boolean surveysEnabled
     ) {}
 
     public record UpdateNotificationPreferenceRequest(
             boolean announcementsEnabled,
             boolean outagesEnabled,
-            boolean bloodDonationsEnabled,
-            boolean lostPetsEnabled,
             boolean surveysEnabled
     ) {}
-
-    // --- MAPPER ---
 
     private NotificationPreferenceResponse mapToResponse(UserNotificationPreference pref) {
         return new NotificationPreferenceResponse(
                 pref.getId(),
                 pref.isAnnouncementsEnabled(),
                 pref.isOutagesEnabled(),
-                pref.isBloodDonationsEnabled(),
-                pref.isLostPetsEnabled(),
                 pref.isSurveysEnabled()
         );
     }
-
-    // --- ENDPOINTS ---
 
     @GetMapping("/api/v1/users/me/notification-preferences")
     @PreAuthorize("hasRole('CITIZEN')")
     @Operation(summary = "Kullanıcının bildirim tercihlerini getir")
     public ResponseEntity<ApiResponse<NotificationPreferenceResponse>> getPreferences(
             @AuthenticationPrincipal AppUser user) {
-        
+
         UserNotificationPreference pref = preferenceRepository.findByUserId(user.getId())
                 .orElseGet(() -> {
                     UserNotificationPreference newPref = UserNotificationPreference.builder()
                             .user(user)
                             .announcementsEnabled(true)
                             .outagesEnabled(true)
-                            .bloodDonationsEnabled(true)
-                            .lostPetsEnabled(true)
                             .surveysEnabled(true)
                             .build();
                     return preferenceRepository.save(newPref);
@@ -87,8 +73,6 @@ public class UserNotificationPreferenceController {
 
         pref.setAnnouncementsEnabled(request.announcementsEnabled());
         pref.setOutagesEnabled(request.outagesEnabled());
-        pref.setBloodDonationsEnabled(request.bloodDonationsEnabled());
-        pref.setLostPetsEnabled(request.lostPetsEnabled());
         pref.setSurveysEnabled(request.surveysEnabled());
 
         UserNotificationPreference saved = preferenceRepository.save(pref);

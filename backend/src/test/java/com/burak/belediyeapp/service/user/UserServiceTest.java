@@ -1,14 +1,9 @@
 package com.burak.belediyeapp.service.user;
 
 import com.burak.belediyeapp.entity.AppUser;
-import com.burak.belediyeapp.entity.ItemDonationAd;
-import com.burak.belediyeapp.entity.LostPetAd;
 import com.burak.belediyeapp.entity.Role;
 import com.burak.belediyeapp.repository.IAppUserRepository;
-import com.burak.belediyeapp.repository.IBloodSearchAdRepository;
 import com.burak.belediyeapp.repository.IDepartmentRepository;
-import com.burak.belediyeapp.repository.IItemDonationAdRepository;
-import com.burak.belediyeapp.repository.ILostPetAdRepository;
 import com.burak.belediyeapp.repository.IMunicipalityRepository;
 import com.burak.belediyeapp.repository.IMunicipalitySurveyVoteRepository;
 import com.burak.belediyeapp.repository.INotificationRepository;
@@ -21,7 +16,6 @@ import com.burak.belediyeapp.security.TokenBlacklistService;
 import com.burak.belediyeapp.service.media.MediaSignedUrlService;
 import com.burak.belediyeapp.service.notification.NotificationService;
 import com.burak.belediyeapp.service.security.PasswordPolicyService;
-import com.burak.belediyeapp.service.storage.StorageService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -30,7 +24,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -44,11 +37,8 @@ import static org.mockito.Mockito.when;
 class UserServiceTest {
 
     @Mock IAppUserRepository userRepository;
-    @Mock IBloodSearchAdRepository bloodSearchAdRepository;
     @Mock IRoleRepository roleRepository;
     @Mock IDepartmentRepository departmentRepository;
-    @Mock ILostPetAdRepository lostPetAdRepository;
-    @Mock IItemDonationAdRepository itemDonationAdRepository;
     @Mock IRefreshTokenRepository refreshTokenRepository;
     @Mock IUserNotificationPreferenceRepository userNotificationPreferenceRepository;
     @Mock INotificationRepository notificationRepository;
@@ -61,7 +51,6 @@ class UserServiceTest {
     @Mock NotificationService notificationService;
     @Mock MediaSignedUrlService mediaSignedUrlService;
     @Mock PasswordPolicyService passwordPolicyService;
-    @Mock StorageService storageService;
 
     @InjectMocks UserService userService;
 
@@ -75,28 +64,12 @@ class UserServiceTest {
         user.setEnabled(true);
         user.setRoles(Set.of(new Role("ROLE_CITIZEN", "Citizen", Set.of())));
 
-        LostPetAd lostPetAd = LostPetAd.builder()
-                .id("lost-1")
-                .mediaUrl("/api/v1/media/access?token=lost")
-                .build();
-        ItemDonationAd itemDonationAd = ItemDonationAd.builder()
-                .id("item-1")
-                .mediaUrl("/api/v1/media/access?token=item")
-                .build();
-
         when(userRepository.findById("user-123")).thenReturn(Optional.of(user));
         when(passwordEncoder.encode(any())).thenReturn("hashed-deleted-password");
-        when(lostPetAdRepository.findAllByUserId("user-123")).thenReturn(List.of(lostPetAd));
-        when(itemDonationAdRepository.findAllByUserId("user-123")).thenReturn(List.of(itemDonationAd));
         when(userRepository.save(any(AppUser.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         userService.eraseCitizenAccount("user-123");
 
-        verify(storageService).deleteFile("/api/v1/media/access?token=lost");
-        verify(storageService).deleteFile("/api/v1/media/access?token=item");
-        verify(lostPetAdRepository).hardDeleteAllByUserId("user-123");
-        verify(itemDonationAdRepository).hardDeleteAllByUserId("user-123");
-        verify(bloodSearchAdRepository).hardDeleteAllByUserId("user-123");
         verify(userNotificationPreferenceRepository).deleteByUserId("user-123");
         verify(notificationRepository).deleteAllByUserId("user-123");
         verify(systemFeedbackRepository).deleteAllByUserId("user-123");

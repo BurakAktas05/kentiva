@@ -159,7 +159,7 @@ public class RewardService {
                 .build();
 
         UserRedeemedReward saved = redeemedRewardRepository.save(redeemed);
-        log.info("Kullanıcı ödül aldı: user={}, reward={}, kod={}", user.getEmail(), reward.getTitle(), code);
+        log.info("Kullanıcı ödül aldı: userId={}, rewardId={}", user.getId(), reward.getId());
 
         return mapToRedeemedResponse(saved);
     }
