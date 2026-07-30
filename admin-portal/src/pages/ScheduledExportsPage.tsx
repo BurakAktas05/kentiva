@@ -85,7 +85,7 @@ export default function ScheduledExportsPage({ embedded = false }: { embedded?: 
       setRunsTotalPages(page.totalPages ?? 0);
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
-        const code = (err.response?.data as { code?: string } | undefined)?.code;
+        const code = (err.response?.data as { errorCode?: string } | undefined)?.errorCode;
         const message = (err.response?.data as { message?: string } | undefined)?.message;
         if (code === 'MUNICIPALITY_REQUIRED' || err.response?.status === 403) {
           setScopeError(message ?? 'Planlı dışa aktarma yalnızca belediye hesapları için kullanılabilir.');

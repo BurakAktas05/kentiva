@@ -6,9 +6,11 @@ import com.burak.belediyeapp.entity.AppUser;
 import com.burak.belediyeapp.entity.Municipality;
 import com.burak.belediyeapp.entity.MunicipalitySurvey;
 import com.burak.belediyeapp.entity.MunicipalitySurveyVote;
+import com.burak.belediyeapp.exception.BusinessException;
 import com.burak.belediyeapp.repository.IAppUserRepository;
 import com.burak.belediyeapp.repository.IMunicipalitySurveyRepository;
 import com.burak.belediyeapp.repository.IMunicipalitySurveyVoteRepository;
+import com.burak.belediyeapp.service.notification.SurveyNotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,6 +36,9 @@ class MunicipalitySurveyServiceTest {
 
     @Mock
     private IAppUserRepository userRepository;
+
+    @Mock
+    private SurveyNotificationService surveyNotificationService;
 
     @InjectMocks
     private MunicipalitySurveyService surveyService;
@@ -169,5 +174,20 @@ class MunicipalitySurveyServiceTest {
         var dto2 = results.stream().filter(r -> r.id().equals("survey-2")).findFirst().orElse(null);
         assertNotNull(dto2);
         assertTrue(dto2.recommended());
+    }
+
+    @Test
+    void vote_RejectsCrossMunicipalityCitizen() {
+        Municipality otherMunicipality = new Municipality();
+        otherMunicipality.setId("muni-2");
+        survey1.setMunicipality(otherMunicipality);
+        when(surveyRepository.findById("survey-1")).thenReturn(java.util.Optional.of(survey1));
+
+        BusinessException ex = assertThrows(
+                BusinessException.class,
+                () -> surveyService.vote("survey-1", 1, user));
+
+        assertEquals("CROSS_MUNICIPALITY_ACCESS", ex.getErrorCode());
+        verify(surveyVoteRepository, never()).save(any());
     }
 }

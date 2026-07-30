@@ -1,9 +1,9 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Mail, Lock, User, Phone, ArrowRight, ChevronRight, Loader2, KeyRound, MapPin, ShieldCheck, X } from 'lucide-react';
 import { login, register, sendRegistrationOtp, AuthUser, apiBase, readFriendlyApiError } from '../../api';
 import type { AuthMeta } from '../../lib/authTypes';
-import { Lang, t } from '../../i18n';
+import { Lang, pickLang, t } from '../../i18n';
 
 interface AuthScreenProps {
   onAuth: (user: AuthUser, meta?: AuthMeta) => void;
@@ -28,6 +28,13 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
   const [registrationOtpCode, setRegistrationOtpCode] = useState('');
   const [registrationOtpMessage, setRegistrationOtpMessage] = useState('');
   const [registrationOtpLoading, setRegistrationOtpLoading] = useState(false);
+  const kvkkCloseButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (showKvkk) {
+      kvkkCloseButtonRef.current?.focus();
+    }
+  }, [showKvkk]);
 
   // Şifre sıfırlama
   const [forgotMode, setForgotMode] = useState<'off' | 'phone' | 'otp' | 'newpass'>('off');
@@ -44,7 +51,7 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
       let user: AuthUser;
       if (isLogin) {
         if (!phoneOrEmail.trim()) {
-          setError(lang === 'tr' ? 'Telefon numaranızı girin.' : 'Enter your phone number.');
+          setError(pickLang(lang, { tr: 'Telefon numaranızı girin.', en: 'Enter your phone number.', fil: 'Ilagay ang iyong numero ng telepono.' }));
           setLoading(false);
           return;
         }
@@ -52,23 +59,23 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
         onAuth(user);
       } else {
         if (!phone.trim()) {
-          setError(lang === 'tr' ? 'Telefon numarası zorunludur.' : 'Phone number is required.');
+          setError(pickLang(lang, { tr: 'Telefon numarası zorunludur.', en: 'Phone number is required.', fil: 'Kailangan ang numero ng telepono.' }));
           setLoading(false);
           return;
         }
         if (registerStep === 1) {
           if (password.length < 8) {
-            setError(lang === 'tr' ? 'Şifre en az 8 karakter olmalıdır.' : 'Password must be at least 8 characters.');
+            setError(pickLang(lang, { tr: 'Şifre en az 8 karakter olmalıdır.', en: 'Password must be at least 8 characters.', fil: 'Ang password ay dapat hindi bababa sa 8 karakter.' }));
             setLoading(false);
             return;
           }
           if (password !== confirmPassword) {
-            setError(lang === 'tr' ? 'Şifreler birbiriyle eşleşmiyor.' : 'Passwords do not match.');
+            setError(pickLang(lang, { tr: 'Şifreler birbiriyle eşleşmiyor.', en: 'Passwords do not match.', fil: 'Hindi magkatugma ang mga password.' }));
             setLoading(false);
             return;
           }
           if (!kvkkApproved) {
-            setError(lang === 'tr' ? 'Lütfen KVKK aydınlatma metnini onaylayın.' : 'Please accept the privacy policy.');
+            setError(pickLang(lang, { tr: 'Lütfen KVKK aydınlatma metnini onaylayın.', en: 'Please accept the privacy policy.', fil: 'Pakisang-ayunan ang privacy policy.' }));
             setLoading(false);
             return;
           }
@@ -78,7 +85,7 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
             const result = await sendRegistrationOtp(phone.trim());
             setRegistrationOtpMessage(
               result.devOtpCode
-                ? (lang === 'tr' ? `Yerel doğrulama kodu: ${result.devOtpCode}` : `Local verification code: ${result.devOtpCode}`)
+                ? (pickLang(lang, { tr: `Yerel doğrulama kodu: ${result.devOtpCode}`, en: `Local verification code: ${result.devOtpCode}`, fil: `Lokal na verification code: ${result.devOtpCode}` }))
                 : t('auth.otpSent', lang),
             );
             setRegisterStep(2);
@@ -89,7 +96,7 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
           }
         } else {
           if (registrationOtpCode.length !== 6) {
-            setError(lang === 'tr' ? '6 haneli SMS doğrulama kodunu girin.' : 'Enter the 6-digit SMS verification code.');
+            setError(pickLang(lang, { tr: '6 haneli SMS doğrulama kodunu girin.', en: 'Enter the 6-digit SMS verification code.', fil: 'Ilagay ang 6-digit SMS verification code.' }));
             setLoading(false);
             return;
           }
@@ -139,7 +146,7 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
       const result = await sendRegistrationOtp(phone.trim());
       setRegistrationOtpMessage(
         result.devOtpCode
-          ? (lang === 'tr' ? `Yerel doğrulama kodu: ${result.devOtpCode}` : `Local verification code: ${result.devOtpCode}`)
+          ? (pickLang(lang, { tr: `Yerel doğrulama kodu: ${result.devOtpCode}`, en: `Local verification code: ${result.devOtpCode}`, fil: `Lokal na verification code: ${result.devOtpCode}` }))
           : t('auth.otpSent', lang),
       );
     } catch (err: unknown) {
@@ -687,11 +694,15 @@ export default function AuthScreen({ onAuth, onContinueAsGuest, lang, isDark = f
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="kvkk-modal-title"
               className={`w-full max-w-md max-h-[80vh] rounded-2xl border p-6 shadow-xl overflow-y-auto ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800'}`}
             >
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-base font-bold">{t('auth.kvkkLink', lang)}</h3>
+                <h3 id="kvkk-modal-title" className="text-base font-bold">{t('auth.kvkkLink', lang)}</h3>
                 <button
+                  ref={kvkkCloseButtonRef}
                   type="button"
                   onClick={() => setShowKvkk(false)}
                   aria-label={lang === 'tr' ? 'Aydınlatma metnini kapat' : lang === 'ar' ? 'إغلاق النص' : 'Close privacy notice'}

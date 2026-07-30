@@ -335,9 +335,13 @@ public class ReportImportService {
         }
 
         if (userByEmail.isPresent()) {
+            ensureReporterCanBelongToMunicipality(
+                    userByEmail.get(), municipality, "IMPORT_REPORTER_MUNICIPALITY_MISMATCH");
             return userByEmail.get();
         }
         if (userByPhone.isPresent()) {
+            ensureReporterCanBelongToMunicipality(
+                    userByPhone.get(), municipality, "IMPORT_REPORTER_MUNICIPALITY_MISMATCH");
             return userByPhone.get();
         }
 
@@ -385,6 +389,27 @@ public class ReportImportService {
                 tokenOrNull(column(columns, 7)),
                 tokenOrNull(column(columns, 8))
         );
+    }
+
+    private void ensureReporterCanBelongToMunicipality(
+            AppUser existing,
+            Municipality municipality,
+            String errorCode) {
+        if (municipality == null || existing == null) {
+            return;
+        }
+        if (existing.getPreferredMunicipality() != null
+                && !municipality.getId().equals(existing.getPreferredMunicipality().getId())) {
+            throw new BusinessException(
+                    "Bu iletisim bilgisi baska bir belediyeye bagli vatandasa ait.",
+                    errorCode);
+        }
+        if (existing.getMunicipality() != null
+                && !municipality.getId().equals(existing.getMunicipality().getId())) {
+            throw new BusinessException(
+                    "Bu iletisim bilgisi baska bir belediyeye bagli kullaniciya ait.",
+                    errorCode);
+        }
     }
 
     private String column(List<String> values, int index) {

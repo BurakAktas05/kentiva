@@ -82,4 +82,18 @@ class MediaSignedUrlServiceTest {
     void guessContentTypeForJpeg() {
         assertThat(service.guessContentType("reports/a.jpeg")).isEqualTo("image/jpeg");
     }
+
+    @Test
+    void persistableStoragePathRejectsGenericExternalHttpUrl() {
+        assertThatThrownBy(() -> service.persistableStoragePath("https://evil.example/path/to/file.jpg"))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", "INVALID_MEDIA_URL");
+    }
+
+    @Test
+    void resolveStorageKeyIgnoresUntrustedExternalHttpUrl() {
+        Object key = ReflectionTestUtils.invokeMethod(
+                service, "resolveStorageKey", "https://cdn.untrusted.example/reports/photo.jpg");
+        assertThat(key).isNull();
+    }
 }

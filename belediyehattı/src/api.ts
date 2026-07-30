@@ -512,11 +512,7 @@ export async function fetchPublicDistricts(plateCode: string): Promise<PublicDis
 }
 
 export async function fetchPublicMunicipalities(): Promise<PublicTenant[]> {
-  try {
-    return await publicFetch<PublicTenant[]>('/public/municipalities');
-  } catch (e) {
-    return [];
-  }
+  return publicFetch<PublicTenant[]>('/public/municipalities');
 }
 
 export async function fetchPublicMunicipalityBySlug(slug: string): Promise<PublicTenant> {

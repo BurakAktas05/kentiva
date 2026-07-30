@@ -52,7 +52,7 @@ public class CategoryController {
     }
 
     @GetMapping("/all")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     @Operation(summary = "Tum kategorileri listele (Admin)")
     public ResponseEntity<ApiResponse<Page<CategoryResponse>>> getAllCategories(Pageable pageable) {
         return ResponseEntity.ok(ApiResponse.success(categoryService.getAllCategories(pageable)));

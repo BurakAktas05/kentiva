@@ -289,6 +289,7 @@ public class ReportCreationService {
                         "Bu iletisim bilgisi belediye personeline ait gorunuyor.",
                         "WHITE_DESK_REPORTER_NOT_CITIZEN");
             }
+            ensureReporterCanBelongToMunicipality(existing, municipality, "WHITE_DESK_REPORTER_MUNICIPALITY_MISMATCH");
             if (existing.getPreferredMunicipality() == null) {
                 existing.setPreferredMunicipality(municipality);
                 return userRepository.save(existing);
@@ -383,6 +384,27 @@ public class ReportCreationService {
             if (!reportRepository.existsByTrackingNumber(trackingNum)) {
                 return trackingNum;
             }
+        }
+    }
+
+    private void ensureReporterCanBelongToMunicipality(
+            AppUser existing,
+            Municipality municipality,
+            String errorCode) {
+        if (municipality == null || existing == null) {
+            return;
+        }
+        if (existing.getPreferredMunicipality() != null
+                && !municipality.getId().equals(existing.getPreferredMunicipality().getId())) {
+            throw new BusinessException(
+                    "Bu iletisim bilgisi baska bir belediyeye bagli vatandasa ait.",
+                    errorCode);
+        }
+        if (existing.getMunicipality() != null
+                && !municipality.getId().equals(existing.getMunicipality().getId())) {
+            throw new BusinessException(
+                    "Bu iletisim bilgisi baska bir belediyeye bagli kullaniciya ait.",
+                    errorCode);
         }
     }
 }

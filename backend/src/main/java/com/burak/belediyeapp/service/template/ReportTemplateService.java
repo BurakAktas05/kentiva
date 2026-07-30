@@ -12,6 +12,7 @@ import com.burak.belediyeapp.exception.ResourceNotFoundException;
 import com.burak.belediyeapp.repository.IMunicipalityRepository;
 import com.burak.belediyeapp.repository.IReportCategoryRepository;
 import com.burak.belediyeapp.repository.IReportTemplateRepository;
+import com.burak.belediyeapp.tenant.TenantAccessService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +29,7 @@ public class ReportTemplateService {
     private final IReportTemplateRepository templateRepository;
     private final IReportCategoryRepository categoryRepository;
     private final IMunicipalityRepository municipalityRepository;
+    private final TenantAccessService tenantAccess;
 
     @Transactional(readOnly = true)
     public List<ReportTemplateResponse> listForCitizen(String municipalityId) {
@@ -70,7 +72,7 @@ public class ReportTemplateService {
             throw new BusinessException("Global şablon anahtarı zaten mevcut: " + request.templateKey(), "TEMPLATE_KEY_EXISTS");
         }
 
-        ReportCategory category = resolveCategory(request.categoryId());
+        ReportCategory category = resolveCategory(request.categoryId(), municipality, asGlobal);
         ReportTemplate template = ReportTemplate.builder()
                 .municipality(municipality)
                 .templateKey(request.templateKey().trim())
@@ -94,7 +96,10 @@ public class ReportTemplateService {
             template.setDescriptionTemplate(request.descriptionTemplate().trim());
         }
         if (request.categoryId() != null && !request.categoryId().isBlank()) {
-            template.setCategory(resolveCategory(request.categoryId()));
+            template.setCategory(resolveCategory(
+                    request.categoryId(),
+                    template.getMunicipality(),
+                    template.getMunicipality() == null));
         }
         if (request.iconCode() != null) {
             template.setIconCode(request.iconCode().isBlank() ? null : request.iconCode());
@@ -152,9 +157,22 @@ public class ReportTemplateService {
         return template;
     }
 
-    private ReportCategory resolveCategory(String categoryId) {
-        return categoryRepository.findById(categoryId)
+    private ReportCategory resolveCategory(String categoryId, Municipality municipality, boolean globalTemplate) {
+        ReportCategory category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Kategori", "id", categoryId));
+        if (globalTemplate) {
+            if (category.getMunicipality() != null) {
+                throw new BusinessException(
+                        "Global şablon yalnızca global kategorilere bağlanabilir.",
+                        "GLOBAL_CATEGORY_REQUIRED");
+            }
+            return category;
+        }
+        if (municipality == null) {
+            throw new BusinessException("Belediye kapsamı gerekli.", "MUNICIPALITY_REQUIRED");
+        }
+        tenantAccess.ensureCategoryVisibleToMunicipality(category, municipality.getId());
+        return category;
     }
 
     private static String requireMunicipalityId(AppUser user) {

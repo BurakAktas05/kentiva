@@ -46,7 +46,7 @@ export default function StatisticsPage() {
         if ('error' in insightsRes) {
           const err = insightsRes.error;
           if (axios.isAxiosError(err)) {
-            const code = (err.response?.data as { code?: string } | undefined)?.code;
+            const code = (err.response?.data as { errorCode?: string } | undefined)?.errorCode;
             const msg = (err.response?.data as { message?: string } | undefined)?.message;
             if (code === 'MUNICIPALITY_REQUIRED') {
               setInsightsNote(msg ?? 'Tahminsel analiz yalnızca belediye hesapları için kullanılabilir.');

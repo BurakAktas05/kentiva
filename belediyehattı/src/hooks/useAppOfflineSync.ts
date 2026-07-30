@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { createReport } from '../api';
 import { storageService } from '../lib/storageService';
 
@@ -8,8 +8,12 @@ export type OfflineSyncDetail = {
 };
 
 export function useAppOfflineSync() {
+  const retryTimeoutRef = useRef<number | null>(null);
+  const syncingRef = useRef(false);
+
   useEffect(() => {
     const syncOfflineReports = async () => {
+      if (syncingRef.current) return;
       const raw = storageService.getItem('belediye_offline_reports');
       if (!raw) return;
 
@@ -32,6 +36,7 @@ export function useAppOfflineSync() {
       }
       if (queue.length === 0) return;
 
+      syncingRef.current = true;
       const initialCount = queue.length;
       const remaining = [...queue];
       for (const r of queue) {
@@ -60,14 +65,30 @@ export function useAppOfflineSync() {
         synced: initialCount - remaining.length,
       };
       window.dispatchEvent(new CustomEvent('kentiva:offline-sync', { detail }));
+
+      syncingRef.current = false;
+      if (remaining.length > 0 && navigator.onLine) {
+        retryTimeoutRef.current = window.setTimeout(() => {
+          void syncOfflineReports();
+        }, 30_000);
+      }
     };
 
     const handler = () => {
+      if (retryTimeoutRef.current !== null) {
+        window.clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
       void syncOfflineReports();
     };
     window.addEventListener('online', handler);
     if (navigator.onLine) handler();
 
-    return () => window.removeEventListener('online', handler);
+    return () => {
+      window.removeEventListener('online', handler);
+      if (retryTimeoutRef.current !== null) {
+        window.clearTimeout(retryTimeoutRef.current);
+      }
+    };
   }, []);
 }

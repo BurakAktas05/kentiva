@@ -18,6 +18,7 @@ import com.burak.belediyeapp.repository.IMunicipalityRepository;
 import com.burak.belediyeapp.repository.ITurkeyDistrictRepository;
 import com.burak.belediyeapp.entity.TurkeyDistrict;
 import com.burak.belediyeapp.service.geo.MunicipalityBoundaryAutoSyncService;
+import com.burak.belediyeapp.service.media.ImageContentValidator;
 import com.burak.belediyeapp.service.media.MediaGuardClient;
 import com.burak.belediyeapp.service.storage.StorageService;
 import lombok.RequiredArgsConstructor;
@@ -305,8 +306,10 @@ public class MunicipalityManagementService {
         } catch (Exception e) {
             throw new BusinessException("Dosya okunamadı.", "FILE_READ_ERROR");
         }
-        mediaGuardClient.validateImageOrThrow(bytes, ct);
-        String url = storageService.uploadBytes(bytes, ct, "branding/" + municipalityId, file.getOriginalFilename());
+        ImageContentValidator.ValidatedImage validated = ImageContentValidator.validateOrThrow(bytes, ct);
+        mediaGuardClient.validateImageOrThrow(bytes, validated.contentType());
+        String url = storageService.uploadBytes(
+                bytes, validated.contentType(), "branding/" + municipalityId, file.getOriginalFilename());
         Municipality m = municipalityRepository.findById(municipalityId)
                 .orElseThrow(() -> new ResourceNotFoundException("Belediye", "id", municipalityId));
         m.setLogoUrl(mediaSignedUrlService.persistableStoragePath(url));

@@ -23,6 +23,7 @@ export function usePollingFetch<T>(
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const mounted = useRef(true);
+  const inFlightController = useRef<AbortController | null>(null);
 
   const run = useCallback(
     async (isInitial: boolean) => {
@@ -30,7 +31,9 @@ export function usePollingFetch<T>(
       if (isInitial) setLoading(true);
       else setRefreshing(true);
 
+      inFlightController.current?.abort();
       const controller = new AbortController();
+      inFlightController.current = controller;
       try {
         const result = await fetcher(controller.signal);
         if (!mounted.current) return;
@@ -42,6 +45,9 @@ export function usePollingFetch<T>(
         const msg = e instanceof Error ? e.message : 'Veri yüklenemedi';
         setError(msg);
       } finally {
+        if (inFlightController.current === controller) {
+          inFlightController.current = null;
+        }
         if (!mounted.current) return;
         setLoading(false);
         setRefreshing(false);
@@ -67,6 +73,7 @@ export function usePollingFetch<T>(
     const id = window.setInterval(() => void run(false), intervalMs);
     return () => {
       mounted.current = false;
+      inFlightController.current?.abort();
       window.clearInterval(id);
     };
   }, [enabled, intervalMs, run]);

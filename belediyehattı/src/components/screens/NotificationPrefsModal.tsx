@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { storageService } from '../../lib/storageService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, Check, Loader2, X } from 'lucide-react';
@@ -20,6 +20,7 @@ export default function NotificationPrefsModal({ lang, isDark, isOpen, onClose }
   const [announcements, setAnnouncements] = useState(true);
   const [outages, setOutages] = useState(true);
   const [surveys, setSurveys] = useState(true);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -39,6 +40,11 @@ export default function NotificationPrefsModal({ lang, isDark, isOpen, onClose }
       .finally(() => {
         setLoading(false);
       });
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    closeButtonRef.current?.focus();
   }, [isOpen]);
 
   const handleSave = async () => {
@@ -105,6 +111,9 @@ export default function NotificationPrefsModal({ lang, isDark, isOpen, onClose }
             initial={{ opacity: 0, y: 100, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 100, scale: 0.95 }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="notification-prefs-title"
             className={`w-full max-w-lg overflow-hidden rounded-t-3xl border p-6 shadow-2xl sm:rounded-3xl ${
               isDark ? 'border-slate-800 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-900'
             }`}
@@ -115,13 +124,15 @@ export default function NotificationPrefsModal({ lang, isDark, isOpen, onClose }
                   <Bell className="h-6 w-6" />
                 </div>
                 <div>
-                  <h3 className="text-base font-extrabold">{t('notification.prefs.title', lang)}</h3>
+                  <h3 id="notification-prefs-title" className="text-base font-extrabold">{t('notification.prefs.title', lang)}</h3>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">{t('notification.prefs.subtitle', lang)}</p>
                 </div>
               </div>
               <button
+                ref={closeButtonRef}
                 type="button"
                 onClick={onClose}
+                aria-label={lang === 'tr' ? 'Bildirim tercihlerini kapat' : 'Close notification preferences'}
                 className="rounded-full bg-slate-100 p-1.5 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400"
               >
                 <X className="h-5 w-5" />
@@ -139,9 +150,12 @@ export default function NotificationPrefsModal({ lang, isDark, isOpen, onClose }
               <div className="mt-5 space-y-4">
                 <div className="max-h-[45vh] space-y-2.5 overflow-y-auto pr-1">
                   {prefItems.map((item) => (
-                    <div
+                    <button
                       key={item.id}
+                      type="button"
                       onClick={() => item.setter(!item.state)}
+                      role="switch"
+                      aria-checked={item.state}
                       className={`flex cursor-pointer items-center justify-between gap-4 rounded-2xl border p-4 transition-all duration-200 ${
                         item.state
                           ? 'border-primary/20 bg-primary/5 dark:border-secondary/20 dark:bg-primary/10'
@@ -165,12 +179,12 @@ export default function NotificationPrefsModal({ lang, isDark, isOpen, onClose }
                           animate={{ x: item.state ? 20 : 0 }}
                         />
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
 
                 {saveError && (
-                  <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-700 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-300">
+                  <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-700 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-300">
                     {saveError}
                   </div>
                 )}

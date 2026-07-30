@@ -31,6 +31,7 @@ export default function Surveys({
   const [selectedOptions, setSelectedOptions] = useState<Record<string, number>>({});
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [voteError, setVoteError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     loadSurveys();
@@ -42,12 +43,21 @@ export default function Surveys({
       return;
     }
     setLoading(true);
+    setLoadError(null);
     getPublicSurveys(municipality.id)
       .then((res) => {
         setSurveys(res || []);
       })
       .catch((err) => {
         console.error('Anketler yuklenirken hata:', err);
+        setSurveys([]);
+        setLoadError(
+          err instanceof Error
+            ? err.message
+            : lang === 'tr'
+              ? 'Anketler yüklenemedi.'
+              : 'Surveys could not be loaded.',
+        );
       })
       .finally(() => {
         setLoading(false);
@@ -75,11 +85,15 @@ export default function Surveys({
       
       // Notify about reputation increase if profile update callback provided
       if (onReputationChange) {
-        getMyProfile().then((profile) => {
-          if (profile?.reputationScore) {
-            onReputationChange(profile.reputationScore);
-          }
-        });
+        getMyProfile()
+          .then((profile) => {
+            if (profile?.reputationScore) {
+              onReputationChange(profile.reputationScore);
+            }
+          })
+          .catch(() => {
+            // Voting already succeeded; ignore profile refresh failures.
+          });
       }
 
       setSuccessMessage(t('surveys.success.vote', lang));
@@ -168,6 +182,10 @@ export default function Surveys({
             {[1, 2].map((i) => (
               <div key={i} className="h-64 animate-pulse rounded-3xl bg-slate-100 dark:bg-slate-800/40" />
             ))}
+          </div>
+        ) : loadError ? (
+          <div role="alert" className="rounded-2xl border border-red-200 bg-red-50/80 px-4 py-4 text-sm font-semibold text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300">
+            {loadError}
           </div>
         ) : displaySurveys.length === 0 ? (
           homeSection ? null : (

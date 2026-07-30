@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 
 type ButtonVariant = 'primary' | 'secondary';
 
@@ -12,16 +12,18 @@ const variantClass: Record<ButtonVariant, string> = {
   secondary: 'kentiva-btn-secondary',
 };
 
-export default function Button({
+const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button({
   variant = 'primary',
   className = '',
   children,
   type = 'button',
   ...rest
-}: ButtonProps) {
+}, ref) {
   return (
-    <button type={type} className={`${variantClass[variant]} ${className}`.trim()} {...rest}>
+    <button ref={ref} type={type} className={`${variantClass[variant]} ${className}`.trim()} {...rest}>
       {children}
     </button>
   );
-}
+});
+
+export default Button;

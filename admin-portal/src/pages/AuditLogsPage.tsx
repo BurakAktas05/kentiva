@@ -100,7 +100,7 @@ export default function AuditLogsPage() {
       setData(res.data.data as SpringPage<AuditLogEntry>);
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
-        const code = (err.response?.data as { code?: string } | undefined)?.code;
+        const code = (err.response?.data as { errorCode?: string } | undefined)?.errorCode;
         const msg = (err.response?.data as { message?: string } | undefined)?.message;
         if (code === 'MUNICIPALITY_REQUIRED' || code === 'CROSS_MUNICIPALITY_ACCESS') {
           setScopeError(msg ?? 'Bu hesap için denetim günlüğü kullanılamıyor.');

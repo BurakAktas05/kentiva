@@ -10,7 +10,7 @@ import {
   type ApiAnnouncement,
   type PublicTenant,
 } from './api';
-import { Lang, t } from './i18n';
+import { Lang, pickLang, t } from './i18n';
 import { useTenant } from './TenantContext';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import { storageService } from './lib/storageService';
@@ -20,6 +20,7 @@ import { useAppOfflineSync } from './hooks/useAppOfflineSync';
 import { useAppNotifications } from './hooks/useAppNotifications';
 import BottomNavigation from './components/common/BottomNavigation';
 import SplashScreen from './components/screens/SplashScreen';
+import OfflineBanner from './components/ui/OfflineBanner';
 
 const AuthScreen = lazy(() => import('./components/screens/AuthScreen'));
 const Home = lazy(() => import('./components/screens/Home'));
@@ -82,7 +83,11 @@ export default function App() {
   const isMuniNotOnboarded = Boolean(tenant && tenant.onboarded === false);
 
   const [key, setKey] = useState(0);
-  const [lang, setLang] = useState<Lang>(() => (storageService.getItem('belediye_lang') as Lang) || 'tr');
+  const [lang, setLang] = useState<Lang>(() => {
+    const saved = storageService.getItem('belediye_lang') as Lang | null;
+    if (saved === 'tr' || saved === 'en' || saved === 'ar' || saved === 'fil') return saved;
+    return 'fil';
+  });
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => (storageService.getItem('belediye_theme') as any) || 'light');
   
   const [isGuest, setIsGuest] = useState(() => storageService.getItem('belediye_is_guest') === 'true');
@@ -391,9 +396,9 @@ export default function App() {
         </p>
         <ul className={`mt-4 space-y-2 text-left text-[11px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
           {[
-            lang === 'tr' ? 'Konum doğrulama ile resmi kayıt' : 'Official record with verified location',
-            lang === 'tr' ? 'Fotoğraflı kanıt ve canlı durum takibi' : 'Photo evidence and live status tracking',
-            lang === 'tr' ? 'Belediyenizden şeffaf güncelleme' : 'Transparent updates from your municipality',
+            pickLang(lang, { tr: 'Konum doğrulama ile resmi kayıt', en: 'Official record with verified location', fil: 'Opisyal na record na may beripikadong lokasyon' }),
+            pickLang(lang, { tr: 'Fotoğraflı kanıt ve canlı durum takibi', en: 'Photo evidence and live status tracking', fil: 'Katibayan sa larawan at live na pagsubaybay sa status' }),
+            pickLang(lang, { tr: 'Belediyenizden şeffaf güncelleme', en: 'Transparent updates from your municipality', fil: 'Transparent na update mula sa iyong munisipyo' }),
           ].map((line) => (
             <li key={line} className="flex items-start gap-2">
               <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
@@ -409,7 +414,7 @@ export default function App() {
           }}
           className="mt-6 w-full rounded-2xl bg-primary py-3 text-xs font-bold text-white shadow-lg shadow-primary/20 hover:brightness-105 active:scale-[0.98] transition-all cursor-pointer font-sans"
         >
-          {lang === 'tr' ? 'Giriş Yap / Kayıt Ol' : 'Log In / Register'}
+          {pickLang(lang, { tr: 'Giriş Yap / Kayıt Ol', en: 'Log In / Register', fil: 'Mag-login / Mag-register' })}
         </button>
         <button
           type="button"
@@ -420,7 +425,7 @@ export default function App() {
               : 'border-slate-300 text-slate-600 hover:bg-slate-50'
           }`}
         >
-          {lang === 'tr' ? 'Geri Dön' : 'Go Back'}
+          {pickLang(lang, { tr: 'Geri Dön', en: 'Go Back', fil: 'Bumalik' })}
         </button>
       </div>
     </div>
@@ -430,6 +435,7 @@ export default function App() {
     <ErrorBoundary>
       <div className={`min-h-app flex justify-center font-sans ${isDark ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-900'}`}>
         <div className={`w-full max-w-md flex flex-col h-app relative overflow-hidden sm:border-x sm:shadow-kentiva ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200/80'}`}>
+          <OfflineBanner />
 
         {!openReportId && !openAnnouncement && activeTab !== 'reports' && activeTab !== 'rewards' && !pickerMode && (
           <header className={`px-4 py-3.5 pt-safe z-10 flex justify-between items-center shrink-0 border-b backdrop-blur-md ${isDark ? 'border-slate-800 bg-slate-900/95' : 'border-slate-200/80 bg-white/90'}`}>
@@ -502,7 +508,7 @@ export default function App() {
               }}
               aria-label={
                 activeTab === 'notifications'
-                  ? (lang === 'tr' ? 'Ana sayfaya dön' : lang === 'ar' ? 'العودة إلى الرئيسية' : 'Back to home')
+                  ? (pickLang(lang, { tr: 'Ana sayfaya dön', en: 'Back to home', ar: 'العودة إلى الرئيسية', fil: 'Bumalik sa home' }))
                   : t('notif.title', lang)
               }
               className={`relative shrink-0 p-2 rounded-xl transition-colors ${isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-100'}`}
@@ -535,7 +541,7 @@ export default function App() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-extrabold tracking-tight">
-                  {lang === 'tr' ? 'Bildiriminiz alındı' : lang === 'ar' ? 'تم استلام البلاغ' : 'Report received'}
+                  {pickLang(lang, { tr: 'Bildiriminiz alındı', en: 'Report received', ar: 'تم استلام البلاغ', fil: 'Natanggap ang iyong ulat' })}
                 </p>
                 <p className={`mt-0.5 text-xs font-semibold leading-relaxed ${
                   isDark ? 'text-emerald-100/80' : 'text-emerald-800'
@@ -550,15 +556,15 @@ export default function App() {
                   isDark ? 'text-emerald-100/70' : 'text-emerald-700/80'
                 }`}>
                   <span className="rounded-lg bg-emerald-600 px-2 py-1 text-white">
-                    {lang === 'tr' ? '1. Alındı' : '1. Received'}
+                    {pickLang(lang, { tr: '1. Alındı', en: '1. Received', fil: '1. Natanggap' })}
                   </span>
                   <span aria-hidden>→</span>
                   <span className="rounded-lg border border-current/20 px-2 py-1 opacity-80">
-                    {lang === 'tr' ? '2. İşlem' : '2. In progress'}
+                    {pickLang(lang, { tr: '2. İşlem', en: '2. In progress', fil: '2. Isinasagawa' })}
                   </span>
                   <span aria-hidden>→</span>
                   <span className="rounded-lg border border-current/20 px-2 py-1 opacity-80">
-                    {lang === 'tr' ? '3. Çözüm' : '3. Resolved'}
+                    {pickLang(lang, { tr: '3. Çözüm', en: '3. Resolved', fil: '3. Nalutas' })}
                   </span>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -574,7 +580,7 @@ export default function App() {
                         : 'bg-emerald-700 text-white hover:bg-emerald-800'
                     }`}
                   >
-                    {lang === 'tr' ? 'Takibe git' : lang === 'ar' ? 'متابعة البلاغ' : 'Track report'}
+                    {pickLang(lang, { tr: 'Takibe git', en: 'Track report', ar: 'متابعة البلاغ', fil: 'Subaybayan ang ulat' })}
                   </button>
                   <button
                     type="button"
@@ -585,7 +591,7 @@ export default function App() {
                         : 'bg-white/80 text-emerald-800 hover:bg-white'
                     }`}
                   >
-                    {lang === 'tr' ? 'Ana sayfada kal' : 'Stay on home'}
+                    {pickLang(lang, { tr: 'Ana sayfada kal', en: 'Stay on home', fil: 'Manatili sa home' })}
                   </button>
                 </div>
               </div>
@@ -595,7 +601,7 @@ export default function App() {
                 className={`shrink-0 rounded-xl p-2 transition-colors ${
                   isDark ? 'text-emerald-100/70 hover:bg-emerald-400/10' : 'text-emerald-700 hover:bg-emerald-100'
                 }`}
-                aria-label={lang === 'tr' ? 'Bildirimi kapat' : 'Dismiss notification'}
+                aria-label={pickLang(lang, { tr: 'Bildirimi kapat', en: 'Dismiss notification', fil: 'Isara ang notification' })}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -620,7 +626,7 @@ export default function App() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-extrabold tracking-tight">
-                  {lang === 'tr' ? 'Gönderilmeyi bekliyor' : 'Waiting to send'}
+                  {pickLang(lang, { tr: 'Gönderilmeyi bekliyor', en: 'Waiting to send', fil: 'Naghihintay na maipadala' })}
                 </p>
                 <p className={`mt-0.5 text-xs font-semibold leading-relaxed ${
                   isDark ? 'text-amber-100/80' : 'text-amber-800'
@@ -636,7 +642,7 @@ export default function App() {
                 className={`shrink-0 rounded-xl p-2 transition-colors ${
                   isDark ? 'text-amber-100/70 hover:bg-amber-400/10' : 'text-amber-800 hover:bg-amber-100'
                 }`}
-                aria-label={lang === 'tr' ? 'Bildirimi kapat' : 'Dismiss notification'}
+                aria-label={pickLang(lang, { tr: 'Bildirimi kapat', en: 'Dismiss notification', fil: 'Isara ang notification' })}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -661,7 +667,7 @@ export default function App() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-extrabold tracking-tight">
-                  {lang === 'tr' ? 'Çevrimdışı gönderim tamamlanamadı' : 'Offline sync incomplete'}
+                  {pickLang(lang, { tr: 'Çevrimdışı gönderim tamamlanamadı', en: 'Offline sync incomplete', fil: 'Hindi kumpleto ang offline sync' })}
                 </p>
                 <p className={`mt-0.5 text-xs font-semibold leading-relaxed ${
                   isDark ? 'text-red-100/80' : 'text-red-800'
@@ -677,7 +683,7 @@ export default function App() {
                 className={`shrink-0 rounded-xl p-2 transition-colors ${
                   isDark ? 'text-red-100/70 hover:bg-red-400/10' : 'text-red-700 hover:bg-red-100'
                 }`}
-                aria-label={lang === 'tr' ? 'Bildirimi kapat' : 'Dismiss notification'}
+                aria-label={pickLang(lang, { tr: 'Bildirimi kapat', en: 'Dismiss notification', fil: 'Isara ang notification' })}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -737,7 +743,7 @@ export default function App() {
             {activeTab === 'report' && (
               !user ? (
                 renderAuthRequiredView(
-                  lang === 'tr' ? 'İhbar Oluşturun' : 'Create Report',
+                  pickLang(lang, { tr: 'İhbar Oluşturun', en: 'Create Report', fil: 'Gumawa ng Ulat' }),
                   lang === 'tr'
                     ? 'Yeni bir ihbar kaydı oluşturmak ve durumunu takip etmek için lütfen kayıt olun veya giriş yapın.'
                     : 'Please log in or register to submit reports and track their status.'
@@ -759,7 +765,7 @@ export default function App() {
             {activeTab === 'reports' && !openReportId && (
               !user ? (
                 renderAuthRequiredView(
-                  lang === 'tr' ? 'İhbarlarım' : 'My Reports',
+                  pickLang(lang, { tr: 'İhbarlarım', en: 'My Reports', fil: 'Mga Ulat Ko' }),
                   lang === 'tr'
                     ? 'Geçmişte oluşturduğunuz ihbarları incelemek ve durumlarını takip etmek için lütfen kayıt olun veya giriş yapın.'
                     : 'Please log in or register to review your past reports and track their status.'
@@ -779,7 +785,7 @@ export default function App() {
             {activeTab === 'profile' && (
               !user ? (
                 renderAuthRequiredView(
-                  lang === 'tr' ? 'Profilinizi Görüntüleyin' : 'View Your Profile',
+                  pickLang(lang, { tr: 'Profilinizi Görüntüleyin', en: 'View Your Profile', fil: 'Tingnan ang Iyong Profile' }),
                   lang === 'tr'
                     ? 'Profil bilgilerinizi düzenlemek ve geçmiş ihbarlarınızı incelemek için giriş yapın.'
                     : 'Log in to edit your profile and review your report history.'
@@ -815,7 +821,7 @@ export default function App() {
             {activeTab === 'notifications' && (
               !user ? (
                 renderAuthRequiredView(
-                  lang === 'tr' ? 'Bildirimler' : 'Notifications',
+                  pickLang(lang, { tr: 'Bildirimler', en: 'Notifications', fil: 'Mga Notification' }),
                   lang === 'tr'
                     ? 'İhbarlarınızın güncel durumlarından haberdar olmak ve yeni duyuru bildirimlerini almak için lütfen giriş yapın.'
                     : 'Please log in to receive updates on your reports and new announcement notifications.'
@@ -917,7 +923,7 @@ export default function App() {
                 <Building2 className="h-7 w-7 animate-pulse text-primary" />
               </div>
               <h3 className="text-center text-base font-extrabold tracking-tight">
-                {lang === 'tr' ? 'Belediye Değişikliği' : 'Switch Municipality'}
+                {pickLang(lang, { tr: 'Belediye Değişikliği', en: 'Switch Municipality', fil: 'Palitan ang Munisipyo' })}
               </h3>
               <p className="mt-3 text-center text-xs leading-relaxed text-slate-500 dark:text-slate-400 font-semibold">
                 {lang === 'tr' 
@@ -933,7 +939,7 @@ export default function App() {
                   }}
                   className="flex-1 rounded-2xl bg-primary py-3 text-xs font-bold text-white shadow-lg shadow-primary/20 hover:brightness-105 active:scale-[0.98] transition-all cursor-pointer"
                 >
-                  {lang === 'tr' ? 'Evet, Geç' : 'Yes, Switch'}
+                  {pickLang(lang, { tr: 'Evet, Geç', en: 'Yes, Switch', fil: 'Oo, Palitan' })}
                 </button>
                 <button
                   type="button"
@@ -944,7 +950,7 @@ export default function App() {
                       : 'border-slate-300 hover:bg-slate-50 text-slate-600'
                   }`}
                 >
-                  {lang === 'tr' ? 'Hayır, Kal' : 'No, Keep'}
+                  {pickLang(lang, { tr: 'Hayır, Kal', en: 'No, Keep', fil: 'Hindi, Panatilihin' })}
                 </button>
               </div>
             </div>

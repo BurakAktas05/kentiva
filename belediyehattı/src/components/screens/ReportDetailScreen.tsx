@@ -20,7 +20,7 @@ import {
   type ApiReportDetail,
   type ReportTimelineEntry,
 } from '../../api';
-import { Lang, t } from '../../i18n';
+import { Lang, localeForLang, pickLang, t } from '../../i18n';
 import {
   reportStatusBadgeClass,
   screenBg,
@@ -44,11 +44,6 @@ const STATUS_LABELS: Record<string, { tr: string; en: string; ar: string }> = {
   FORWARDED: { tr: 'Yönlendirildi', en: 'Forwarded', ar: 'تم التحويل' },
 };
 
-function localeForLang(lang: Lang) {
-  if (lang === 'tr') return 'tr-TR';
-  if (lang === 'ar') return 'ar';
-  return 'en-US';
-}
 
 function copy(lang: Lang) {
   if (lang === 'ar') {

@@ -40,7 +40,7 @@ public class RewardController {
     }
 
     @GetMapping("/api/v1/users/me/rewards/redeemed")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasRole('CITIZEN')")
     @Operation(summary = "Kullanıcının aldığı ödül kuponlarını listele (Vatandaş)")
     public ResponseEntity<ApiResponse<List<RedeemedRewardResponse>>> getMyRedeemedRewards(
             @AuthenticationPrincipal AppUser user) {
@@ -48,7 +48,7 @@ public class RewardController {
     }
 
     @PostMapping("/api/v1/users/me/rewards/redeem")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasRole('CITIZEN')")
     @Operation(summary = "Ödül kuponu satın al/oluştur (Vatandaş)")
     public ResponseEntity<ApiResponse<RedeemedRewardResponse>> redeemReward(
             @AuthenticationPrincipal AppUser user,

@@ -112,6 +112,7 @@ public class RewardService {
 
     @Transactional
     public RedeemedRewardResponse redeem(RedeemRewardRequest request, AppUser currentUser) {
+        requireCitizen(currentUser);
         MunicipalityReward reward = rewardRepository.findById(request.rewardId())
                 .orElseThrow(() -> new ResourceNotFoundException("Ödül", "id", request.rewardId()));
 
@@ -166,6 +167,7 @@ public class RewardService {
 
     @Transactional(readOnly = true)
     public List<RedeemedRewardResponse> listRedeemed(AppUser currentUser) {
+        requireCitizen(currentUser);
         return redeemedRewardRepository.findByUserIdOrderByCreatedAtDesc(currentUser.getId())
                 .stream()
                 .map(this::mapToRedeemedResponse)
@@ -218,6 +220,12 @@ public class RewardService {
     private String generateRedemptionCode() {
         String uuid = UUID.randomUUID().toString().replace("-", "").toUpperCase();
         return "KV-" + uuid.substring(0, 4) + "-" + uuid.substring(4, 8);
+    }
+
+    private static void requireCitizen(AppUser currentUser) {
+        if (currentUser == null || !currentUser.hasRole("ROLE_CITIZEN")) {
+            throw new BusinessException("Yalnızca vatandaş hesapları ödül kullanabilir.", "CITIZEN_REQUIRED");
+        }
     }
 
     private RewardResponse mapToResponse(MunicipalityReward reward) {

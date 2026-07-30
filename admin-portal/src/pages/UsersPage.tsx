@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Plus, Search, ShieldAlert, UserX } from 'lucide-react';
 import axios from 'axios';
 import api from '../api';
@@ -57,12 +57,26 @@ export default function UsersPage() {
   const [toast, setToast] = useState<ToastState>(null);
   const [toggleTarget, setToggleTarget] = useState<UserResponse | null>(null);
   const [toggling, setToggling] = useState(false);
+  const addUserCloseButtonRef = useRef<HTMLButtonElement | null>(null);
+  const suspendCloseButtonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (!toast) return;
     const t = window.setTimeout(() => setToast(null), 5000);
     return () => window.clearTimeout(t);
   }, [toast]);
+
+  useEffect(() => {
+    if (isModalOpen) {
+      addUserCloseButtonRef.current?.focus();
+    }
+  }, [isModalOpen]);
+
+  useEffect(() => {
+    if (isSuspendModalOpen) {
+      suspendCloseButtonRef.current?.focus();
+    }
+  }, [isSuspendModalOpen]);
 
   const openSuspendModal = (user: UserResponse) => {
     setSuspendingUser(user);
@@ -330,17 +344,17 @@ export default function UsersPage() {
       {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md overflow-hidden transform transition-all">
+          <div role="dialog" aria-modal="true" aria-labelledby="add-user-modal-title" className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md overflow-hidden transform transition-all">
             <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Yeni Personel</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-500">
+              <h3 id="add-user-modal-title" className="text-lg font-semibold">Yeni Personel</h3>
+              <button ref={addUserCloseButtonRef} onClick={() => setIsModalOpen(false)} aria-label="Yeni personel penceresini kapat" className="text-slate-400 hover:text-slate-500">
                 &times;
               </button>
             </div>
             
             <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               {formError && (
-                <div className="p-3 bg-rose-50 text-rose-600 rounded-lg text-sm flex items-start gap-2">
+                <div role="alert" className="p-3 bg-rose-50 text-rose-600 rounded-lg text-sm flex items-start gap-2">
                   <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5" />
                   <span>{formError}</span>
                 </div>
@@ -404,17 +418,17 @@ export default function UsersPage() {
       {/* Suspend Modal */}
       {isSuspendModalOpen && suspendingUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md overflow-hidden transform transition-all">
+          <div role="dialog" aria-modal="true" aria-labelledby="suspend-user-modal-title" className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md overflow-hidden transform transition-all">
             <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Vatandaşı Askıya Al</h3>
-              <button onClick={() => setIsSuspendModalOpen(false)} className="text-slate-400 hover:text-slate-500">
+              <h3 id="suspend-user-modal-title" className="text-lg font-semibold">Vatandaşı Askıya Al</h3>
+              <button ref={suspendCloseButtonRef} onClick={() => setIsSuspendModalOpen(false)} aria-label="Askıya alma penceresini kapat" className="text-slate-400 hover:text-slate-500">
                 &times;
               </button>
             </div>
             
             <form onSubmit={handleSuspendSubmit} className="p-6 space-y-4">
               {suspendError && (
-                <div className="p-3 bg-rose-50 text-rose-600 rounded-lg text-sm flex items-start gap-2">
+                <div role="alert" className="p-3 bg-rose-50 text-rose-600 rounded-lg text-sm flex items-start gap-2">
                   <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5" />
                   <span>{suspendError}</span>
                 </div>

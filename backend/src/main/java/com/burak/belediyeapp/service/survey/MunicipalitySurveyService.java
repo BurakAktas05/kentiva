@@ -34,6 +34,7 @@ public class MunicipalitySurveyService {
 
     @Transactional(readOnly = true)
     public List<MunicipalitySurveyDetailDto> listPublic(String municipalityId, AppUser user) {
+        ensureCitizenMunicipalityScope(user, municipalityId);
         List<MunicipalitySurvey> activeSurveys = surveyRepository.findByMunicipalityIdAndActiveTrueOrderByCreatedAtDesc(municipalityId);
         String recommendedId = null;
 
@@ -59,6 +60,7 @@ public class MunicipalitySurveyService {
     public MunicipalitySurveyDetailDto vote(String surveyId, int selectedOption, AppUser user) {
         MunicipalitySurvey survey = surveyRepository.findById(surveyId)
                 .orElseThrow(() -> new ResourceNotFoundException("Anket", "id", surveyId));
+        ensureCitizenMunicipalityScope(user, survey.getMunicipality().getId());
 
         if (!survey.isActive()) {
             throw new BusinessException("Bu anket artık aktif değil", "SURVEY_INACTIVE");
@@ -322,5 +324,20 @@ public class MunicipalitySurveyService {
             throw new BusinessException("Bu hesap bir belediyeye bağlı değil", "MUNICIPALITY_NOT_ASSIGNED");
         }
         return m;
+    }
+
+    private static void ensureCitizenMunicipalityScope(AppUser user, String municipalityId) {
+        if (user == null || municipalityId == null || municipalityId.isBlank()) {
+            return;
+        }
+        Municipality allowed = user.getPreferredMunicipality() != null
+                ? user.getPreferredMunicipality()
+                : user.getMunicipality();
+        if (allowed == null) {
+            throw new BusinessException("Bu işlem için belediye kapsamı gerekli.", "MUNICIPALITY_REQUIRED");
+        }
+        if (!municipalityId.equals(allowed.getId())) {
+            throw new BusinessException("Bu belediyeye ait ankete erişim yetkiniz yok.", "CROSS_MUNICIPALITY_ACCESS");
+        }
     }
 }

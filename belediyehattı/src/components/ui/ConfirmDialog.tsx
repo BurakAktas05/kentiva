@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import Button from './Button';
 
@@ -25,8 +25,11 @@ export default function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const confirmButtonRef = useRef<HTMLButtonElement | null>(null);
+
   useEffect(() => {
     if (!open) return;
+    confirmButtonRef.current?.focus();
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !busy) {
         onCancel();
@@ -66,6 +69,7 @@ export default function ConfirmDialog({
             {cancelLabel}
           </Button>
           <Button
+            ref={confirmButtonRef}
             variant="primary"
             className={`flex-1 ${tone === 'danger' ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/15' : ''}`}
             disabled={busy}

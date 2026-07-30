@@ -31,6 +31,7 @@ export default function MunicipalityPage({ fixedSlug }: { fixedSlug?: string }) 
   const [stat, setStat] = useState<PublicMunicipalityStat | null>(null);
   const [resolvedReports, setResolvedReports] = useState<PublicResolvedReport[]>([]);
   const [error, setError] = useState('');
+  const [warning, setWarning] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -38,16 +39,25 @@ export default function MunicipalityPage({ fixedSlug }: { fixedSlug?: string }) 
     const controller = new AbortController();
     setLoading(true);
     setError('');
+    setWarning('');
 
-    Promise.all([
+    Promise.allSettled([
       fetchPublicMunicipalityBySlug(activeSlug, controller.signal),
-      fetchPublicMunicipalityStats(controller.signal).catch(() => [] as PublicMunicipalityStat[]),
-      fetchPublicMunicipalityResolvedReports(activeSlug, controller.signal).catch(() => [] as PublicResolvedReport[]),
+      fetchPublicMunicipalityStats(controller.signal),
+      fetchPublicMunicipalityResolvedReports(activeSlug, controller.signal),
     ])
-      .then(([d, stats, reports]) => {
-        setDetail(d);
-        setStat(stats.find((s) => s.slug === activeSlug) ?? null);
-        setResolvedReports(reports);
+      .then(([detailResult, statsResult, reportsResult]) => {
+        if (detailResult.status !== 'fulfilled') {
+          throw detailResult.reason;
+        }
+        setDetail(detailResult.value);
+        setStat(statsResult.status === 'fulfilled'
+          ? statsResult.value.find((s) => s.slug === activeSlug) ?? null
+          : null);
+        setResolvedReports(reportsResult.status === 'fulfilled' ? reportsResult.value : []);
+        if (statsResult.status !== 'fulfilled' || reportsResult.status !== 'fulfilled') {
+          setWarning('Bazı şeffaflık verileri şu anda yüklenemiyor. Lütfen daha sonra tekrar deneyin.');
+        }
       })
       .catch((e: Error) => {
         if (!controller.signal.aborted) setError(e.message || 'Belediye bulunamadı');
@@ -95,6 +105,13 @@ export default function MunicipalityPage({ fixedSlug }: { fixedSlug?: string }) 
       )}
 
       <main id="main-content" tabIndex={-1} className="flex-1 outline-none">
+        {warning && (
+          <div className="mx-auto mt-6 w-full max-w-6xl px-4 sm:px-6 lg:px-8">
+            <div role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+              {warning}
+            </div>
+          </div>
+        )}
         <article
           className="border-b border-slate-200/90 bg-white"
           itemScope

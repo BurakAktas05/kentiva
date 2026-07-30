@@ -88,7 +88,11 @@ public class JwtAuthenticationSupport {
                     null,
                     user.getAuthorities()
             ));
-        } catch (Exception e) {
+        } catch (io.jsonwebtoken.JwtException | IllegalArgumentException e) {
+            log.warn("JWT authentication failed: {}", e.getClass().getSimpleName());
+            return Optional.empty();
+        } catch (RuntimeException e) {
+            log.warn("JWT authentication unexpected failure: {}", e.getClass().getSimpleName());
             return Optional.empty();
         }
     }

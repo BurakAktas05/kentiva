@@ -191,13 +191,14 @@ public class MediaSignedUrlService {
     }
 
     private String resolveStorageKey(String url) {
+        String trimmed = url.trim();
         Matcher m = UPLOADS_PATH.matcher(url);
         if (m.find()) {
             return normalizePath(m.group(1));
         }
-        if (url.startsWith("http://") || url.startsWith("https://")) {
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
             try {
-                URI uri = URI.create(url);
+                URI uri = URI.create(trimmed);
                 String path = uri.getPath();
                 if (path != null) {
                     Matcher uploadsInPath = UPLOADS_PATH.matcher(path);
@@ -205,12 +206,8 @@ public class MediaSignedUrlService {
                         return normalizePath(uploadsInPath.group(1));
                     }
                     String s3Base = s3PublicUrl == null ? "" : s3PublicUrl.replaceAll("/+$", "");
-                    if (!s3Base.isBlank() && url.startsWith(s3Base + "/")) {
-                        return normalizePath(url.substring(s3Base.length() + 1));
-                    }
-                    String bare = path.startsWith("/") ? path.substring(1) : path;
-                    if (bare.contains("/") && !bare.isBlank()) {
-                        return normalizePath(bare);
+                    if (!s3Base.isBlank() && trimmed.startsWith(s3Base + "/")) {
+                        return normalizePath(trimmed.substring(s3Base.length() + 1));
                     }
                 }
             } catch (BusinessException e) {
@@ -218,9 +215,10 @@ public class MediaSignedUrlService {
             } catch (Exception ignored) {
                 // fall through
             }
+            return null;
         }
-        if (!url.contains("://") && !url.contains(ACCESS_PATH) && url.contains("/")) {
-            return normalizePath(url);
+        if (!trimmed.contains("://") && !trimmed.contains(ACCESS_PATH) && trimmed.contains("/")) {
+            return normalizePath(trimmed);
         }
         return null;
     }

@@ -8,6 +8,7 @@ import com.burak.belediyeapp.dto.response.publicapi.PublicDistrictDto;
 import com.burak.belediyeapp.entity.Municipality;
 import com.burak.belediyeapp.entity.MunicipalityType;
 import com.burak.belediyeapp.entity.Report;
+import com.burak.belediyeapp.exception.BusinessException;
 import com.burak.belediyeapp.exception.ResourceNotFoundException;
 import com.burak.belediyeapp.repository.IMunicipalityRepository;
 import com.burak.belediyeapp.repository.IReportRepository;
@@ -178,6 +179,13 @@ public class PublicMunicipalityService {
 
     @Transactional(readOnly = true)
     public List<PublicResolvedReportDto> getResolvedReportsForPublic(String slug) {
+        Municipality municipality = municipalityRepository.findBySlugIgnoreCaseAndActiveTrue(slug)
+                .orElseThrow(() -> new ResourceNotFoundException("Belediye", "slug", slug));
+        if (!municipality.isPublicStatsEnabled()) {
+            throw new BusinessException(
+                    "Bu belediye cozulmus ihbarlarini herkese acik olarak yayinlamiyor.",
+                    "PUBLIC_CONTENT_DISABLED");
+        }
         List<Report> recentResolved = reportRepository.findRecentResolvedReportsByMunicipalitySlug(slug, PageRequest.of(0, 15));
         if (recentResolved.isEmpty()) {
             return List.of();

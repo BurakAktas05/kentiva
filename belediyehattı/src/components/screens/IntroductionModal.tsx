@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { storageService } from '../../lib/storageService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ClipboardList, Eye, MessageCircle, Check, ChevronRight } from 'lucide-react';
-import { Lang } from '../../i18n';
+import { Lang, pickLang } from '../../i18n';
 
 interface IntroductionModalProps {
   lang: Lang;
@@ -95,7 +95,7 @@ export default function IntroductionModal({ lang, isDark, isOpen, onClose }: Int
                 onClick={handleSkip}
                 className="absolute top-4 right-4 text-xs font-bold text-slate-400 hover:text-slate-500 dark:hover:text-slate-300"
               >
-                {lang === 'tr' ? 'Atla' : lang === 'ar' ? 'تخطي' : 'Skip'}
+                {pickLang(lang, { tr: 'Atla', en: 'Skip', ar: 'تخطي', fil: 'Laktawan' })}
               </button>
               <AnimatePresence mode="wait">
                 <motion.div
@@ -122,10 +122,10 @@ export default function IntroductionModal({ lang, isDark, isOpen, onClose }: Int
                   className="space-y-3"
                 >
                   <h3 className="text-lg font-extrabold tracking-tight">
-                    {currentData.title[lang] || currentData.title.en}
+                    {pickLang(lang, currentData.title)}
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed min-h-[64px] px-2 font-medium">
-                    {currentData.desc[lang] || currentData.desc.en}
+                    {pickLang(lang, currentData.desc)}
                   </p>
                 </motion.div>
               </AnimatePresence>

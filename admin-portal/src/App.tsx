@@ -45,6 +45,7 @@ import { ReportLiveProvider, useReportLive } from './context/ReportLiveContext';
 import LoginPage, { LoginLandingPage } from './pages/LoginPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import Toast from './components/ui/Toast';
+import OfflineBanner from './components/ui/OfflineBanner';
 import {
   buildPortalUser,
   isFieldOfficerOnly,
@@ -719,6 +720,7 @@ const MunicipalityDashboard = ({ user }: { user: AuthenticatedPortalUser }) => {
   const [mapReportId, setMapReportId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const fieldOnly = isFieldOfficerOnly(user);
+  const drawerCloseButtonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (!toast) return;
@@ -729,6 +731,7 @@ const MunicipalityDashboard = ({ user }: { user: AuthenticatedPortalUser }) => {
   useEffect(() => {
     if (!mapReportId) return;
     const prev = document.body.style.overflow;
+    drawerCloseButtonRef.current?.focus();
     document.body.style.overflow = 'hidden';
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setMapReportId(null);
@@ -1094,10 +1097,14 @@ const MunicipalityDashboard = ({ user }: { user: AuthenticatedPortalUser }) => {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="report-detail-drawer-title"
               className="relative flex h-full w-full max-w-3xl flex-col overflow-hidden border-l border-slate-200 bg-slate-50 shadow-2xl dark:border-slate-800 dark:bg-slate-950"
               onClick={(e) => e.stopPropagation()}
             >
               <button
+                ref={drawerCloseButtonRef}
                 type="button"
                 onClick={() => setMapReportId(null)}
                 className="absolute right-4 top-4 z-20 rounded-lg border border-slate-200 bg-white p-2 text-slate-600 shadow-sm hover:bg-slate-50 transition-colors dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
@@ -1105,6 +1112,7 @@ const MunicipalityDashboard = ({ user }: { user: AuthenticatedPortalUser }) => {
               >
                 <X className="h-4 w-4" />
               </button>
+              <h2 id="report-detail-drawer-title" className="sr-only">İhbar detayları</h2>
               <div className="flex-1 overflow-y-auto overscroll-contain">
                 <Suspense fallback={<div className="p-6 text-slate-500">Yükleniyor...</div>}>
                   <ReportDetailPage
@@ -1199,6 +1207,7 @@ const App = () => {
               <Sidebar isOpen={sidebarOpen} setOpen={setSidebarOpen} user={user} />
               
               <div className="flex flex-1 flex-col lg:ml-72">
+                <OfflineBanner />
                 <Header
                   user={user}
                   setSidebarOpen={setSidebarOpen}

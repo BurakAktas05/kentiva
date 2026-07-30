@@ -63,9 +63,9 @@ export default function ReportTrackPage() {
     setError('');
     publicGet<TrackingDto>(`/public/reports/track/${encodeURIComponent(trackingNumber.trim())}`, controller.signal)
       .then(setData)
-      .catch(() => {
+      .catch((e: Error) => {
         setData(null);
-        setError('Bu takip numarasıyla ihbar bulunamadı. Numarayı kontrol edip tekrar deneyin.');
+        setError(e.message || 'İhbar bilgisi alınamadı. Lütfen daha sonra tekrar deneyin.');
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
